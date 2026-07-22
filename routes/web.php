@@ -123,6 +123,8 @@ Route::middleware(['auth'])->group(function (): void {
         // Búsqueda del producto escaneado. Exige el mismo permiso que cobrar: quien no puede
         // operar el POS tampoco tiene por qué consultar precios desde él.
         Route::get('/buscar', 'lookup')->middleware('can:pos.operate')->name('lookup');
+        // Búsqueda difusa por SKU/nombre para el mostrador (reemplaza cargar todo el catálogo).
+        Route::get('/buscar-productos', 'search')->middleware('can:pos.operate')->name('search');
         Route::post('/abrir-caja', 'openSession')->middleware('can:cash.open')->name('open');
         Route::post('/cobrar', 'checkout')->middleware('can:pos.operate')->name('checkout');
         Route::post('/cerrar-caja', 'closeSession')->middleware('can:cash.close')->name('close');

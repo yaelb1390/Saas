@@ -47,7 +47,8 @@ final class PanelController extends Controller
         $company = $current->model();
 
         return view('panel.pos', [
-            'products' => Product::query()->where('is_active', true)->with('stock')->orderBy('name')->get(),
+            // El catálogo YA NO se carga entero: el terminal busca productos bajo demanda
+            // (panel.pos.search). Así el POS escala a miles de productos sin traerlos todos.
             'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'openSession' => CashSession::query()->where('status', 'open')->latest('opened_at')->first(),
             'posConfig' => $company !== null ? PosProfile::for($company) : ['profile' => PosProfile::DEFAULT, 'options' => PosProfile::defaults(PosProfile::DEFAULT)],

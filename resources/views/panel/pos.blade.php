@@ -41,13 +41,13 @@
             </form>
         </div>
     @else
-        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}')"
+        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}', '{{ route('panel.pos.search') }}')"
              @codigo-escaneado="barcode = $event.detail.codigo; scan()">
             {{-- Barra de sesión --}}
             <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <div class="flex items-center gap-2 text-sm">
                     <span class="bmos-badge badge-green">Caja abierta</span>
-                    <span class="text-slate-500">Fondo: <b>{{ number_format((float) $openSession->opening_amount, 2) }}</b></span>
+                    <span class="text-slate-500">Fondo: <b>{{ money($openSession->opening_amount) }}</b></span>
                     <span class="text-slate-400">· desde {{ $openSession->opened_at?->format('d/m H:i') }}</span>
                 </div>
                 <div x-data="{ open: false }" class="relative">
@@ -89,28 +89,39 @@
                         <x-panel.camera-scanner />
                     </div>
 
+                    {{-- Búsqueda bajo demanda: el catálogo ya NO se carga entero al abrir la caja.
+                         El cajero escribe nombre o SKU y el servidor devuelve solo lo que coincide,
+                         así el POS es fluido aunque haya miles de productos. --}}
+                    <div class="mb-4">
+                        <input type="search" x-model="query" @input.debounce.300ms="searchProducts()"
+                               placeholder="Busca un producto por nombre o SKU…" autocomplete="off"
+                               class="bmos-input">
+                    </div>
+
                     <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                        @forelse ($products as $product)
-                            @php $stock = (float) $product->stock->sum('quantity'); $isService = ! $product->track_stock; @endphp
+                        <template x-for="p in results" :key="p.id">
                             <button type="button"
-                                    @click="add({{ $product->id }}, @js($product->name), {{ (float) $product->price }}, {{ $isService ? 'true' : 'false' }})"
-                                    class="bmos-card bmos-card-pad text-left transition hover:-translate-y-0.5 hover:shadow-md {{ (! $isService && $stock <= 0) ? 'opacity-50' : '' }}"
-                                    @disabled(! $isService && $stock <= 0)>
-                                <div class="mb-3 flex h-14 items-center justify-center rounded-lg bg-slate-50 text-2xl">{{ $isService ? '✂️' : '📦' }}</div>
-                                <p class="font-semibold text-slate-800 leading-tight">{{ $product->name }}</p>
+                                    @click="p.sellable && add(p.id, p.name, p.price)"
+                                    class="bmos-card bmos-card-pad text-left transition hover:-translate-y-0.5 hover:shadow-md"
+                                    :class="!p.sellable ? 'opacity-50 cursor-not-allowed' : ''"
+                                    :disabled="!p.sellable">
+                                <p class="font-semibold text-slate-800 leading-tight" x-text="p.name"></p>
+                                <p class="text-xs text-slate-400 font-mono" x-text="p.sku"></p>
                                 <div class="mt-2 flex items-center justify-between">
-                                    <span class="text-lg font-bold text-indigo-600">{{ number_format((float) $product->price, 2) }}</span>
-                                    @if ($isService)
-                                        <span class="bmos-badge badge-violet">Servicio</span>
-                                    @else
-                                        <span class="bmos-badge {{ $stock < 5 ? 'badge-amber' : 'badge-blue' }}">{{ number_format($stock, 0) }} u.</span>
-                                    @endif
+                                    <span class="text-lg font-bold text-indigo-600" x-text="rd(p.price)"></span>
+                                    <span class="bmos-badge" :class="Number(p.stock) < 5 ? 'badge-amber' : 'badge-blue'"
+                                          x-text="p.reason === 'no_stock' ? 'Agotado' : (Math.round(Number(p.stock)) + ' u.')"></span>
                                 </div>
                             </button>
-                        @empty
-                            <p class="bmos-empty col-span-full">No hay productos activos. Créalos en Inventario.</p>
-                        @endforelse
+                        </template>
                     </div>
+                    <p x-show="query.trim().length < 2 && !searching" class="py-8 text-center text-sm text-slate-400">
+                        Escribe al menos 2 letras para buscar, o pasa el lector por el código.
+                    </p>
+                    <p x-show="searching" x-cloak class="py-8 text-center text-sm text-slate-400">Buscando…</p>
+                    <p x-show="query.trim().length >= 2 && !searching && results.length === 0" x-cloak class="bmos-empty">
+                        Sin coincidencias para «<span x-text="query"></span>».
+                    </p>
                 </div>
 
                 {{-- Ticket --}}
@@ -132,7 +143,7 @@
                                     <div class="flex items-center gap-2">
                                         <div class="min-w-0 flex-1">
                                             <p class="truncate text-sm font-medium text-slate-700" x-text="item.name"></p>
-                                            <p class="text-xs text-slate-400"><span x-text="item.price.toFixed(2)"></span> c/u</p>
+                                            <p class="text-xs text-slate-400"><span x-text="rd(item.price)"></span> c/u</p>
                                         </div>
                                         <div class="flex items-center gap-1">
                                             <button type="button" @click="dec(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">−</button>
@@ -143,7 +154,7 @@
                                             @endif
                                             <button type="button" @click="inc(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">+</button>
                                         </div>
-                                        <span class="w-16 text-right text-sm font-semibold" x-text="lineNet(item).toFixed(2)"></span>
+                                        <span class="w-16 text-right text-sm font-semibold" x-text="rd(lineNet(item))"></span>
                                     </div>
 
                                     {{-- Campos por línea según el perfil del negocio. --}}
@@ -175,7 +186,7 @@
 
                         <div class="mt-3 border-t border-slate-100 pt-3 text-sm">
                             <div class="flex items-center justify-between text-slate-500">
-                                <span>Subtotal</span><span x-text="subtotal.toFixed(2)"></span>
+                                <span>Subtotal</span><span x-text="rd(subtotal)"></span>
                             </div>
 
                             @if ($opt['global_discount'])
@@ -192,7 +203,7 @@
                             @endif
 
                             <div class="mt-2 flex items-center justify-between text-lg font-bold text-slate-800">
-                                <span>Total</span><span x-text="total.toFixed(2)"></span>
+                                <span>Total</span><span x-text="rd(total)"></span>
                             </div>
 
                             @if ($opt['attendant'])
@@ -222,7 +233,7 @@
 
                             <div class="mt-2 flex items-center justify-between">
                                 <span class="text-slate-500">Cambio</span>
-                                <span class="font-semibold text-emerald-600" x-text="change.toFixed(2)"></span>
+                                <span class="font-semibold text-emerald-600" x-text="rd(change)"></span>
                             </div>
 
                             <label class="mt-3 flex items-center gap-2 text-slate-600">
@@ -233,7 +244,7 @@
                             <button type="submit" :disabled="!canPay"
                                     class="bmos-btn bmos-btn-primary mt-4 w-full justify-center"
                                     :class="!canPay ? 'opacity-50 cursor-not-allowed' : ''">
-                                Cobrar <span x-show="cart.length" x-text="'· ' + total.toFixed(2)"></span>
+                                Cobrar <span x-show="cart.length" x-text="'· ' + rd(total)"></span>
                             </button>
                         </div>
                     </form>
@@ -242,11 +253,45 @@
         </div>
 
         <script>
-            function posTerminal(lookupUrl) {
+            function posTerminal(lookupUrl, searchUrl) {
                 return {
                     cart: [], paid: '', customer: '', customerId: '', invoice: false,
                     barcode: '', scanError: '', busy: false,
                     globalDiscount: '', tip: '', attendant: '',
+                    query: '', results: [], searching: false,
+
+                    // Formatea un importe como pesos dominicanos para mostrarlo en el ticket.
+                    rd(n) {
+                        return 'RD$ ' + (parseFloat(n) || 0).toLocaleString('es-DO', {
+                            minimumFractionDigits: 2, maximumFractionDigits: 2,
+                        });
+                    },
+
+                    /**
+                     * Busca productos por nombre o SKU contra el servidor (panel.pos.search) y pinta
+                     * las coincidencias. Reemplaza cargar TODO el catálogo: el POS ya no se ralentiza
+                     * cuando hay miles de productos, porque solo trae lo que el cajero busca.
+                     */
+                    async searchProducts() {
+                        const q = this.query.trim();
+                        if (q.length < 2) { this.results = []; this.searching = false; return; }
+
+                        this.searching = true;
+                        try {
+                            const res = await fetch(searchUrl + '?q=' + encodeURIComponent(q), {
+                                headers: { Accept: 'application/json' },
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                this.results = data.results || [];
+                            }
+                        } catch {
+                            // La búsqueda no es crítica como el escaneo: un fallo puntual se reintenta
+                            // al seguir escribiendo, sin romper la caja.
+                        } finally {
+                            this.searching = false;
+                        }
+                    },
 
                     /**
                      * Resuelve el código contra el servidor y mete el producto en el ticket.

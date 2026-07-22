@@ -66,6 +66,25 @@ final class PosController extends Controller
         return response()->json($lookup->payload((string) $request->query('codigo', '')));
     }
 
+    /**
+     * Búsqueda de productos para el mostrador: el cajero escribe SKU o nombre y recibe una lista
+     * corta de coincidencias, en vez de traer TODO el catálogo al abrir la caja.
+     *
+     * Es lo que permite que el POS escale a miles de productos: la pantalla ya no carga el catálogo
+     * completo (cientos de tarjetas y su stock), solo lo que se busca. Devuelve la misma forma que
+     * el escaneo, así el terminal pinta ambos igual. Aislado por empresa vía CompanyScope.
+     */
+    public function search(Request $request, ProductLookupPresenter $lookup): JsonResponse
+    {
+        $term = trim((string) $request->query('q', ''));
+
+        if (mb_strlen($term) < 2) {
+            return response()->json(['results' => []]);
+        }
+
+        return response()->json(['results' => $lookup->search($term, 24)]);
+    }
+
     public function checkout(Request $request, CheckoutService $checkout, InvoiceService $invoices): RedirectResponse
     {
         $companyId = app(CurrentCompany::class)->id();

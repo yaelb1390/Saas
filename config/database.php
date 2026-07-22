@@ -97,6 +97,13 @@ return [
             'prefix_indexes' => true,
             'search_path' => env('DB_SEARCH_PATH', 'public'),
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // En pgbouncer modo transaction (pooler de Supabase para serverless) cada consulta
+            // puede ir a una conexión backend distinta, y los prepared statements con nombre de
+            // PDO no persisten entre ellas (SQLSTATE[26000] intermitente bajo concurrencia). Con
+            // DB_EMULATE_PREPARES=true PDO los emula del lado del cliente y el problema desaparece.
+            'options' => env('DB_EMULATE_PREPARES', false)
+                ? [PDO::ATTR_EMULATE_PREPARES => true]
+                : [],
         ],
 
         'sqlsrv' => [

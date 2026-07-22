@@ -72,7 +72,9 @@
 @endphp
 
 <x-layouts.admin title="Dashboard" heading="Dashboard" :subheading="'Resumen de ' . ($company?->name ?? 'la plataforma')">
-    {{-- KPIs --}}
+    {{-- KPIs: indicadores de gestión. Se ocultan a quien no puede ver reportes (p. ej. un cajero),
+         para que su dashboard no exponga ventas totales, caja ni oportunidades del negocio. --}}
+    @can('reports.view')
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         @foreach ($stats as [$label, $value, $hint, $tone, $path, $route])
             @php $open = $canOpen($route); @endphp
@@ -104,6 +106,7 @@
             @endif
         @endforeach
     </div>
+    @endcan
 
     {{-- Módulos --}}
     <h2 class="mt-9 mb-3 text-lg font-semibold text-slate-800">Módulos del sistema</h2>
@@ -171,7 +174,8 @@
             </div>
         </div>
 
-        {{-- Inventario --}}
+        {{-- Inventario: solo para quien puede ver productos (un cajero no lo ve). --}}
+        @can('products.view')
         <div class="bmos-card bmos-card-pad">
             <div class="flex items-center gap-3">
                 <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl tone-sky">
@@ -202,5 +206,6 @@
                 @endif
             </div>
         </div>
+        @endcan
     </div>
 </x-layouts.admin>

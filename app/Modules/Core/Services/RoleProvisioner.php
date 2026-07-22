@@ -136,27 +136,17 @@ final class RoleProvisioner
             'hr.manage',
             'reports.view',
         ],
+        // Cajero: SOLO la caja / punto de venta. Puede operar el POS (que internamente crea la
+        // venta y emite la factura si se pide) y abrir/cerrar su caja. Nada de inventario, compras,
+        // finanzas, CRM, reportes ni gestión: un cajero cobra, no administra el negocio.
+        // `dashboard.view` se conserva únicamente para que tenga una pantalla de aterrizaje válida;
+        // los indicadores financieros del dashboard se ocultan a quien no tenga `reports.view`.
         'staff' => [
             'dashboard.view',
-            'products.view',
-            'stock.view',
-            'purchases.view',
+            'pos.operate',
             'cash.view',
             'cash.open',
             'cash.close',
-            'sales.view',
-            'sales.create',
-            'pos.operate',
-            'invoices.view',
-            'invoices.issue',
-            'customers.view',
-            'customers.manage',
-            'opportunities.view',
-            'whatsapp.view',
-            'whatsapp.send',
-            'ai.assistant.use',
-            'delivery.view',
-            'reports.view',
         ],
     ];
 

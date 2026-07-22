@@ -64,27 +64,30 @@ it('un cajero no puede administrar el inventario ni las secuencias de NCF', func
         ->assertForbidden();
 });
 
-it('un cajero sí opera el punto de venta y ve las pantallas de su trabajo', function (): void {
+it('un cajero opera el punto de venta, su única pantalla de trabajo', function (): void {
+    // El cajero solo administra la caja: cobra en el POS. No necesita (ni ve) el resto del sistema.
     $this->actingAs($this->cajero)->get(route('panel.pos'))->assertOk();
-    $this->actingAs($this->cajero)->get(route('panel.invoices'))->assertOk();
-    $this->actingAs($this->cajero)->get(route('panel.products'))->assertOk();
 });
 
 it('un cajero no entra a las pantallas que no le corresponden', function (): void {
-    // RRHH y Finanzas no están entre sus permisos: la URL escrita a mano tampoco lo deja pasar.
+    // Solo tiene caja/POS: inventario, facturas, RRHH y finanzas le están vedados aunque escriba
+    // la URL a mano.
+    $this->actingAs($this->cajero)->get(route('panel.products'))->assertForbidden();
+    $this->actingAs($this->cajero)->get(route('panel.invoices'))->assertForbidden();
     $this->actingAs($this->cajero)->get(route('panel.employees'))->assertForbidden();
     $this->actingAs($this->cajero)->get(route('panel.finance'))->assertForbidden();
 });
 
-it('el menú lateral solo muestra los módulos permitidos', function (): void {
+it('el menú lateral solo muestra la caja al cajero', function (): void {
     $response = $this->actingAs($this->cajero)->get(route('dashboard'))->assertOk();
 
-    // Ve los enlaces de su trabajo…
-    $response->assertSee(route('panel.pos'))->assertSee(route('panel.invoices'));
+    // Ve el enlace del POS…
+    $response->assertSee(route('panel.pos'));
 
-    // …y los que no puede abrir ni siquiera se dibujan. (Se comprueba el enlace, no el rótulo:
-    // «Finanzas» también da nombre a la sección donde vive Facturación, que el cajero sí ve.)
-    $response->assertDontSee(route('panel.employees'))
+    // …y ninguna pantalla de gestión se dibuja para él.
+    $response->assertDontSee(route('panel.products'))
+        ->assertDontSee(route('panel.invoices'))
+        ->assertDontSee(route('panel.employees'))
         ->assertDontSee(route('panel.finance'));
 });
 

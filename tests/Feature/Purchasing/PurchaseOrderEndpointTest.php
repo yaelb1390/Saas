@@ -177,14 +177,14 @@ it('no se puede recibir una orden de otra empresa', function (): void {
 
 // ---------------------------------------------------------------- Permisos
 
-it('el cajero ve la pantalla pero no crea ni recibe órdenes', function (): void {
-    // «staff» tiene purchases.view, así que entra a Compras; pero no purchases.manage/receive.
+it('el cajero no accede a compras (solo maneja la caja)', function (): void {
+    // «staff» solo tiene caja/POS: ni ve compras ni puede crear o recibir órdenes.
     $cajero = withRole(User::create([
         'company_id' => $this->company->id, 'name' => 'Cajero',
         'email' => 'cajero@compras.test', 'password' => 'secret-password',
     ]), 'staff');
 
-    $this->actingAs($cajero)->get(route('panel.purchases'))->assertOk();
+    $this->actingAs($cajero)->get(route('panel.purchases'))->assertForbidden();
 
     $this->actingAs($cajero)
         ->post(route('panel.purchase-orders.store'), orderPayload())

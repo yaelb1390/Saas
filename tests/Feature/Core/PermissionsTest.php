@@ -91,6 +91,19 @@ it('el menú lateral solo muestra la caja al cajero', function (): void {
         ->assertDontSee(route('panel.finance'));
 });
 
+it('solo el propietario accede a la suscripción; el administrador no', function (): void {
+    // La facturación y el plan son del dueño (company.manage). Un administrador gestiona la
+    // operación, pero no toca la suscripción de la empresa.
+    $admin = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Admin',
+        'email' => 'admin@perm.test', 'password' => 'secret-password',
+    ]), 'admin');
+
+    $this->actingAs($this->owner)->get(route('panel.account'))->assertOk();
+    $this->actingAs($admin)->get(route('panel.account'))->assertForbidden();
+    $this->actingAs($this->cajero)->get(route('panel.account'))->assertForbidden();
+});
+
 it('el super administrador atraviesa todos los permisos', function (): void {
     $super = User::create([
         'company_id' => null, 'is_super_admin' => true,

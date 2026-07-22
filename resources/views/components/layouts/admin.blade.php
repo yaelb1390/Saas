@@ -192,7 +192,9 @@
                     <div x-show="menu" @click.outside="menu = false" x-transition x-cloak
                          class="absolute right-0 mt-2 w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
                         <div class="px-4 py-2 text-xs text-slate-400">{{ $authUser?->email }}</div>
-                        <a href="{{ route('panel.account') }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mi suscripción</a>
+                        @can('company.manage')
+                            <a href="{{ route('panel.account') }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mi suscripción</a>
+                        @endcan
                         <a href="{{ route('portal.employee') }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mi portal</a>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf

@@ -42,9 +42,11 @@ Route::middleware(['auth'])->group(function (): void {
     // Portal del empleado: es su propia ficha, no requiere permisos de módulo.
     Route::get('/portal/perfil', EmployeePortalController::class)->name('portal.employee');
 
-    // Cuenta y suscripción de la empresa. Sin el middleware de suscripción: debe seguir siendo
-    // accesible aunque la suscripción esté vencida, para poder ver el estado y regularizar.
-    Route::get('/panel/cuenta', [PanelController::class, 'account'])->name('panel.account');
+    // Cuenta y suscripción de la empresa. Solo el Propietario (company.manage): la facturación y el
+    // plan son asunto del dueño, no del administrador. Sin el middleware de suscripción: debe seguir
+    // siendo accesible aunque la suscripción esté vencida, para poder ver el estado y regularizar.
+    Route::get('/panel/cuenta', [PanelController::class, 'account'])
+        ->middleware('can:company.manage')->name('panel.account');
 
     // Aviso de cuenta suspendida (accesible sin suscripción/empresa activa, por eso queda fuera
     // del middleware que bloquea).

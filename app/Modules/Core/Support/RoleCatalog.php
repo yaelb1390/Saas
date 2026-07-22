@@ -16,9 +16,9 @@ final class RoleCatalog
      * @var array<string, array{label: string, hint: string}>
      */
     private const ROLES = [
-        'owner' => ['label' => 'Propietario', 'hint' => 'Control total del negocio.'],
-        'admin' => ['label' => 'Administrador', 'hint' => 'Gestiona todo salvo la propia empresa.'],
-        'staff' => ['label' => 'Cajero / Personal', 'hint' => 'Opera el POS y factura; sin acceso a RRHH ni finanzas.'],
+        'owner' => ['label' => 'Propietario', 'hint' => 'Control total: operación, usuarios, configuración de la empresa y la suscripción/plan.'],
+        'admin' => ['label' => 'Administrador', 'hint' => 'Gestiona la operación y los usuarios. No toca la configuración de la empresa ni la suscripción.'],
+        'staff' => ['label' => 'Cajero / Personal', 'hint' => 'Solo la caja: opera el punto de venta y abre/cierra su caja. Sin inventario, ventas, compras, finanzas ni reportes.'],
     ];
 
     /**

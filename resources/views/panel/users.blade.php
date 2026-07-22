@@ -9,6 +9,19 @@
 @endphp
 <x-layouts.admin title="Usuarios" heading="Usuarios y roles" subheading="Personas que acceden al sistema y qué puede hacer cada una">
     <div x-data="usersCrud()">
+        {{-- Leyenda de roles: qué puede hacer cada uno, para elegir con criterio al asignarlo. --}}
+        <div class="mb-5 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p class="mb-3 text-sm font-semibold text-slate-700">¿Qué puede hacer cada rol?</p>
+            <div class="grid gap-3 sm:grid-cols-3">
+                @foreach ($roles as $role)
+                    <div class="rounded-lg bg-white p-3 ring-1 ring-slate-100">
+                        <span class="bmos-badge {{ $roleBadge($role) }}">{{ RoleCatalog::label($role) }}</span>
+                        <p class="mt-2 text-xs leading-relaxed text-slate-500">{{ RoleCatalog::hint($role) }}</p>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
         <div class="bmos-card overflow-hidden">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
                 <div>
@@ -106,9 +119,11 @@
                         <label class="bmos-field-label">Rol</label>
                         <select name="role" x-model="row.role" class="bmos-input" required>
                             @foreach ($roles as $role)
-                                <option value="{{ $role }}">{{ RoleCatalog::label($role) }}</option>
+                                <option value="{{ $role }}">{{ RoleCatalog::label($role) }} — {{ RoleCatalog::hint($role) }}</option>
                             @endforeach
                         </select>
+                        {{-- Recordatorio del alcance del rol elegido, visible al editar. --}}
+                        <p class="mt-1.5 text-xs text-slate-500" x-text="roleHint(row.role)"></p>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div><label class="bmos-field-label">Nueva contraseña</label><input name="password" type="password" class="bmos-input" placeholder="Dejar vacío para no cambiar"></div>
@@ -132,6 +147,9 @@
             return {
                 open: false,
                 row: { id: '', name: '', email: '', role: 'staff', is_active: true },
+                // Pistas de cada rol (fuente: RoleCatalog), para mostrar el alcance al editar.
+                roleHints: @js(collect($roles)->mapWithKeys(fn ($r) => [$r => RoleCatalog::hint($r)])),
+                roleHint(role) { return this.roleHints[role] ?? ''; },
                 get editUrl() { return '{{ url('panel/usuarios') }}/' + this.row.id; },
                 edit(data) { this.row = { ...data }; this.open = true; },
                 init() {

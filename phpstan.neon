@@ -1,0 +1,17 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - app
+    excludePaths:
+        - bootstrap/cache
+    # Requiere anotaciones @property exhaustivas en cada modelo; se pospone para no
+    # introducir ruido en la fundación. Se puede reactivar más adelante por módulo.
+    checkModelProperties: false
+    checkOctaneCompatibility: false
+    # Los modelos exponen columnas vía __get; tratamos Model como "crate" para que el acceso a
+    # atributos no declarados devuelva mixed sin falsos positivos (las @property siguen tipando).
+    universalObjectCratesClasses:
+        - Illuminate\Database\Eloquent\Model

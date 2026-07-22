@@ -1,0 +1,212 @@
+/* ============================================================
+   Cuenta suspendida — aviso a pantalla completa
+   Sobrio y moderno: fondo profundo con orbes que respiran, tarjeta
+   limpia y acento ámbar (nunca rojo invadiendo). Verde reservado al
+   botón de WhatsApp; índigo al de correo.
+   ============================================================ */
+
+.susp-shell {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    padding: 2rem 1.25rem;
+    overflow: hidden;
+    background:
+        radial-gradient(1200px 600px at 50% -10%, #1c2036 0%, transparent 60%),
+        linear-gradient(160deg, #0f1220 0%, #141830 55%, #0f1220 100%);
+}
+
+/* Orbes de fondo: movimiento lento, casi imperceptible. */
+.susp-orbits span {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(60px);
+    opacity: 0.5;
+    animation: susp-float 14s ease-in-out infinite;
+}
+
+.susp-orbits span:nth-child(1) {
+    width: 26rem; height: 26rem;
+    top: -8rem; left: -6rem;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.5), transparent 70%);
+}
+
+.susp-orbits span:nth-child(2) {
+    width: 22rem; height: 22rem;
+    bottom: -8rem; right: -5rem;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.32), transparent 70%);
+    animation-delay: -5s;
+}
+
+.susp-orbits span:nth-child(3) {
+    width: 18rem; height: 18rem;
+    top: 40%; right: 20%;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.28), transparent 70%);
+    animation-delay: -9s;
+}
+
+@keyframes susp-float {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(0, -24px, 0) scale(1.06); }
+}
+
+/* Tarjeta */
+.susp-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 30rem;
+    padding: 2.5rem 2.25rem 2rem;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 1.5rem;
+    box-shadow: 0 40px 80px -30px rgba(5, 8, 20, 0.75);
+    animation: susp-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes susp-rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+}
+
+.susp-badge {
+    display: grid;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    margin: 0 auto 1.25rem;
+    border-radius: 1.15rem;
+    color: #b45309;
+    background: linear-gradient(140deg, #fef3c7, #fde68a);
+    box-shadow: 0 12px 24px -12px rgba(180, 83, 9, 0.55);
+}
+
+.susp-badge svg { width: 2rem; height: 2rem; }
+
+.susp-eyebrow {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #b45309;
+}
+
+.susp-title {
+    margin-top: 0.35rem;
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #1e2230;
+}
+
+.susp-lead {
+    margin: 0.75rem auto 0;
+    max-width: 24rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #5b6172;
+}
+
+.susp-lead strong { color: #1e2230; }
+
+/* Chip del plan */
+.susp-plan {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 1.1rem;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid #eceef4;
+    border-radius: 999px;
+    background: #f7f8fc;
+    font-size: 0.82rem;
+    color: #6b7280;
+}
+
+.susp-plan strong { color: #1e2230; font-weight: 700; }
+.susp-plan .susp-dot { color: #c3c8d4; }
+
+/* Botones de contacto */
+.susp-actions {
+    display: grid;
+    gap: 0.65rem;
+    margin-top: 1.75rem;
+}
+
+@media (min-width: 420px) {
+    .susp-actions { grid-template-columns: 1fr 1fr; }
+}
+
+.susp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 0.8rem 1rem;
+    border-radius: 0.9rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #fff;
+    transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+.susp-btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+.susp-btn-ico { width: 1.15rem; height: 1.15rem; }
+
+.susp-btn--wa {
+    background: linear-gradient(135deg, #12a15f, #0b7f4a);
+    box-shadow: 0 16px 30px -14px rgba(11, 127, 74, 0.8);
+}
+
+.susp-btn--mail {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 16px 30px -14px rgba(79, 70, 229, 0.8);
+}
+
+/* Contacto en texto */
+.susp-contact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1.4rem;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.78rem;
+    color: #8b91a1;
+}
+
+.susp-contact span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.susp-mini-ico { width: 0.9rem; height: 0.9rem; }
+.susp-sep { color: #c3c8d4; }
+
+/* Cerrar sesión */
+.susp-logout {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #eceef4;
+}
+
+.susp-logout button {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #8b91a1;
+    transition: color 0.15s ease;
+}
+
+.susp-logout button:hover { color: #4f46e5; }
+
+.susp-foot {
+    position: relative;
+    z-index: 1;
+    margin-top: 1.5rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .susp-orbits span, .susp-card { animation: none; }
+}

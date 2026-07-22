@@ -1,0 +1,524 @@
+/* ============================================================
+   WhatsApp — Consola de conversación
+   Dirección: utilitaria y sobria. Anclas visuales: lienzo de puntos,
+   indicador de línea con pulso, burbujas con cola y metadatos técnicos
+   en monoespaciada. El verde queda reservado al dominio de WhatsApp
+   (línea activa y mensajes salientes); el índigo sigue siendo el color
+   del sistema.
+   ============================================================ */
+
+:root {
+    --wa-green: #0f8a5f;
+    --wa-canvas: #f7f8fb;
+    --wa-dot: #dfe3ec;
+}
+
+/* ---------- Cabecera de la línea ---------- */
+.wa-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+}
+
+.wa-hero-id {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+/* Estado: bloque sólido + anillo que respira solo cuando hay actividad. */
+.wa-status-orb {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex-shrink: 0;
+    border-radius: 0.9rem;
+    background: #f1f3f8;
+    color: #6b7280;
+}
+
+.wa-status-orb svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.wa-status-orb[data-tone='live'] {
+    background: rgba(15, 138, 95, 0.1);
+    color: var(--wa-green);
+}
+
+.wa-status-orb[data-tone='pending'] {
+    background: rgba(217, 119, 6, 0.1);
+    color: #b45309;
+}
+
+.wa-status-orb[data-tone='down'] {
+    background: rgba(190, 18, 60, 0.08);
+    color: #9f1239;
+}
+
+.wa-status-orb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid currentColor;
+    opacity: 0;
+}
+
+.wa-status-orb[data-pulse='true']::after {
+    animation: wa-breathe 2.4s ease-out infinite;
+}
+
+@keyframes wa-breathe {
+    0% { opacity: 0.55; transform: scale(1); }
+    70% { opacity: 0; transform: scale(1.35); }
+    100% { opacity: 0; transform: scale(1.35); }
+}
+
+.wa-hero-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-hero-hint {
+    margin-top: 0.1rem;
+    font-size: 0.875rem;
+    color: var(--bmos-muted);
+}
+
+/* La instancia es un dato técnico: monoespaciada y discreta. */
+.wa-instance {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.3rem;
+    font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+/* ---------- Emparejamiento (QR) ---------- */
+.wa-pair {
+    display: grid;
+    gap: 1.5rem;
+    align-items: center;
+    margin-top: 1.25rem;
+    padding: 1.5rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    background: var(--wa-canvas);
+    animation: wa-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (min-width: 768px) {
+    .wa-pair {
+        grid-template-columns: auto 1fr;
+    }
+}
+
+.wa-qr {
+    width: 15rem;
+    height: 15rem;
+    padding: 0.75rem;
+    border-radius: 0.9rem;
+    background: #fff;
+    box-shadow: 0 12px 30px -18px rgba(16, 24, 40, 0.45);
+    justify-self: center;
+}
+
+.wa-steps {
+    display: grid;
+    gap: 0.7rem;
+    counter-reset: wa-step;
+}
+
+.wa-step {
+    position: relative;
+    padding-left: 2rem;
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+.wa-step::before {
+    counter-increment: wa-step;
+    content: counter(wa-step);
+    position: absolute;
+    left: 0;
+    top: -0.05rem;
+    display: grid;
+    place-items: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--bmos-primary);
+}
+
+/* ---------- Bandeja: una sola superficie dividida ---------- */
+.wa-shell {
+    display: grid;
+    overflow: hidden;
+    margin-top: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+    .wa-shell {
+        grid-template-columns: 21rem 1fr;
+    }
+}
+
+.wa-aside {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-bottom: 1px solid var(--bmos-border);
+}
+
+@media (min-width: 1024px) {
+    .wa-aside {
+        border-bottom: 0;
+        border-right: 1px solid var(--bmos-border);
+    }
+}
+
+.wa-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.15rem;
+    border-bottom: 1px solid var(--bmos-border);
+}
+
+.wa-panel-title {
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-count {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+.wa-list {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 30rem;
+}
+
+/* Conversación activa: barra de acento, no un fondo saturado. */
+.wa-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.15rem;
+    border-bottom: 1px solid #f1f3f8;
+    transition: background 0.15s ease;
+}
+
+.wa-item:hover {
+    background: #fafbfd;
+}
+
+.wa-item[aria-current='true'] {
+    background: #f7f8fd;
+}
+
+.wa-item[aria-current='true']::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    bottom: 0.55rem;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--bmos-primary);
+}
+
+.wa-avatar {
+    display: grid;
+    place-items: center;
+    width: 2.35rem;
+    height: 2.35rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: linear-gradient(140deg, #e8ebf5, #dfe4f2);
+    color: #4b5675;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.wa-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.wa-item-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.wa-item-name {
+    overflow: hidden;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wa-item-time {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    color: #a3aab8;
+}
+
+.wa-item-preview {
+    margin-top: 0.1rem;
+    overflow: hidden;
+    font-size: 0.82rem;
+    color: var(--bmos-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Hilo ---------- */
+.wa-thread {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.wa-thread-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.15rem;
+    border-bottom: 1px solid var(--bmos-border);
+}
+
+/* El ancla visual: lienzo de puntos. Ni liso, ni los garabatos de WhatsApp. */
+.wa-canvas {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 22rem;
+    max-height: 26rem;
+    padding: 1.25rem;
+    background-color: var(--wa-canvas);
+    background-image: radial-gradient(var(--wa-dot) 1px, transparent 1px);
+    background-size: 18px 18px;
+    background-position: -9px -9px;
+}
+
+.wa-row {
+    display: flex;
+    margin-bottom: 0.65rem;
+    animation: wa-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 35ms);
+}
+
+.wa-row--out {
+    justify-content: flex-end;
+}
+
+@keyframes wa-rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+.wa-bubble {
+    position: relative;
+    max-width: min(72%, 34rem);
+    min-width: 5.5rem;
+    padding: 0.6rem 0.85rem 0.45rem;
+    border-radius: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+/* pre-line SOLO en el texto del mensaje: si se aplica a la burbuja, los saltos de línea de la
+   propia plantilla Blade se renderizan como saltos reales y deforman la altura. */
+.wa-text {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.wa-bubble--in {
+    border: 1px solid var(--bmos-border);
+    border-bottom-left-radius: 0.25rem;
+    background: #fff;
+    color: var(--bmos-text);
+}
+
+.wa-bubble--out {
+    border-bottom-right-radius: 0.25rem;
+    background: var(--wa-green);
+    color: #fff;
+}
+
+/* Cola de la burbuja: recortada con un radial, no un triángulo pegado. */
+.wa-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: 0.55rem;
+    height: 0.55rem;
+}
+
+.wa-bubble--in::after {
+    left: -0.3rem;
+    background: radial-gradient(circle at 100% 0, transparent 0.55rem, #fff 0.56rem);
+}
+
+.wa-bubble--out::after {
+    right: -0.3rem;
+    background: radial-gradient(circle at 0 0, transparent 0.55rem, var(--wa-green) 0.56rem);
+}
+
+.wa-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.3rem;
+    margin-top: 0.2rem;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.62rem;
+}
+
+.wa-bubble--in .wa-meta {
+    color: #a3aab8;
+}
+
+.wa-bubble--out .wa-meta {
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.wa-meta-fail {
+    font-weight: 700;
+    color: #fecdd3;
+}
+
+/* ---------- Composer ---------- */
+.wa-composer {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.85rem 1.15rem 1rem;
+    border-top: 1px solid var(--bmos-border);
+    background: #fff;
+}
+
+@media (min-width: 640px) {
+    .wa-composer {
+        grid-template-columns: 11rem minmax(0, 1fr) auto;
+        align-items: center;
+    }
+}
+
+/* Campos propios: .bmos-input impone width:100% y rompería la rejilla. */
+.wa-field {
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid #e2e5ee;
+    border-radius: 0.8rem;
+    background: #f8f9fc;
+    font-size: 0.9rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.wa-field:focus {
+    outline: none;
+    border-color: #a5b4fc;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+}
+
+.wa-field--phone {
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.82rem;
+}
+
+.wa-field--error {
+    border-color: #fca5a5;
+}
+
+.wa-send {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.65rem 1.1rem;
+    border-radius: 0.8rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--bmos-primary);
+    box-shadow: 0 8px 18px -10px rgba(79, 70, 229, 0.8);
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.wa-send:hover {
+    background: var(--bmos-primary-600);
+    transform: translateY(-1px);
+}
+
+.wa-send svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.wa-composer-error {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: #be123c;
+}
+
+/* ---------- Vacíos ---------- */
+.wa-blank {
+    display: grid;
+    place-items: center;
+    gap: 0.35rem;
+    padding: 3rem 1rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+.wa-blank-icon {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 1rem;
+    background: #eef1f7;
+    color: #b6bdcc;
+}
+
+.wa-blank-icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wa-row,
+    .wa-pair,
+    .wa-status-orb[data-pulse='true']::after {
+        animation: none;
+    }
+}

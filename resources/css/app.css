@@ -1,0 +1,616 @@
+@import 'tailwindcss';
+@import './whatsapp.css';
+@import './suspended.css';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Inter', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/* ============================================================
+   BM Business OS — Sistema de diseño corporativo
+   ============================================================ */
+
+:root {
+    --bmos-bg: #f4f6fb;
+    --bmos-surface: #ffffff;
+    --bmos-border: #e6e9f0;
+    --bmos-text: #1e2230;
+    --bmos-muted: #6b7280;
+    --bmos-primary: #4f46e5;
+    --bmos-primary-600: #4338ca;
+    --bmos-sidebar-from: #171a2b;
+    --bmos-sidebar-to: #0f1220;
+}
+
+* {
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    background: var(--bmos-bg);
+    color: var(--bmos-text);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* ---------- App shell ---------- */
+.bmos-shell {
+    display: grid;
+    grid-template-columns: 264px 1fr;
+    min-height: 100vh;
+}
+
+@media (max-width: 1023px) {
+    .bmos-shell {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Sidebar ---------- */
+.bmos-sidebar {
+    background: linear-gradient(185deg, var(--bmos-sidebar-from), var(--bmos-sidebar-to));
+    color: #cdd2e4;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/*
+ * En móvil la barra vive como cajón: oculta por defecto y fija (fuera del flujo) cuando se abre.
+ * Se controla aquí, en CSS, y NO con las utilidades hidden/flex de Tailwind: el «display: flex» de
+ * arriba tiene la misma especificidad que «.hidden» y, por orden de la hoja, le ganaba —por eso la
+ * barra se veía a pantalla completa en el teléfono. «.bmos-sidebar.is-open» es más específico y gana
+ * limpio.
+ */
+@media (max-width: 1023px) {
+    .bmos-sidebar {
+        display: none;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 16rem;
+        height: 100dvh;
+        z-index: 40;
+    }
+
+    .bmos-sidebar.is-open {
+        display: flex;
+    }
+}
+
+.bmos-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 1.25rem 1.35rem;
+    color: #fff;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-size: 1.05rem;
+}
+
+.bmos-brand-logo {
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 0.7rem;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    box-shadow: 0 6px 16px -4px rgba(99, 102, 241, 0.6);
+    color: #fff;
+    font-weight: 800;
+}
+
+.bmos-brand-logo-img {
+    width: 2.4rem;
+    height: 2.4rem;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+/* Cabecera con solo el logo (sin texto): centrado y a mayor tamaño. */
+.bmos-brand--logo-only {
+    justify-content: center;
+    padding-top: 1.4rem;
+    padding-bottom: 1.4rem;
+}
+
+.bmos-brand--logo-only .bmos-brand-logo-img {
+    width: auto;
+    height: 3rem;
+}
+
+.bmos-nav {
+    padding: 0.4rem 0.75rem 1.5rem;
+    flex: 1;
+}
+
+.bmos-nav-section {
+    padding: 1rem 0.6rem 0.35rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: #6b7194;
+}
+
+.bmos-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.55rem 0.7rem;
+    margin: 0.12rem 0;
+    border-radius: 0.65rem;
+    color: #b6bcd4;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.bmos-nav-link svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+.bmos-nav-link:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+}
+
+.bmos-nav-link.is-active {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.22), rgba(139, 92, 246, 0.12));
+    color: #fff;
+}
+
+.bmos-nav-link.is-active::before {
+    content: '';
+    position: absolute;
+    left: -0.75rem;
+    top: 0.35rem;
+    bottom: 0.35rem;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, #818cf8, #a78bfa);
+}
+
+/* ---------- Topbar ---------- */
+.bmos-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1.75rem;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--bmos-border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.bmos-company-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.8rem;
+    background: #eef0fb;
+    color: var(--bmos-primary-600);
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+
+.bmos-avatar {
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.bmos-content {
+    padding: 1.75rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ---------- Page header ---------- */
+.bmos-page-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--bmos-text);
+}
+
+.bmos-page-sub {
+    color: var(--bmos-muted);
+    font-size: 0.9rem;
+    margin-top: 0.15rem;
+}
+
+/* ---------- Cards ---------- */
+.bmos-card {
+    background: var(--bmos-surface);
+    border: 1px solid var(--bmos-border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.bmos-card-pad {
+    padding: 1.35rem;
+}
+
+/* ---------- Stat cards ---------- */
+.bmos-stat {
+    background: var(--bmos-surface);
+    border: 1px solid var(--bmos-border);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bmos-stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px -12px rgba(16, 24, 40, 0.18);
+}
+
+.bmos-stat-icon {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 0.85rem;
+    margin-bottom: 0.85rem;
+}
+
+.bmos-stat-icon svg {
+    width: 1.35rem;
+    height: 1.35rem;
+}
+
+.bmos-stat-label {
+    color: var(--bmos-muted);
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.bmos-stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 0.1rem;
+}
+
+.tone-indigo {
+    background: #eef2ff;
+    color: #4f46e5;
+}
+.tone-emerald {
+    background: #ecfdf5;
+    color: #059669;
+}
+.tone-amber {
+    background: #fffbeb;
+    color: #d97706;
+}
+.tone-sky {
+    background: #eff6ff;
+    color: #2563eb;
+}
+.tone-rose {
+    background: #fff1f2;
+    color: #e11d48;
+}
+.tone-violet {
+    background: #f5f3ff;
+    color: #7c3aed;
+}
+
+/* ---------- Module grid ---------- */
+.bmos-module {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 1rem;
+    background: var(--bmos-surface);
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    transition: all 0.15s ease;
+}
+
+.bmos-module:hover {
+    border-color: #c7cbf5;
+    box-shadow: 0 10px 22px -14px rgba(79, 70, 229, 0.5);
+    transform: translateY(-2px);
+}
+
+.bmos-module-icon {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    flex-shrink: 0;
+}
+
+.bmos-module-icon svg {
+    width: 1.3rem;
+    height: 1.3rem;
+}
+
+/* ---------- Table ---------- */
+.bmos-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.bmos-table thead th {
+    text-align: left;
+    padding: 0.7rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bmos-muted);
+    background: #f8f9fc;
+    border-bottom: 1px solid var(--bmos-border);
+}
+
+.bmos-table tbody td {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid #f0f2f7;
+    color: #374151;
+}
+
+.bmos-table tbody tr:hover {
+    background: #fafbff;
+}
+
+.bmos-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+/* ---------- Badges ---------- */
+.bmos-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.badge-green {
+    background: #ecfdf5;
+    color: #047857;
+}
+.badge-amber {
+    background: #fffbeb;
+    color: #b45309;
+}
+.badge-blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+.badge-gray {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+.badge-red {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+.badge-violet {
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+
+/* ---------- Buttons ---------- */
+.bmos-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.95rem;
+    border-radius: 0.65rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: all 0.15s ease;
+}
+
+.bmos-btn-primary {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff;
+    box-shadow: 0 8px 18px -8px rgba(79, 70, 229, 0.6);
+}
+
+.bmos-btn-primary:hover {
+    filter: brightness(1.06);
+}
+
+.bmos-btn-ghost {
+    color: var(--bmos-muted);
+}
+
+.bmos-btn-ghost:hover {
+    color: var(--bmos-text);
+}
+
+/* ---------- Empty state ---------- */
+.bmos-empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--bmos-muted);
+    font-size: 0.9rem;
+}
+
+/* ---------- Auth (login) ---------- */
+.bmos-auth {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background:
+        radial-gradient(1200px 600px at 15% -10%, rgba(99, 102, 241, 0.28), transparent 60%),
+        radial-gradient(1000px 500px at 110% 110%, rgba(139, 92, 246, 0.24), transparent 55%),
+        linear-gradient(160deg, #12152a, #0f1220 60%, #171a2b);
+}
+
+.bmos-auth-card {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 1.5rem;
+    padding: 2.5rem 2.25rem;
+    box-shadow:
+        0 1px 2px rgba(16, 24, 40, 0.06),
+        0 12px 28px -10px rgba(2, 6, 23, 0.45),
+        0 44px 80px -32px rgba(2, 6, 23, 0.72);
+    animation: bmos-card-in 0.55s cubic-bezier(0.2, 0.85, 0.2, 1) both;
+    z-index: 1;
+}
+
+/* Resplandor ambiental muy sutil y estático: eleva la tarjeta sin bordes duros. */
+.bmos-auth-card::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: -70px -30px -90px;
+    background: radial-gradient(55% 45% at 50% 42%, rgba(99, 102, 241, 0.2), transparent 72%);
+    filter: blur(38px);
+    pointer-events: none;
+}
+
+.bmos-auth-card.is-error {
+    animation: bmos-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes bmos-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes bmos-shake {
+    10%, 90% {
+        transform: translateX(-1px);
+    }
+    20%, 80% {
+        transform: translateX(2px);
+    }
+    30%, 50%, 70% {
+        transform: translateX(-6px);
+    }
+    40%, 60% {
+        transform: translateX(6px);
+    }
+}
+
+/* Marcado de error sobrio: solo borde/anillo, sin fondo ni resplandor rojo. */
+.bmos-input.has-error {
+    border-color: #f0a8ac;
+    box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+}
+
+.bmos-auth-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    margin-bottom: 1rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.7rem;
+    background: #fff5f5;
+    color: #b42318;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: 1px solid #fbd5d5;
+    border-left: 3px solid #e11d48;
+}
+
+.bmos-auth-logo {
+    display: grid;
+    place-items: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    margin: 0 auto 1rem;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    font-weight: 800;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+    box-shadow: 0 12px 26px -8px rgba(99, 102, 241, 0.7);
+}
+
+.bmos-field-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.4rem;
+}
+
+.bmos-input {
+    width: 100%;
+    padding: 0.72rem 0.9rem;
+    border: 1px solid #e2e5ee;
+    border-radius: 0.75rem;
+    background: #f8f9fc;
+    font-size: 0.92rem;
+    transition: all 0.15s ease;
+}
+
+.bmos-input:focus {
+    outline: none;
+    border-color: #a5b4fc;
+    background: #fff;
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+}
+
+.bmos-auth-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1rem;
+    border-radius: 0.85rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 14px 26px -10px rgba(79, 70, 229, 0.7);
+    transition: all 0.15s ease;
+}
+
+.bmos-auth-btn:hover {
+    filter: brightness(1.07);
+    transform: translateY(-1px);
+}

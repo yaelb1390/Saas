@@ -67,7 +67,12 @@ final class PanelController extends Controller
                         ->orWhereLike('name', "%{$q}%")
                         ->orWhereLike('barcode', "%{$q}%")
                 ))
+                // Drill-down de la tarjeta «Stock bajo» del dashboard: solo los productos con alguna
+                // existencia por debajo del umbral (mismo criterio que el indicador del resumen).
+                ->when(request('filter') === 'low_stock', fn ($query) => $query
+                    ->whereHas('stock', fn ($s) => $s->where('quantity', '<', 5)))
                 ->orderBy('name')->paginate(15)->withQueryString(),
+            'lowStockFilter' => request('filter') === 'low_stock',
             'categories' => Category::query()->orderBy('name')->get(),
             // Los datos de pieza de vehículo solo tienen sentido en un negocio de repuestos.
             'showPartFields' => $company !== null && PosProfile::for($company)['profile'] === 'repuestos',

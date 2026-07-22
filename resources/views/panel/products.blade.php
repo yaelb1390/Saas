@@ -1,5 +1,15 @@
 <x-layouts.admin title="Inventario" heading="Inventario" subheading="Catálogo de productos y existencias por almacén">
     <div x-data="productsCrud()">
+        @if ($lowStockFilter)
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span class="flex items-center gap-2 font-medium">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+                    Mostrando solo productos con <b>stock bajo</b> (existencia por debajo de 5).
+                </span>
+                <a href="{{ route('panel.products') }}" class="bmos-btn bmos-btn-ghost text-xs">Ver todos</a>
+            </div>
+        @endif
+
         <div class="bmos-card overflow-hidden">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
                 <p class="font-semibold text-slate-800">Productos</p>

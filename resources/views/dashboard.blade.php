@@ -159,10 +159,19 @@
                     <p class="text-2xl font-bold text-slate-800">{{ $summary['products'] }}</p>
                     <p class="text-xs text-slate-400">Productos</p>
                 </div>
-                <div class="rounded-xl p-3 text-center ring-1 {{ $lowStock > 0 ? 'bg-amber-50 ring-amber-100' : 'bg-slate-50 ring-slate-100' }}">
-                    <p class="text-2xl font-bold {{ $lowStock > 0 ? 'text-amber-600' : 'text-slate-800' }}">{{ $lowStock }}</p>
-                    <p class="text-xs text-slate-400">Stock bajo</p>
-                </div>
+                @if ($lowStock > 0)
+                    <a href="{{ route('panel.products', ['filter' => 'low_stock']) }}"
+                       class="block rounded-xl p-3 text-center ring-1 bg-amber-50 ring-amber-100 transition hover:bg-amber-100 hover:ring-amber-200"
+                       title="Ver los productos con stock bajo">
+                        <p class="text-2xl font-bold text-amber-600">{{ $lowStock }}</p>
+                        <p class="text-xs text-amber-700/70">Stock bajo →</p>
+                    </a>
+                @else
+                    <div class="rounded-xl p-3 text-center ring-1 bg-slate-50 ring-slate-100">
+                        <p class="text-2xl font-bold text-slate-800">0</p>
+                        <p class="text-xs text-slate-400">Stock bajo</p>
+                    </div>
+                @endif
             </div>
         </div>
     </div>

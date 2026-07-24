@@ -41,3 +41,10 @@ it('respeta el filtro de búsqueda al exportar', function (): void {
     expect($content)->toContain('Alfa')
         ->not->toContain('Beta');
 });
+
+it('exporta los productos a XLSX', function (): void {
+    $response = $this->actingAs($this->user)->get(route('panel.export.products', ['format' => 'xlsx']));
+
+    $response->assertOk()->assertDownload('productos.xlsx');
+    expect($response->headers->get('content-type'))->toContain('spreadsheetml');
+});

@@ -10,15 +10,19 @@ use App\Modules\Inventory\Models\Product;
 use App\Modules\Reports\Services\ReportService;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Support\Carbon;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Exportación de las listas del panel a CSV (compatible con Excel). Respeta el aislamiento por
- * empresa y los filtros de búsqueda/fechas activos.
+ * Exportación de las listas del panel. Cada lista se puede bajar en CSV (compatible con Excel) o en
+ * XLSX nativo, según el parámetro ?format=xlsx. Respeta el aislamiento por empresa y los filtros de
+ * búsqueda/fechas activos.
  */
 final class ExportController extends Controller
 {
-    public function products(): StreamedResponse
+    public function products(): Response
     {
         $q = request('q');
         $rows = Product::query()->with(['category', 'stock'])
@@ -32,11 +36,11 @@ final class ExportController extends Controller
                 $p->is_active ? 'Activo' : 'Inactivo',
             ]);
 
-        return $this->csv('productos.csv',
+        return $this->download('productos',
             ['SKU', 'Nombre', 'Categoría', 'Unidad', 'Costo', 'Precio', 'Stock', 'Estado'], $rows);
     }
 
-    public function sales(): StreamedResponse
+    public function sales(): Response
     {
         $q = request('q');
         $rows = Sale::query()->withCount('items')
@@ -51,11 +55,11 @@ final class ExportController extends Controller
                 $s->created_at?->format('Y-m-d H:i'),
             ]);
 
-        return $this->csv('ventas.csv',
+        return $this->download('ventas',
             ['Código', 'Cliente', 'Líneas', 'Subtotal', 'ITBIS', 'Total', 'Pago', 'Estado', 'Fecha'], $rows);
     }
 
-    public function customers(): StreamedResponse
+    public function customers(): Response
     {
         $q = request('q');
         $rows = Customer::query()->withCount('opportunities')
@@ -63,13 +67,13 @@ final class ExportController extends Controller
                 fn ($s) => $s->whereLike('name', "%{$q}%")->orWhereLike('phone', "%{$q}%")->orWhereLike('email', "%{$q}%")
             ))
             ->orderBy('name')->get()
-            ->map(fn (Customer $c) => [$c->name, $c->phone, $c->email, $c->tax_id, $c->opportunities_count]);
+            ->map(fn (Customer $c) => [$c->name, $c->cedula, $c->phone, $c->email, $c->tax_id, $c->opportunities_count]);
 
-        return $this->csv('clientes.csv',
-            ['Nombre', 'Teléfono', 'Correo', 'RNC/Cédula', 'Oportunidades'], $rows);
+        return $this->download('clientes',
+            ['Nombre', 'Cédula', 'Teléfono', 'Correo', 'RNC', 'Oportunidades'], $rows);
     }
 
-    public function invoices(): StreamedResponse
+    public function invoices(): Response
     {
         $q = request('q');
         $rows = Invoice::query()
@@ -83,11 +87,11 @@ final class ExportController extends Controller
                 $i->status, $i->issued_at?->format('Y-m-d H:i'),
             ]);
 
-        return $this->csv('facturas.csv',
+        return $this->download('facturas',
             ['NCF', 'Tipo', 'Cliente', 'Subtotal', 'ITBIS', 'Total', 'Estado', 'Emitida'], $rows);
     }
 
-    public function salesReport(ReportService $reports): StreamedResponse
+    public function salesReport(ReportService $reports): Response
     {
         $from = request()->filled('from')
             ? rescue(fn () => Carbon::parse((string) request('from')), Carbon::now()->subDays(29), report: false)
@@ -102,7 +106,20 @@ final class ExportController extends Controller
             $rows[] = [$date, $total];
         }
 
-        return $this->csv('reporte-ventas.csv', ['Fecha', 'Total vendido'], $rows);
+        return $this->download('reporte-ventas', ['Fecha', 'Total vendido'], $rows);
+    }
+
+    /**
+     * Elige el formato de descarga según ?format=xlsx (por defecto CSV).
+     *
+     * @param  iterable<int, array<int, mixed>>  $rows
+     * @param  array<int, string>  $headers
+     */
+    private function download(string $base, array $headers, iterable $rows): Response
+    {
+        return request('format') === 'xlsx'
+            ? $this->xlsx("{$base}.xlsx", $headers, $rows)
+            : $this->csv("{$base}.csv", $headers, $rows);
     }
 
     /**
@@ -120,5 +137,32 @@ final class ExportController extends Controller
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * XLSX nativo con openspout. Se escribe a un temporal (/tmp escribible en serverless) y se envía
+     * como descarga; el archivo se borra tras enviarse. Los números salen como celdas numéricas.
+     *
+     * @param  iterable<int, array<int, mixed>>  $rows
+     * @param  array<int, string>  $headers
+     */
+    private function xlsx(string $filename, array $headers, iterable $rows): Response
+    {
+        $path = tempnam(sys_get_temp_dir(), 'xlsx');
+
+        $writer = new XlsxWriter;
+        $writer->openToFile($path);
+        $writer->addRow(Row::fromValues($headers));
+        foreach ($rows as $row) {
+            $writer->addRow(Row::fromValues(array_map(
+                fn ($v) => $v ?? '', // openspout no acepta null en una celda
+                array_values((array) $row),
+            )));
+        }
+        $writer->close();
+
+        return response()->download($path, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
     }
 }

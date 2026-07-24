@@ -14,7 +14,6 @@
         "laravel/tinker": "^2.10.1",
         "league/flysystem-aws-s3-v3": "*",
         "livewire/livewire": "^4.3",
-        "openspout/openspout": "^5.8",
         "owen-it/laravel-auditing": "^14.0",
         "spatie/laravel-backup": "*",
         "spatie/laravel-permission": "^8.3"

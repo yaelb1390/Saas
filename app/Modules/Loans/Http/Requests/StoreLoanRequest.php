@@ -24,13 +24,15 @@ final class StoreLoanRequest extends FormRequest
         $companyId = app(CurrentCompany::class)->id();
 
         return [
-            // El cliente debe ser de la empresa activa: el servicio lo revalida, pero se corta aquí.
+            // Cliente existente (de la empresa activa) O uno nuevo escrito a mano: uno de los dos.
             'customer_id' => [
-                'required', 'integer',
+                'required_without:new_customer_name', 'nullable', 'integer',
                 Rule::exists('customers', 'id')
                     ->where('company_id', $companyId)
                     ->whereNull('deleted_at'),
             ],
+            'new_customer_name' => ['required_without:customer_id', 'nullable', 'string', 'max:255'],
+            'new_customer_phone' => ['nullable', 'string', 'max:50'],
             'principal' => ['required', 'numeric', 'gt:0'],
             // El interés lo coloca el administrador: la tasa (%) o el monto directo (que manda).
             'interest_rate' => ['nullable', 'numeric', 'min:0'],
@@ -51,6 +53,8 @@ final class StoreLoanRequest extends FormRequest
     {
         return [
             'customer_id' => 'cliente',
+            'new_customer_name' => 'nombre del cliente',
+            'new_customer_phone' => 'teléfono del cliente',
             'principal' => 'capital',
             'interest_rate' => 'tasa de interés',
             'interest_amount' => 'monto de interés',

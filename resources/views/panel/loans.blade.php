@@ -51,13 +51,27 @@
                     <x-panel.create-modal title="Nuevo préstamo" label="Nuevo préstamo" form="loan_create" :action="route('panel.loans.store')">
                         <div x-data="loanCalc()">
                             <div>
-                                <label class="bmos-field-label">Cliente</label>
-                                <select name="customer_id" class="bmos-input" required>
+                                <div class="mb-1 flex items-center justify-between">
+                                    <label class="bmos-field-label">Cliente</label>
+                                    <label class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                                        <input type="checkbox" x-model="newCustomer" class="rounded border-slate-300 text-indigo-600">
+                                        Cliente nuevo
+                                    </label>
+                                </div>
+                                {{-- Cliente existente --}}
+                                <select name="customer_id" class="bmos-input" x-show="!newCustomer" :required="!newCustomer">
                                     <option value="">— Selecciona un cliente —</option>
                                     @foreach ($customers as $c)
                                         <option value="{{ $c->id }}" @selected(old('customer_id') == $c->id)>{{ $c->name }}</option>
                                     @endforeach
                                 </select>
+                                {{-- Cliente nuevo: se crea al guardar el préstamo --}}
+                                <div x-show="newCustomer" x-cloak class="grid grid-cols-2 gap-3">
+                                    <input type="text" name="new_customer_name" value="{{ old('new_customer_name') }}"
+                                           placeholder="Nombre del cliente" class="bmos-input" :required="newCustomer">
+                                    <input type="text" name="new_customer_phone" value="{{ old('new_customer_phone') }}"
+                                           placeholder="Teléfono (opcional)" class="bmos-input">
+                                </div>
                             </div>
 
                             <div class="mt-3 grid grid-cols-2 gap-3">
@@ -185,6 +199,7 @@
     <script>
         function loanCalc() {
             return {
+                newCustomer: {{ old('new_customer_name') ? 'true' : 'false' }},
                 principal: {{ (float) old('principal', 0) }},
                 rate: {{ (float) old('interest_rate', 0) }},
                 amount: '{{ old('interest_amount') }}',

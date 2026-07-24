@@ -121,3 +121,26 @@ it('la página de préstamos muestra el resumen de cartera', function (): void {
         ->assertSee('Pagados')
         ->assertSee('Cartera pendiente');
 });
+
+it('registra el cliente al vuelo cuando se escribe uno nuevo', function (): void {
+    $payload = loanPayload(0);
+    unset($payload['customer_id']);
+    $payload['new_customer_name'] = 'Pedro Nuevo';
+    $payload['new_customer_phone'] = '18095559999';
+
+    $this->actingAs($this->owner)->post(route('panel.loans.store'), $payload)->assertRedirect();
+
+    app(CurrentCompany::class)->set($this->company->id);
+    $customer = Customer::where('name', 'Pedro Nuevo')->firstOrFail();
+
+    expect($customer->phone)->toBe('18095559999')
+        ->and(Loan::where('customer_id', $customer->id)->exists())->toBeTrue();
+});
+
+it('exige un cliente existente o uno nuevo', function (): void {
+    $payload = loanPayload(0);
+    unset($payload['customer_id']);
+
+    $this->actingAs($this->owner)->post(route('panel.loans.store'), $payload)
+        ->assertSessionHasErrors('customer_id');
+});

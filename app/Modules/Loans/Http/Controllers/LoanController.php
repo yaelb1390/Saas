@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Loans\Http\Controllers;
 
+use App\Modules\CRM\DTOs\CreateCustomerData;
+use App\Modules\CRM\Services\CrmService;
 use App\Modules\Loans\DTOs\CreateLoanData;
 use App\Modules\Loans\Http\Requests\RegisterLoanPaymentRequest;
 use App\Modules\Loans\Http\Requests\SetLateFeeRequest;
@@ -26,10 +28,21 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class LoanController extends Controller
 {
-    public function store(StoreLoanRequest $request, LoanService $loans): RedirectResponse
+    public function store(StoreLoanRequest $request, LoanService $loans, CrmService $crm): RedirectResponse
     {
+        $data = $request->validated();
+
+        // Cliente nuevo escrito a mano: se registra al vuelo y se usa su id para el préstamo.
+        if (empty($data['customer_id']) && ! empty($data['new_customer_name'])) {
+            $customer = $crm->createCustomer(new CreateCustomerData(
+                name: (string) $data['new_customer_name'],
+                phone: $data['new_customer_phone'] ?? null,
+            ));
+            $data['customer_id'] = $customer->id;
+        }
+
         try {
-            $loan = $loans->create(CreateLoanData::fromArray($request->validated()));
+            $loan = $loans->create(CreateLoanData::fromArray($data));
         } catch (DomainException $e) {
             return back()->with('panel_error', $e->getMessage());
         }

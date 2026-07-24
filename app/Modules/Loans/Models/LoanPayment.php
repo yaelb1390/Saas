@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * ingreso en Finanzas.
  *
  * @property string $amount
+ * @property string $balance_after
  */
 class LoanPayment extends Model implements HasCompany
 {
@@ -26,6 +27,7 @@ class LoanPayment extends Model implements HasCompany
         'company_id',
         'loan_id',
         'amount',
+        'balance_after',
         'paid_at',
         'method',
         'note',
@@ -36,6 +38,7 @@ class LoanPayment extends Model implements HasCompany
     {
         return [
             'amount' => 'decimal:2',
+            'balance_after' => 'decimal:2',
             'paid_at' => 'datetime',
         ];
     }

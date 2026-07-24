@@ -10,10 +10,14 @@ use App\Modules\Loans\Http\Requests\SetLateFeeRequest;
 use App\Modules\Loans\Http\Requests\StoreLoanRequest;
 use App\Modules\Loans\Models\Loan;
 use App\Modules\Loans\Models\LoanInstallment;
+use App\Modules\Loans\Models\LoanPayment;
 use App\Modules\Loans\Services\LoanService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use DomainException;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Acciones de escritura de préstamos desde el panel. Delgado: valida (Form Request), delega en el
@@ -40,7 +44,7 @@ final class LoanController extends Controller
         $data = $request->validated();
 
         try {
-            $loans->registerPayment($loan, (string) $data['amount'], [
+            $payment = $loans->registerPayment($loan, (string) $data['amount'], [
                 'method' => $data['method'] ?? null,
                 'note' => $data['note'] ?? null,
             ]);
@@ -48,7 +52,49 @@ final class LoanController extends Controller
             return back()->with('panel_error', $e->getMessage());
         }
 
-        return back()->with('panel_ok', 'Abono registrado.');
+        // El id del cobro deja que el detalle ofrezca "Imprimir recibo" del abono recién hecho.
+        return back()
+            ->with('panel_ok', 'Abono registrado.')
+            ->with('loan_receipt_payment_id', $payment->id);
+    }
+
+    public function receipt(Loan $loan, LoanPayment $payment): View
+    {
+        return view('loans.receipt', $this->receiptData($loan, $payment));
+    }
+
+    /**
+     * Recibo del cobro en PDF de 80mm (rollo térmico): para imprimir, enviar o archivar.
+     */
+    public function receiptPdf(Loan $loan, LoanPayment $payment, ?string $mode = null): Response
+    {
+        $data = $this->receiptData($loan, $payment);
+
+        // 80mm ≈ 226.77 pt. Alto fijo: el recibo del cobro no tiene líneas variables.
+        $pdf = Pdf::loadView('loans.receipt-pdf', $data)->setPaper([0, 0, 226.77, 420]);
+        $filename = 'recibo-cobro-'.$loan->code.'.pdf';
+
+        return $mode === 'descargar' ? $pdf->download($filename) : $pdf->stream($filename);
+    }
+
+    /**
+     * Datos compartidos por el recibo HTML y el PDF. La cuota pagada a la fecha se deriva en la vista
+     * de $loan->total − $payment->balance_after.
+     *
+     * @return array{loan: Loan, payment: LoanPayment, company: mixed}
+     */
+    private function receiptData(Loan $loan, LoanPayment $payment): array
+    {
+        // El binding aísla por empresa; falta atar el cobro a ESTE préstamo.
+        abort_if($payment->loan_id !== $loan->id, 404);
+
+        $loan->load(['customer', 'company']);
+
+        return [
+            'loan' => $loan,
+            'payment' => $payment,
+            'company' => $loan->company,
+        ];
     }
 
     public function setFee(SetLateFeeRequest $request, Loan $loan, LoanInstallment $installment, LoanService $loans): RedirectResponse

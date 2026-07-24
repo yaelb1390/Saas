@@ -98,3 +98,26 @@ it('no muestra el préstamo de otra empresa', function (): void {
 
     $this->actingAs($intruso)->get(route('panel.loans.show', $loan))->assertNotFound();
 });
+
+it('imprime el recibo de un cobro con monto y saldo adeudado', function (): void {
+    $this->actingAs($this->owner)->post(route('panel.loans.store'), loanPayload($this->customer->id));
+    app(CurrentCompany::class)->set($this->company->id);
+    $loan = Loan::firstOrFail(); // total 12,000
+    $this->actingAs($this->owner)->post(route('panel.loans.payments.store', $loan), ['amount' => '3000']);
+    app(CurrentCompany::class)->set($this->company->id);
+    $payment = $loan->payments()->firstOrFail();
+
+    $this->actingAs($this->owner)
+        ->get(route('panel.loans.receipt', [$loan, $payment]))
+        ->assertOk()
+        ->assertSee('RECIBO DE COBRO')
+        ->assertSee('9,000.00'); // saldo adeudado tras el abono
+});
+
+it('la página de préstamos muestra el resumen de cartera', function (): void {
+    $this->actingAs($this->owner)->get(route('panel.loans'))
+        ->assertOk()
+        ->assertSee('Aprobados')
+        ->assertSee('Pagados')
+        ->assertSee('Cartera pendiente');
+});

@@ -147,6 +147,11 @@ final class LoanService
             }
             $loan->save();
 
+            // Congela el saldo de este cobro para que el recibo (aunque se reimprima más tarde)
+            // muestre el total adeudado de esta fecha, no el saldo actual.
+            $payment->balance_after = $loan->balance;
+            $payment->save();
+
             LoanPaymentRegistered::dispatch($payment);
 
             return $payment;

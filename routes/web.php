@@ -183,6 +183,14 @@ Route::middleware(['auth'])->group(function (): void {
         Route::delete('/panel/compras/{supplier}', [SupplierController::class, 'destroy'])->name('panel.suppliers.destroy');
     });
 
+    // Recibo del cobro (imprimible + PDF 80mm). Es lectura: basta loans.view.
+    Route::middleware(['can:loans.view', 'module:loans'])->group(function (): void {
+        Route::get('/panel/prestamos/{loan}/pagos/{payment}/recibo', [LoanController::class, 'receipt'])
+            ->name('panel.loans.receipt');
+        Route::get('/panel/prestamos/{loan}/pagos/{payment}/recibo/pdf/{mode?}', [LoanController::class, 'receiptPdf'])
+            ->name('panel.loans.receipt.pdf');
+    });
+
     // Préstamos: crear el préstamo (desembolsa capital), registrar abonos, ajustar la mora de una
     // cuota y anular. Todas mutan dinero/saldo, por eso exigen loans.manage.
     Route::middleware(['can:loans.manage', 'module:loans'])->group(function (): void {

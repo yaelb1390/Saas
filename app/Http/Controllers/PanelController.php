@@ -26,7 +26,10 @@ use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Loans\Enums\InstallmentStatus;
 use App\Modules\Loans\Enums\LoanFrequency;
+use App\Modules\Loans\Enums\LoanStatus;
 use App\Modules\Loans\Models\Loan;
+use App\Modules\Loans\Models\LoanInstallment;
+use App\Modules\Loans\Models\LoanPayment;
 use App\Modules\POS\Support\PosProfile;
 use App\Modules\Purchasing\Models\PurchaseOrder;
 use App\Modules\Purchasing\Models\Supplier;
@@ -37,6 +40,7 @@ use App\Modules\WhatsApp\Gateways\WhatsAppConnection;
 use App\Modules\WhatsApp\Support\InboxPresenter;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -210,10 +214,26 @@ final class PanelController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // Cuotas vencidas (base para el indicador de mora), aisladas por empresa vía CompanyScope.
+        $overdue = LoanInstallment::query()
+            ->where('status', '!=', InstallmentStatus::Paid->value)
+            ->whereDate('due_date', '<', now()->toDateString());
+
         return view('panel.loans', [
             'loans' => $loans,
             'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'frequencies' => LoanFrequency::cases(),
+            // Resumen de la cartera: aprobados (vigentes) vs pagados, más cartera, mora y cobrado.
+            'stats' => [
+                'approved_count' => Loan::query()->where('status', LoanStatus::Active)->count(),
+                'approved_amount' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('principal'),
+                'paid_count' => Loan::query()->where('status', LoanStatus::Paid)->count(),
+                'paid_amount' => (string) Loan::query()->where('status', LoanStatus::Paid)->sum('total'),
+                'outstanding' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('balance'),
+                'overdue' => (string) (clone $overdue)->sum(DB::raw('amount + late_fee - paid_amount')),
+                'overdue_count' => (clone $overdue)->count(),
+                'collected' => (string) LoanPayment::query()->sum('amount'),
+            ],
         ]);
     }
 

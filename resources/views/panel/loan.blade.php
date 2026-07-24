@@ -5,6 +5,14 @@
         <a href="{{ route('panel.loans') }}" class="text-sm text-slate-500 hover:text-indigo-600">&larr; Volver a la cartera</a>
     </div>
 
+    @if (session('loan_receipt_payment_id'))
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+            <span class="font-medium text-emerald-800">Cobro registrado. Imprime el recibo para el cliente.</span>
+            <a href="{{ route('panel.loans.receipt', [$loan, session('loan_receipt_payment_id')]) }}?print=1"
+               target="_blank" rel="noopener" class="bmos-btn bmos-btn-primary text-xs">🖨️ Imprimir recibo</a>
+        </div>
+    @endif
+
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {{-- Resumen + acciones --}}
         <div class="space-y-5 lg:col-span-1">
@@ -114,17 +122,21 @@
                 <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Cobros registrados</p></div>
                 <div class="overflow-x-auto">
                     <table class="bmos-table">
-                        <thead><tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Nota</th></tr></thead>
+                        <thead><tr><th>Fecha</th><th>Monto</th><th>Saldo</th><th>Método</th><th class="text-right">Recibo</th></tr></thead>
                         <tbody>
                             @forelse ($loan->payments as $payment)
                                 <tr>
                                     <td class="text-slate-500">{{ $payment->paid_at->format('d/m/Y H:i') }}</td>
                                     <td class="font-semibold text-emerald-600">{{ number_format((float) $payment->amount, 2) }}</td>
+                                    <td>{{ number_format((float) $payment->balance_after, 2) }}</td>
                                     <td>{{ $payment->method ?? '—' }}</td>
-                                    <td class="text-slate-500">{{ $payment->note ?? '—' }}</td>
+                                    <td class="text-right">
+                                        <a href="{{ route('panel.loans.receipt', [$loan, $payment]) }}?print=1" target="_blank" rel="noopener"
+                                           class="text-indigo-600 hover:underline">🖨️ Imprimir</a>
+                                    </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="4" class="bmos-empty">Aún no hay cobros.</td></tr>
+                                <tr><td colspan="5" class="bmos-empty">Aún no hay cobros.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

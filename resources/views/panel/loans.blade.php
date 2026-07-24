@@ -3,6 +3,35 @@
 
 <x-layouts.admin title="Préstamos" heading="Préstamos" subheading="Cartera de préstamos, cuotas y cobros">
     <div>
+        {{-- Resumen de la cartera: aprobados (vigentes), pagados, y el panorama de cobros/mora. --}}
+        <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div class="bmos-card bmos-card-pad">
+                <p class="bmos-stat-label">Aprobados</p>
+                <p class="mt-1 text-2xl font-bold text-slate-800">{{ $stats['approved_count'] }}</p>
+                <p class="text-xs text-slate-400">{{ money($stats['approved_amount']) }} prestado</p>
+            </div>
+            <div class="bmos-card bmos-card-pad">
+                <p class="bmos-stat-label">Pagados</p>
+                <p class="mt-1 text-2xl font-bold text-emerald-600">{{ $stats['paid_count'] }}</p>
+                <p class="text-xs text-slate-400">{{ money($stats['paid_amount']) }}</p>
+            </div>
+            <div class="bmos-card bmos-card-pad">
+                <p class="bmos-stat-label">Cartera pendiente</p>
+                <p class="mt-1 text-2xl font-bold text-slate-800">{{ money($stats['outstanding']) }}</p>
+                <p class="text-xs text-slate-400">por cobrar</p>
+            </div>
+            <a href="{{ route('panel.loans', ['filter' => 'overdue']) }}" class="bmos-card bmos-card-pad block transition hover:-translate-y-0.5 hover:shadow-md">
+                <p class="bmos-stat-label">En mora</p>
+                <p class="mt-1 text-2xl font-bold text-rose-600">{{ money($stats['overdue']) }}</p>
+                <p class="text-xs text-slate-400">{{ $stats['overdue_count'] }} cuotas vencidas →</p>
+            </a>
+            <div class="bmos-card bmos-card-pad">
+                <p class="bmos-stat-label">Cobrado</p>
+                <p class="mt-1 text-2xl font-bold text-slate-800">{{ money($stats['collected']) }}</p>
+                <p class="text-xs text-slate-400">total recibido</p>
+            </div>
+        </div>
+
         @if (request('filter') === 'overdue')
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
                 <span class="flex items-center gap-2 font-medium">

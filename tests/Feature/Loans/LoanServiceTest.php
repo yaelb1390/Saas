@@ -123,6 +123,16 @@ it('no permite un abono mayor al saldo', function (): void {
     expect(fn () => $this->loans->registerPayment($loan, '1500'))->toThrow(LoanException::class);
 });
 
+it('congela el saldo del préstamo en cada cobro para el recibo', function (): void {
+    $loan = loanFixture(); // total 12,000
+
+    $p1 = $this->loans->registerPayment($loan, '3000');
+    $p2 = $this->loans->registerPayment($loan->refresh(), '2000');
+
+    expect($p1->balance_after)->toBe('9000.00')
+        ->and($p2->balance_after)->toBe('7000.00');
+});
+
 it('no presta a un cliente de otra empresa', function (): void {
     $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Ajena SRL'));
     app(CurrentCompany::class)->set($otra->id);

@@ -60,7 +60,7 @@ class DatabaseSeeder extends Seeder
         Plan::query()->updateOrCreate(['slug' => 'pro'], [
             'name' => 'Pro', 'description' => 'Para negocios en crecimiento: CRM, facturación y WhatsApp.',
             'price' => '3500.00', 'billing_cycle' => 'monthly', 'trial_days' => 14,
-            'modules' => ['pos', 'inventory', 'sales', 'purchasing', 'crm', 'whatsapp', 'billing', 'reports'],
+            'modules' => ['pos', 'inventory', 'sales', 'purchasing', 'crm', 'whatsapp', 'billing', 'finance', 'loans', 'reports'],
             'max_users' => 10, 'is_active' => true,
         ]);
         Plan::query()->updateOrCreate(['slug' => 'empresarial'], [

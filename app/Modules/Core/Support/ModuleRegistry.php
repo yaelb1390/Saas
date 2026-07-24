@@ -26,6 +26,7 @@ final class ModuleRegistry
         'whatsapp' => 'WhatsApp',
         'billing' => 'Facturación',
         'finance' => 'Finanzas',
+        'loans' => 'Préstamos',
         'delivery' => 'Entregas',
         'hr' => 'Recursos Humanos',
         'ai' => 'IA & RAG',

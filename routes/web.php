@@ -18,6 +18,7 @@ use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
 use App\Modules\Inventory\Http\Controllers\ProductController;
 use App\Modules\Inventory\Http\Controllers\StockController;
+use App\Modules\Loans\Http\Controllers\LoanController;
 use App\Modules\POS\Http\Controllers\PosController;
 use App\Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchasing\Http\Controllers\SupplierController;
@@ -68,6 +69,8 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/whatsapp', 'whatsapp')->middleware(['can:whatsapp.view', 'module:whatsapp'])->name('whatsapp');
         Route::get('/facturas', 'invoices')->middleware(['can:invoices.view', 'module:billing'])->name('invoices');
         Route::get('/finanzas', 'finance')->middleware(['can:finance.view', 'module:finance'])->name('finance');
+        Route::get('/prestamos', 'loans')->middleware(['can:loans.view', 'module:loans'])->name('loans');
+        Route::get('/prestamos/{loan}', 'loanShow')->middleware(['can:loans.view', 'module:loans'])->name('loans.show');
         Route::get('/entregas', 'deliveries')->middleware(['can:delivery.view', 'module:delivery'])->name('deliveries');
         Route::get('/rrhh', 'employees')->middleware(['can:hr.view', 'module:hr'])->name('employees');
         Route::get('/ia', 'ai')->middleware(['can:ai.assistant.use', 'module:ai'])->name('ai');
@@ -178,6 +181,15 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/compras', [SupplierController::class, 'store'])->name('panel.suppliers.store');
         Route::put('/panel/compras/{supplier}', [SupplierController::class, 'update'])->name('panel.suppliers.update');
         Route::delete('/panel/compras/{supplier}', [SupplierController::class, 'destroy'])->name('panel.suppliers.destroy');
+    });
+
+    // Préstamos: crear el préstamo (desembolsa capital), registrar abonos, ajustar la mora de una
+    // cuota y anular. Todas mutan dinero/saldo, por eso exigen loans.manage.
+    Route::middleware(['can:loans.manage', 'module:loans'])->group(function (): void {
+        Route::post('/panel/prestamos', [LoanController::class, 'store'])->name('panel.loans.store');
+        Route::post('/panel/prestamos/{loan}/pagos', [LoanController::class, 'payment'])->name('panel.loans.payments.store');
+        Route::post('/panel/prestamos/{loan}/cuotas/{installment}/mora', [LoanController::class, 'setFee'])->name('panel.loans.installments.fee');
+        Route::post('/panel/prestamos/{loan}/anular', [LoanController::class, 'cancel'])->name('panel.loans.cancel');
     });
 
     Route::middleware(['can:hr.manage', 'module:hr'])->group(function (): void {

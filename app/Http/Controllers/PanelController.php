@@ -24,6 +24,9 @@ use App\Modules\HR\Models\Employee;
 use App\Modules\Inventory\Models\Category;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\StockMovement;
+use App\Modules\Loans\Enums\InstallmentStatus;
+use App\Modules\Loans\Enums\LoanFrequency;
+use App\Modules\Loans\Models\Loan;
 use App\Modules\POS\Support\PosProfile;
 use App\Modules\Purchasing\Models\PurchaseOrder;
 use App\Modules\Purchasing\Models\Supplier;
@@ -186,6 +189,39 @@ final class PanelController extends Controller
             'accounts' => Account::query()->orderBy('name')->get(),
             'movements' => FinancialMovement::query()->with('account')->latest('occurred_at')->paginate(15),
         ]);
+    }
+
+    /**
+     * Cartera de préstamos. `installments_min_due_date` es el próximo vencimiento sin pagar (subquery,
+     * sin cargar todas las cuotas). El filtro «overdue» deja solo los que tienen cuotas vencidas.
+     */
+    public function loans(): View
+    {
+        $loans = Loan::query()
+            ->with('customer')
+            ->withMin(['installments' => fn ($q) => $q->where('status', '!=', InstallmentStatus::Paid->value)], 'due_date')
+            ->when(request('q'), fn ($query, $q) => $query->where(
+                fn ($sub) => $sub->whereLike('code', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")
+            ))
+            ->when(request('filter') === 'overdue', fn ($query) => $query->whereHas('installments', fn ($i) => $i
+                ->where('status', '!=', InstallmentStatus::Paid->value)
+                ->whereDate('due_date', '<', now()->toDateString())))
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('panel.loans', [
+            'loans' => $loans,
+            'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'frequencies' => LoanFrequency::cases(),
+        ]);
+    }
+
+    public function loanShow(Loan $loan): View
+    {
+        $loan->load(['customer', 'installments', 'payments']);
+
+        return view('panel.loan', ['loan' => $loan]);
     }
 
     public function deliveries(): View

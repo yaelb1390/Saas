@@ -77,6 +77,9 @@ final class RoleProvisioner
         // Finanzas
         'finance.view',
         'finance.manage',
+        // Préstamos
+        'loans.view',
+        'loans.manage',
         // RRHH
         'hr.view',
         'hr.manage',
@@ -132,6 +135,8 @@ final class RoleProvisioner
             'delivery.manage',
             'finance.view',
             'finance.manage',
+            'loans.view',
+            'loans.manage',
             'hr.view',
             'hr.manage',
             'reports.view',

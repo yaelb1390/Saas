@@ -12,10 +12,16 @@ use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Finance\Models\Account;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\Stock;
+use App\Modules\Loans\Enums\InstallmentStatus;
+use App\Modules\Loans\Enums\LoanStatus;
+use App\Modules\Loans\Models\Loan;
+use App\Modules\Loans\Models\LoanInstallment;
 use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Models\Sale;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Resumen ejecutivo: agrega indicadores de todos los módulos (solo lectura), ya aislados por la
@@ -37,6 +43,10 @@ final class ReportService
      *     pending_deliveries: int,
      *     products: int,
      *     low_stock: int,
+     *     loans_outstanding: string,
+     *     loans_count: int,
+     *     loans_overdue: string,
+     *     overdue_count: int,
      * }
      */
     public function executiveSummary(): array
@@ -65,6 +75,10 @@ final class ReportService
      *     pending_deliveries: int,
      *     products: int,
      *     low_stock: int,
+     *     loans_outstanding: string,
+     *     loans_count: int,
+     *     loans_overdue: string,
+     *     overdue_count: int,
      * }
      */
     public function computeExecutiveSummary(): array
@@ -81,7 +95,24 @@ final class ReportService
             ])->count(),
             'products' => Product::query()->count(),
             'low_stock' => Stock::query()->where('quantity', '<', self::LOW_STOCK_THRESHOLD)->count(),
+            // Cartera de préstamos: saldo vigente y lo que está vencido (cuota + mora − abonado).
+            'loans_outstanding' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('balance'),
+            'loans_count' => Loan::query()->where('status', LoanStatus::Active)->count(),
+            'loans_overdue' => (string) $this->overdueInstallments()->sum(DB::raw('amount + late_fee - paid_amount')),
+            'overdue_count' => $this->overdueInstallments()->count(),
         ];
+    }
+
+    /**
+     * Cuotas vencidas: no saldadas y con fecha ya pasada. Aisladas por empresa vía CompanyScope.
+     *
+     * @return Builder<LoanInstallment>
+     */
+    private function overdueInstallments()
+    {
+        return LoanInstallment::query()
+            ->where('status', '!=', InstallmentStatus::Paid->value)
+            ->whereDate('due_date', '<', Carbon::now()->toDateString());
     }
 
     /**

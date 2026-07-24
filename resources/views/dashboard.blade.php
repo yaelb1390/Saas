@@ -9,6 +9,7 @@
         ['x', 'Facturación', 'panel.invoices', 'Facturas con NCF', 'tone-sky', 'M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z'],
         ['x', 'Mostrador de repuestos', 'panel.parts', 'Facturar piezas con stock', 'tone-indigo', 'M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z'],
         ['x', 'Finanzas', 'panel.finance', 'Cuentas y movimientos', 'tone-emerald', 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z'],
+        ['x', 'Préstamos', 'panel.loans', 'Cartera y cobros', 'tone-amber', 'M2.25 18.75a60.07 60.07 0 0 1 15.797-2.101c.727-.198 1.453.164 1.453.925V19.5a2.25 2.25 0 0 1-2.25 2.25H2.25V18.75Zm0 0a2.25 2.25 0 0 0 2.25 2.25h.75m-3-2.25V6.75A2.25 2.25 0 0 1 4.5 4.5h15a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-.75m-9-6a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0Z'],
         ['x', 'Entregas', 'panel.deliveries', 'Reparto y estados', 'tone-amber', 'M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.66-.831H14.25'],
         ['x', 'RRHH', 'panel.employees', 'Empleados y asistencia', 'tone-rose', 'M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
         ['x', 'IA & RAG', 'panel.ai', 'Base de conocimiento', 'tone-violet', 'M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z'],
@@ -28,6 +29,7 @@
         'panel.invoices' => ['invoices.view', 'billing'],
         'panel.parts' => ['invoices.issue', 'billing'],
         'panel.finance' => ['finance.view', 'finance'],
+        'panel.loans' => ['loans.view', 'loans'],
         'panel.deliveries' => ['delivery.view', 'delivery'],
         'panel.employees' => ['hr.view', 'hr'],
         'panel.ai' => ['ai.assistant.use', 'ai'],
@@ -61,6 +63,8 @@
         ['Balance de caja', money($summary['cash_balance']), 'Efectivo disponible', 'tone-indigo', 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z', 'panel.finance'],
         ['Oportunidades', (string) $summary['open_opportunities'], 'Abiertas en el CRM', 'tone-violet', 'M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z', 'panel.customers'],
         ['Entregas pendientes', (string) $summary['pending_deliveries'], 'En logística', 'tone-amber', 'M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.66-.831H14.25', 'panel.deliveries'],
+        ['Cartera activa', money($summary['loans_outstanding']), $summary['loans_count'].' préstamos', 'tone-amber', 'M2.25 18.75a60.07 60.07 0 0 1 15.797-2.101c.727-.198 1.453.164 1.453.925V19.5a2.25 2.25 0 0 1-2.25 2.25H2.25V18.75Zm0 0a2.25 2.25 0 0 0 2.25 2.25h.75m-3-2.25V6.75A2.25 2.25 0 0 1 4.5 4.5h15a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-.75m-9-6a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0Z', 'panel.loans'],
+        ['En mora', money($summary['loans_overdue']), $summary['overdue_count'].' cuotas vencidas', 'tone-rose', 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z', 'panel.loans'],
     ];
 
     // Iniciales para el avatar del usuario (máx. 2 letras).

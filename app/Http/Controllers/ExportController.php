@@ -9,16 +9,18 @@ use App\Modules\CRM\Models\Customer;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Reports\Services\ReportService;
 use App\Modules\Sales\Models\Sale;
+use App\Support\SimpleXlsx;
 use Illuminate\Support\Carbon;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Exportación de las listas del panel a CSV (compatible con Excel). Respeta el aislamiento por
- * empresa y los filtros de búsqueda/fechas activos.
+ * Exportación de las listas del panel. Cada lista se baja en CSV (compatible con Excel) o en XLSX
+ * nativo según ?format=xlsx. Respeta el aislamiento por empresa y los filtros de búsqueda/fechas.
  */
 final class ExportController extends Controller
 {
-    public function products(): StreamedResponse
+    public function products(): Response
     {
         $q = request('q');
         $rows = Product::query()->with(['category', 'stock'])
@@ -32,11 +34,11 @@ final class ExportController extends Controller
                 $p->is_active ? 'Activo' : 'Inactivo',
             ]);
 
-        return $this->csv('productos.csv',
+        return $this->download('productos',
             ['SKU', 'Nombre', 'Categoría', 'Unidad', 'Costo', 'Precio', 'Stock', 'Estado'], $rows);
     }
 
-    public function sales(): StreamedResponse
+    public function sales(): Response
     {
         $q = request('q');
         $rows = Sale::query()->withCount('items')
@@ -51,11 +53,11 @@ final class ExportController extends Controller
                 $s->created_at?->format('Y-m-d H:i'),
             ]);
 
-        return $this->csv('ventas.csv',
+        return $this->download('ventas',
             ['Código', 'Cliente', 'Líneas', 'Subtotal', 'ITBIS', 'Total', 'Pago', 'Estado', 'Fecha'], $rows);
     }
 
-    public function customers(): StreamedResponse
+    public function customers(): Response
     {
         $q = request('q');
         $rows = Customer::query()->withCount('opportunities')
@@ -63,13 +65,13 @@ final class ExportController extends Controller
                 fn ($s) => $s->whereLike('name', "%{$q}%")->orWhereLike('phone', "%{$q}%")->orWhereLike('email', "%{$q}%")
             ))
             ->orderBy('name')->get()
-            ->map(fn (Customer $c) => [$c->name, $c->phone, $c->email, $c->tax_id, $c->opportunities_count]);
+            ->map(fn (Customer $c) => [$c->name, $c->cedula, $c->phone, $c->email, $c->tax_id, $c->opportunities_count]);
 
-        return $this->csv('clientes.csv',
-            ['Nombre', 'Teléfono', 'Correo', 'RNC/Cédula', 'Oportunidades'], $rows);
+        return $this->download('clientes',
+            ['Nombre', 'Cédula', 'Teléfono', 'Correo', 'RNC', 'Oportunidades'], $rows);
     }
 
-    public function invoices(): StreamedResponse
+    public function invoices(): Response
     {
         $q = request('q');
         $rows = Invoice::query()
@@ -83,11 +85,11 @@ final class ExportController extends Controller
                 $i->status, $i->issued_at?->format('Y-m-d H:i'),
             ]);
 
-        return $this->csv('facturas.csv',
+        return $this->download('facturas',
             ['NCF', 'Tipo', 'Cliente', 'Subtotal', 'ITBIS', 'Total', 'Estado', 'Emitida'], $rows);
     }
 
-    public function salesReport(ReportService $reports): StreamedResponse
+    public function salesReport(ReportService $reports): Response
     {
         $from = request()->filled('from')
             ? rescue(fn () => Carbon::parse((string) request('from')), Carbon::now()->subDays(29), report: false)
@@ -102,7 +104,26 @@ final class ExportController extends Controller
             $rows[] = [$date, $total];
         }
 
-        return $this->csv('reporte-ventas.csv', ['Fecha', 'Total vendido'], $rows);
+        return $this->download('reporte-ventas', ['Fecha', 'Total vendido'], $rows);
+    }
+
+    /**
+     * Elige el formato según ?format=xlsx (por defecto CSV).
+     *
+     * @param  iterable<int, array<int, mixed>>  $rows
+     * @param  array<int, string>  $headers
+     */
+    private function download(string $base, array $headers, iterable $rows): Response
+    {
+        if (request('format') === 'xlsx') {
+            $path = SimpleXlsx::write($headers, $rows);
+
+            return response()->download($path, "{$base}.xlsx", [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        }
+
+        return $this->csv("{$base}.csv", $headers, $rows);
     }
 
     /**

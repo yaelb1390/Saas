@@ -76,18 +76,18 @@
 @endphp
 
 <x-layouts.admin title="Dashboard" heading="Dashboard" :subheading="'Resumen de ' . ($company?->name ?? 'la plataforma')">
-    {{-- KPIs: indicadores de gestión. Se ocultan a quien no puede ver reportes (p. ej. un cajero),
-         para que su dashboard no exponga ventas totales, caja ni oportunidades del negocio. --}}
-    @can('reports.view')
+    {{-- KPIs: indicadores de gestión. Cada tarjeta se muestra solo si la empresa tiene contratado su
+         módulo y el usuario puede abrirlo (mismo criterio que las tarjetas de acceso rápido). Así una
+         empresa de solo Préstamos no ve Ventas, Caja, CRM ni Entregas; y un cajero (sin reports.view)
+         no ve ningún indicador de gestión. --}}
+    @php
+        $visibleStats = collect($stats)->filter(fn ($s) => $canOpen($s[5]))->values();
+    @endphp
+    @if (auth()->user()?->can('reports.view') && $visibleStats->isNotEmpty())
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        @foreach ($stats as [$label, $value, $hint, $tone, $path, $route])
-            @php $open = $canOpen($route); @endphp
-            @if ($open)
-                <a href="{{ route($route) }}"
-                   class="group block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 transition duration-150 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60 hover:ring-indigo-200">
-            @else
-                <div class="group rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 transition duration-150 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60">
-            @endif
+        @foreach ($visibleStats as [$label, $value, $hint, $tone, $path, $route])
+            <a href="{{ route($route) }}"
+               class="group block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 transition duration-150 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60 hover:ring-indigo-200">
                 <div class="flex items-start justify-between gap-3">
                     <p class="bmos-stat-label">{{ $label }}</p>
                     <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl {{ $tone }} transition group-hover:scale-105">
@@ -99,18 +99,12 @@
                 <p class="mt-2 text-3xl font-bold tracking-tight text-slate-800" @if($label === 'Balance de caja') data-testid="kpi-cash-balance" @endif>{{ $value }}</p>
                 <p class="mt-1 flex items-center gap-1 text-xs text-slate-400">
                     {{ $hint }}
-                    @if ($open)
-                        <span class="text-indigo-400 opacity-0 transition group-hover:opacity-100">· ver detalle →</span>
-                    @endif
+                    <span class="text-indigo-400 opacity-0 transition group-hover:opacity-100">· ver detalle →</span>
                 </p>
-            @if ($open)
-                </a>
-            @else
-                </div>
-            @endif
+            </a>
         @endforeach
     </div>
-    @endcan
+    @endif
 
     {{-- Módulos --}}
     <h2 class="mt-9 mb-3 text-lg font-semibold text-slate-800">Módulos del sistema</h2>
@@ -178,8 +172,9 @@
             </div>
         </div>
 
-        {{-- Inventario: solo para quien puede ver productos (un cajero no lo ve). --}}
-        @can('products.view')
+        {{-- Inventario: solo si la empresa tiene el módulo y el usuario puede ver productos
+             (un cajero no lo ve; una empresa sin Inventario tampoco). --}}
+        @if ($canOpen('panel.products'))
         <div class="bmos-card bmos-card-pad">
             <div class="flex items-center gap-3">
                 <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl tone-sky">
@@ -210,6 +205,6 @@
                 @endif
             </div>
         </div>
-        @endcan
+        @endif
     </div>
 </x-layouts.admin>

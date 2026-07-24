@@ -37,6 +37,16 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
 
+// TEMPORAL: diagnóstico de extensiones del runtime (para decidir la generación de XLSX). Se elimina.
+Route::get('/diag/ext', fn () => response()->json([
+    'zip' => extension_loaded('zip'),
+    'ziparchive' => class_exists(\ZipArchive::class),
+    'xmlwriter' => extension_loaded('xmlwriter'),
+    'dom' => extension_loaded('dom'),
+    'gd' => extension_loaded('gd'),
+    'php' => PHP_VERSION,
+]));
+
 Route::middleware(['auth'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->middleware(['can:dashboard.view', 'subscription'])->name('dashboard');
 

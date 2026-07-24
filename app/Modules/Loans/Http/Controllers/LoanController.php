@@ -37,6 +37,7 @@ final class LoanController extends Controller
             $customer = $crm->createCustomer(new CreateCustomerData(
                 name: (string) $data['new_customer_name'],
                 phone: $data['new_customer_phone'] ?? null,
+                cedula: $data['new_customer_cedula'] ?? null,
             ));
             $data['customer_id'] = $customer->id;
         }

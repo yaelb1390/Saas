@@ -33,6 +33,7 @@ final class StoreLoanRequest extends FormRequest
             ],
             'new_customer_name' => ['required_without:customer_id', 'nullable', 'string', 'max:255'],
             'new_customer_phone' => ['nullable', 'string', 'max:50'],
+            'new_customer_cedula' => ['nullable', 'string', 'max:20'],
             'principal' => ['required', 'numeric', 'gt:0'],
             // El interés lo coloca el administrador: la tasa (%) o el monto directo (que manda).
             'interest_rate' => ['nullable', 'numeric', 'min:0'],

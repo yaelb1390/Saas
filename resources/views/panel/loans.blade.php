@@ -4,31 +4,50 @@
 <x-layouts.admin title="Préstamos" heading="Préstamos" subheading="Cartera de préstamos, cuotas y cobros">
     <div>
         {{-- Resumen de la cartera: aprobados (vigentes), pagados, y el panorama de cobros/mora. --}}
-        <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <div class="bmos-card bmos-card-pad">
+        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-indigo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                </div>
                 <p class="bmos-stat-label">Aprobados</p>
-                <p class="mt-1 text-2xl font-bold text-slate-800">{{ $stats['approved_count'] }}</p>
-                <p class="text-xs text-slate-400">{{ money($stats['approved_amount']) }} prestado</p>
+                <p class="bmos-stat-value">{{ $stats['approved_count'] }}</p>
+                <p class="mt-0.5 text-xs text-slate-400">{{ money($stats['approved_amount']) }} prestado</p>
             </div>
-            <div class="bmos-card bmos-card-pad">
+
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-emerald">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m6-3.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                </div>
                 <p class="bmos-stat-label">Pagados</p>
-                <p class="mt-1 text-2xl font-bold text-emerald-600">{{ $stats['paid_count'] }}</p>
-                <p class="text-xs text-slate-400">{{ money($stats['paid_amount']) }}</p>
+                <p class="bmos-stat-value text-emerald-600">{{ $stats['paid_count'] }}</p>
+                <p class="mt-0.5 text-xs text-slate-400">{{ money($stats['paid_amount']) }} saldado</p>
             </div>
-            <div class="bmos-card bmos-card-pad">
+
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-sky">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797-2.101c.727-.198 1.453.164 1.453.925V19.5a2.25 2.25 0 0 1-2.25 2.25H2.25V18.75Zm0 0a2.25 2.25 0 0 0 2.25 2.25h.75m-3-2.25V6.75A2.25 2.25 0 0 1 4.5 4.5h15a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-.75m-9-6a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0Z"/></svg>
+                </div>
                 <p class="bmos-stat-label">Cartera pendiente</p>
-                <p class="mt-1 text-2xl font-bold text-slate-800">{{ money($stats['outstanding']) }}</p>
-                <p class="text-xs text-slate-400">por cobrar</p>
+                <p class="bmos-stat-value">{{ money($stats['outstanding']) }}</p>
+                <p class="mt-0.5 text-xs text-slate-400">por cobrar</p>
             </div>
-            <a href="{{ route('panel.loans', ['filter' => 'overdue']) }}" class="bmos-card bmos-card-pad block transition hover:-translate-y-0.5 hover:shadow-md">
+
+            <a href="{{ route('panel.loans', ['filter' => 'overdue']) }}" class="bmos-stat block transition hover:-translate-y-0.5 hover:shadow-md">
+                <div class="bmos-stat-icon tone-amber">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+                </div>
                 <p class="bmos-stat-label">En mora</p>
-                <p class="mt-1 text-2xl font-bold text-rose-600">{{ money($stats['overdue']) }}</p>
-                <p class="text-xs text-slate-400">{{ $stats['overdue_count'] }} cuotas vencidas →</p>
+                <p class="bmos-stat-value {{ (float) $stats['overdue'] > 0 ? 'text-amber-600' : '' }}">{{ money($stats['overdue']) }}</p>
+                <p class="mt-0.5 text-xs text-slate-400">{{ $stats['overdue_count'] }} cuotas vencidas →</p>
             </a>
-            <div class="bmos-card bmos-card-pad">
+
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-emerald">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z"/></svg>
+                </div>
                 <p class="bmos-stat-label">Cobrado</p>
-                <p class="mt-1 text-2xl font-bold text-slate-800">{{ money($stats['collected']) }}</p>
-                <p class="text-xs text-slate-400">total recibido</p>
+                <p class="bmos-stat-value">{{ money($stats['collected']) }}</p>
+                <p class="mt-0.5 text-xs text-slate-400">total recibido</p>
             </div>
         </div>
 
@@ -66,11 +85,15 @@
                                     @endforeach
                                 </select>
                                 {{-- Cliente nuevo: se crea al guardar el préstamo --}}
-                                <div x-show="newCustomer" x-cloak class="grid grid-cols-2 gap-3">
+                                <div x-show="newCustomer" x-cloak class="space-y-2">
                                     <input type="text" name="new_customer_name" value="{{ old('new_customer_name') }}"
                                            placeholder="Nombre del cliente" class="bmos-input" :required="newCustomer">
-                                    <input type="text" name="new_customer_phone" value="{{ old('new_customer_phone') }}"
-                                           placeholder="Teléfono (opcional)" class="bmos-input">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <input type="text" name="new_customer_cedula" value="{{ old('new_customer_cedula') }}"
+                                               placeholder="Cédula (opcional)" class="bmos-input">
+                                        <input type="text" name="new_customer_phone" value="{{ old('new_customer_phone') }}"
+                                               placeholder="Teléfono (opcional)" class="bmos-input">
+                                    </div>
                                 </div>
                             </div>
 

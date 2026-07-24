@@ -21,6 +21,9 @@
                     <p class="font-semibold text-slate-800">Resumen</p>
                     <span class="bmos-badge {{ $loan->status->badgeClass() }}">{{ $loan->status->label() }}</span>
                 </div>
+                @if ($loan->customer)
+                    <a href="{{ route('panel.customers.show', $loan->customer) }}" class="mb-2 inline-block text-xs text-indigo-600 hover:underline">Ver perfil del cliente →</a>
+                @endif
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between"><dt class="text-slate-500">Capital</dt><dd class="font-medium">{{ money($loan->principal) }}</dd></div>
                     <div class="flex justify-between"><dt class="text-slate-500">Interés ({{ number_format((float) $loan->interest_rate, 2) }}%)</dt><dd class="font-medium">{{ money($loan->interest_amount) }}</dd></div>

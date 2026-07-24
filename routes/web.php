@@ -153,10 +153,22 @@ Route::middleware(['auth'])->group(function (): void {
         Route::delete('/panel/inventario/{product}', [ProductController::class, 'destroy'])->name('panel.products.destroy');
     });
 
+    // Perfil del cliente y ver/descargar sus documentos: basta con poder ver el CRM.
+    Route::middleware(['can:customers.view', 'module:crm'])->group(function (): void {
+        Route::get('/panel/crm/{customer}', [CustomerController::class, 'show'])->name('panel.customers.show');
+        Route::get('/panel/crm/{customer}/documentos/{document}', [CustomerController::class, 'showDocument'])
+            ->name('panel.customers.documents.show');
+    });
+
     Route::middleware(['can:customers.manage', 'module:crm'])->group(function (): void {
         Route::post('/panel/crm', [CustomerController::class, 'store'])->name('panel.customers.store');
         Route::put('/panel/crm/{customer}', [CustomerController::class, 'update'])->name('panel.customers.update');
         Route::delete('/panel/crm/{customer}', [CustomerController::class, 'destroy'])->name('panel.customers.destroy');
+        // Subir/eliminar documentos del perfil.
+        Route::post('/panel/crm/{customer}/documentos', [CustomerController::class, 'storeDocument'])
+            ->name('panel.customers.documents.store');
+        Route::delete('/panel/crm/{customer}/documentos/{document}', [CustomerController::class, 'destroyDocument'])
+            ->name('panel.customers.documents.destroy');
 
         // Enviar al cliente el enlace de su portal por WhatsApp. Exige también el módulo de
         // WhatsApp: es el canal por el que se entrega.

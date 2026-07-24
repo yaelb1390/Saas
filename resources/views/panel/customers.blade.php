@@ -16,10 +16,13 @@
                     <x-panel.create-modal title="Nuevo cliente" label="Nuevo cliente" form="customer_create" :action="route('panel.customers.store')">
                         <x-panel.field name="name" label="Nombre" required placeholder="Nombre del cliente" />
                         <div class="grid grid-cols-2 gap-3">
+                            <x-panel.field name="cedula" label="Cédula" placeholder="001-0000000-0" />
                             <x-panel.field name="phone" label="Teléfono" placeholder="18095550000" />
-                            <x-panel.field name="tax_id" label="RNC / Cédula" />
                         </div>
-                        <x-panel.field name="email" label="Correo" type="email" placeholder="cliente@correo.com" />
+                        <div class="grid grid-cols-2 gap-3">
+                            <x-panel.field name="tax_id" label="RNC (opcional)" />
+                            <x-panel.field name="email" label="Correo" type="email" placeholder="cliente@correo.com" />
+                        </div>
                         <x-panel.field name="address" label="Dirección" />
                     </x-panel.create-modal>
                     @endcan
@@ -31,7 +34,10 @@
                         <tbody>
                             @forelse ($customers as $customer)
                                 <tr>
-                                    <td class="font-medium text-slate-800">{{ $customer->name }}</td>
+                                    <td class="font-medium">
+                                        <a href="{{ route('panel.customers.show', $customer) }}" class="text-indigo-600 hover:underline">{{ $customer->name }}</a>
+                                        @if ($customer->cedula)<span class="block text-xs font-normal text-slate-400">Cédula: {{ $customer->cedula }}</span>@endif
+                                    </td>
                                     <td>{{ $customer->phone ?? '—' }}</td>
                                     <td class="text-slate-500">{{ $customer->email ?? '—' }}</td>
                                     <td><span class="bmos-badge badge-violet">{{ $customer->opportunities_count }}</span></td>
@@ -52,7 +58,7 @@
                                             </form>
                                             @endif
                                             <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
-                                                    @click="edit({ id: {{ $customer->id }}, name: @js($customer->name), phone: @js($customer->phone), tax_id: @js($customer->tax_id), email: @js($customer->email), address: @js($customer->address) })">
+                                                    @click="edit({ id: {{ $customer->id }}, name: @js($customer->name), cedula: @js($customer->cedula), phone: @js($customer->phone), tax_id: @js($customer->tax_id), email: @js($customer->email), address: @js($customer->address) })">
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                             </button>
                                             <form method="POST" action="{{ route('panel.customers.destroy', $customer) }}" onsubmit="return confirm('¿Eliminar «{{ $customer->name }}»?')">
@@ -116,9 +122,10 @@
                     <input type="hidden" name="id" x-model="row.id">
                     <div><label class="bmos-field-label">Nombre</label><input name="name" x-model="row.name" class="bmos-input" required></div>
                     <div class="grid grid-cols-2 gap-3">
+                        <div><label class="bmos-field-label">Cédula</label><input name="cedula" x-model="row.cedula" class="bmos-input"></div>
                         <div><label class="bmos-field-label">Teléfono</label><input name="phone" x-model="row.phone" class="bmos-input"></div>
-                        <div><label class="bmos-field-label">RNC / Cédula</label><input name="tax_id" x-model="row.tax_id" class="bmos-input"></div>
                     </div>
+                    <div><label class="bmos-field-label">RNC (opcional)</label><input name="tax_id" x-model="row.tax_id" class="bmos-input"></div>
                     <div><label class="bmos-field-label">Correo</label><input name="email" type="email" x-model="row.email" class="bmos-input"></div>
                     <div><label class="bmos-field-label">Dirección</label><input name="address" x-model="row.address" class="bmos-input"></div>
                     <div class="flex justify-end gap-2 pt-3">
@@ -134,13 +141,13 @@
         function customersCrud() {
             return {
                 open: false,
-                row: { id: '', name: '', phone: '', tax_id: '', email: '', address: '' },
+                row: { id: '', name: '', cedula: '', phone: '', tax_id: '', email: '', address: '' },
                 get editUrl() { return '{{ url('panel/crm') }}/' + this.row.id; },
                 edit(data) { this.row = { ...data }; this.open = true; },
                 init() {
                     @if (old('_form') === 'customer_edit')
                         this.row = {
-                            id: '{{ old('id') }}', name: @js(old('name')), phone: @js(old('phone')),
+                            id: '{{ old('id') }}', name: @js(old('name')), cedula: @js(old('cedula')), phone: @js(old('phone')),
                             tax_id: @js(old('tax_id')), email: @js(old('email')), address: @js(old('address')),
                         };
                         this.open = true;

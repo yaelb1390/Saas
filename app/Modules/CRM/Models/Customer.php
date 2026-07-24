@@ -30,6 +30,7 @@ class Customer extends Model implements Auditable, HasCompany
         'email',
         'phone',
         'tax_id',
+        'cedula',
         'address',
         'notes',
         'is_active',
@@ -56,5 +57,13 @@ class Customer extends Model implements Auditable, HasCompany
     public function loans(): HasMany
     {
         return $this->hasMany(Loan::class);
+    }
+
+    /**
+     * @return HasMany<CustomerDocument, $this>
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(CustomerDocument::class)->latest('id');
     }
 }

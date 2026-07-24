@@ -23,5 +23,6 @@
         </main>
     </div>
     @include('partials.ios-install-hint')
+    @include('partials.pwa-install-banner')
 </body>
 </html>

@@ -87,5 +87,6 @@
     </div>
     <style>[x-cloak]{display:none!important}</style>
     @include('partials.ios-install-hint')
+    @include('partials.pwa-install-banner')
 </body>
 </html>

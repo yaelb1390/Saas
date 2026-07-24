@@ -220,6 +220,7 @@
 
             {{-- Aviso de vencimiento de suscripción/prueba (banner + ventana emergente). --}}
             @include('partials.subscription-notice')
+    @include('partials.ios-install-hint')
 
             {{ $slot }}
         </main>

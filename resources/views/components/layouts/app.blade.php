@@ -22,5 +22,6 @@
             {{ $slot }}
         </main>
     </div>
+    @include('partials.ios-install-hint')
 </body>
 </html>

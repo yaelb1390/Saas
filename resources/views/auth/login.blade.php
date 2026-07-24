@@ -86,5 +86,6 @@
         </div>
     </div>
     <style>[x-cloak]{display:none!important}</style>
+    @include('partials.ios-install-hint')
 </body>
 </html>

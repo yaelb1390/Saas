@@ -1,9 +1,16 @@
 # Vercel construye desde el repo; excluimos lo que no debe subir a la función serverless.
+# IMPORTANTE: el runtime vercel-php@0.7.4 deja de incluir su `launcher` cuando el lambda supera cierto
+# número de archivos (síntoma: "launcher.launcher not found" / FUNCTION_INVOCATION_FAILED). Por eso
+# mantenemos el bundle delgado: nada que no se ejecute en serverless debe subir.
 /vendor
 /node_modules
 /tests
 /docker
 docker-compose.yml
+# No se ejecutan en runtime (las migraciones se aplican fuera de banda; seeders/factories son de dev).
+/database/migrations
+/database/seeders
+/database/factories
 /storage/logs/*
 /storage/framework/cache/*
 /storage/framework/sessions/*

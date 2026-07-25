@@ -1,4 +1,4 @@
-@props(['title', 'action', 'label' => null, 'form' => 'create'])
+@props(['title', 'action', 'label' => null, 'form' => 'create', 'width' => 'max-w-lg'])
 
 {{-- Modal de alta reutilizable. Se reabre solo si su propio formulario tuvo errores de validación. --}}
 <div x-data="{ open: {{ old('_form') === $form ? 'true' : 'false' }} }" class="inline-block">
@@ -10,7 +10,7 @@
          class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 py-10"
          @keydown.escape.window="open = false">
         <div @click.outside="open = false" x-transition
-             class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+             class="w-full {{ $width }} rounded-2xl bg-white p-6 shadow-2xl">
             <div class="mb-4 flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-slate-800">{{ $title }}</h3>
                 <button type="button" @click="open = false" class="text-slate-400 hover:text-slate-600">

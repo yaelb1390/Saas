@@ -67,37 +67,37 @@
                 <div class="flex flex-wrap items-center gap-3">
                     <x-panel.search-bar placeholder="Buscar por código, cliente o cédula..." />
                     @can('loans.manage')
-                    <x-panel.create-modal title="Nuevo préstamo" label="Nuevo préstamo" form="loan_create" :action="route('panel.loans.store')">
+                    <x-panel.create-modal title="Nuevo préstamo" label="Nuevo préstamo" form="loan_create" :action="route('panel.loans.store')" width="max-w-3xl">
                         <div x-data="loanCalc()">
-                            <div>
-                                <div class="mb-1 flex items-center justify-between">
-                                    <label class="bmos-field-label">Cliente</label>
-                                    <label class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                                        <input type="checkbox" x-model="newCustomer" class="rounded border-slate-300 text-indigo-600">
-                                        Cliente nuevo
-                                    </label>
-                                </div>
-                                {{-- Cliente existente --}}
-                                <select name="customer_id" class="bmos-input" x-show="!newCustomer" :required="!newCustomer">
-                                    <option value="">— Selecciona un cliente —</option>
-                                    @foreach ($customers as $c)
-                                        <option value="{{ $c->id }}" @selected(old('customer_id') == $c->id)>{{ $c->name }}</option>
-                                    @endforeach
-                                </select>
-                                {{-- Cliente nuevo: se crea al guardar el préstamo --}}
-                                <div x-show="newCustomer" x-cloak class="space-y-2">
-                                    <input type="text" name="new_customer_name" value="{{ old('new_customer_name') }}"
-                                           placeholder="Nombre del cliente" class="bmos-input" :required="newCustomer">
-                                    <div class="grid grid-cols-2 gap-3">
+                            {{-- Disposición horizontal: los campos fluyen en hasta 3 columnas. --}}
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                {{-- Cliente: ocupa toda la fila --}}
+                                <div class="sm:col-span-2 lg:col-span-3">
+                                    <div class="mb-1 flex items-center justify-between">
+                                        <label class="bmos-field-label">Cliente</label>
+                                        <label class="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                                            <input type="checkbox" x-model="newCustomer" class="rounded border-slate-300 text-indigo-600">
+                                            Cliente nuevo
+                                        </label>
+                                    </div>
+                                    {{-- Cliente existente --}}
+                                    <select name="customer_id" class="bmos-input" x-show="!newCustomer" :required="!newCustomer">
+                                        <option value="">— Selecciona un cliente —</option>
+                                        @foreach ($customers as $c)
+                                            <option value="{{ $c->id }}" @selected(old('customer_id') == $c->id)>{{ $c->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    {{-- Cliente nuevo: se crea al guardar el préstamo --}}
+                                    <div x-show="newCustomer" x-cloak class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                        <input type="text" name="new_customer_name" value="{{ old('new_customer_name') }}"
+                                               placeholder="Nombre del cliente" class="bmos-input" :required="newCustomer">
                                         <input type="text" name="new_customer_cedula" value="{{ old('new_customer_cedula') }}"
                                                placeholder="Cédula (opcional)" class="bmos-input">
                                         <input type="text" name="new_customer_phone" value="{{ old('new_customer_phone') }}"
                                                placeholder="Teléfono (opcional)" class="bmos-input">
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="mt-3 grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="bmos-field-label">Capital (RD$)</label>
                                     <input type="number" step="0.01" min="0" name="principal" x-model="principal"
@@ -108,9 +108,6 @@
                                     <input type="number" step="0.01" min="0" name="interest_rate" x-model="rate"
                                            value="{{ old('interest_rate', 0) }}" class="bmos-input" placeholder="Ej: 20">
                                 </div>
-                            </div>
-
-                            <div class="mt-3 grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="bmos-field-label">Interés (monto, opcional)</label>
                                     <input type="number" step="0.01" min="0" name="interest_amount" x-model="amount"
@@ -121,9 +118,6 @@
                                     <input type="number" step="1" min="1" name="installments_count" x-model="count"
                                            value="{{ old('installments_count', 1) }}" class="bmos-input" required>
                                 </div>
-                            </div>
-
-                            <div class="mt-3 grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="bmos-field-label">Frecuencia</label>
                                     <select name="frequency" class="bmos-input" required>
@@ -136,14 +130,11 @@
                                     <label class="bmos-field-label">Primer vencimiento</label>
                                     <input type="date" name="start_date" value="{{ old('start_date', now()->toDateString()) }}" class="bmos-input" required>
                                 </div>
-                            </div>
-
-                            <div class="mt-3 grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="bmos-field-label">Mora (%) opcional</label>
                                     <input type="number" step="0.01" min="0" name="late_fee_rate" value="{{ old('late_fee_rate') }}" class="bmos-input" placeholder="Ej: 5">
                                 </div>
-                                <div>
+                                <div class="sm:col-span-2">
                                     <label class="bmos-field-label">Garantía (opcional)</label>
                                     <input type="text" name="collateral" value="{{ old('collateral') }}" class="bmos-input" placeholder="Cédula, prenda...">
                                 </div>

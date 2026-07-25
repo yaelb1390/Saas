@@ -29,6 +29,7 @@ final class SubscriptionService
 
         return Subscription::updateOrCreate(
             ['company_id' => $company->id],
+            // Alta desde el panel del operador: nunca marca purge_at (sus pruebas no se auto-borran).
             $trial
                 ? [
                     'plan_id' => $plan->id,
@@ -37,6 +38,7 @@ final class SubscriptionService
                     'current_period_start' => null,
                     'current_period_end' => null,
                     'cancelled_at' => null,
+                    'purge_at' => null,
                 ]
                 : [
                     'plan_id' => $plan->id,
@@ -45,7 +47,36 @@ final class SubscriptionService
                     'current_period_start' => $now,
                     'current_period_end' => $plan->billing_cycle->advance($now),
                     'cancelled_at' => null,
+                    'purge_at' => null,
                 ],
+        );
+    }
+
+    /**
+     * Inicia una prueba de registro self-service: la empresa arranca en período de prueba de $days
+     * días (duración explícita, no la del plan) y marca `purge_at` = fin de prueba + 24 h. Ese sello
+     * es lo que autoriza el borrado automático de los datos si el cliente no contrata un plan; toda
+     * acción posterior del operador (pago/cambio de plan) lo limpia.
+     *
+     * El plan solo define los módulos que se heredan si la empresa no fijó su propia selección; el
+     * acceso real durante la prueba lo gobierna `company.modules` (lo que el cliente eligió).
+     */
+    public function startSelfServiceTrial(Company $company, Plan $plan, int $days): Subscription
+    {
+        $now = Carbon::now();
+        $trialEnds = $now->copy()->addDays($days);
+
+        return Subscription::updateOrCreate(
+            ['company_id' => $company->id],
+            [
+                'plan_id' => $plan->id,
+                'status' => SubscriptionStatus::Trialing,
+                'trial_ends_at' => $trialEnds,
+                'current_period_start' => null,
+                'current_period_end' => null,
+                'cancelled_at' => null,
+                'purge_at' => $trialEnds->copy()->addDay(),
+            ],
         );
     }
 
@@ -68,6 +99,7 @@ final class SubscriptionService
             'current_period_start' => $subscription->current_period_start ?? $now,
             'current_period_end' => $plan?->billing_cycle->advance($base) ?? $base,
             'cancelled_at' => null,
+            'purge_at' => null, // ya contrató/pagó: nunca auto-borrar sus datos
         ]);
 
         return $subscription->refresh();
@@ -89,6 +121,7 @@ final class SubscriptionService
                 'current_period_start' => $now,
                 'current_period_end' => $plan->billing_cycle->advance($now),
                 'cancelled_at' => null,
+                'purge_at' => null,
             ];
         }
 

@@ -82,7 +82,13 @@
                 </button>
             </form>
 
-            <p class="mt-6 text-center text-xs text-slate-400">© {{ date('Y') }} BM Business OS</p>
+            <p class="mt-6 text-center text-sm text-slate-500">
+                ¿No tienes cuenta?
+                <a href="{{ route('register.form') }}" class="font-semibold text-indigo-600 hover:underline">Regístrate gratis</a>
+                <span class="text-slate-400">· prueba de 15 días</span>
+            </p>
+
+            <p class="mt-4 text-center text-xs text-slate-400">© {{ date('Y') }} BM Business OS</p>
         </div>
     </div>
     <style>[x-cloak]{display:none!important}</style>

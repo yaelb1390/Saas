@@ -117,6 +117,21 @@ it('la prueba genera un aviso con cuenta atrás', function (): void {
         ->and($notice->days)->toBe(6);
 });
 
+it('la prueba self-service avisa que los datos se borrarán', function (): void {
+    $sub = Subscription::create([
+        'company_id' => $this->company->id, 'plan_id' => $this->plan->id,
+        'status' => SubscriptionStatus::Trialing,
+        'trial_ends_at' => Carbon::now()->addDays(10),
+        'purge_at' => Carbon::now()->addDays(11), // 24 h después del fin de prueba
+    ]);
+
+    $notice = SubscriptionNotice::for($sub);
+
+    expect($notice)->not->toBeNull()
+        ->and($notice->purgeAt)->not->toBeNull()
+        ->and($notice->message)->toContain('se eliminarán');
+});
+
 it('la prueba a punto de terminar es crítica', function (): void {
     $sub = Subscription::create([
         'company_id' => $this->company->id, 'plan_id' => $this->plan->id,

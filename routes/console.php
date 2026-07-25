@@ -16,3 +16,7 @@ Artisan::command('inspire', function () {
  */
 Schedule::command('backup:clean')->dailyAt('01:00')->withoutOverlapping();
 Schedule::command('backup:run')->dailyAt('01:30')->withoutOverlapping();
+
+// Borra los datos de las pruebas self-service vencidas hace >24 h (conserva la cuenta). En Vercel lo
+// dispara el cron (endpoint /tareas/purgar-pruebas); aquí queda para entornos con scheduler.
+Schedule::command('trials:purge')->dailyAt('06:00')->withoutOverlapping();

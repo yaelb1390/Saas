@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    // Secreto compartido para los endpoints disparados por el cron de Vercel (leído aquí para que
+    // sobreviva a `config:cache`, donde env() en runtime devolvería null).
+    'cron' => [
+        'secret' => env('CRON_SECRET'),
+    ],
+
 ];

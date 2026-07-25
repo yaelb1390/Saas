@@ -23,6 +23,7 @@ final class SubscriptionNotice
         public readonly int $days,
         public readonly Carbon $renewsAt,
         public readonly bool $isTrial,
+        public readonly ?Carbon $purgeAt = null,
     ) {}
 
     /**
@@ -46,13 +47,23 @@ final class SubscriptionNotice
         $days = $subscription->daysUntilRenewal() ?? 0;
 
         if ($subscription->isTrialing()) {
+            $message = "Tu período de prueba termina en {$days} ".self::dias($days)
+                ." ({$renews->format('d/m/Y')}). Contacta para activar tu plan y no perder el acceso.";
+
+            // Prueba self-service (con fecha de purga): se advierte que los datos son de prueba y se
+            // eliminarán 24 h después de vencer si no se contrata un plan.
+            if ($subscription->purge_at !== null) {
+                $message .= ' Los datos que registres son de prueba y se eliminarán el '
+                    .$subscription->purge_at->format('d/m/Y').' si no activas un plan.';
+            }
+
             return new self(
                 level: $days <= 3 ? 'critical' : 'info',
-                message: "Tu período de prueba termina en {$days} ".self::dias($days)
-                    ." ({$renews->format('d/m/Y')}). Contacta para activar tu plan y no perder el acceso.",
+                message: $message,
                 days: $days,
                 renewsAt: $renews,
                 isTrial: true,
+                purgeAt: $subscription->purge_at,
             );
         }
 

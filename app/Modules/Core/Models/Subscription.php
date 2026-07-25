@@ -18,6 +18,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property SubscriptionStatus $status
  * @property Carbon|null $trial_ends_at
  * @property Carbon|null $current_period_end
+ * @property Carbon|null $purge_at
  */
 class Subscription extends Model implements Auditable
 {
@@ -31,6 +32,7 @@ class Subscription extends Model implements Auditable
         'current_period_start',
         'current_period_end',
         'cancelled_at',
+        'purge_at',
     ];
 
     protected function casts(): array
@@ -41,6 +43,7 @@ class Subscription extends Model implements Auditable
             'current_period_start' => 'datetime',
             'current_period_end' => 'datetime',
             'cancelled_at' => 'datetime',
+            'purge_at' => 'datetime',
         ];
     }
 

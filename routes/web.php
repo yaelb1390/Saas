@@ -11,7 +11,9 @@ use App\Modules\Core\Http\Controllers\CompanyAdminController;
 use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
 use App\Modules\Core\Http\Controllers\PlanController;
+use App\Modules\Core\Http\Controllers\RegisterController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
+use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
 use App\Modules\Core\Http\Controllers\UserController;
 use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
@@ -36,6 +38,14 @@ use Illuminate\Support\Facades\Route;
  */
 
 Route::redirect('/', '/dashboard');
+
+// Registro self-service (público): un cliente crea su empresa y arranca una prueba gratuita eligiendo
+// módulos. `throttle` limita el abuso de altas automáticas. `guest` evita registrarse ya logueado.
+Route::middleware(['guest'])->group(function (): void {
+    Route::get('/registro', [RegisterController::class, 'create'])->name('register.form');
+    Route::post('/registro', [RegisterController::class, 'store'])
+        ->middleware('throttle:6,1')->name('register.store');
+});
 
 Route::middleware(['auth'])->group(function (): void {
     Route::get('/dashboard', DashboardController::class)->middleware(['can:dashboard.view', 'subscription'])->name('dashboard');
@@ -270,3 +280,7 @@ Route::get('/portal/cliente/{customer}', CustomerPortalController::class)
 
 // Webhook entrante de Evolution API (sin sesión; protegido por secreto compartido).
 Route::post('/webhooks/evolution', EvolutionWebhookController::class)->name('webhooks.evolution');
+
+// Mantenimiento disparado por el cron de Vercel (sin sesión; protegido por CRON_SECRET en el header).
+// Purga los datos de las pruebas self-service vencidas hace más de 24 h.
+Route::get('/tareas/purgar-pruebas', [TrialMaintenanceController::class, 'purgeTrials'])->name('tasks.purge-trials');

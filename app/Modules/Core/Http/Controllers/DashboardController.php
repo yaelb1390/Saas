@@ -25,6 +25,14 @@ final class DashboardController extends Controller
         // Instancia compartida de la petición: el layout y las tarjetas de módulos la reutilizan.
         $company = $currentCompany->model();
 
+        // Los datos de los gráficos se calculan solo si la empresa tiene el módulo (mismo criterio
+        // que las tarjetas del dashboard): evita consultas inútiles y mantiene la visibilidad alineada.
+        $isSuper = (bool) $user->is_super_admin;
+        $hasModule = fn (string $key): bool => $isSuper || $company === null || $company->hasModule($key);
+
+        $showLoans = $hasModule('loans');
+        $showSales = $hasModule('sales');
+
         return view('dashboard', [
             'user' => $user,
             'company' => $company,
@@ -32,6 +40,9 @@ final class DashboardController extends Controller
             'branchesCount' => Branch::count(),      // aislado por el tenant activo
             'warehousesCount' => Warehouse::count(), // aislado por el tenant activo
             'summary' => $reports->executiveSummary(),
+            'collectionsTrend' => $showLoans ? $reports->collectionsTrend() : [],
+            'salesTrend' => $showSales ? $reports->salesTrend() : [],
+            'loanCounts' => $showLoans ? $reports->loanStatusCounts() : ['active' => 0, 'paid' => 0],
         ]);
     }
 }

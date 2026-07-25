@@ -106,6 +106,94 @@
     </div>
     @endif
 
+    {{-- Análisis: gráficos. Cada tarjeta obedece al mismo criterio que los KPIs ($canOpen: permiso +
+         módulo contratado), así una empresa de solo Préstamos ve sus gráficos y no los de Ventas. --}}
+    @php
+        $toLabels = fn (array $serie) => array_map(
+            fn ($d) => \Illuminate\Support\Carbon::parse($d)->format('d/m'),
+            array_keys($serie),
+        );
+        $collLabels = $toLabels($collectionsTrend);
+        $collValues = array_map(fn ($v) => (float) $v, array_values($collectionsTrend));
+        $salesLabels = $toLabels($salesTrend);
+        $salesValues = array_map(fn ($v) => (float) $v, array_values($salesTrend));
+
+        // Cartera: al día vs mora se derivan de los KPIs, sin consulta nueva.
+        $outstanding = (float) ($summary['loans_outstanding'] ?? 0);
+        $overdue = (float) ($summary['loans_overdue'] ?? 0);
+        $alDia = max(0, round($outstanding - $overdue, 2));
+        $mora = round($overdue, 2);
+
+        $activeLoans = (int) ($loanCounts['active'] ?? 0);
+        $paidLoans = (int) ($loanCounts['paid'] ?? 0);
+
+        $showLoansCharts = $canOpen('panel.loans');
+        $showSalesChart = $canOpen('panel.sales');
+    @endphp
+
+    @if ($showLoansCharts || $showSalesChart)
+    <h2 class="mt-9 mb-3 text-lg font-semibold text-slate-800">Análisis</h2>
+    <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        @if ($showLoansCharts)
+            {{-- Cobros de préstamos por día --}}
+            <div class="bmos-card bmos-card-pad lg:col-span-2">
+                <p class="font-semibold text-slate-800">Cobros por día</p>
+                <p class="text-sm text-slate-500">Lo cobrado en préstamos (últimos 14 días)</p>
+                @if (array_sum($collValues) > 0)
+                    <div class="mt-4" x-data="trendChart(@js($collLabels), @js($collValues), 'Cobros')">
+                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
+                    </div>
+                @else
+                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Sin cobros todavía.</div>
+                @endif
+            </div>
+
+            {{-- Cartera: al día vs en mora --}}
+            <div class="bmos-card bmos-card-pad lg:col-span-1">
+                <p class="font-semibold text-slate-800">Cartera</p>
+                <p class="text-sm text-slate-500">Saldo al día vs en mora</p>
+                @if (($alDia + $mora) > 0)
+                    <div class="mt-4" x-data="donutChart(@js(['Al día', 'En mora']), @js([$alDia, $mora]), @js(['#10b981', '#f43f5e']))">
+                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
+                    </div>
+                @else
+                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Sin cartera activa.</div>
+                @endif
+            </div>
+        @endif
+
+        @if ($showSalesChart)
+            {{-- Ventas por día --}}
+            <div class="bmos-card bmos-card-pad lg:col-span-2">
+                <p class="font-semibold text-slate-800">Ventas por día</p>
+                <p class="text-sm text-slate-500">Ventas completadas (últimos 14 días)</p>
+                @if (array_sum($salesValues) > 0)
+                    <div class="mt-4" x-data="trendChart(@js($salesLabels), @js($salesValues), 'Ventas')">
+                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
+                    </div>
+                @else
+                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Sin ventas todavía.</div>
+                @endif
+            </div>
+        @endif
+
+        @if ($showLoansCharts)
+            {{-- Préstamos: activos vs pagados --}}
+            <div class="bmos-card bmos-card-pad lg:col-span-1">
+                <p class="font-semibold text-slate-800">Préstamos</p>
+                <p class="text-sm text-slate-500">Vigentes vs. saldados</p>
+                @if (($activeLoans + $paidLoans) > 0)
+                    <div class="mt-4" x-data="donutChart(@js(['Activos', 'Pagados']), @js([$activeLoans, $paidLoans]), @js(['#6366f1', '#94a3b8']))">
+                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
+                    </div>
+                @else
+                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Aún no hay préstamos.</div>
+                @endif
+            </div>
+        @endif
+    </div>
+    @endif
+
     {{-- Módulos --}}
     <h2 class="mt-9 mb-3 text-lg font-semibold text-slate-800">Módulos del sistema</h2>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -207,4 +295,93 @@
         </div>
         @endif
     </div>
+
+    {{-- Componentes de gráficos (Chart.js ya viene empaquetado como window.Chart). Mismo estilo que
+         la página de Reportes: degradado indigo, tooltip oscuro y formato es-RD. --}}
+    <script>
+        function trendChart(labels, data, label) {
+            return {
+                chart: null,
+                init() {
+                    const ctx = this.$refs.canvas.getContext('2d');
+                    const grad = ctx.createLinearGradient(0, 0, 0, 230);
+                    grad.addColorStop(0, 'rgba(99,102,241,0.85)');
+                    grad.addColorStop(1, 'rgba(79,70,229,0.55)');
+                    this.chart = new window.Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [{
+                                label,
+                                data,
+                                backgroundColor: grad,
+                                borderRadius: 5,
+                                maxBarThickness: 34,
+                            }],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: { duration: 900, easing: 'easeOutQuart' },
+                            interaction: { intersect: false, mode: 'index' },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#0f1220', padding: 10, cornerRadius: 8,
+                                    callbacks: { label: (c) => ' RD$ ' + Number(c.parsed.y).toLocaleString('es', { minimumFractionDigits: 2 }) },
+                                },
+                            },
+                            scales: {
+                                y: { beginAtZero: true, grid: { color: '#eef0f6' }, ticks: { color: '#94a3b8' } },
+                                x: { grid: { display: false }, ticks: { color: '#94a3b8', maxTicksLimit: 8, autoSkip: true } },
+                            },
+                        },
+                    });
+                },
+                destroy() { if (this.chart) this.chart.destroy(); },
+            };
+        }
+
+        function donutChart(labels, data, colors) {
+            return {
+                chart: null,
+                init() {
+                    const ctx = this.$refs.canvas.getContext('2d');
+                    this.chart = new window.Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels,
+                            datasets: [{
+                                data,
+                                backgroundColor: colors,
+                                borderColor: '#ffffff',
+                                borderWidth: 2,
+                                hoverOffset: 8,
+                            }],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '62%',
+                            animation: { animateRotate: true, duration: 900, easing: 'easeOutQuart' },
+                            plugins: {
+                                legend: { position: 'bottom', labels: { color: '#64748b', boxWidth: 10, padding: 12, font: { size: 11 } } },
+                                tooltip: {
+                                    backgroundColor: '#0f1220', padding: 10, cornerRadius: 8,
+                                    callbacks: {
+                                        label: (c) => {
+                                            const total = c.dataset.data.reduce((a, b) => a + Number(b), 0) || 1;
+                                            const pct = (Number(c.parsed) / total * 100).toFixed(1);
+                                            return ' ' + Number(c.parsed).toLocaleString('es', { minimumFractionDigits: 2 }) + ' (' + pct + '%)';
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    });
+                },
+                destroy() { if (this.chart) this.chart.destroy(); },
+            };
+        }
+    </script>
 </x-layouts.admin>

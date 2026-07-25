@@ -16,6 +16,7 @@ use App\Modules\Loans\Enums\InstallmentStatus;
 use App\Modules\Loans\Enums\LoanStatus;
 use App\Modules\Loans\Models\Loan;
 use App\Modules\Loans\Models\LoanInstallment;
+use App\Modules\Loans\Models\LoanPayment;
 use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Database\Eloquent\Builder;
@@ -180,5 +181,108 @@ final class ReportService
             'days' => $days,
             'top_products' => $topProducts,
         ];
+    }
+
+    /**
+     * Cobros de préstamos por día (últimos $days días, con ceros). Para el gráfico del dashboard.
+     * Aislado por empresa vía CompanyScope y cacheado como el resumen ejecutivo.
+     *
+     * @return array<string, float>
+     */
+    public function collectionsTrend(int $days = 14): array
+    {
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:collections-trend:{$days}",
+            self::SUMMARY_TTL,
+            function () use ($days): array {
+                $from = Carbon::now()->startOfDay()->subDays($days - 1);
+
+                $rows = LoanPayment::query()
+                    ->where('paid_at', '>=', $from)
+                    ->get(['amount', 'paid_at'])
+                    ->map(fn (LoanPayment $payment): array => [
+                        'date' => $payment->paid_at,
+                        'value' => (float) $payment->amount,
+                    ]);
+
+                return $this->dailyTrend($rows, $days);
+            },
+        );
+    }
+
+    /**
+     * Ventas completadas por día (últimos $days días, con ceros). Versión ligera de salesReport()
+     * para el gráfico del dashboard: no carga items ni productos.
+     *
+     * @return array<string, float>
+     */
+    public function salesTrend(int $days = 14): array
+    {
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:sales-trend:{$days}",
+            self::SUMMARY_TTL,
+            function () use ($days): array {
+                $from = Carbon::now()->startOfDay()->subDays($days - 1);
+
+                $rows = Sale::query()
+                    ->where('status', SaleStatus::Completed)
+                    ->where('created_at', '>=', $from)
+                    ->get(['total', 'created_at'])
+                    ->map(fn (Sale $sale): array => [
+                        'date' => $sale->created_at,
+                        'value' => (float) $sale->total,
+                    ]);
+
+                return $this->dailyTrend($rows, $days);
+            },
+        );
+    }
+
+    /**
+     * Nº de préstamos vigentes vs. saldados (para el dónut del dashboard). Aislado por empresa.
+     *
+     * @return array{active: int, paid: int}
+     */
+    public function loanStatusCounts(): array
+    {
+        return [
+            'active' => Loan::query()->where('status', LoanStatus::Active)->count(),
+            'paid' => Loan::query()->where('status', LoanStatus::Paid)->count(),
+        ];
+    }
+
+    /**
+     * Convierte registros {date, value} en una serie diaria continua de los últimos $days días,
+     * rellenando con 0 los días sin datos. Se agrega en PHP para ser portable PG/SQLite.
+     *
+     * @param  \Illuminate\Support\Collection<int, array{date: ?\Illuminate\Support\Carbon, value: float}>  $rows
+     * @return array<string, float>
+     */
+    private function dailyTrend(\Illuminate\Support\Collection $rows, int $days): array
+    {
+        $today = Carbon::now()->startOfDay();
+        $from = $today->copy()->subDays($days - 1);
+
+        $series = [];
+        for ($cursor = $from->copy(); $cursor <= $today; $cursor->addDay()) {
+            $series[$cursor->format('Y-m-d')] = 0.0;
+        }
+
+        foreach ($rows as $row) {
+            $date = $row['date'];
+            if ($date === null) {
+                continue;
+            }
+            $key = $date->copy()->startOfDay()->format('Y-m-d');
+            if (array_key_exists($key, $series)) {
+                $series[$key] = round($series[$key] + $row['value'], 2);
+            }
+        }
+
+        return $series;
     }
 }

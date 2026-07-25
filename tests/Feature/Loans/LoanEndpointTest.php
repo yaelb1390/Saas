@@ -137,6 +137,24 @@ it('registra el cliente al vuelo cuando se escribe uno nuevo', function (): void
         ->and(Loan::where('customer_id', $customer->id)->exists())->toBeTrue();
 });
 
+it('busca préstamos por la cédula del cliente, con o sin guiones', function (): void {
+    $cliente = Customer::create(['name' => 'Con Cédula', 'cedula' => '402-1234567-8']);
+    $this->actingAs($this->owner)->post(route('panel.loans.store'), loanPayload($cliente->id));
+    app(CurrentCompany::class)->set($this->company->id);
+
+    // Tal cual, con guiones.
+    $this->actingAs($this->owner)->get(route('panel.loans', ['q' => '402-1234567-8']))
+        ->assertOk()->assertSee('PR-000001');
+
+    // Solo dígitos: debe encontrarla igual (se compara la cédula sin guiones).
+    $this->actingAs($this->owner)->get(route('panel.loans', ['q' => '4021234567']))
+        ->assertOk()->assertSee('PR-000001');
+
+    // Una cédula que no existe no devuelve el préstamo.
+    $this->actingAs($this->owner)->get(route('panel.loans', ['q' => '00000000']))
+        ->assertOk()->assertDontSee('PR-000001');
+});
+
 it('exige un cliente existente o uno nuevo', function (): void {
     $payload = loanPayload(0);
     unset($payload['customer_id']);

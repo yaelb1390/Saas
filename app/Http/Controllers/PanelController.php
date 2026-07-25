@@ -204,9 +204,23 @@ final class PanelController extends Controller
         $loans = Loan::query()
             ->with('customer')
             ->withMin(['installments' => fn ($q) => $q->where('status', '!=', InstallmentStatus::Paid->value)], 'due_date')
-            ->when(request('q'), fn ($query, $q) => $query->where(
-                fn ($sub) => $sub->whereLike('code', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")
-            ))
+            ->when(request('q'), function ($query, $q) {
+                // Se busca por código, nombre y cédula del cliente. La cédula se compara también sin
+                // guiones/espacios (REPLACE es portable PG/SQLite) para encontrarla se escriba
+                // «001-1909443-4» o «0011909434».
+                $digits = preg_replace('/\D/', '', (string) $q);
+
+                $query->where(function ($sub) use ($q, $digits) {
+                    $sub->whereLike('code', "%{$q}%")
+                        ->orWhereLike('customer_name', "%{$q}%")
+                        ->orWhereHas('customer', function ($c) use ($q, $digits) {
+                            $c->whereLike('cedula', "%{$q}%");
+                            if ($digits !== '' && $digits !== null) {
+                                $c->orWhereRaw("REPLACE(REPLACE(cedula, '-', ''), ' ', '') LIKE ?", ["%{$digits}%"]);
+                            }
+                        });
+                });
+            })
             ->when(request('filter') === 'overdue', fn ($query) => $query->whereHas('installments', fn ($i) => $i
                 ->where('status', '!=', InstallmentStatus::Paid->value)
                 ->whereDate('due_date', '<', now()->toDateString())))

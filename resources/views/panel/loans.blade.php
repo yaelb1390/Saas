@@ -65,7 +65,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
                 <p class="font-semibold text-slate-800">Cartera</p>
                 <div class="flex flex-wrap items-center gap-3">
-                    <x-panel.search-bar placeholder="Buscar por código o cliente..." />
+                    <x-panel.search-bar placeholder="Buscar por código, cliente o cédula..." />
                     @can('loans.manage')
                     <x-panel.create-modal title="Nuevo préstamo" label="Nuevo préstamo" form="loan_create" :action="route('panel.loans.store')">
                         <div x-data="loanCalc()">

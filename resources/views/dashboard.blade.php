@@ -118,14 +118,20 @@
         $salesLabels = $toLabels($salesTrend);
         $salesValues = array_map(fn ($v) => (float) $v, array_values($salesTrend));
 
-        // Cartera: al día vs mora se derivan de los KPIs, sin consulta nueva.
-        $outstanding = (float) ($summary['loans_outstanding'] ?? 0);
-        $overdue = (float) ($summary['loans_overdue'] ?? 0);
-        $alDia = max(0, round($outstanding - $overdue, 2));
-        $mora = round($overdue, 2);
+        // Los 5 KPIs de la cartera (misma fuente que la página de Préstamos), como gráficos.
+        $p = $portfolio ?? [];
+        $carteraLabels = ['Prestado', 'Saldado', 'Por cobrar', 'En mora', 'Cobrado'];
+        $carteraValues = [
+            (float) ($p['approved_amount'] ?? 0), // Aprobados: capital prestado
+            (float) ($p['paid_amount'] ?? 0),     // Pagados: total saldado
+            (float) ($p['outstanding'] ?? 0),     // Cartera pendiente: por cobrar
+            (float) ($p['overdue'] ?? 0),         // En mora
+            (float) ($p['collected'] ?? 0),       // Cobrado: total recibido
+        ];
+        $carteraColors = ['#6366f1', '#10b981', '#0ea5e9', '#f59e0b', '#22c55e'];
 
-        $activeLoans = (int) ($loanCounts['active'] ?? 0);
-        $paidLoans = (int) ($loanCounts['paid'] ?? 0);
+        $aprobados = (int) ($p['approved_count'] ?? 0);
+        $pagados = (int) ($p['paid_count'] ?? 0);
 
         $showLoansCharts = $canOpen('panel.loans');
         $showSalesChart = $canOpen('panel.sales');
@@ -135,8 +141,34 @@
     <h2 class="mt-9 mb-3 text-lg font-semibold text-slate-800">Análisis</h2>
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
         @if ($showLoansCharts)
-            {{-- Cobros de préstamos por día --}}
+            {{-- Cartera de préstamos: los 5 KPIs (Prestado, Saldado, Por cobrar, En mora, Cobrado) en barras. --}}
             <div class="bmos-card bmos-card-pad lg:col-span-2">
+                <p class="font-semibold text-slate-800">Cartera de préstamos</p>
+                <p class="text-sm text-slate-500">Prestado · Saldado · Por cobrar · En mora · Cobrado (RD$)</p>
+                @if (array_sum($carteraValues) > 0)
+                    <div class="mt-4" x-data="kpiBars(@js($carteraLabels), @js($carteraValues), @js($carteraColors))">
+                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
+                    </div>
+                @else
+                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Aún no hay préstamos.</div>
+                @endif
+            </div>
+
+            {{-- Aprobados vs Pagados (conteo de préstamos). --}}
+            <div class="bmos-card bmos-card-pad lg:col-span-1">
+                <p class="font-semibold text-slate-800">Aprobados vs Pagados</p>
+                <p class="text-sm text-slate-500">Cantidad de préstamos</p>
+                @if (($aprobados + $pagados) > 0)
+                    <div class="mt-4" x-data="donutChart(@js(['Aprobados', 'Pagados']), @js([$aprobados, $pagados]), @js(['#6366f1', '#10b981']))">
+                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
+                    </div>
+                @else
+                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Aún no hay préstamos.</div>
+                @endif
+            </div>
+
+            {{-- Cobros de préstamos por día (tendencia). --}}
+            <div class="bmos-card bmos-card-pad lg:col-span-3">
                 <p class="font-semibold text-slate-800">Cobros por día</p>
                 <p class="text-sm text-slate-500">Lo cobrado en préstamos (últimos 14 días)</p>
                 @if (array_sum($collValues) > 0)
@@ -147,24 +179,11 @@
                     <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Sin cobros todavía.</div>
                 @endif
             </div>
-
-            {{-- Cartera: al día vs en mora --}}
-            <div class="bmos-card bmos-card-pad lg:col-span-1">
-                <p class="font-semibold text-slate-800">Cartera</p>
-                <p class="text-sm text-slate-500">Saldo al día vs en mora</p>
-                @if (($alDia + $mora) > 0)
-                    <div class="mt-4" x-data="donutChart(@js(['Al día', 'En mora']), @js([$alDia, $mora]), @js(['#10b981', '#f43f5e']))">
-                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
-                    </div>
-                @else
-                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Sin cartera activa.</div>
-                @endif
-            </div>
         @endif
 
         @if ($showSalesChart)
             {{-- Ventas por día --}}
-            <div class="bmos-card bmos-card-pad lg:col-span-2">
+            <div class="bmos-card bmos-card-pad lg:col-span-3">
                 <p class="font-semibold text-slate-800">Ventas por día</p>
                 <p class="text-sm text-slate-500">Ventas completadas (últimos 14 días)</p>
                 @if (array_sum($salesValues) > 0)
@@ -173,21 +192,6 @@
                     </div>
                 @else
                     <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Sin ventas todavía.</div>
-                @endif
-            </div>
-        @endif
-
-        @if ($showLoansCharts)
-            {{-- Préstamos: activos vs pagados --}}
-            <div class="bmos-card bmos-card-pad lg:col-span-1">
-                <p class="font-semibold text-slate-800">Préstamos</p>
-                <p class="text-sm text-slate-500">Vigentes vs. saldados</p>
-                @if (($activeLoans + $paidLoans) > 0)
-                    <div class="mt-4" x-data="donutChart(@js(['Activos', 'Pagados']), @js([$activeLoans, $paidLoans]), @js(['#6366f1', '#94a3b8']))">
-                        <div style="height:230px"><canvas x-ref="canvas"></canvas></div>
-                    </div>
-                @else
-                    <div class="mt-4 flex h-[230px] items-center justify-center text-sm text-slate-400">Aún no hay préstamos.</div>
                 @endif
             </div>
         @endif
@@ -299,6 +303,45 @@
     {{-- Componentes de gráficos (Chart.js ya viene empaquetado como window.Chart). Mismo estilo que
          la página de Reportes: degradado indigo, tooltip oscuro y formato es-RD. --}}
     <script>
+        // Barras con un color por categoría (para los KPIs de la cartera). Tooltip en RD$.
+        function kpiBars(labels, data, colors) {
+            return {
+                chart: null,
+                init() {
+                    const ctx = this.$refs.canvas.getContext('2d');
+                    this.chart = new window.Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels,
+                            datasets: [{
+                                data,
+                                backgroundColor: colors,
+                                borderRadius: 6,
+                                maxBarThickness: 46,
+                            }],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: { duration: 900, easing: 'easeOutQuart' },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: '#0f1220', padding: 10, cornerRadius: 8,
+                                    callbacks: { label: (c) => ' RD$ ' + Number(c.parsed.y).toLocaleString('es', { minimumFractionDigits: 2 }) },
+                                },
+                            },
+                            scales: {
+                                y: { beginAtZero: true, grid: { color: '#eef0f6' }, ticks: { color: '#94a3b8' } },
+                                x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 11 } } },
+                            },
+                        },
+                    });
+                },
+                destroy() { if (this.chart) this.chart.destroy(); },
+            };
+        }
+
         function trendChart(labels, data, label) {
             return {
                 chart: null,

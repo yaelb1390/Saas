@@ -243,16 +243,38 @@ final class ReportService
     }
 
     /**
-     * Nº de préstamos vigentes vs. saldados (para el dónut del dashboard). Aislado por empresa.
+     * Resumen de la cartera de préstamos: aprobados (vigentes) vs. saldados, cartera por cobrar,
+     * mora y total cobrado. Es la MISMA fuente que alimenta las tarjetas de la página de Préstamos
+     * y los gráficos del dashboard, así ambos muestran cifras idénticas. Aislado por empresa.
      *
-     * @return array{active: int, paid: int}
+     * @return array{
+     *     approved_count: int, approved_amount: string,
+     *     paid_count: int, paid_amount: string,
+     *     outstanding: string, overdue: string, overdue_count: int, collected: string,
+     * }
      */
-    public function loanStatusCounts(): array
+    public function loanPortfolio(): array
     {
-        return [
-            'active' => Loan::query()->where('status', LoanStatus::Active)->count(),
-            'paid' => Loan::query()->where('status', LoanStatus::Paid)->count(),
-        ];
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:loan-portfolio",
+            self::SUMMARY_TTL,
+            function (): array {
+                $overdue = $this->overdueInstallments();
+
+                return [
+                    'approved_count' => Loan::query()->where('status', LoanStatus::Active)->count(),
+                    'approved_amount' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('principal'),
+                    'paid_count' => Loan::query()->where('status', LoanStatus::Paid)->count(),
+                    'paid_amount' => (string) Loan::query()->where('status', LoanStatus::Paid)->sum('total'),
+                    'outstanding' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('balance'),
+                    'overdue' => (string) (clone $overdue)->sum(DB::raw('amount + late_fee - paid_amount')),
+                    'overdue_count' => (clone $overdue)->count(),
+                    'collected' => (string) LoanPayment::query()->sum('amount'),
+                ];
+            },
+        );
     }
 
     /**

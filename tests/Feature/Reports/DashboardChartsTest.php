@@ -87,12 +87,17 @@ it('salesTrend suma las ventas completadas de hoy', function (): void {
         ->and($trend[now()->format('Y-m-d')])->toBe(100.0);
 });
 
-it('loanStatusCounts cuenta vigentes y saldados de la empresa', function (): void {
+it('loanPortfolio resume la cartera de la empresa', function (): void {
     $paid = chartLoan(['principal' => '1000', 'count' => 1, 'rate' => '0']);
     app(LoanService::class)->registerPayment($paid, '1000'); // queda saldado
     chartLoan(['principal' => '2000', 'count' => 2, 'rate' => '0']); // queda vigente
 
-    expect($this->reports->loanStatusCounts())->toBe(['active' => 1, 'paid' => 1]);
+    $portfolio = $this->reports->loanPortfolio();
+
+    expect($portfolio['approved_count'])->toBe(1)
+        ->and($portfolio['paid_count'])->toBe(1)
+        ->and((float) $portfolio['approved_amount'])->toBe(2000.0) // capital vigente
+        ->and((float) $portfolio['collected'])->toBe(1000.0);      // total cobrado
 });
 
 it('el dashboard muestra la sección Análisis para una empresa con préstamos', function (): void {

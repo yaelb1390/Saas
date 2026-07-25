@@ -42,7 +42,7 @@ final class DashboardController extends Controller
             'summary' => $reports->executiveSummary(),
             'collectionsTrend' => $showLoans ? $reports->collectionsTrend() : [],
             'salesTrend' => $showSales ? $reports->salesTrend() : [],
-            'loanCounts' => $showLoans ? $reports->loanStatusCounts() : ['active' => 0, 'paid' => 0],
+            'portfolio' => $showLoans ? $reports->loanPortfolio() : null,
         ]);
     }
 }

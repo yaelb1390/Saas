@@ -307,9 +307,10 @@
         function kpiBars(labels, data, colors) {
             return {
                 chart: null,
-                init() {
+                async init() {
+                    const Chart = await window.loadChart();
                     const ctx = this.$refs.canvas.getContext('2d');
-                    this.chart = new window.Chart(ctx, {
+                    this.chart = new Chart(ctx, {
                         type: 'bar',
                         data: {
                             labels,
@@ -345,12 +346,13 @@
         function trendChart(labels, data, label) {
             return {
                 chart: null,
-                init() {
+                async init() {
+                    const Chart = await window.loadChart();
                     const ctx = this.$refs.canvas.getContext('2d');
                     const grad = ctx.createLinearGradient(0, 0, 0, 230);
                     grad.addColorStop(0, 'rgba(99,102,241,0.85)');
                     grad.addColorStop(1, 'rgba(79,70,229,0.55)');
-                    this.chart = new window.Chart(ctx, {
+                    this.chart = new Chart(ctx, {
                         type: 'bar',
                         data: {
                             labels,
@@ -388,9 +390,10 @@
         function donutChart(labels, data, colors) {
             return {
                 chart: null,
-                init() {
+                async init() {
+                    const Chart = await window.loadChart();
                     const ctx = this.$refs.canvas.getContext('2d');
-                    this.chart = new window.Chart(ctx, {
+                    this.chart = new Chart(ctx, {
                         type: 'doughnut',
                         data: {
                             labels,

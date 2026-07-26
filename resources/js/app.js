@@ -1,10 +1,25 @@
 import './bootstrap';
 
 import Alpine from 'alpinejs';
-import Chart from 'chart.js/auto';
 
-window.Chart = Chart;
 window.Alpine = Alpine;
+
+/**
+ * Chart.js se carga BAJO DEMANDA. Antes se importaba arriba y quedaba dentro del bundle principal
+ * —que carga en TODAS las páginas, incluido el login y el POS—, arrastrando ~200 KB que la mayoría
+ * de pantallas nunca usa. Solo el Dashboard y Reportes dibujan gráficos: con un import() dinámico,
+ * Vite lo separa en su propio archivo y el navegador lo descarga solo en esas dos pantallas.
+ *
+ * Los componentes de gráfico llaman `await window.loadChart()` antes de instanciar.
+ */
+window.loadChart = async () => {
+    if (!window.Chart) {
+        const mod = await import('chart.js/auto');
+        window.Chart = mod.default;
+    }
+
+    return window.Chart;
+};
 
 /**
  * Escáner por cámara, cargado bajo demanda.

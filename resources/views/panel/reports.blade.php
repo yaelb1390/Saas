@@ -137,14 +137,15 @@
                     this.type = t;
                     this.render();
                 },
-                render() {
+                async render() {
+                    const Chart = await window.loadChart();
                     if (this.chart) this.chart.destroy();
                     const ctx = this.$refs.canvas.getContext('2d');
                     const grad = ctx.createLinearGradient(0, 0, 0, 230);
                     grad.addColorStop(0, 'rgba(99,102,241,0.85)');
                     grad.addColorStop(1, this.type === 'bar' ? 'rgba(79,70,229,0.55)' : 'rgba(99,102,241,0.03)');
                     const isArea = this.type === 'area';
-                    this.chart = new window.Chart(ctx, {
+                    this.chart = new Chart(ctx, {
                         type: isArea ? 'line' : this.type,
                         data: {
                             labels,
@@ -187,10 +188,11 @@
         function topChart(labels, data) {
             return {
                 chart: null,
-                init() {
+                async init() {
+                    const Chart = await window.loadChart();
                     const ctx = this.$refs.canvas.getContext('2d');
                     const palette = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9'];
-                    this.chart = new window.Chart(ctx, {
+                    this.chart = new Chart(ctx, {
                         type: 'doughnut',
                         data: {
                             labels,

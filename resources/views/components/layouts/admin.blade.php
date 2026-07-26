@@ -94,9 +94,8 @@
     @if (file_exists(public_path('images/bm-mark.png')))
         <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
     @endif
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    {{-- Inter se sirve auto-alojada vía el bundle de Vite (resources/css/app.css); ya no se pide a
+         Google Fonts: se elimina la latencia externa y el render no espera a un tercero. --}}
     @include('partials.pwa-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>

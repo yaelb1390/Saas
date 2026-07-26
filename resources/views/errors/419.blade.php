@@ -7,7 +7,6 @@
     @if (file_exists(public_path('images/bm-mark.png')))
         <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
     @endif
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background-color: #0B1120; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }

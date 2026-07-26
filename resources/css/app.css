@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+/* Inter auto-alojada (un solo woff2 variable con todos los pesos). Antes se cargaba desde Google
+   Fonts en cada página del panel: 3 peticiones externas + DNS/TLS que retrasaban el render y ataban
+   la app a un servicio de terceros. Ahora se sirve desde el mismo dominio y la cachea el service worker. */
+@import '@fontsource-variable/inter/standard.css';
 @import './whatsapp.css';
 @import './suspended.css';
 
@@ -8,8 +12,8 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Inter', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-        'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter Variable', 'Inter', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
 /* ============================================================

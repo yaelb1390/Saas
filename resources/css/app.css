@@ -484,6 +484,10 @@ body {
     display: grid;
     place-items: center;
     padding: 1.5rem;
+    /* El halo decorativo de la tarjeta (::after) sobresale por los lados; se recorta aquí para que
+       no genere scroll horizontal (visible sobre todo en el registro, cuya tarjeta es más ancha).
+       `clip` no fuerza scroll vertical, a diferencia de `hidden`. */
+    overflow-x: clip;
     background:
         radial-gradient(1200px 600px at 15% -10%, rgba(99, 102, 241, 0.28), transparent 60%),
         radial-gradient(1000px 500px at 110% 110%, rgba(139, 92, 246, 0.24), transparent 55%),

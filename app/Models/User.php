@@ -37,6 +37,7 @@ class User extends Authenticatable implements Auditable
         'branch_id',
         'name',
         'email',
+        'google_id',
         'password',
         'is_super_admin',
         'is_active',

@@ -82,6 +82,25 @@
                 </button>
             </form>
 
+            {{-- Separador --}}
+            <div class="my-5 flex items-center gap-3 text-xs font-medium text-slate-400">
+                <span class="h-px flex-1 bg-slate-200"></span>
+                o
+                <span class="h-px flex-1 bg-slate-200"></span>
+            </div>
+
+            {{-- Continuar con Google (Socialite). Solo entra si el correo ya tiene una cuenta. --}}
+            <a href="{{ route('auth.google.redirect') }}"
+               class="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M23.52 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.87z"/>
+                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.16-4.05 1.16-3.11 0-5.75-2.1-6.69-4.94H1.3v3.09A11.99 11.99 0 0 0 12 24z"/>
+                    <path fill="#FBBC05" d="M5.31 14.31A7.2 7.2 0 0 1 4.93 12c0-.8.14-1.58.38-2.31V6.6H1.3A11.99 11.99 0 0 0 0 12c0 1.94.46 3.77 1.3 5.4l4.01-3.09z"/>
+                    <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.61 4.58 1.8l3.43-3.43C17.95 1.19 15.24 0 12 0A11.99 11.99 0 0 0 1.3 6.6l4.01 3.09C6.25 6.85 8.89 4.75 12 4.75z"/>
+                </svg>
+                Continuar con Google
+            </a>
+
             <p class="mt-6 text-center text-sm text-slate-500">
                 ¿No tienes cuenta?
                 <a href="{{ route('register.form') }}" class="font-semibold text-indigo-600 hover:underline">Regístrate gratis</a>

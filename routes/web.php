@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\CustomerPortalController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PanelController;
@@ -45,6 +46,11 @@ Route::middleware(['guest'])->group(function (): void {
     Route::get('/registro', [RegisterController::class, 'create'])->name('register.form');
     Route::post('/registro', [RegisterController::class, 'store'])
         ->middleware('throttle:6,1')->name('register.store');
+
+    // Inicio de sesión con Google (Socialite). Solo para cuentas existentes: el callback empareja
+    // por correo verificado. `guest` evita reiniciar el flujo si ya hay sesión.
+    Route::get('/auth/google/redirect', [GoogleController::class, 'redirect'])->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [GoogleController::class, 'callback'])->name('auth.google.callback');
 });
 
 Route::middleware(['auth'])->group(function (): void {

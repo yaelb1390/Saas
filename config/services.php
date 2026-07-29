@@ -41,4 +41,12 @@ return [
         'secret' => env('CRON_SECRET'),
     ],
 
+    // Inicio de sesión con Google (Laravel Socialite). El redirect debe coincidir EXACTO con el
+    // «URI de redirección autorizado» configurado en Google Cloud Console.
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+
 ];

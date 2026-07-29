@@ -290,3 +290,19 @@ Route::post('/webhooks/evolution', EvolutionWebhookController::class)->name('web
 // Mantenimiento disparado por el cron de Vercel (sin sesión; protegido por CRON_SECRET en el header).
 // Purga los datos de las pruebas self-service vencidas hace más de 24 h.
 Route::get('/tareas/purgar-pruebas', [TrialMaintenanceController::class, 'purgeTrials'])->name('tasks.purge-trials');
+
+// Previsualización de correos (SOLO local): abre el HTML del correo en el navegador para revisar el
+// diseño sin tener que registrarse. Nunca se activa en producción.
+if (app()->environment('local')) {
+    Route::get('/preview/correo-bienvenida', fn () => new App\Modules\Core\Mail\TrialWelcomeMail(
+        ownerName: 'Yael',
+        companyName: 'Colmado La Bendición',
+        trialDays: (int) config('bmos.trial.days', 15),
+        trialEndsAt: now()->addDays(15),
+        purgeAt: now()->addDays(16),
+        moduleLabels: ['Punto de Venta', 'Inventario', 'Préstamos', 'CRM'],
+        loginUrl: route('login'),
+        supportWhatsapp: (string) config('platform.support_whatsapp'),
+        supportEmail: (string) config('platform.support_email'),
+    ));
+}

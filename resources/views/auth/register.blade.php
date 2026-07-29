@@ -19,7 +19,7 @@
             $hasLogo = file_exists($logoPath);
             $oldModules = (array) old('modules', []);
         @endphp
-        <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" style="max-width:44rem">
+        <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" style="max-width:40rem">
             @if ($hasLogo)
                 <img src="{{ asset('images/bm-logo.png') }}?v={{ filemtime($logoPath) }}"
                      alt="BM Business OS" class="mx-auto mb-4 w-52 max-w-full object-contain">

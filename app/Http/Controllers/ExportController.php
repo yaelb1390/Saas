@@ -50,7 +50,7 @@ final class ExportController extends Controller
                 $s->code, $s->customer_name, $s->items_count,
                 (float) $s->subtotal, (float) $s->tax, (float) $s->total,
                 $s->payment_method, $s->status->label(),
-                $s->created_at?->format('Y-m-d H:i'),
+                $s->created_at->format('Y-m-d H:i'),
             ]);
 
         return $this->download('ventas',

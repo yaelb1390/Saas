@@ -16,6 +16,9 @@ use App\Modules\Core\Http\Controllers\RegisterController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
 use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
 use App\Modules\Core\Http\Controllers\UserController;
+use App\Modules\Core\Mail\SubscriptionConfirmedMail;
+use App\Modules\Core\Mail\SubscriptionExpiringMail;
+use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
@@ -291,16 +294,43 @@ Route::post('/webhooks/evolution', EvolutionWebhookController::class)->name('web
 // Purga los datos de las pruebas self-service vencidas hace más de 24 h.
 Route::get('/tareas/purgar-pruebas', [TrialMaintenanceController::class, 'purgeTrials'])->name('tasks.purge-trials');
 
+// Avisa por correo a las suscripciones de pago por vencer (sin sesión; protegido por CRON_SECRET).
+Route::get('/tareas/avisar-vencimientos', [TrialMaintenanceController::class, 'remindExpiring'])->name('tasks.remind-expiring');
+
 // Previsualización de correos (SOLO local): abre el HTML del correo en el navegador para revisar el
 // diseño sin tener que registrarse. Nunca se activa en producción.
 if (app()->environment('local')) {
-    Route::get('/preview/correo-bienvenida', fn () => new App\Modules\Core\Mail\TrialWelcomeMail(
+    Route::get('/preview/correo-bienvenida', fn () => new TrialWelcomeMail(
         ownerName: 'Yael',
         companyName: 'Colmado La Bendición',
         trialDays: (int) config('bmos.trial.days', 15),
         trialEndsAt: now()->addDays(15),
         purgeAt: now()->addDays(16),
         moduleLabels: ['Punto de Venta', 'Inventario', 'Préstamos', 'CRM'],
+        loginUrl: route('login'),
+        supportWhatsapp: (string) config('platform.support_whatsapp'),
+        supportEmail: (string) config('platform.support_email'),
+    ));
+
+    Route::get('/preview/correo-confirmacion', fn () => new SubscriptionConfirmedMail(
+        ownerName: 'Yael',
+        companyName: 'Colmado La Bendición',
+        planName: 'Pro',
+        planPrice: '3500.00',
+        billingCycleLabel: 'Mensual',
+        renewsAt: now()->addMonth(),
+        moduleLabels: ['Punto de Venta', 'Inventario', 'Ventas', 'CRM', 'Facturación', 'Finanzas'],
+        loginUrl: route('login'),
+        supportWhatsapp: (string) config('platform.support_whatsapp'),
+        supportEmail: (string) config('platform.support_email'),
+    ));
+
+    Route::get('/preview/correo-vencimiento', fn () => new SubscriptionExpiringMail(
+        ownerName: 'Yael',
+        companyName: 'Colmado La Bendición',
+        planName: 'Pro',
+        renewsAt: now()->addDays(4),
+        daysLeft: 4,
         loginUrl: route('login'),
         supportWhatsapp: (string) config('platform.support_whatsapp'),
         supportEmail: (string) config('platform.support_email'),

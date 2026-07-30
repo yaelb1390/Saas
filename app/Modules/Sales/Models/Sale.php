@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -28,6 +29,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int $company_id
  * @property string $code
  * @property string $total
+ * @property Carbon $created_at
  */
 class Sale extends Model implements Auditable, HasCompany
 {

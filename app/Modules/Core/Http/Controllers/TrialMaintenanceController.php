@@ -19,14 +19,7 @@ final class TrialMaintenanceController extends Controller
 {
     public function purgeTrials(Request $request): JsonResponse
     {
-        $secret = (string) config('services.cron.secret', '');
-
-        // Si no hay secreto configurado, se bloquea (nunca dejar el endpoint abierto por accidente).
-        $provided = (string) $request->bearerToken();
-
-        if ($secret === '' || ! hash_equals($secret, $provided)) {
-            abort(403);
-        }
+        $this->assertCron($request);
 
         Artisan::call('trials:purge');
 
@@ -34,5 +27,31 @@ final class TrialMaintenanceController extends Controller
             'ok' => true,
             'output' => trim(Artisan::output()),
         ]);
+    }
+
+    public function remindExpiring(Request $request): JsonResponse
+    {
+        $this->assertCron($request);
+
+        Artisan::call('subscriptions:remind-expiring');
+
+        return response()->json([
+            'ok' => true,
+            'output' => trim(Artisan::output()),
+        ]);
+    }
+
+    /**
+     * Exige el secreto compartido (Vercel Cron manda `Authorization: Bearer <CRON_SECRET>`). Sin el
+     * secreto correcto responde 403, así que la URL no es utilizable por terceros.
+     */
+    private function assertCron(Request $request): void
+    {
+        $secret = (string) config('services.cron.secret', '');
+        $provided = (string) $request->bearerToken();
+
+        if ($secret === '' || ! hash_equals($secret, $provided)) {
+            abort(403);
+        }
     }
 }

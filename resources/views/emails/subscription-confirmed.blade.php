@@ -1,22 +1,21 @@
-{{-- Correo de bienvenida (registro self-service). El armazón (cabecera/pie/estilos) vive en
-     <x-mail.layout>; aquí solo van las filas del cuerpo. --}}
-<x-mail.layout preheader="Tu prueba gratuita de {{ $trialDays }} días en BM Business OS ya está activa."
+{{-- Confirmación de suscripción/pago. Cuerpo dentro del armazón compartido. --}}
+<x-mail.layout preheader="Tu suscripción al plan {{ $planName }} está activa."
                :supportWhatsapp="$supportWhatsapp" :supportEmail="$supportEmail">
 
-    {{-- Saludo + confirmación --}}
+    {{-- Saludo --}}
     <tr>
         <td class="px" style="padding:14px 36px 0 36px;">
             <h1 style="margin:0 0 6px 0; font-size:22px; line-height:1.25; color:#1e2230; font-weight:bold;">
-                ¡Hola, {{ $ownerName }}!
+                ¡Gracias, {{ $ownerName }}!
             </h1>
             <p style="margin:0; font-size:15px; line-height:1.6; color:#4b5162;">
-                Tu negocio <strong style="color:#1e2230;">{{ $companyName }}</strong> quedó registrado en
-                BM Business OS. Tu prueba gratuita ya está activa. 🎉
+                La suscripción de <strong style="color:#1e2230;">{{ $companyName }}</strong> quedó confirmada.
+                Ya tienes acceso completo a tu plan. ✅
             </p>
         </td>
     </tr>
 
-    {{-- Bloque de la prueba --}}
+    {{-- Detalle del plan --}}
     <tr>
         <td class="px" style="padding:20px 36px 0 36px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
@@ -24,10 +23,13 @@
                 <tr>
                     <td style="padding:16px 18px;">
                         <p style="margin:0 0 3px 0; font-size:12px; letter-spacing:0.4px; text-transform:uppercase; color:#6366f1; font-weight:bold;">
-                            Prueba gratuita
+                            Plan {{ $planName }}
                         </p>
-                        <p style="margin:0; font-size:16px; color:#1e2230; font-weight:bold;">
-                            {{ $trialDays }} días · termina el {{ $trialEndsAt->format('d/m/Y') }}
+                        <p style="margin:0 0 6px 0; font-size:16px; color:#1e2230; font-weight:bold;">
+                            RD$ {{ number_format((float) $planPrice, 2) }} · {{ $billingCycleLabel }}
+                        </p>
+                        <p style="margin:0; font-size:13px; color:#4b5162;">
+                            Próxima renovación: <strong style="color:#1e2230;">{{ $renewsAt->format('d/m/Y') }}</strong>
                         </p>
                     </td>
                 </tr>
@@ -35,12 +37,12 @@
         </td>
     </tr>
 
-    {{-- Módulos activados --}}
+    {{-- Módulos incluidos --}}
     @if (! empty($moduleLabels))
         <tr>
             <td class="px" style="padding:20px 36px 0 36px;">
                 <p style="margin:0 0 8px 0; font-size:13px; color:#6b7280; font-weight:bold;">
-                    Módulos que activaste
+                    Módulos incluidos
                 </p>
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td>
                     @foreach ($moduleLabels as $label)
@@ -51,22 +53,6 @@
         </tr>
     @endif
 
-    {{-- Aviso: datos de prueba --}}
-    <tr>
-        <td class="px" style="padding:20px 36px 0 36px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-                   style="background-color:#fffbeb; border-radius:12px;">
-                <tr>
-                    <td style="padding:14px 16px; border-left:4px solid #f59e0b; font-size:13px; line-height:1.55; color:#92400e;">
-                        <strong>Modo de prueba.</strong> Los datos que registres son de prueba y se
-                        <strong>eliminarán el {{ $purgeAt->format('d/m/Y') }}</strong> (24&nbsp;horas después de que
-                        termine tu prueba) si no activas un plan.
-                    </td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-
     {{-- Botón --}}
     <tr>
         <td class="px" align="center" style="padding:26px 36px 6px 36px;">
@@ -74,7 +60,7 @@
                 <td align="center" bgcolor="#4f46e5" style="border-radius:10px;">
                     <a href="{{ $loginUrl }}" target="_blank"
                        style="display:inline-block; padding:13px 30px; font-family:Arial,Helvetica,sans-serif; font-size:15px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:10px;">
-                        Entrar a mi panel &rarr;
+                        Ir a mi panel &rarr;
                     </a>
                 </td>
             </tr></table>

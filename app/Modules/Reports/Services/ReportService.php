@@ -21,6 +21,7 @@ use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -149,7 +150,7 @@ final class ReportService
         // Ventas por día (rellena los días sin ventas con 0).
         $byDay = [];
         foreach ($sales as $sale) {
-            $key = $sale->created_at?->format('Y-m-d') ?? '';
+            $key = $sale->created_at->format('Y-m-d');
             $byDay[$key] = ($byDay[$key] ?? 0.0) + (float) $sale->total;
         }
         $days = [];
@@ -281,10 +282,10 @@ final class ReportService
      * Convierte registros {date, value} en una serie diaria continua de los últimos $days días,
      * rellenando con 0 los días sin datos. Se agrega en PHP para ser portable PG/SQLite.
      *
-     * @param  \Illuminate\Support\Collection<int, array{date: ?\Illuminate\Support\Carbon, value: float}>  $rows
+     * @param  Collection<int, array{date: Carbon, value: float}>  $rows
      * @return array<string, float>
      */
-    private function dailyTrend(\Illuminate\Support\Collection $rows, int $days): array
+    private function dailyTrend(Collection $rows, int $days): array
     {
         $today = Carbon::now()->startOfDay();
         $from = $today->copy()->subDays($days - 1);
@@ -295,11 +296,7 @@ final class ReportService
         }
 
         foreach ($rows as $row) {
-            $date = $row['date'];
-            if ($date === null) {
-                continue;
-            }
-            $key = $date->copy()->startOfDay()->format('Y-m-d');
+            $key = $row['date']->copy()->startOfDay()->format('Y-m-d');
             if (array_key_exists($key, $series)) {
                 $series[$key] = round($series[$key] + $row['value'], 2);
             }

@@ -143,4 +143,13 @@ class Company extends Model implements Auditable
     {
         return $this->hasMany(User::class);
     }
+
+    /**
+     * El propietario de la cuenta: el primer usuario activo (se crea primero en el onboarding). Es el
+     * destinatario de los correos de cuenta/suscripción.
+     */
+    public function ownerUser(): ?User
+    {
+        return $this->users()->where('is_active', true)->orderBy('id')->first();
+    }
 }

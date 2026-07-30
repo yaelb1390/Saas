@@ -10,6 +10,7 @@ use App\Modules\Core\Tenancy\HasCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Abono/cobro de un préstamo. Registro inmutable que baja el saldo del préstamo y dispara el
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property string $amount
  * @property string $balance_after
+ * @property Carbon $paid_at
  */
 class LoanPayment extends Model implements HasCompany
 {

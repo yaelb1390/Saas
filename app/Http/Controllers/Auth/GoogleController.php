@@ -23,7 +23,7 @@ use Throwable;
 final class GoogleController extends Controller
 {
     /** Envía al usuario a la pantalla de consentimiento de Google. */
-    public function redirect(): RedirectResponse
+    public function redirect(): \Symfony\Component\HttpFoundation\RedirectResponse
     {
         if (blank(config('services.google.client_id'))) {
             return redirect()->route('login')->withErrors([

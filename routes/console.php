@@ -20,3 +20,7 @@ Schedule::command('backup:run')->dailyAt('01:30')->withoutOverlapping();
 // Borra los datos de las pruebas self-service vencidas hace >24 h (conserva la cuenta). En Vercel lo
 // dispara el cron (endpoint /tareas/purgar-pruebas); aquí queda para entornos con scheduler.
 Schedule::command('trials:purge')->dailyAt('06:00')->withoutOverlapping();
+
+// Avisa por correo a las suscripciones de pago que están por vencer (umbral del plan). En Vercel lo
+// dispara el cron (endpoint /tareas/avisar-vencimientos); aquí para entornos con scheduler.
+Schedule::command('subscriptions:remind-expiring')->dailyAt('07:00')->withoutOverlapping();

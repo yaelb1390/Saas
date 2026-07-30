@@ -39,6 +39,7 @@ final class SubscriptionService
                     'current_period_end' => null,
                     'cancelled_at' => null,
                     'purge_at' => null,
+                    'renewal_reminded_at' => null,
                 ]
                 : [
                     'plan_id' => $plan->id,
@@ -48,6 +49,7 @@ final class SubscriptionService
                     'current_period_end' => $plan->billing_cycle->advance($now),
                     'cancelled_at' => null,
                     'purge_at' => null,
+                    'renewal_reminded_at' => null,
                 ],
         );
     }
@@ -100,6 +102,7 @@ final class SubscriptionService
             'current_period_end' => $plan?->billing_cycle->advance($base) ?? $base,
             'cancelled_at' => null,
             'purge_at' => null, // ya contrató/pagó: nunca auto-borrar sus datos
+            'renewal_reminded_at' => null, // período nuevo: el aviso de vencimiento vuelve a habilitarse
         ]);
 
         return $subscription->refresh();
@@ -122,6 +125,7 @@ final class SubscriptionService
                 'current_period_end' => $plan->billing_cycle->advance($now),
                 'cancelled_at' => null,
                 'purge_at' => null,
+                'renewal_reminded_at' => null,
             ];
         }
 

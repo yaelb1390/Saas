@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Core\Http\Controllers;
 
 use App\Modules\Core\DTOs\CreateCompanyData;
+use App\Modules\Core\Enums\SubscriptionStatus;
 use App\Modules\Core\Http\Requests\StoreCompanyRequest;
 use App\Modules\Core\Http\Requests\UpdateCompanyModulesRequest;
+use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Services\CompanyOnboardingService;
@@ -17,6 +19,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 /**
@@ -153,6 +156,9 @@ final class CompanyAdminController extends Controller
             $subscriptions->subscribe($company, $plan, $wantsTrial);
         }
 
+        // Confirma por correo solo si quedó ACTIVA (plan de pago); si quedó en prueba, no envía.
+        $this->notifySubscriptionActive($company);
+
         $message = $wantsTrial
             ? "«{$company->name}» en prueba de {$plan->trial_days} días con el plan {$plan->name}."
             : "«{$company->name}» suscrita al plan {$plan->name}.";
@@ -167,7 +173,55 @@ final class CompanyAdminController extends Controller
 
         $subscriptions->registerPayment($subscription);
 
+        // Recibo/confirmación del pago al dueño.
+        $this->notifySubscriptionActive($company);
+
         return back()->with('panel_ok', "Pago registrado para «{$company->name}». Suscripción al día.");
+    }
+
+    /**
+     * Envía la confirmación de suscripción al dueño si la empresa quedó con un plan de PAGO activo.
+     * No hace nada en pruebas. Un fallo de correo nunca interrumpe la acción del operador.
+     */
+    private function notifySubscriptionActive(Company $company): void
+    {
+        $subscription = $company->subscription()->with('plan')->first();
+        $plan = $subscription?->plan;
+
+        if ($subscription === null || $plan === null || $subscription->status !== SubscriptionStatus::Active) {
+            return;
+        }
+
+        $owner = $company->ownerUser();
+        $to = $owner !== null ? $owner->email : $company->email;
+
+        if (blank($to)) {
+            return;
+        }
+
+        rescue(fn () => Mail::to($to)->send(new SubscriptionConfirmedMail(
+            ownerName: (string) ($owner !== null ? $owner->name : $company->name),
+            companyName: (string) $company->name,
+            planName: (string) $plan->name,
+            planPrice: (string) $plan->price,
+            billingCycleLabel: $plan->billing_cycle->label(),
+            renewsAt: $subscription->current_period_end ?? now(),
+            moduleLabels: $this->moduleLabels($company->activeModules()),
+            loginUrl: route('login'),
+            supportWhatsapp: (string) config('platform.support_whatsapp'),
+            supportEmail: (string) config('platform.support_email'),
+        )), report: true);
+    }
+
+    /**
+     * @param  array<int, string>  $keys
+     * @return array<int, string>
+     */
+    private function moduleLabels(array $keys): array
+    {
+        $all = ModuleRegistry::all();
+
+        return array_values(array_map(static fn (string $key): string => $all[$key] ?? $key, $keys));
     }
 
     public function suspendSubscription(Company $company, SubscriptionService $subscriptions): RedirectResponse

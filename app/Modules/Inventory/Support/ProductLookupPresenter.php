@@ -86,6 +86,7 @@ final class ProductLookupPresenter
             'location' => $product->location,
             'price' => (string) $product->price,
             'stock' => $stock,
+            'image' => $product->imageUrl(),
             'sellable' => $reason === null,
             'reason' => $reason,
         ];

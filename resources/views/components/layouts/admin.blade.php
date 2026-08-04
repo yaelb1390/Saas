@@ -34,6 +34,7 @@
         'Finanzas' => [
             ['panel.parts', 'Mostrador de repuestos', 'wrench', 'invoices.issue', 'billing'],
             ['panel.invoices', 'Facturación', 'doc', 'invoices.view', 'billing'],
+            ['panel.purchase-invoices', 'Compras (606)', 'receipt', 'purchase_invoices.view', 'billing'],
             ['panel.finance', 'Finanzas', 'cash', 'finance.view', 'finance'],
             ['panel.loans', 'Préstamos', 'loans', 'loans.view', 'loans'],
         ],

@@ -30,6 +30,7 @@ class Product extends Model implements Auditable, HasCompany
         'sku',
         'name',
         'description',
+        'image_path',
         'barcode',
         'part_number',
         'brand',
@@ -109,5 +110,25 @@ class Product extends Model implements Auditable, HasCompany
     public function totalStock(): string
     {
         return (string) $this->stock()->sum('quantity');
+    }
+
+    public function hasImage(): bool
+    {
+        return $this->image_path !== null && $this->image_path !== '';
+    }
+
+    /**
+     * URL para mostrar la foto (o null si no tiene). Lleva ?v={timestamp} para que, al reemplazar la
+     * imagen, el navegador no siga mostrando la vieja cacheada.
+     */
+    public function imageUrl(): ?string
+    {
+        if (! $this->hasImage()) {
+            return null;
+        }
+
+        $version = $this->updated_at !== null ? $this->updated_at->timestamp : 0;
+
+        return route('panel.products.image', $this).'?v='.$version;
     }
 }

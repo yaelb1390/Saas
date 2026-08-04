@@ -10,14 +10,18 @@ RUN apk add --no-cache \
         gzip \
         postgresql-client \
         libpng-dev \
+        libjpeg-turbo-dev \
+        libwebp-dev \
+        freetype-dev \
         libzip-dev \
         icu-dev \
         postgresql-dev \
         oniguruma-dev \
         $PHPIZE_DEPS
 
-# Extensiones PHP necesarias para el ERP (Postgres, colas, imágenes, i18n, dinero)
-RUN docker-php-ext-configure gd \
+# Extensiones PHP necesarias para el ERP (Postgres, colas, imágenes, i18n, dinero).
+# GD con JPEG/WEBP/FreeType: necesario para redimensionar las fotos de producto (imagejpeg).
+RUN docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
     && docker-php-ext-install -j"$(nproc)" \
         pdo \
         pdo_pgsql \

@@ -1,4 +1,4 @@
-@props(['title', 'action', 'label' => null, 'form' => 'create', 'width' => 'max-w-lg'])
+@props(['title', 'action', 'label' => null, 'form' => 'create', 'width' => 'max-w-lg', 'enctype' => null])
 
 {{-- Modal de alta reutilizable. Se reabre solo si su propio formulario tuvo errores de validación. --}}
 <div x-data="{ open: {{ old('_form') === $form ? 'true' : 'false' }} }" class="inline-block">
@@ -30,7 +30,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ $action }}" class="space-y-3">
+            <form method="POST" action="{{ $action }}" class="space-y-3" @if ($enctype) enctype="{{ $enctype }}" @endif>
                 @csrf
                 <input type="hidden" name="_form" value="{{ $form }}">
                 {{ $slot }}

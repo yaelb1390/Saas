@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Services;
 
+use App\Modules\Billing\Enums\GoodsServicesType;
 use App\Modules\Billing\Enums\InvoiceStatus;
 use App\Modules\Billing\Models\Invoice;
+use App\Modules\Billing\Models\PurchaseInvoice;
 use App\Modules\Billing\Support\TaxId;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Tenancy\CurrentCompany;
@@ -62,6 +64,144 @@ final class DgiiReportService
         });
 
         return $this->render('608', $period, $invoices->count(), $lines->all());
+    }
+
+    /**
+     * Formato 606 — Compras de Bienes y Servicios (comprobantes recibidos de proveedores).
+     */
+    public function purchases606(Carbon $period): string
+    {
+        $purchases = $this->purchasesOfPeriod($period);
+
+        $lines = $purchases->map(fn (PurchaseInvoice $p): string => $this->line606($p));
+
+        return $this->render('606', $period, $purchases->count(), $lines->all());
+    }
+
+    /**
+     * Mismos datos del 606 pero en forma de tabla legible (encabezados + filas) para exportar a Excel.
+     *
+     * @return array{headers: array<int, string>, rows: array<int, array<int, string>>}
+     */
+    public function purchases606Table(Carbon $period): array
+    {
+        $headers = [
+            'RNC/Cédula', 'Tipo ID', 'Tipo bien/servicio', 'NCF', 'NCF modificado',
+            'Fecha comprobante', 'Fecha pago', 'Monto facturado', 'ITBIS facturado', 'ITBIS retenido',
+            'Retención renta (ISR)', 'ISC', 'Otros impuestos', 'Propina legal', 'Forma de pago', 'Proveedor',
+        ];
+
+        $rows = $this->purchasesOfPeriod($period)->map(fn (PurchaseInvoice $p): array => [
+            (string) $p->provider_tax_id,
+            $p->provider_tax_id_kind->label(),
+            $p->goods_services_type->label(),
+            (string) $p->ncf,
+            (string) $p->ncf_modified,
+            $this->date($p->invoice_date),
+            $this->date($p->payment_date),
+            $this->money($p->amount),
+            $this->money($p->itbis),
+            $this->money($p->itbis_retenido),
+            $this->money($p->isr_retenido),
+            $this->money($p->isc),
+            $this->money($p->other_taxes),
+            $this->money($p->tip),
+            $this->paymentLabel((string) $p->payment_method),
+            (string) $p->provider_name,
+        ])->all();
+
+        return ['headers' => $headers, 'rows' => $rows];
+    }
+
+    /**
+     * Línea de detalle del 606 (23 columnas, pipe-delimitadas).
+     */
+    private function line606(PurchaseInvoice $p): string
+    {
+        $rnc = preg_replace('/\D/', '', (string) $p->provider_tax_id) ?? '';
+        $amount = (string) $p->amount;
+        $isService = $this->isService($p->goods_services_type);
+
+        return implode('|', [
+            $rnc,                                        // 1  RNC/Cédula del proveedor
+            $rnc === '' ? '' : $p->provider_tax_id_kind->value, // 2  Tipo de identificación
+            $p->goods_services_type->value,              // 3  Tipo de bienes y servicios comprados
+            (string) $p->ncf,                            // 4  NCF
+            (string) $p->ncf_modified,                   // 5  NCF ó documento modificado
+            $this->date($p->invoice_date),               // 6  Fecha del comprobante
+            $this->date($p->payment_date),               // 7  Fecha de pago
+            $isService ? $this->money($p->amount) : $this->money(0), // 8  Monto facturado en servicios
+            $isService ? $this->money(0) : $this->money($p->amount), // 9  Monto facturado en bienes
+            $this->money($amount),                       // 10 Total monto facturado
+            $this->money($p->itbis),                     // 11 ITBIS facturado
+            $this->money($p->itbis_retenido),            // 12 ITBIS retenido
+            $this->money(0),                             // 13 ITBIS sujeto a proporcionalidad
+            $this->money(0),                             // 14 ITBIS llevado al costo
+            $this->money(0),                             // 15 ITBIS por adelantar
+            $this->money(0),                             // 16 ITBIS percibido en compras
+            '',                                          // 17 Tipo de retención en ISR
+            $this->money($p->isr_retenido),              // 18 Monto retención renta
+            $this->money(0),                             // 19 ISR percibido en compras
+            $this->money($p->isc),                       // 20 Impuesto selectivo al consumo
+            $this->money($p->other_taxes),               // 21 Otros impuestos/tasas
+            $this->money($p->tip),                       // 22 Monto propina legal
+            $this->paymentCode((string) $p->payment_method), // 23 Forma de pago
+        ]);
+    }
+
+    /** Los tipos 02, 03, 05, 07 y 11 se declaran como servicios; el resto como bienes. */
+    private function isService(GoodsServicesType $type): bool
+    {
+        return in_array($type, [
+            GoodsServicesType::TrabajosSuministrosServicios,
+            GoodsServicesType::Arrendamientos,
+            GoodsServicesType::Representacion,
+            GoodsServicesType::Financieros,
+            GoodsServicesType::Seguros,
+        ], true);
+    }
+
+    /** Código DGII de la forma de pago (columna 23). */
+    private function paymentCode(string $method): string
+    {
+        return match ($method) {
+            'cash' => '01',
+            'check', 'transfer' => '02',
+            'card' => '03',
+            'credit' => '04',
+            'swap' => '05',
+            'credit_note' => '06',
+            default => '07',
+        };
+    }
+
+    private function paymentLabel(string $method): string
+    {
+        return match ($method) {
+            'cash' => 'Efectivo',
+            'check' => 'Cheque',
+            'transfer' => 'Transferencia',
+            'card' => 'Tarjeta',
+            'credit' => 'Crédito',
+            'swap' => 'Permuta',
+            'credit_note' => 'Nota de crédito',
+            default => 'Otras',
+        };
+    }
+
+    /**
+     * @return Collection<int, PurchaseInvoice>
+     */
+    private function purchasesOfPeriod(Carbon $period): Collection
+    {
+        return PurchaseInvoice::query()
+            ->whereBetween('invoice_date', [
+                $period->copy()->startOfMonth()->toDateString(),
+                $period->copy()->endOfMonth()->toDateString(),
+            ])
+            ->orderBy('invoice_date')
+            ->orderBy('ncf')
+            ->get();
     }
 
     /**

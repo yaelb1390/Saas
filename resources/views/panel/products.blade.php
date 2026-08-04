@@ -17,9 +17,16 @@
                     <x-panel.search-bar placeholder="Buscar por SKU, nombre o código..." />
                     <x-panel.export-button route="panel.export.products" />
                 @can('products.manage')
-                <x-panel.create-modal title="Nuevo producto" label="Nuevo producto" form="product_create" :action="route('panel.products.store')">
+                <x-panel.create-modal title="Nuevo producto" label="Nuevo producto" form="product_create"
+                                       enctype="multipart/form-data" :action="route('panel.products.store')">
                     <x-panel.field name="sku" label="SKU" required placeholder="PROD-0002" />
                     <x-panel.field name="name" label="Nombre" required placeholder="Nombre del producto" />
+                    <div>
+                        <label class="bmos-field-label">Foto del producto (opcional)</label>
+                        <input type="file" name="image" accept="image/*"
+                               class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-600 hover:file:bg-indigo-100">
+                        <p class="mt-1 text-xs text-slate-400">Se muestra en el Punto de Venta. Imagen hasta 8 MB.</p>
+                    </div>
                     {{-- Opcional: no todo artículo trae código impreso. Tres formas de ponerlo:
                          teclearlo, pasar un lector de pistola (escribe en el campo enfocado), o la
                          cámara del móvil. El evento «codigo-escaneado» de la cámara llena el campo. --}}
@@ -87,13 +94,24 @@
                             <tr>
                                 <td class="font-mono text-xs text-slate-500">{{ $product->sku }}</td>
                                 <td class="font-medium text-slate-800">
-                                    {{ $product->name }}
-                                    @php $fit = $product->vehicleFit(); @endphp
-                                    @if ($product->part_number || $product->brand || $fit || $product->location)
-                                        <span class="mt-0.5 block text-xs font-normal text-slate-400">
-                                            {{ collect([$product->part_number, $product->brand, $fit, $product->location ? '📍 '.$product->location : null])->filter()->implode(' · ') }}
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-slate-100">
+                                            @if ($product->hasImage())
+                                                <img src="{{ $product->imageUrl() }}" alt="" loading="lazy" class="h-full w-full object-cover">
+                                            @else
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="h-5 w-5 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z"/></svg>
+                                            @endif
                                         </span>
-                                    @endif
+                                        <div class="min-w-0">
+                                            {{ $product->name }}
+                                            @php $fit = $product->vehicleFit(); @endphp
+                                            @if ($product->part_number || $product->brand || $fit || $product->location)
+                                                <span class="mt-0.5 block text-xs font-normal text-slate-400">
+                                                    {{ collect([$product->part_number, $product->brand, $fit, $product->location ? '📍 '.$product->location : null])->filter()->implode(' · ') }}
+                                                </span>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="font-mono text-xs text-slate-500">{{ $product->barcode ?? '—' }}</td>
                                 <td>{{ $product->category?->name ?? '—' }}</td>
@@ -106,7 +124,7 @@
                                     <div class="flex items-center justify-end gap-1">
                                         @can('products.manage')
                                         <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
-                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), track_stock: {{ $product->track_stock ? 'true' : 'false' }} })">
+                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4.5 w-4.5" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                         </button>
                                         <form method="POST" action="{{ route('panel.products.destroy', $product) }}" onsubmit="return confirm('¿Eliminar «{{ $product->name }}»?')">
@@ -140,13 +158,29 @@
                         <ul class="list-disc pl-4">@foreach ($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
                     </div>
                 @endif
-                <form method="POST" :action="editUrl" class="space-y-3">
+                <form method="POST" :action="editUrl" class="space-y-3" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="_method" value="PUT">
                     <input type="hidden" name="_form" value="product_edit">
                     <input type="hidden" name="id" x-model="row.id">
                     <div><label class="bmos-field-label">SKU</label><input name="sku" x-model="row.sku" class="bmos-input" required></div>
                     <div><label class="bmos-field-label">Nombre</label><input name="name" x-model="row.name" class="bmos-input" required></div>
+                    <div>
+                        <label class="bmos-field-label">Foto del producto</label>
+                        <div class="flex items-center gap-3">
+                            <span class="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100">
+                                <template x-if="row.image">
+                                    <img :src="row.image" alt="" class="h-full w-full object-cover">
+                                </template>
+                                <template x-if="!row.image">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="h-6 w-6 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z"/></svg>
+                                </template>
+                            </span>
+                            <input type="file" name="image" accept="image/*"
+                                   class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-600 hover:file:bg-indigo-100">
+                        </div>
+                        <p class="mt-1 text-xs text-slate-400">Sube una nueva para reemplazarla.</p>
+                    </div>
                     <div><label class="bmos-field-label">Código de barras (opcional)</label><input name="barcode" x-model="row.barcode" class="bmos-input" placeholder="Escanea o teclea el código"></div>
                     <div>
                         <label class="bmos-field-label">Categoría</label>

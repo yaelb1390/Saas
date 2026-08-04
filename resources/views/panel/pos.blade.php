@@ -101,10 +101,18 @@
                     <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
                         <template x-for="p in results" :key="p.id">
                             <button type="button"
-                                    @click="p.sellable && add(p.id, p.name, p.price)"
+                                    @click="p.sellable && add(p.id, p.name, p.price, p.image)"
                                     class="bmos-card bmos-card-pad text-left transition hover:-translate-y-0.5 hover:shadow-md"
                                     :class="!p.sellable ? 'opacity-50 cursor-not-allowed' : ''"
                                     :disabled="!p.sellable">
+                                <div class="mb-2 flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                                    <template x-if="p.image">
+                                        <img :src="p.image" :alt="p.name" loading="lazy" class="h-full w-full object-cover">
+                                    </template>
+                                    <template x-if="!p.image">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="h-8 w-8 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+                                    </template>
+                                </div>
                                 <p class="font-semibold text-slate-800 leading-tight" x-text="p.name"></p>
                                 <p class="text-xs text-slate-400 font-mono" x-text="p.sku"></p>
                                 <div class="mt-2 flex items-center justify-between">
@@ -141,6 +149,9 @@
                             <template x-for="(item, i) in cart" :key="item.id">
                                 <div class="rounded-lg bg-slate-50 p-2">
                                     <div class="flex items-center gap-2">
+                                        <template x-if="item.image">
+                                            <img :src="item.image" :alt="item.name" class="h-9 w-9 shrink-0 rounded-md object-cover">
+                                        </template>
                                         <div class="min-w-0 flex-1">
                                             <p class="truncate text-sm font-medium text-slate-700" x-text="item.name"></p>
                                             <p class="text-xs text-slate-400"><span x-text="rd(item.price)"></span> c/u</p>
@@ -326,7 +337,7 @@
                                     ? 'Sin existencia: ' + data.product.name
                                     : 'Producto inactivo: ' + data.product.name;
                             } else {
-                                this.add(data.product.id, data.product.name, data.product.price);
+                                this.add(data.product.id, data.product.name, data.product.price, data.product.image);
                             }
                         } catch {
                             // Un fallo de red puntual no debe romper la caja: se reintenta escaneando.
@@ -340,10 +351,10 @@
                         }
                     },
 
-                    add(id, name, price) {
+                    add(id, name, price, image = null) {
                         const it = this.cart.find(i => i.id === id);
                         if (it) it.qty = this.round(it.qty + 1);
-                        else this.cart.push({ id, name, price: parseFloat(price), qty: 1, discount: 0, note: '', serial: '', employeeId: '' });
+                        else this.cart.push({ id, name, price: parseFloat(price), image, qty: 1, discount: 0, note: '', serial: '', employeeId: '' });
                     },
                     inc(i) { this.cart[i].qty = this.round((parseFloat(this.cart[i].qty) || 0) + 1); },
                     dec(i) {

@@ -8,6 +8,7 @@ use App\Modules\AI\Http\Controllers\AiAssistantController;
 use App\Modules\Billing\Http\Controllers\DgiiReportController;
 use App\Modules\Billing\Http\Controllers\InvoiceController;
 use App\Modules\Billing\Http\Controllers\PartsCounterController;
+use App\Modules\Billing\Http\Controllers\PurchaseInvoiceController;
 use App\Modules\Core\Http\Controllers\CompanyAdminController;
 use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
@@ -164,6 +165,9 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:products.view')->name('panel.products.lookup');
         Route::post('/panel/inventario/entradas', [StockController::class, 'store'])
             ->middleware('can:stock.adjust')->name('panel.stock.store');
+        // Foto del producto (cacheable). Basta con poder ver el catálogo.
+        Route::get('/panel/inventario/{product}/imagen', [ProductController::class, 'image'])
+            ->middleware('can:products.view')->name('panel.products.image');
     });
 
     Route::middleware(['can:products.manage', 'module:inventory'])->group(function (): void {
@@ -258,6 +262,23 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:invoices.view')->name('panel.dgii.607');
         Route::get('/panel/facturas/dgii/608', [DgiiReportController::class, 'cancelled608'])
             ->middleware('can:invoices.view')->name('panel.dgii.608');
+
+        // Comprobantes de compra (facturas recibidas) → envío 606 de la DGII. Ver/exportar exige
+        // purchase_invoices.view; subir/editar/borrar exige purchase_invoices.manage.
+        Route::get('/panel/compras-606', [PurchaseInvoiceController::class, 'index'])
+            ->middleware('can:purchase_invoices.view')->name('panel.purchase-invoices');
+        Route::get('/panel/compras-606/exportar/606', [PurchaseInvoiceController::class, 'export606'])
+            ->middleware('can:purchase_invoices.view')->name('panel.purchase-invoices.606');
+        Route::get('/panel/compras-606/exportar/excel', [PurchaseInvoiceController::class, 'exportExcel'])
+            ->middleware('can:purchase_invoices.view')->name('panel.purchase-invoices.excel');
+        Route::get('/panel/compras-606/{purchaseInvoice}/archivo', [PurchaseInvoiceController::class, 'showFile'])
+            ->middleware('can:purchase_invoices.view')->name('panel.purchase-invoices.file');
+        Route::post('/panel/compras-606', [PurchaseInvoiceController::class, 'store'])
+            ->middleware('can:purchase_invoices.manage')->name('panel.purchase-invoices.store');
+        Route::put('/panel/compras-606/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update'])
+            ->middleware('can:purchase_invoices.manage')->name('panel.purchase-invoices.update');
+        Route::delete('/panel/compras-606/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])
+            ->middleware('can:purchase_invoices.manage')->name('panel.purchase-invoices.destroy');
     });
 
     // Bandeja de WhatsApp. Vincular la línea afecta a toda la empresa: permiso aparte.

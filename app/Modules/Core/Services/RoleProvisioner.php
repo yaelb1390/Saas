@@ -57,6 +57,8 @@ final class RoleProvisioner
         'invoices.issue',
         'invoices.cancel',          // inutiliza un NCF: no es una acción de caja
         'fiscal_sequences.manage',
+        'purchase_invoices.view',   // comprobantes de compra recibidos (606)
+        'purchase_invoices.manage',
         // CRM
         'customers.view',
         'customers.manage',
@@ -120,6 +122,8 @@ final class RoleProvisioner
             'invoices.issue',
             'invoices.cancel',
             'fiscal_sequences.manage',
+            'purchase_invoices.view',
+            'purchase_invoices.manage',
             'customers.view',
             'customers.manage',
             'opportunities.view',

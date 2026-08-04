@@ -55,6 +55,8 @@ final class UpdateProductRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:1000'],
             'track_stock' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+            // Foto del producto (opcional; si se sube, reemplaza la anterior).
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:15360'],
             ...$this->partFieldRules(),
         ];
     }

@@ -338,6 +338,104 @@ body {
     color: #7c3aed;
 }
 
+/* Paleta del módulo expuesta como variables para que el color alcance a la tarjeta entera y no
+   solo al icono. Va en un atributo aparte (`data-tono`) y no en las clases `.tone-*` de arriba,
+   porque esas se usan sueltas en otras vistas y aplicarlas a un contenedor le impondría también
+   su fondo y su color de texto.
+     --tono        trazo de acento (barra superior, borde)
+     --tono-suave  lavado de fondo, apenas perceptible
+     --tono-fuerte tono oscurecido para texto grande, con contraste suficiente */
+[data-tono='tone-indigo'] {
+    --tono: #4f46e5;
+    --tono-suave: #eef2ff;
+    --tono-fuerte: #3730a3;
+}
+[data-tono='tone-emerald'] {
+    --tono: #059669;
+    --tono-suave: #ecfdf5;
+    --tono-fuerte: #065f46;
+}
+[data-tono='tone-amber'] {
+    --tono: #d97706;
+    --tono-suave: #fffbeb;
+    --tono-fuerte: #92400e;
+}
+[data-tono='tone-sky'] {
+    --tono: #2563eb;
+    --tono-suave: #eff6ff;
+    --tono-fuerte: #1e40af;
+}
+[data-tono='tone-rose'] {
+    --tono: #e11d48;
+    --tono-suave: #fff1f2;
+    --tono-fuerte: #9f1239;
+}
+[data-tono='tone-violet'] {
+    --tono: #7c3aed;
+    --tono-suave: #f5f3ff;
+    --tono-fuerte: #5b21b6;
+}
+
+/* ---------- Tarjeta KPI ---------- */
+.bmos-kpi {
+    position: relative;
+    overflow: hidden;
+    /* El lavado se apaga pronto para que la cifra siga leyéndose sobre blanco. */
+    background: linear-gradient(180deg, var(--tono-suave) 0%, #fff 46%);
+}
+
+/* Trazo de acento superior: identifica el módulo de un vistazo. */
+.bmos-kpi::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--tono);
+}
+
+.bmos-kpi:hover {
+    border-color: var(--tono);
+}
+
+.bmos-kpi-valor {
+    color: var(--tono-fuerte);
+}
+
+/* Las tarjetas de módulo reciben el mismo código de color, en una franja lateral que solo se
+   revela al pasar por encima: son 14 y teñirlas todas resultaría ruidoso. */
+.bmos-module {
+    position: relative;
+    overflow: hidden;
+}
+
+.bmos-module::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    background: var(--tono, transparent);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.bmos-module:hover::before {
+    opacity: 1;
+}
+
+.bmos-module:hover {
+    border-color: color-mix(in srgb, var(--tono, #4f46e5) 35%, #fff);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-module::before {
+        transition: none;
+    }
+}
+
 /* ---------- Module grid ---------- */
 .bmos-module {
     display: flex;

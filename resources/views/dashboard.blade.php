@@ -86,8 +86,8 @@
     @if (auth()->user()?->can('reports.view') && $visibleStats->isNotEmpty())
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         @foreach ($visibleStats as [$label, $value, $hint, $tone, $path, $route])
-            <a href="{{ route($route) }}"
-               class="group block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 transition duration-150 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60 hover:ring-indigo-200">
+            <a href="{{ route($route) }}" data-tono="{{ $tone }}"
+               class="bmos-kpi group block rounded-2xl p-5 shadow-sm ring-1 ring-slate-900/5 transition duration-150 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/60 hover:ring-indigo-200">
                 <div class="flex items-start justify-between gap-3">
                     <p class="bmos-stat-label">{{ $label }}</p>
                     <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl {{ $tone }} transition group-hover:scale-105">
@@ -96,7 +96,7 @@
                         </svg>
                     </span>
                 </div>
-                <p class="mt-2 text-3xl font-bold tracking-tight text-slate-800" @if($label === 'Balance de caja') data-testid="kpi-cash-balance" @endif>{{ $value }}</p>
+                <p class="bmos-kpi-valor mt-2 text-3xl font-bold tracking-tight" @if($label === 'Balance de caja') data-testid="kpi-cash-balance" @endif>{{ $value }}</p>
                 <p class="mt-1 flex items-center gap-1 text-xs text-slate-400">
                     {{ $hint }}
                     <span class="text-indigo-400 opacity-0 transition group-hover:opacity-100">· ver detalle →</span>
@@ -202,7 +202,7 @@
     <h2 class="mt-9 mb-3 text-lg font-semibold text-slate-800">Módulos del sistema</h2>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         @foreach ($modules as [$_, $label, $route, $desc, $tone, $path])
-            <a href="{{ route($route) }}" class="bmos-module group">
+            <a href="{{ route($route) }}" data-tono="{{ $tone }}" class="bmos-module group">
                 <span class="bmos-module-icon {{ $tone }}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                         <path stroke-linecap="round" stroke-linejoin="round" d="{{ $path }}"/>

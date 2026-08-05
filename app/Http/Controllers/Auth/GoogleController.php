@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
@@ -39,7 +40,15 @@ final class GoogleController extends Controller
     {
         try {
             $googleUser = Socialite::driver('google')->user();
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            // Al usuario se le da un aviso genérico, pero el motivo real (credenciales inválidas,
+            // redirect_uri no autorizado, estado de sesión perdido...) queda en el log: sin esto
+            // el fallo es indistinguible desde fuera y no hay forma de diagnosticarlo.
+            Log::warning('Fallo el acceso con Google.', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
             return redirect()->route('login')->withErrors([
                 'email' => 'No se pudo completar el acceso con Google. Inténtalo de nuevo.',
             ]);

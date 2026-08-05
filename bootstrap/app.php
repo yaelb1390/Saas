@@ -63,15 +63,31 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        // Resumen en una línea de toda excepción reportada, ADEMÁS del volcado normal. En serverless
-        // los bloques largos se truncan por el principio, y el rastro de pila de Laravel se lleva por
-        // delante justo la cabecera —clase, mensaje y origen—, que es lo único que identifica el
-        // fallo. Esta línea corta sobrevive al truncado.
-        $exceptions->report(function (Throwable $e): void {
-            Log::warning('[resumen] '.$e::class, [
-                'message' => mb_substr($e->getMessage(), 0, 300),
+        // Registro compacto de toda excepción, EN LUGAR del volcado por defecto. El rastro de pila
+        // completo ocupa ~60 marcos y el recolector de logs de Vercel recorta el mensaje por el
+        // principio: se pierde la cabecera (clase, mensaje y origen), que es lo único que identifica
+        // el fallo, y queda solo el middleware genérico, idéntico en cualquier error. Aquí se
+        // conservan la cabecera y los marcos propios de la aplicación, que son los que importan.
+        $exceptions->report(function (Throwable $e): bool {
+            $marcos = [];
+
+            foreach ($e->getTrace() as $m) {
+                if (isset($m['file']) && ! str_contains($m['file'], '/vendor/')) {
+                    $marcos[] = basename($m['file']).':'.($m['line'] ?? '?');
+
+                    if (count($marcos) === 5) {
+                        break;
+                    }
+                }
+            }
+
+            Log::error('[resumen] '.$e::class, [
+                'message' => mb_substr($e->getMessage(), 0, 400),
                 'origen' => basename($e->getFile()).':'.$e->getLine(),
+                'app' => implode(' <- ', $marcos),
             ]);
+
+            return false; // corta la propagación al log por defecto (el rastro que se trunca)
         });
 
         // Error 419 «página caducada»: el token CSRF ya no coincide porque la pestaña estuvo abierta

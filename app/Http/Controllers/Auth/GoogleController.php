@@ -41,17 +41,7 @@ final class GoogleController extends Controller
         try {
             $googleUser = Socialite::driver('google')->user();
         } catch (Throwable $e) {
-            // Al usuario se le da un aviso genérico, pero el motivo real (credenciales inválidas,
-            // redirect_uri no autorizado, estado de sesión perdido...) queda en el log: sin esto
-            // el fallo es indistinguible desde fuera y no hay forma de diagnosticarlo.
-            Log::warning('Fallo el acceso con Google.', [
-                'exception' => $e::class,
-                'message' => $e->getMessage(),
-            ]);
-
-            return redirect()->route('login')->withErrors([
-                'email' => 'No se pudo completar el acceso con Google. Inténtalo de nuevo.',
-            ]);
+            return $this->rechazar($e, 'No se pudo completar el acceso con Google. Inténtalo de nuevo.');
         }
 
         $email = $googleUser->getEmail();
@@ -78,14 +68,39 @@ final class GoogleController extends Controller
             ]);
         }
 
-        // Vincula el id estable de Google la primera vez.
-        if (blank($user->google_id)) {
-            $user->forceFill(['google_id' => $googleUser->getId()])->save();
+        // Arrancar la sesión también puede fallar (columna ausente, listener del evento de login,
+        // almacén de sesión...). Sin este guardado el usuario recibía una pantalla de 500 aunque
+        // `Auth::login` ya hubiera dejado la sesión iniciada: un estado confuso y sin diagnóstico.
+        try {
+            // Vincula el id estable de Google la primera vez.
+            if (blank($user->google_id)) {
+                $user->forceFill(['google_id' => $googleUser->getId()])->save();
+            }
+
+            Auth::login($user, remember: true);
+            $request->session()->regenerate();
+        } catch (Throwable $e) {
+            return $this->rechazar($e, 'No se pudo iniciar tu sesión. Inténtalo de nuevo.');
         }
 
-        Auth::login($user, remember: true);
-        $request->session()->regenerate();
-
         return redirect()->intended(route('dashboard'));
+    }
+
+    /**
+     * Registra el motivo real y devuelve al login con un aviso comprensible.
+     *
+     * El log se mantiene corto a propósito (clase, mensaje y origen, sin rastro de pila): en
+     * serverless los bloques largos se truncan por el principio y la cabecera —lo único que
+     * identifica el fallo— se pierde.
+     */
+    private function rechazar(Throwable $e, string $aviso): RedirectResponse
+    {
+        Log::warning('Fallo el acceso con Google.', [
+            'exception' => $e::class,
+            'message' => mb_substr($e->getMessage(), 0, 300),
+            'origen' => basename($e->getFile()).':'.$e->getLine(),
+        ]);
+
+        return redirect()->route('login')->withErrors(['email' => $aviso]);
     }
 }

@@ -9,6 +9,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -62,6 +63,17 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Resumen en una línea de toda excepción reportada, ADEMÁS del volcado normal. En serverless
+        // los bloques largos se truncan por el principio, y el rastro de pila de Laravel se lleva por
+        // delante justo la cabecera —clase, mensaje y origen—, que es lo único que identifica el
+        // fallo. Esta línea corta sobrevive al truncado.
+        $exceptions->report(function (Throwable $e): void {
+            Log::warning('[resumen] '.$e::class, [
+                'message' => mb_substr($e->getMessage(), 0, 300),
+                'origen' => basename($e->getFile()).':'.$e->getLine(),
+            ]);
+        });
+
         // Error 419 «página caducada»: el token CSRF ya no coincide porque la pestaña estuvo abierta
         // más tiempo que la vida de la sesión (o esta se reinició). El framework convierte la
         // TokenMismatchException en HttpException(419) antes de los callbacks, así que enganchamos por

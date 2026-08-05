@@ -38,40 +38,36 @@ final class GoogleController extends Controller
     /** Recibe el retorno de Google, valida y arranca la sesión si la cuenta existe. */
     public function callback(Request $request): RedirectResponse
     {
+        // Todo el retorno va protegido: un callback de autenticación nunca debe acabar en una
+        // pantalla de 500. Cualquier fallo (Google, esquema de la base, almacén de sesión) se
+        // registra y devuelve al login con un aviso, en vez de escupir el error al usuario.
         try {
             $googleUser = Socialite::driver('google')->user();
-        } catch (Throwable $e) {
-            return $this->rechazar($e, 'No se pudo completar el acceso con Google. Inténtalo de nuevo.');
-        }
 
-        $email = $googleUser->getEmail();
+            $email = $googleUser->getEmail();
 
-        if (blank($email)) {
-            return redirect()->route('login')->withErrors([
-                'email' => 'Tu cuenta de Google no tiene un correo disponible.',
-            ]);
-        }
+            if (blank($email)) {
+                return redirect()->route('login')->withErrors([
+                    'email' => 'Tu cuenta de Google no tiene un correo disponible.',
+                ]);
+            }
 
-        // Si ya se vinculó antes, se reconoce por google_id; si no, se empareja por el correo.
-        $user = User::where('google_id', $googleUser->getId())->first()
-            ?? User::whereRaw('lower(email) = ?', [mb_strtolower($email)])->first();
+            // Si ya se vinculó antes, se reconoce por google_id; si no, se empareja por el correo.
+            $user = User::where('google_id', $googleUser->getId())->first()
+                ?? User::whereRaw('lower(email) = ?', [mb_strtolower($email)])->first();
 
-        if ($user === null) {
-            return redirect()->route('login')->withErrors([
-                'email' => "No hay una cuenta con el correo {$email}. Pide a tu administrador que te dé de alta.",
-            ]);
-        }
+            if ($user === null) {
+                return redirect()->route('login')->withErrors([
+                    'email' => "No hay una cuenta con el correo {$email}. Pide a tu administrador que te dé de alta.",
+                ]);
+            }
 
-        if (! $user->is_active) {
-            return redirect()->route('login')->withErrors([
-                'email' => 'Tu cuenta está desactivada. Contacta al administrador.',
-            ]);
-        }
+            if (! $user->is_active) {
+                return redirect()->route('login')->withErrors([
+                    'email' => 'Tu cuenta está desactivada. Contacta al administrador.',
+                ]);
+            }
 
-        // Arrancar la sesión también puede fallar (columna ausente, listener del evento de login,
-        // almacén de sesión...). Sin este guardado el usuario recibía una pantalla de 500 aunque
-        // `Auth::login` ya hubiera dejado la sesión iniciada: un estado confuso y sin diagnóstico.
-        try {
             // Vincula el id estable de Google la primera vez.
             if (blank($user->google_id)) {
                 $user->forceFill(['google_id' => $googleUser->getId()])->save();
@@ -80,7 +76,7 @@ final class GoogleController extends Controller
             Auth::login($user, remember: true);
             $request->session()->regenerate();
         } catch (Throwable $e) {
-            return $this->rechazar($e, 'No se pudo iniciar tu sesión. Inténtalo de nuevo.');
+            return $this->rechazar($e, 'No se pudo completar el acceso con Google. Inténtalo de nuevo.');
         }
 
         return redirect()->intended(route('dashboard'));

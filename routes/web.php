@@ -13,6 +13,7 @@ use App\Modules\Core\Http\Controllers\CompanyAdminController;
 use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
 use App\Modules\Core\Http\Controllers\PlanController;
+use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\RegisterController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
 use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
@@ -169,6 +170,12 @@ Route::middleware(['auth'])->group(function (): void {
             Route::get('/', 'index')->name('index');
             Route::get('/catalogo', 'catalog')->name('catalog');
             Route::get('/producto/{product}/opciones', 'options')->name('options');
+
+            // Pedidos aparcados: dejar uno a medias para atender a otro cliente y recuperarlo luego.
+            Route::get('/en-espera', 'pending')->name('held.index');
+            Route::post('/en-espera', 'hold')->name('held.store');
+            Route::get('/en-espera/{heldOrder}', 'resume')->name('held.resume');
+            Route::delete('/en-espera/{heldOrder}', 'discard')->name('held.destroy');
         });
 
     // Altas, ediciones y bajas desde el panel. El route model binding resuelve el registro ya
@@ -336,6 +343,10 @@ Route::get('/portal/cliente/{customer}', CustomerPortalController::class)
 
 // Webhook entrante de Evolution API (sin sesión; protegido por secreto compartido).
 Route::post('/webhooks/evolution', EvolutionWebhookController::class)->name('webhooks.evolution');
+
+// Webhook entrante de Polar: pagos, altas y bajas de suscripción (sin sesión; protegido por firma
+// HMAC sobre el cuerpo, que es lo único que impide que alguien se active un plan con un POST).
+Route::post('/webhooks/polar', PolarWebhookController::class)->name('webhooks.polar');
 
 // Mantenimiento disparado por el cron de Vercel (sin sesión; protegido por CRON_SECRET en el header).
 // Purga los datos de las pruebas self-service vencidas hace más de 24 h.

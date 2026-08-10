@@ -25,6 +25,7 @@ class Plan extends Model implements Auditable
     protected $fillable = [
         'name',
         'slug',
+        'polar_product_id',
         'description',
         'price',
         'billing_cycle',
@@ -69,5 +70,28 @@ class Plan extends Model implements Auditable
     public function includesModule(string $key): bool
     {
         return $this->modules === null || in_array($key, $this->modules, true);
+    }
+
+    /**
+     * ¿Se puede contratar en línea?
+     *
+     * Solo si está enlazado con un producto de la pasarela de cobro. Un plan sin enlazar sigue
+     * existiendo y se asigna a mano, pero no se le puede ofrecer un botón de pago: no habría forma
+     * de saber qué activar cuando llegara el aviso de cobro.
+     */
+    public function isPurchasable(): bool
+    {
+        return $this->is_active && filled($this->polar_product_id);
+    }
+
+    /**
+     * Busca el plan enlazado con un producto de Polar.
+     *
+     * Es la traducción que hará falta al recibir el aviso de pago: Polar dice qué producto se
+     * compró, y esto dice qué plan activar.
+     */
+    public static function forPolarProduct(string $productId): ?self
+    {
+        return static::query()->where('polar_product_id', $productId)->first();
     }
 }

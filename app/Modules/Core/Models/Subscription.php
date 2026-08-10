@@ -28,6 +28,10 @@ class Subscription extends Model implements Auditable
     protected $fillable = [
         'company_id',
         'plan_id',
+        // Identificadores en Polar: sin ellos, los avisos posteriores a la compra (renovación,
+        // baja) no sabrían a qué suscripción de la app aplicar.
+        'polar_subscription_id',
+        'polar_customer_id',
         'status',
         'trial_ends_at',
         'current_period_start',

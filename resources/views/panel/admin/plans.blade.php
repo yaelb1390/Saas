@@ -9,6 +9,13 @@
                 <x-panel.field name="slug" label="Identificador" required placeholder="pro" />
             </div>
             <x-panel.field name="description" label="Descripción (opcional)" placeholder="Para negocios en crecimiento" />
+            <div>
+                <x-panel.field name="polar_product_id" label="Producto en Polar (opcional)"
+                               placeholder="a1f622d8-48d1-4de2-aa25-84e49102045b" />
+                <p class="mt-1 text-xs text-slate-400">
+                    Id del producto en Polar. Sin él, el plan no se puede contratar en línea y se sigue asignando a mano.
+                </p>
+            </div>
             <div class="grid grid-cols-3 gap-3">
                 <x-panel.field name="price" label="Precio" type="number" step="0.01" value="0" required />
                 <div>
@@ -78,6 +85,14 @@
                             <x-panel.field name="slug" label="Identificador" required :value="$plan->slug" />
                         </div>
                         <x-panel.field name="description" label="Descripción (opcional)" :value="$plan->description" />
+                        <div>
+                            <x-panel.field name="polar_product_id" label="Producto en Polar (opcional)"
+                                           :value="$plan->polar_product_id"
+                                           placeholder="a1f622d8-48d1-4de2-aa25-84e49102045b" />
+                            <p class="mt-1 text-xs text-slate-400">
+                                Id del producto en Polar. Sin él, el plan no se puede contratar en línea.
+                            </p>
+                        </div>
                         <div class="grid grid-cols-3 gap-3">
                             <x-panel.field name="price" label="Precio" type="number" step="0.01" required :value="$plan->price" />
                             <div>

@@ -123,9 +123,41 @@
             {{-- ── Ticket ───────────────────────────────────────────────────────────────── --}}
             <div class="bmos-card flex min-w-0 flex-col overflow-hidden lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
                 <div class="flex items-center justify-between gap-2 border-b border-slate-100 p-3">
-                    <p class="font-semibold text-slate-800">Pedido</p>
-                    <button type="button" @click="clear()" x-show="cart.length > 0"
-                            class="bmos-btn bmos-btn-ghost min-h-[44px] text-xs">Vaciar</button>
+                    <p class="font-semibold text-slate-800">
+                        Pedido
+                        {{-- Al recuperar uno aparcado se muestra su referencia: el cajero sabe cuál
+                             está cobrando cuando hay varios en la barra. --}}
+                        <span x-show="refActiva" x-cloak
+                              class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-700"
+                              x-text="refActiva"></span>
+                    </p>
+                    <div class="flex items-center gap-1" x-show="cart.length > 0" x-cloak>
+                        <button type="button" @click="aparcar()" :disabled="aparcando"
+                                class="bmos-btn bmos-btn-ghost min-h-[44px] text-xs disabled:opacity-50">
+                            <span x-text="aparcando ? '...' : 'En espera'"></span>
+                        </button>
+                        <button type="button" @click="clear()"
+                                class="bmos-btn bmos-btn-ghost min-h-[44px] text-xs">Vaciar</button>
+                    </div>
+                </div>
+
+                {{-- Pedidos aparcados. Solo aparece si hay alguno: en un mostrador sin pedidos a
+                     medias, una barra vacía sería ruido permanente. --}}
+                <div x-show="enEspera.length > 0" x-cloak
+                     class="flex gap-2 overflow-x-auto border-b border-slate-100 bg-amber-50/60 p-2">
+                    <template x-for="p in enEspera" :key="p.id">
+                        <div class="flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-white px-2 py-1">
+                            <button type="button" @click="recuperar(p)" class="min-h-[40px] text-left">
+                                <span class="block text-xs font-bold text-amber-700" x-text="p.reference"></span>
+                                <span class="block text-[11px] text-slate-500"
+                                      x-text="p.items + (p.items === 1 ? ' art.' : ' arts.') + ' · ' + rd(p.total)"></span>
+                            </button>
+                            <button type="button" @click="descartar(p)" aria-label="Descartar pedido"
+                                    class="grid h-9 w-9 shrink-0 place-items-center rounded text-slate-300 transition hover:bg-rose-50 hover:text-rose-500">
+                                ✕
+                            </button>
+                        </div>
+                    </template>
                 </div>
 
                 <div class="min-h-[8rem] flex-1 overflow-y-auto p-3">
@@ -308,6 +340,10 @@
                     grupos: [],
                     elegidas: [],
                     cargandoOpciones: false,
+                    enEspera: [],
+                    aparcando: false,
+                    refActiva: '',
+                    holdUrl: '{{ route('panel.quick-pos.held.index') }}',
                     checkoutUrl: '{{ route('panel.pos.checkout') }}',
 
                     rd(n) {
@@ -336,6 +372,7 @@
                      */
                     arrancar() {
                         this.load();
+                        this.cargarEnEspera();
 
                         // Al volver a la pestaña: es el momento típico tras dar de alta un producto
                         // en otra ventana, y no cuesta nada mientras el terminal está en segundo plano.
@@ -547,6 +584,106 @@
                         return this.cart.length > 0 && Number(this.paid || 0) >= this.subtotal;
                     },
 
+                    /** Cabeceras comunes de las peticiones que escriben. */
+                    _cabeceras() {
+                        return {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        };
+                    },
+
+                    async cargarEnEspera() {
+                        try {
+                            const res = await fetch(this.holdUrl, { headers: { Accept: 'application/json' } });
+                            if (res.ok) this.enEspera = (await res.json()).pending;
+                        } catch (e) {
+                            // Sin conexión: se deja la barra como esté en vez de vaciarla.
+                        }
+                    },
+
+                    /** Aparca el pedido en curso y deja el ticket libre para el siguiente cliente. */
+                    async aparcar() {
+                        if (this.cart.length === 0 || this.aparcando) return;
+
+                        this.aparcando = true;
+                        this.errorCobro = '';
+
+                        try {
+                            const res = await fetch(this.holdUrl, {
+                                method: 'POST',
+                                headers: this._cabeceras(),
+                                body: JSON.stringify({
+                                    // Solo qué se eligió: los precios se releen al recuperarlo.
+                                    cart: this.cart.map((i) => ({
+                                        id: i.id,
+                                        qty: i.qty,
+                                        options: (i.opciones ?? []).map((o) => o.id),
+                                    })),
+                                }),
+                            });
+
+                            if (!res.ok) {
+                                this.errorCobro = 'No se pudo dejar el pedido en espera.';
+                                return;
+                            }
+
+                            this.enEspera = (await res.json()).pending;
+                            this.cart = [];
+                            this.paid = '';
+                            this.refActiva = '';
+                        } catch (e) {
+                            // NO se vacía el carrito: si la petición no llegó, el pedido se habría
+                            // perdido sin que el cajero pudiera recuperarlo de ningún sitio.
+                            this.errorCobro = 'Sin conexión. El pedido sigue aquí, vuelve a intentarlo.';
+                        } finally {
+                            this.aparcando = false;
+                        }
+                    },
+
+                    /** Devuelve un pedido aparcado al ticket, con los precios de hoy. */
+                    async recuperar(p) {
+                        // Con un pedido a medias, recuperar otro perdería el actual sin aviso.
+                        if (this.cart.length > 0 && !confirm('Se reemplazará el pedido actual. ¿Continuar?')) {
+                            return;
+                        }
+
+                        try {
+                            const res = await fetch(`${this.holdUrl}/${p.id}`, { headers: { Accept: 'application/json' } });
+                            if (!res.ok) return;
+
+                            const data = await res.json();
+
+                            this.cart = data.cart.map((i) => ({
+                                ...i,
+                                firma: (i.opciones ?? []).map((o) => o.id).sort().join(','),
+                            }));
+                            this.refActiva = data.reference;
+                            this.ultimaVenta = null;
+
+                            // Se descarta al recuperarlo: si siguiera en la barra, el cajero podría
+                            // cobrarlo dos veces desde dos terminales.
+                            await this.descartar(p, true);
+                        } catch (e) {
+                            this.errorCobro = 'No se pudo recuperar el pedido.';
+                        }
+                    },
+
+                    async descartar(p, silencioso = false) {
+                        if (!silencioso && !confirm(`¿Descartar el pedido ${p.reference}?`)) return;
+
+                        try {
+                            const res = await fetch(`${this.holdUrl}/${p.id}`, {
+                                method: 'DELETE',
+                                headers: this._cabeceras(),
+                            });
+
+                            if (res.ok) this.enEspera = (await res.json()).pending;
+                        } catch (e) {
+                            // Se recargará la lista en el proximo refresco.
+                        }
+                    },
+
                     async cobrar() {
                         if (!this.canPay || this.cobrando) return;
 
@@ -591,6 +728,7 @@
                             this.cart = [];
                             this.paid = '';
                             this.method = 'cash';
+                            this.refActiva = '';
 
                             // La venta acaba de mover el stock: un producto que se agotó tiene que
                             // aparecer marcado antes de que el cajero intente venderlo otra vez.

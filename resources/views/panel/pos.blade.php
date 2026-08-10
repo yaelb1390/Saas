@@ -239,24 +239,47 @@
                             <input type="text" name="customer_name" x-model="customer" x-show="!customerId"
                                    placeholder="Consumidor final" class="bmos-input mt-2">
 
-                            <label class="bmos-field-label mt-3">Pago recibido</label>
-                            <input type="number" name="paid" step="0.01" min="0" x-model="paid" placeholder="0.00" class="bmos-input">
+                            {{-- Cierre del ticket: mismos controles que la venta rápida. Pago, cambio
+                                 y cobrar comparten altura y escala para leerse como un solo bloque. --}}
+                            <div class="bmos-pos-cierre mt-3">
+                                {{-- Forma de cobro. Solo el efectivo suma al arqueo de la caja; el
+                                     servidor decide eso a partir de este valor, no el navegador. --}}
+                                <label class="bmos-field-label">Forma de pago</label>
+                                <input type="hidden" name="payment_method" :value="method">
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    @foreach (\App\Modules\Sales\Enums\PaymentMethod::counterOptions() as $option)
+                                        <button type="button" @click="method = '{{ $option->value }}'"
+                                                :class="method === '{{ $option->value }}' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500'"
+                                                class="min-h-[44px] rounded-lg border text-xs font-semibold transition">
+                                            {{ $option->label() }}
+                                        </button>
+                                    @endforeach
+                                </div>
 
-                            <div class="mt-2 flex items-center justify-between">
-                                <span class="text-slate-500">Cambio</span>
-                                <span class="font-semibold text-emerald-600" x-text="rd(change)"></span>
+                                <label class="bmos-field-label mt-3"
+                                       x-text="method === 'cash' ? 'Pago recibido' : 'Importe cobrado'"></label>
+                                <input type="number" name="paid" step="0.01" min="0" inputmode="decimal"
+                                       x-model="paid" placeholder="0.00" class="bmos-pos-input-pago">
+
+                                {{-- El cambio solo tiene sentido en efectivo: con tarjeta se cobra el
+                                     importe exacto. --}}
+                                <div x-show="method === 'cash' && change > 0" x-cloak class="bmos-pos-change">
+                                    <span class="bmos-pos-change-label">Cambio</span>
+                                    <span class="bmos-pos-change-value" x-text="rd(change)"></span>
+                                </div>
+                                <button type="button" x-show="method !== 'cash'" @click="paid = total.toFixed(2)"
+                                        class="mt-1 text-xs font-semibold text-indigo-600">Poner el importe exacto</button>
+
+                                <label class="mt-3 flex items-center gap-2 text-slate-600">
+                                    <input type="checkbox" name="invoice" value="1" x-model="invoice" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                                    Emitir factura con NCF
+                                </label>
+
+                                <button type="submit" :disabled="!canPay" class="bmos-pos-cobrar mt-3">
+                                    <span>Cobrar</span>
+                                    <span class="bmos-pos-cobrar-total" x-text="rd(total)"></span>
+                                </button>
                             </div>
-
-                            <label class="mt-3 flex items-center gap-2 text-slate-600">
-                                <input type="checkbox" name="invoice" value="1" x-model="invoice" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                                Emitir factura con NCF
-                            </label>
-
-                            <button type="submit" :disabled="!canPay"
-                                    class="bmos-btn bmos-btn-primary mt-4 w-full justify-center"
-                                    :class="!canPay ? 'opacity-50 cursor-not-allowed' : ''">
-                                Cobrar <span x-show="cart.length" x-text="'· ' + rd(total)"></span>
-                            </button>
                         </div>
                     </form>
                 </div>
@@ -266,7 +289,7 @@
         <script>
             function posTerminal(lookupUrl, searchUrl) {
                 return {
-                    cart: [], paid: '', customer: '', customerId: '', invoice: false,
+                    cart: [], paid: '', customer: '', customerId: '', invoice: false, method: 'cash',
                     barcode: '', scanError: '', busy: false,
                     globalDiscount: '', tip: '', attendant: '',
                     query: '', results: [], searching: false,

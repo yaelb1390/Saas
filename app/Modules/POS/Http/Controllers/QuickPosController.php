@@ -13,6 +13,8 @@ use App\Modules\Inventory\Models\OptionGroup;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Support\CategoryIcons;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
+use App\Modules\POS\Models\HeldOrder;
+use App\Modules\POS\Services\HeldOrderService;
 use App\Modules\POS\Support\KioskMode;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -83,6 +85,75 @@ final class QuickPosController extends Controller
             // aparecer y desaparecer entradas al ritmo del inventario, sin recargar la página.
             'categories' => $this->categoriasConProductos(),
         ]);
+    }
+
+    /**
+     * Aparca el pedido en curso para atender a otro cliente.
+     *
+     * No descuenta stock: hasta que se cobra, la mercancía sigue disponible para cualquiera. Reservar
+     * sería peor —un pedido olvidado dejaría producto bloqueado sin que nadie sepa por qué—.
+     */
+    public function hold(Request $request, HeldOrderService $held): JsonResponse
+    {
+        $request->validate([
+            'cart' => ['required', 'array', 'min:1'],
+            'customer_name' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $order = $held->hold(
+            $request->array('cart'),
+            $request->filled('customer_name') ? $request->string('customer_name')->toString() : null,
+        );
+
+        return response()->json([
+            'reference' => $order->reference,
+            'pending' => $this->aparcados($held),
+        ], 201);
+    }
+
+    /** Pedidos aparcados pendientes de cobro. */
+    public function pending(HeldOrderService $held): JsonResponse
+    {
+        return response()->json(['pending' => $this->aparcados($held)]);
+    }
+
+    /**
+     * Devuelve el pedido aparcado con los precios de HOY, listo para volver al ticket.
+     *
+     * El route model binding lo resuelve ya aislado por empresa: uno ajeno da 404.
+     */
+    public function resume(HeldOrder $heldOrder, HeldOrderService $held): JsonResponse
+    {
+        return response()->json([
+            'reference' => $heldOrder->reference,
+            'customer_name' => $heldOrder->customer_name,
+            'cart' => $held->resume($heldOrder),
+        ]);
+    }
+
+    /** Descarta un pedido aparcado que el cliente ya no va a pagar. */
+    public function discard(HeldOrder $heldOrder, HeldOrderService $held): JsonResponse
+    {
+        $held->discard($heldOrder);
+
+        return response()->json(['pending' => $this->aparcados($held)]);
+    }
+
+    /**
+     * Lista ligera para la barra de aparcados: solo lo que se pinta.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function aparcados(HeldOrderService $held): array
+    {
+        return $held->pending()->map(fn (HeldOrder $o): array => [
+            'id' => (int) $o->id,
+            'reference' => (string) $o->reference,
+            'customer_name' => $o->customer_name,
+            'total' => (string) $o->total,
+            'items' => count($o->payload),
+            'at' => $o->created_at?->format('H:i'),
+        ])->all();
     }
 
     /**

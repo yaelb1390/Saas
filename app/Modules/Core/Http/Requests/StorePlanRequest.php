@@ -26,6 +26,12 @@ final class StorePlanRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('plans', 'slug')->ignore($planId)],
+            // Id del producto en Polar. Único: dos planes apuntando al mismo producto harían
+            // imposible saber cuál activar cuando llegue el aviso de pago.
+            'polar_product_id' => [
+                'nullable', 'string', 'max:255',
+                Rule::unique('plans', 'polar_product_id')->ignore($planId),
+            ],
             'description' => ['nullable', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
             'billing_cycle' => ['required', Rule::enum(BillingCycle::class)],

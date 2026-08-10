@@ -59,7 +59,7 @@ foreach ([1, 2] as $cid) {
         DB::table('stock')->insert($chunk);
     }
 
-    echo "empresa {$cid}: +".count($products)." productos, +".count($stock)." filas de stock".PHP_EOL;
+    echo "empresa {$cid}: +".count($products).' productos, +'.count($stock).' filas de stock'.PHP_EOL;
 }
 
 echo 'total productos: '.DB::table('products')->count().PHP_EOL;

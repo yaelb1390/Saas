@@ -28,6 +28,7 @@ class Category extends Model implements Auditable, HasCompany
         'company_id',
         'parent_id',
         'name',
+        'icon',
         'slug',
         'is_active',
     ];

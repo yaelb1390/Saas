@@ -22,12 +22,12 @@
         <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" style="max-width:40rem">
             @if ($hasLogo)
                 <img src="{{ asset('images/bm-logo.png') }}?v={{ filemtime($logoPath) }}"
-                     alt="BM Business OS" class="mx-auto mb-4 w-52 max-w-full object-contain">
+                     alt="BM Business OS" class="bmos-auth-logo-img">
             @else
                 <div class="bmos-auth-logo">BM</div>
             @endif
             <h1 class="text-center text-2xl font-bold tracking-tight text-slate-900">Crea tu cuenta gratis</h1>
-            <p class="mt-1 mb-5 text-center text-sm text-slate-500">
+            <p class="bmos-auth-sub">
                 Prueba {{ $trialDays }} días sin costo. Sin tarjeta.
             </p>
 
@@ -52,7 +52,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('register.store') }}" class="space-y-4" x-data="{ show: false }">
+            <form method="POST" action="{{ route('register.store') }}" class="bmos-auth-form" x-data="{ show: false }">
                 @csrf
 
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

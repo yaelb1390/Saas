@@ -1052,11 +1052,82 @@ body {
     animation: bmos-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
-/* Móvil y pantallas bajas: la tarjeta se estrecha y respira menos, para caber sin desplazar. */
-@media (max-width: 420px), (max-height: 720px) {
+/* ---------- Ritmo vertical de la tarjeta de acceso ----------
+   Todo el alto que ocupa la tarjeta se controla desde aquí y no con utilidades sueltas en el HTML,
+   para poder comprimirlo de golpe cuando la pantalla es baja. En un móvil normal la tarjeta no
+   cabía y se cortaba por abajo: el pie y el enlace de registro quedaban fuera. */
+.bmos-auth-logo-img {
+    display: block;
+    margin: 0 auto var(--bmos-auth-gap-lg, 1.25rem);
+    width: var(--bmos-auth-logo, 15rem);
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.bmos-auth-sub {
+    margin: 0.25rem 0 var(--bmos-auth-gap-xl, 1.75rem);
+    text-align: center;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.bmos-auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--bmos-auth-gap, 1rem);
+}
+
+.bmos-auth-sep {
+    margin: var(--bmos-auth-gap-lg, 1.25rem) 0;
+}
+
+.bmos-auth-alt {
+    margin-top: var(--bmos-auth-gap-lg, 1.5rem);
+}
+
+.bmos-auth-copy {
+    margin-top: var(--bmos-auth-gap, 1rem);
+}
+
+/* Móvil estrecho: menos relleno lateral. */
+@media (max-width: 420px) {
     .bmos-auth-card {
-        padding: 1.75rem 1.5rem;
+        padding: 1.75rem 1.35rem;
         border-radius: 1.25rem;
+    }
+}
+
+/*
+ * Pantallas bajas: el caso real de un teléfono en vertical (~700-750px de alto útil), donde la
+ * tarjeta se salía. Se encoge el logo y se recortan los huecos con variables, en vez de tocar cada
+ * elemento por separado. Dos escalones porque un móvil pequeño necesita más recorte que un portátil.
+ */
+@media (max-height: 800px) {
+    .bmos-auth-card {
+        --bmos-auth-logo: 11rem;
+        --bmos-auth-gap: 0.85rem;
+        --bmos-auth-gap-lg: 0.9rem;
+        --bmos-auth-gap-xl: 1.1rem;
+
+        padding: 1.5rem 1.35rem;
+    }
+}
+
+@media (max-height: 680px) {
+    .bmos-auth-card {
+        --bmos-auth-logo: 8.5rem;
+        --bmos-auth-gap: 0.65rem;
+        --bmos-auth-gap-lg: 0.7rem;
+        --bmos-auth-gap-xl: 0.8rem;
+
+        padding: 1.15rem 1.25rem;
+    }
+
+    /* El botón y los campos también bajan de alto: son la otra mitad del problema. */
+    .bmos-auth-card .bmos-input,
+    .bmos-auth-card .bmos-auth-btn {
+        padding-top: 0.55rem;
+        padding-bottom: 0.55rem;
     }
 }
 

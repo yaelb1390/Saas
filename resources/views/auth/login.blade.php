@@ -21,12 +21,12 @@
         <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" x-data="{ show: false }">
             @if ($hasLogo)
                 <img src="{{ asset('images/bm-logo.png') }}?v={{ filemtime($logoPath) }}"
-                     alt="BM Business OS" class="mx-auto mb-5 w-60 max-w-full object-contain">
+                     alt="BM Business OS" class="bmos-auth-logo-img">
             @else
                 <div class="bmos-auth-logo">BM</div>
                 <h1 class="text-center text-2xl font-bold tracking-tight text-slate-900">BM Business OS</h1>
             @endif
-            <p class="mt-1 mb-7 text-center text-sm text-slate-500">Inicia sesión para acceder a tu panel</p>
+            <p class="bmos-auth-sub">Inicia sesión para acceder a tu panel</p>
 
             @if ($hasError)
                 <div class="bmos-auth-error">
@@ -37,7 +37,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('login') }}" class="space-y-4">
+            <form method="POST" action="{{ route('login') }}" class="bmos-auth-form">
                 @csrf
 
                 <div>
@@ -83,7 +83,7 @@
             </form>
 
             {{-- Separador --}}
-            <div class="my-5 flex items-center gap-3 text-xs font-medium text-slate-400">
+            <div class="bmos-auth-sep flex items-center gap-3 text-xs font-medium text-slate-400">
                 <span class="h-px flex-1 bg-slate-200"></span>
                 o
                 <span class="h-px flex-1 bg-slate-200"></span>
@@ -101,13 +101,13 @@
                 Continuar con Google
             </a>
 
-            <p class="mt-6 text-center text-sm text-slate-500">
+            <p class="bmos-auth-alt text-center text-sm text-slate-500">
                 ¿No tienes cuenta?
                 <a href="{{ route('register.form') }}" class="font-semibold text-indigo-600 hover:underline">Regístrate gratis</a>
                 <span class="text-slate-400">· prueba de 15 días</span>
             </p>
 
-            <p class="mt-4 text-center text-xs text-slate-400">© {{ date('Y') }} BM Business OS</p>
+            <p class="bmos-auth-copy text-center text-xs text-slate-400">© {{ date('Y') }} BM Business OS</p>
         </div>
     </div>
     <style>[x-cloak]{display:none!important}</style>

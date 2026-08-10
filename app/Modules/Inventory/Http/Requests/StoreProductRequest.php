@@ -26,8 +26,10 @@ final class StoreProductRequest extends FormRequest
         $companyId = app(CurrentCompany::class)->id();
 
         return [
+            // Opcional: si se deja vacío, `ProductService` genera el siguiente («PROD-000001»).
+            // Se sigue admitiendo escribirlo porque muchos negocios ya tienen su propia codificación.
             'sku' => [
-                'required', 'string', 'max:100',
+                'nullable', 'string', 'max:100',
                 // withoutTrashed(): un SKU de un producto borrado se puede reutilizar. Va de la mano
                 // del índice único parcial de la base (solo cuenta entre productos activos).
                 Rule::unique('products', 'sku')->where('company_id', $companyId)->withoutTrashed(),

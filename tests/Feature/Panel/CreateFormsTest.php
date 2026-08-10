@@ -41,13 +41,24 @@ it('crea un producto con stock inicial', function (): void {
         ->and(Stock::where('product_id', $product->id)->firstOrFail()->quantity)->toBe('15.000');
 });
 
-it('valida el SKU requerido y no crea nada', function (): void {
+it('valida el nombre requerido y no crea nada', function (): void {
+    // El SKU dejó de ser obligatorio (lo genera ProductService), pero el nombre sigue siéndolo:
+    // un producto sin nombre no se puede ni buscar ni vender.
     $this->actingAs($this->user)
-        ->post(route('panel.products.store'), ['name' => 'Sin SKU'])
-        ->assertSessionHasErrors('sku');
+        ->post(route('panel.products.store'), ['price' => '100'])
+        ->assertSessionHasErrors('name');
 
     app(CurrentCompany::class)->set($this->company->id);
     expect(Product::count())->toBe(0);
+});
+
+it('sin SKU el alta funciona y el sistema lo genera', function (): void {
+    $this->actingAs($this->user)
+        ->post(route('panel.products.store'), ['name' => 'Sin SKU'])
+        ->assertSessionHasNoErrors();
+
+    app(CurrentCompany::class)->set($this->company->id);
+    expect(Product::firstWhere('name', 'Sin SKU')->sku)->toStartWith('PROD-');
 });
 
 it('crea cliente, proveedor y empleado', function (): void {

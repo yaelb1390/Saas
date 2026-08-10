@@ -10,7 +10,9 @@ namespace App\Modules\Inventory\DTOs;
 final readonly class CreateProductData
 {
     public function __construct(
-        public string $sku,
+        // Null = que lo genere el sistema. Se conserva la posibilidad de escribirlo a mano porque
+        // muchos negocios ya tienen su propia codificación y no van a renunciar a ella.
+        public ?string $sku,
         public string $name,
         public ?int $categoryId = null,
         public ?string $description = null,
@@ -35,7 +37,7 @@ final readonly class CreateProductData
     public static function fromArray(array $data): self
     {
         return new self(
-            sku: (string) $data['sku'],
+            sku: filled($data['sku'] ?? null) ? (string) $data['sku'] : null,
             name: (string) $data['name'],
             // Del formulario, category_id llega como texto («1») o vacío. Con tipado estricto, pasar
             // un string a ?int reventaba (TypeError → error 500) en cuanto se elegía una categoría.

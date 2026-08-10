@@ -20,6 +20,17 @@ final class ProductImageStore
 
     private const MAX_SIDE = 800;
 
+    /**
+     * Proporción del lienzo: 3 de ancho por 4 de alto (vertical).
+     *
+     * Vertical y no cuadrado porque los productos que se venden en mostrador son casi siempre más
+     * altos que anchos —una botella, un vaso de batida, un cono— y en un lienzo cuadrado quedaban
+     * con franjas a los lados. Con este formato, una foto vertical llena la ficha entera.
+     */
+    private const RATIO_W = 3;
+
+    private const RATIO_H = 4;
+
     public function store(Product $product, UploadedFile $file): void
     {
         $bytes = $this->resize((string) file_get_contents((string) $file->getRealPath()));
@@ -48,8 +59,18 @@ final class ProductImageStore
     }
 
     /**
-     * Redimensiona a máx. {MAX_SIDE}px por el lado mayor y devuelve JPEG. Devuelve el original si GD
-     * no está o no puede procesar la imagen.
+     * Normaliza la foto a un lienzo VERTICAL 3:4 de fondo blanco y devuelve JPEG.
+     *
+     * Se recuadra al guardar y no al mostrar porque las fotos llegan con proporciones dispares y en
+     * la rejilla del punto de venta eso obligaba a elegir entre dos males: recortar el producto
+     * (`cover`) o dejar franjas de fondo (`contain`). Normalizando en la subida, todas las fichas
+     * quedan iguales y ninguna foto pierde nada. Es además el sitio barato: se hace una vez por
+     * imagen, no en cada visita.
+     *
+     * Nunca amplía: una foto pequeña se centra en un lienzo de su tamaño en vez de estirarse y
+     * salir pixelada.
+     *
+     * Devuelve el original si GD no está disponible o no puede leer la imagen.
      */
     private function resize(string $bytes): string
     {
@@ -65,14 +86,31 @@ final class ProductImageStore
 
         $w = imagesx($src);
         $h = imagesy($src);
-        $scale = min(1.0, self::MAX_SIDE / max($w, $h));
+
+        // Alto del lienzo: el mínimo que permite que la foto quepa entera en proporción 3:4, con
+        // tope. Se parte del mayor entre el alto real y el que exigiría el ancho, así una foto ya
+        // vertical apenas gana margen y una apaisada lo gana arriba y abajo.
+        $alto = (int) min(self::MAX_SIDE, max($h, (int) ceil($w * self::RATIO_H / self::RATIO_W)));
+        $ancho = max(1, (int) round($alto * self::RATIO_W / self::RATIO_H));
+
+        // La imagen se escala para caber dentro del lienzo conservando su proporción. Nunca amplía.
+        $scale = min(1.0, $ancho / $w, $alto / $h);
         $nw = max(1, (int) round($w * $scale));
         $nh = max(1, (int) round($h * $scale));
 
-        $dst = imagecreatetruecolor($nw, $nh);
-        // Fondo blanco: aplana transparencias (PNG/WEBP) al pasar a JPEG.
-        imagefilledrectangle($dst, 0, 0, $nw, $nh, imagecolorallocate($dst, 255, 255, 255));
-        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        $dst = imagecreatetruecolor($ancho, $alto);
+
+        // Fondo blanco: aplana transparencias (PNG/WEBP) al pasar a JPEG y da el mismo lienzo a
+        // todas las fichas.
+        imagefilledrectangle($dst, 0, 0, $ancho, $alto, imagecolorallocate($dst, 255, 255, 255));
+
+        // Centrada, para que el producto quede en el medio de la ficha.
+        imagecopyresampled(
+            $dst, $src,
+            (int) (($ancho - $nw) / 2), (int) (($alto - $nh) / 2),
+            0, 0,
+            $nw, $nh, $w, $h,
+        );
 
         ob_start();
         imagejpeg($dst, null, 82);

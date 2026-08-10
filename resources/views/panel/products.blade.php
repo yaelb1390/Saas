@@ -19,13 +19,30 @@
                 @can('products.manage')
                 <x-panel.create-modal title="Nuevo producto" label="Nuevo producto" form="product_create"
                                        enctype="multipart/form-data" :action="route('panel.products.store')">
-                    <x-panel.field name="sku" label="SKU" required placeholder="PROD-0002" />
                     <x-panel.field name="name" label="Nombre" required placeholder="Nombre del producto" />
                     <div>
+                        <label class="bmos-field-label">SKU (opcional)</label>
+                        <input type="text" name="sku" value="{{ old('sku') }}" class="bmos-input"
+                               placeholder="Se genera solo">
+                        <p class="mt-1 text-xs text-slate-400">
+                            Déjalo vacío y el sistema asigna el siguiente código. Escríbelo solo si ya usas tu propia codificación.
+                        </p>
+                    </div>
+                    {{-- La foto se recuadra a vertical 3:4 al guardarla. Se avisa ANTES de subir, y
+                         se comprueba la orientación en el navegador para decirlo en el momento en
+                         que se elige el archivo, no después de guardar. --}}
+                    <div x-data="avisoFotoVertical()">
                         <label class="bmos-field-label">Foto del producto (opcional)</label>
-                        <input type="file" name="image" accept="image/*"
+                        <input type="file" name="image" accept="image/*" @change="revisar($event)"
                                class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-600 hover:file:bg-indigo-100">
-                        <p class="mt-1 text-xs text-slate-400">Se muestra en el Punto de Venta. Imagen hasta 8 MB.</p>
+                        <p class="mt-1 text-xs text-slate-400">
+                            Súbela <b>en vertical</b> (más alta que ancha). Se muestra en el Punto de Venta. Hasta 8&nbsp;MB.
+                        </p>
+                        <p x-show="apaisada" x-cloak
+                           class="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+                            Esa foto es <b x-text="forma"></b>. Se guardará igualmente, centrada sobre fondo blanco,
+                            pero se verá con franjas arriba y abajo. Una foto vertical llena la ficha entera.
+                        </p>
                     </div>
                     {{-- Opcional: no todo artículo trae código impreso. Tres formas de ponerlo:
                          teclearlo, pasar un lector de pistola (escribe en el campo enfocado), o la
@@ -165,7 +182,7 @@
                     <input type="hidden" name="id" x-model="row.id">
                     <div><label class="bmos-field-label">SKU</label><input name="sku" x-model="row.sku" class="bmos-input" required></div>
                     <div><label class="bmos-field-label">Nombre</label><input name="name" x-model="row.name" class="bmos-input" required></div>
-                    <div>
+                    <div x-data="avisoFotoVertical()">
                         <label class="bmos-field-label">Foto del producto</label>
                         <div class="flex items-center gap-3">
                             <span class="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100">
@@ -176,10 +193,17 @@
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="h-6 w-6 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z"/></svg>
                                 </template>
                             </span>
-                            <input type="file" name="image" accept="image/*"
+                            <input type="file" name="image" accept="image/*" @change="revisar($event)"
                                    class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-600 hover:file:bg-indigo-100">
                         </div>
-                        <p class="mt-1 text-xs text-slate-400">Sube una nueva para reemplazarla.</p>
+                        <p class="mt-1 text-xs text-slate-400">
+                            Sube una nueva para reemplazarla. Mejor <b>en vertical</b> (más alta que ancha).
+                        </p>
+                        <p x-show="apaisada" x-cloak
+                           class="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+                            Esa foto es <b x-text="forma"></b>. Se guardará centrada sobre fondo blanco,
+                            pero se verá con franjas arriba y abajo.
+                        </p>
                     </div>
                     <div><label class="bmos-field-label">Código de barras (opcional)</label><input name="barcode" x-model="row.barcode" class="bmos-input" placeholder="Escanea o teclea el código"></div>
                     <div>
@@ -228,6 +252,42 @@
     </div>
 
     <script>
+        /**
+         * Avisa si la foto elegida no es vertical.
+         *
+         * Se comprueba en el navegador y no en el servidor a propósito: el cajero se entera al
+         * elegir el archivo, no después de guardar y ver el resultado raro en el punto de venta.
+         * NO bloquea la subida —la foto se guarda igual, recuadrada— porque a veces la única foto
+         * disponible del producto es la que hay.
+         */
+        function avisoFotoVertical() {
+            return {
+                apaisada: false,
+                forma: '',
+
+                revisar(event) {
+                    const file = event.target.files?.[0];
+                    this.apaisada = false;
+
+                    if (!file || !file.type.startsWith('image/')) return;
+
+                    const url = URL.createObjectURL(file);
+                    const img = new Image();
+
+                    img.onload = () => {
+                        // Vertical = más alta que ancha. Una foto cuadrada también deja franjas,
+                        // así que también se avisa.
+                        this.apaisada = img.height <= img.width;
+                        this.forma = img.height === img.width ? 'cuadrada' : 'apaisada';
+                        URL.revokeObjectURL(url);
+                    };
+
+                    img.onerror = () => URL.revokeObjectURL(url);
+                    img.src = url;
+                },
+            };
+        }
+
         function productsCrud() {
             return {
                 open: false,

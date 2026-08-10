@@ -10,6 +10,7 @@ use App\Modules\Core\Models\Warehouse;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Sales\DTOs\CreateSaleData;
 use App\Modules\Sales\DTOs\SaleLineData;
+use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Services\SaleService;
 use Illuminate\Http\JsonResponse;
@@ -56,7 +57,8 @@ final class SaleController extends Controller
             $sale = $sales->complete(new CreateSaleData(
                 warehouseId: (int) $warehouse->id,
                 lines: $lines,
-                paymentMethod: $data['payment_method'] ?? 'cash',
+                // La forma de pago ya viene validada contra la misma lista que respalda el enum.
+                paymentMethod: PaymentMethod::from($data['payment_method'] ?? 'cash'),
                 customerName: $data['customer_name'] ?? null,
             ));
         } catch (InsufficientStockException $e) {

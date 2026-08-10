@@ -74,9 +74,20 @@ it('lista y crea productos con el token', function (): void {
 it('valida el alta de producto (422)', function (): void {
     Sanctum::actingAs($this->owner);
 
-    $this->postJson(route('api.products.store'), ['name' => 'Sin SKU'])
+    // El SKU es opcional desde que lo genera ProductService; el nombre sigue siendo obligatorio.
+    $this->postJson(route('api.products.store'), ['price' => '100'])
         ->assertStatus(422)
-        ->assertJsonValidationErrors('sku');
+        ->assertJsonValidationErrors('name');
+});
+
+it('la API da de alta un producto sin SKU y lo genera', function (): void {
+    Sanctum::actingAs($this->owner);
+
+    $sku = $this->postJson(route('api.products.store'), ['name' => 'Sin SKU', 'price' => '100'])
+        ->assertCreated()
+        ->json('data.sku');
+
+    expect($sku)->toStartWith('PROD-');
 });
 
 // ---------------------------------------------------------------- Ventas

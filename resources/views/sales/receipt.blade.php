@@ -95,6 +95,11 @@
                             <div class="muted">{{ number_format((float) $item->unit_price, 2) }} c/u
                                 @if ((float) $item->discount > 0) · desc. {{ number_format((float) $item->discount, 2) }}@endif
                             </div>
+                            {{-- Tamaño y sabores tal como se vendieron: los nombres van copiados en
+                                 la línea, así que renombrar la opción no altera este recibo. --}}
+                            @if ($item->options->isNotEmpty())
+                                <div class="muted">{{ $item->options->pluck('option_name')->implode(' · ') }}</div>
+                            @endif
                             @if ($item->serial)<div class="muted">Serie: {{ $item->serial }}</div>@endif
                             @if ($item->note)<div class="muted">{{ $item->note }}</div>@endif
                             @if ($item->employee)<div class="muted">Atendió: {{ $item->employee->name }}</div>@endif

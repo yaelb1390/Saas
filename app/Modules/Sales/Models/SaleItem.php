@@ -10,6 +10,7 @@ use App\Modules\HR\Models\Employee;
 use App\Modules\Inventory\Models\Product;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Línea de una venta.
@@ -65,5 +66,15 @@ class SaleItem extends Model implements HasCompany
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Tamaño, sabores y extras elegidos, congelados al vender.
+     *
+     * @return HasMany<SaleItemOption, $this>
+     */
+    public function options(): HasMany
+    {
+        return $this->hasMany(SaleItemOption::class);
     }
 }

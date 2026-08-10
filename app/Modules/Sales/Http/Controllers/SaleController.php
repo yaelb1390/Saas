@@ -53,7 +53,9 @@ final class SaleController extends Controller
      */
     private function receiptData(Sale $sale): array
     {
-        $sale->load(['items.product', 'items.employee', 'employee', 'company']);
+        // `items.options` trae el tamaño y los sabores congelados al vender: sin precargarlos, el
+        // recibo dispararía una consulta por línea.
+        $sale->load(['items.product', 'items.employee', 'items.options', 'employee', 'company']);
 
         return [
             'sale' => $sale,

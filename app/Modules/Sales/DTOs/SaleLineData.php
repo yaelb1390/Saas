@@ -12,6 +12,12 @@ namespace App\Modules\Sales\DTOs;
  */
 final readonly class SaleLineData
 {
+    /**
+     * @param  array<int, SelectedOptionData>  $options  Tamaños, sabores y extras ya verificados por
+     *                                                   el servidor. Su recargo YA está incluido en
+     *                                                   `$unitPrice`: aquí viajan para congelarlos en
+     *                                                   el recibo, no para recalcular el importe.
+     */
     public function __construct(
         public int $productId,
         public string $quantity,
@@ -20,6 +26,7 @@ final readonly class SaleLineData
         public ?string $note = null,
         public ?string $serial = null,
         public ?int $employeeId = null,
+        public array $options = [],
     ) {}
 
     /**

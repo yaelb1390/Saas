@@ -52,6 +52,19 @@ final class EloquentProductRepository implements ProductRepositoryInterface
             ->get();
     }
 
+    public function catalog(?int $categoryId = null, int $perPage = 60): LengthAwarePaginator
+    {
+        return Product::query()
+            ->where('is_active', true)
+            ->when($categoryId !== null, fn ($query) => $query->where('category_id', $categoryId))
+            // El stock viaja en el payload de la rejilla; sin esto sería un N+1 por cada ficha.
+            ->with('stock')
+            // Igual con las opciones: la ficha solo necesita saber SI tiene, no cuáles.
+            ->withCount('optionGroups')
+            ->orderBy('name')
+            ->paginate($perPage);
+    }
+
     public function create(array $attributes): Product
     {
         return Product::create($attributes);

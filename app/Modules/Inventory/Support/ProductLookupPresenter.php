@@ -57,6 +57,26 @@ final class ProductLookupPresenter
     }
 
     /**
+     * Catálogo para la rejilla táctil: la misma forma aplanada, pero paginada y por categoría.
+     *
+     * Devuelve `has_more` en vez del total: la rejilla solo necesita saber si pintar el botón de
+     * «cargar más», y contar filas de más no aporta nada al cajero.
+     *
+     * @return array{results: array<int, array<string, mixed>>, has_more: bool}
+     */
+    public function catalog(?int $categoryId = null, int $perPage = 60): array
+    {
+        $page = $this->products->catalog($categoryId, $perPage);
+
+        return [
+            'results' => $page->getCollection()
+                ->map(fn (Product $product): array => $this->row($product))
+                ->all(),
+            'has_more' => $page->hasMorePages(),
+        ];
+    }
+
+    /**
      * El precio viaja para poder pintar el ticket, pero NO es el que se cobra: al cobrar, el
      * servidor vuelve a leerlo de la base e ignora cualquier valor que llegue del cliente.
      *
@@ -87,6 +107,11 @@ final class ProductLookupPresenter
             'price' => (string) $product->price,
             'stock' => $stock,
             'image' => $product->imageUrl(),
+            // La rejilla táctil filtra por categoría en el cliente sin volver al servidor.
+            'category_id' => $product->category_id,
+            // ¿Hay que preguntar tamaño o sabor antes de añadirlo? Solo el SÍ o el NO: las opciones
+            // concretas se piden al tocar el producto, no de golpe para todo el catálogo.
+            'has_options' => ($product->option_groups_count ?? 0) > 0,
             'sellable' => $reason === null,
             'reason' => $reason,
         ];

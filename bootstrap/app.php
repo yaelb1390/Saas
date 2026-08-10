@@ -4,6 +4,7 @@ use App\Modules\Core\Http\Middleware\EnsureModuleActive;
 use App\Modules\Core\Http\Middleware\EnsureSubscriptionActive;
 use App\Modules\Core\Http\Middleware\SetApiCompany;
 use App\Modules\Core\Http\Middleware\SetCurrentCompany;
+use App\Modules\POS\Http\Middleware\ForceKioskMode;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,9 +21,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Fija el tenant activo tras autenticar en las peticiones web.
+        // Fija el tenant activo tras autenticar en las peticiones web, y a continuación encierra al
+        // cajero en el terminal de venta. El orden importa: ForceKioskMode decide según la empresa
+        // activa, así que tiene que ir DESPUÉS de resolverla. Para un visitante sin sesión no hace
+        // nada, así que puede vivir en todo el grupo web sin afectar al login ni al registro.
         $middleware->web(append: [
             SetCurrentCompany::class,
+            ForceKioskMode::class,
         ]);
 
         // La API es stateless: el tenant se resuelve desde el token (empresa del usuario).

@@ -82,6 +82,16 @@ final class PanelController extends Controller
         ]);
     }
 
+    public function categories(): View
+    {
+        return view('panel.categories', [
+            // withCount evita el N+1 al pintar cuántos productos tiene cada fila, y `parent` se
+            // precarga porque la tabla muestra el nombre del padre.
+            'categories' => Category::query()->with('parent')->withCount('products')
+                ->orderBy('name')->get(),
+        ]);
+    }
+
     public function sales(): View
     {
         return view('panel.sales', [

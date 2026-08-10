@@ -19,6 +19,9 @@ final class ModuleRegistry
      */
     private const MODULES = [
         'pos' => 'Punto de Venta',
+        // Terminal táctil de cobro (heladería, comida rápida). Módulo aparte del POS de mostrador
+        // para poder venderlo por separado, aunque ambos comparten el motor de cobro.
+        'quick_pos' => 'Venta rápida',
         'inventory' => 'Inventario',
         'sales' => 'Ventas',
         'purchasing' => 'Compras',

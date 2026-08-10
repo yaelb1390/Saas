@@ -13,13 +13,12 @@ use App\Modules\Cash\Models\CashSession;
 use App\Modules\Cash\Services\CashService;
 use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Tenancy\CurrentCompany;
-use App\Modules\HR\Models\Employee;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
-use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
 use App\Modules\POS\Services\CheckoutService;
+use App\Modules\POS\Support\CartResolver;
 use App\Modules\Sales\DTOs\CreateSaleData;
-use App\Modules\Sales\DTOs\SaleLineData;
+use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Exceptions\InsufficientPaymentException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -85,7 +84,7 @@ final class PosController extends Controller
         return response()->json(['results' => $lookup->search($term, 24)]);
     }
 
-    public function checkout(Request $request, CheckoutService $checkout, InvoiceService $invoices): RedirectResponse
+    public function checkout(Request $request, CheckoutService $checkout, InvoiceService $invoices, CartResolver $cart): RedirectResponse|JsonResponse
     {
         $companyId = app(CurrentCompany::class)->id();
 
@@ -105,57 +104,33 @@ final class PosController extends Controller
                 'nullable', 'integer',
                 Rule::exists('employees', 'id')->where('company_id', $companyId)->whereNull('deleted_at'),
             ],
+            // Solo las formas de cobro al contado: cheque y crédito no cubren el total en el acto.
+            'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)->only(PaymentMethod::counterOptions())],
         ]);
-
-        // Empleados válidos de la empresa (para validar el "atiende" por línea sin más consultas).
-        $validEmployees = Employee::query()->pluck('id')->all();
 
         $session = CashSession::query()->where('status', CashSessionStatus::Open)->latest('opened_at')->first();
         if ($session === null) {
-            return back()->with('pos_error', 'No hay una caja abierta.');
+            return $this->fallo($request, 'No hay una caja abierta.');
         }
 
         $warehouse = Warehouse::query()->where('is_default', true)->orderBy('id')->first();
         if ($warehouse === null) {
-            return back()->with('pos_error', 'No hay un almacén configurado.');
+            return $this->fallo($request, 'No hay un almacén configurado.');
         }
 
-        /** @var array<int, array<string, mixed>> $cart */
-        $cart = json_decode((string) $request->input('cart'), true) ?: [];
-        $lines = [];
-
-        foreach ($cart as $item) {
-            $product = Product::find((int) ($item['id'] ?? 0));
-            if ($product === null) {
-                continue;
-            }
-
-            // El precio SIEMPRE se relee del producto; cantidad/descuento/nota/serie/empleado llegan
-            // del cliente y se sanean: cantidad > 0, descuento ≥ 0, empleado de la propia empresa.
-            $qty = (string) max(0.001, (float) ($item['qty'] ?? 1));
-            $discount = (string) max(0, (float) ($item['discount'] ?? 0));
-            $employeeId = (int) ($item['employee_id'] ?? 0);
-            $employeeId = in_array($employeeId, $validEmployees, true) ? $employeeId : null;
-
-            $lines[] = new SaleLineData(
-                productId: $product->id,
-                quantity: $qty,
-                unitPrice: (string) $product->price,
-                discount: $discount,
-                note: filled($item['note'] ?? null) ? (string) $item['note'] : null,
-                serial: filled($item['serial'] ?? null) ? (string) $item['serial'] : null,
-                employeeId: $employeeId,
-            );
-        }
+        // El precio SIEMPRE se relee del catálogo dentro del resolvedor: nada de lo que llegue del
+        // navegador decide lo que se cobra.
+        $lines = $cart->toLines($cart->decode($request->string('cart')->toString()));
 
         if ($lines === []) {
-            return back()->with('pos_error', 'El ticket está vacío.');
+            return $this->fallo($request, 'El ticket está vacío.');
         }
 
         try {
             $sale = $checkout->checkout($session, new CreateSaleData(
                 warehouseId: $warehouse->id,
                 lines: $lines,
+                paymentMethod: PaymentMethod::tryFrom((string) $request->input('payment_method')) ?? PaymentMethod::Cash,
                 paid: (string) $request->input('paid'),
                 customerName: $request->filled('customer_name') ? (string) $request->input('customer_name') : null,
                 customerId: $request->filled('customer_id') ? (int) $request->input('customer_id') : null,
@@ -164,9 +139,9 @@ final class PosController extends Controller
                 employeeId: $request->filled('employee_id') ? (int) $request->input('employee_id') : null,
             ));
         } catch (InsufficientStockException) {
-            return back()->with('pos_error', 'Stock insuficiente para completar la venta.');
+            return $this->fallo($request, 'Stock insuficiente para completar la venta.');
         } catch (InsufficientPaymentException) {
-            return back()->with('pos_error', 'El pago es menor que el total de la venta.');
+            return $this->fallo($request, 'El pago es menor que el total de la venta.');
         }
 
         $message = "Venta {$sale->code} cobrada. Cambio: ".number_format((float) $sale->change, 2);
@@ -180,7 +155,35 @@ final class PosController extends Controller
             }
         }
 
+        // La venta rápida cobra por fetch y espera JSON: así no recarga la página, que es lo que
+        // sacaba al terminal del modo pantalla completa en cada cobro. El POS de mostrador envía un
+        // formulario normal y sigue recibiendo su redirección de siempre.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'code' => $sale->code,
+                'change' => (string) $sale->change,
+                'receipt_id' => $sale->id,
+                'receipt_url' => route('panel.sales.receipt', $sale).'?print=1',
+            ]);
+        }
+
         return back()->with('pos_ok', $message)->with('pos_receipt_id', $sale->id);
+    }
+
+    /**
+     * Rechazo del cobro, en el formato que espera quien llama.
+     *
+     * Se devuelve 422 y no 500: quedarse sin stock o sin caja abierta son reglas de negocio, no
+     * averías, y el terminal debe poder mostrárselas al cajero tal cual.
+     */
+    private function fallo(Request $request, string $message): RedirectResponse|JsonResponse
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        return back()->with('pos_error', $message);
     }
 
     public function closeSession(Request $request, CashService $cash): RedirectResponse

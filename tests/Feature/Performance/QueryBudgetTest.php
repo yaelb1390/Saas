@@ -69,8 +69,14 @@ function countQueries(callable $request): int
 it('el dashboard se mantiene dentro de su presupuesto de consultas', function (): void {
     $count = countQueries(fn () => $this->actingAs($this->owner)->get(route('dashboard'))->assertOk());
 
-    // Tope holgado sobre el valor real tras optimizar. Si vuelve a dispararse, es un N+1.
-    expect($count)->toBeLessThan(25, "El dashboard ejecutó {$count} consultas.");
+    // Valor real en frío: 25 consultas. Llegó a 34 cuando el dashboard incorporó la cartera de
+    // préstamos y sus gráficos; consolidar las agregaciones repetidas (varias recorrían la misma
+    // tabla filtrando por estado) lo devolvió a 25, pero ya no cabe bajo el tope anterior, que era
+    // justo 25. No es un N+1: no queda ninguna consulta repetida salvo las dos que la campana de
+    // alertas comparte a propósito con el resumen (se cachean aparte porque la campana se pinta en
+    // todas las páginas). El tope se deja holgado para seguir cazando lo que importa: la repetición
+    // por elemento, que se cuenta por decenas y no por unidades.
+    expect($count)->toBeLessThan(30, "El dashboard ejecutó {$count} consultas.");
 });
 
 it('el POS se mantiene dentro de su presupuesto de consultas', function (): void {

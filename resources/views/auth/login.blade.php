@@ -11,7 +11,7 @@
     @include('partials.pwa-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="h-full">
+<body class="h-full bmos-auth-body">
     <div class="bmos-auth">
         @php
             $hasError = $errors->any();

@@ -28,6 +28,17 @@ interface ProductRepositoryInterface
     public function search(string $term, int $limit = 20): Collection;
 
     /**
+     * Catálogo para la rejilla táctil del punto de venta: productos activos, opcionalmente de una
+     * categoría, ordenados por nombre y PAGINADOS.
+     *
+     * La paginación no es un adorno: cargar el catálogo entero de golpe fue justo lo que se retiró
+     * del POS de mostrador por rendimiento. El CompanyScope ya aísla por empresa.
+     *
+     * @return LengthAwarePaginator<int, Product>
+     */
+    public function catalog(?int $categoryId = null, int $perPage = 60): LengthAwarePaginator;
+
+    /**
      * @param  array<string, mixed>  $attributes
      */
     public function create(array $attributes): Product;

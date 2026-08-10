@@ -23,7 +23,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Resumen ejecutivo: agrega indicadores de todos los módulos (solo lectura), ya aislados por la
@@ -35,6 +34,17 @@ final class ReportService
 
     /** Segundos que se sirve el resumen desde caché antes de recalcularlo. */
     private const SUMMARY_TTL = 60;
+
+    /**
+     * Cuotas vencidas ya calculadas en esta petición.
+     *
+     * El resumen ejecutivo y la cartera de préstamos las necesitan por igual, y el dashboard pinta
+     * ambos: sin esto, la misma agregación recorría la tabla dos veces por carga. Es memoria de
+     * instancia (no caché compartida), así que no sobrevive a la petición ni puede quedar obsoleta.
+     *
+     * @var array{amount: string, count: int}|null
+     */
+    private ?array $overdueTotals = null;
 
     /**
      * @return array{
@@ -85,9 +95,13 @@ final class ReportService
      */
     public function computeExecutiveSummary(): array
     {
+        $ventas = $this->salesTotals();
+        $prestamos = $this->activeLoanTotals();
+        $vencido = $this->overdueTotals();
+
         return [
-            'sales_total' => (string) Sale::query()->where('status', SaleStatus::Completed)->sum('total'),
-            'sales_count' => Sale::query()->where('status', SaleStatus::Completed)->count(),
+            'sales_total' => $ventas['total'],
+            'sales_count' => $ventas['count'],
             'cash_balance' => (string) Account::query()->sum('balance'),
             'open_opportunities' => Opportunity::query()->where('status', OpportunityStatus::Open)->count(),
             'pending_deliveries' => Delivery::query()->whereIn('status', [
@@ -98,10 +112,70 @@ final class ReportService
             'products' => Product::query()->count(),
             'low_stock' => Stock::query()->where('quantity', '<', self::LOW_STOCK_THRESHOLD)->count(),
             // Cartera de préstamos: saldo vigente y lo que está vencido (cuota + mora − abonado).
-            'loans_outstanding' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('balance'),
-            'loans_count' => Loan::query()->where('status', LoanStatus::Active)->count(),
-            'loans_overdue' => (string) $this->overdueInstallments()->sum(DB::raw('amount + late_fee - paid_amount')),
-            'overdue_count' => $this->overdueInstallments()->count(),
+            'loans_outstanding' => $prestamos['balance'],
+            'loans_count' => $prestamos['count'],
+            'loans_overdue' => $vencido['amount'],
+            'overdue_count' => $vencido['count'],
+        ];
+    }
+
+    /**
+     * Total e importe de ventas completadas en una sola pasada.
+     *
+     * Antes eran dos consultas (`sum` y `count`) sobre exactamente el mismo filtro. Recorrer dos
+     * veces una tabla que crece no aporta nada: ambos agregados salen del mismo barrido.
+     *
+     * @return array{total: string, count: int}
+     */
+    private function salesTotals(): array
+    {
+        $fila = Sale::query()
+            ->where('status', SaleStatus::Completed)
+            ->selectRaw('coalesce(sum(total), 0) as total, count(*) as cantidad')
+            ->first();
+
+        return [
+            'total' => (string) ($fila->total ?? 0),
+            'count' => (int) ($fila->cantidad ?? 0),
+        ];
+    }
+
+    /**
+     * Saldo y número de préstamos activos en una sola pasada.
+     *
+     * @return array{balance: string, count: int}
+     */
+    private function activeLoanTotals(): array
+    {
+        $fila = Loan::query()
+            ->where('status', LoanStatus::Active)
+            ->selectRaw('coalesce(sum(balance), 0) as saldo, count(*) as cantidad')
+            ->first();
+
+        return [
+            'balance' => (string) ($fila->saldo ?? 0),
+            'count' => (int) ($fila->cantidad ?? 0),
+        ];
+    }
+
+    /**
+     * Importe y número de cuotas vencidas en una sola pasada.
+     *
+     * @return array{amount: string, count: int}
+     */
+    private function overdueTotals(): array
+    {
+        if ($this->overdueTotals !== null) {
+            return $this->overdueTotals;
+        }
+
+        $fila = $this->overdueInstallments()
+            ->selectRaw('coalesce(sum(amount + late_fee - paid_amount), 0) as importe, count(*) as cantidad')
+            ->first();
+
+        return $this->overdueTotals = [
+            'amount' => (string) ($fila->importe ?? 0),
+            'count' => (int) ($fila->cantidad ?? 0),
         ];
     }
 
@@ -262,16 +336,31 @@ final class ReportService
             "company:{$companyId}:loan-portfolio",
             self::SUMMARY_TTL,
             function (): array {
-                $overdue = $this->overdueInstallments();
+                // Los cinco agregados de préstamos salen de un único barrido de la tabla: antes
+                // eran cinco consultas que la recorrían entera cada una, filtrando por estado.
+                // El CASE WHEN es portable entre PostgreSQL y SQLite (a diferencia de FILTER).
+                $activo = LoanStatus::Active->value;
+                $saldado = LoanStatus::Paid->value;
+
+                $cartera = Loan::query()->selectRaw(
+                    'count(case when status = ? then 1 end) as activos,'
+                    .' coalesce(sum(case when status = ? then principal else 0 end), 0) as prestado,'
+                    .' count(case when status = ? then 1 end) as saldados,'
+                    .' coalesce(sum(case when status = ? then total else 0 end), 0) as total_saldado,'
+                    .' coalesce(sum(case when status = ? then balance else 0 end), 0) as por_cobrar',
+                    [$activo, $activo, $saldado, $saldado, $activo],
+                )->first();
+
+                $vencido = $this->overdueTotals();
 
                 return [
-                    'approved_count' => Loan::query()->where('status', LoanStatus::Active)->count(),
-                    'approved_amount' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('principal'),
-                    'paid_count' => Loan::query()->where('status', LoanStatus::Paid)->count(),
-                    'paid_amount' => (string) Loan::query()->where('status', LoanStatus::Paid)->sum('total'),
-                    'outstanding' => (string) Loan::query()->where('status', LoanStatus::Active)->sum('balance'),
-                    'overdue' => (string) (clone $overdue)->sum(DB::raw('amount + late_fee - paid_amount')),
-                    'overdue_count' => (clone $overdue)->count(),
+                    'approved_count' => (int) ($cartera->activos ?? 0),
+                    'approved_amount' => (string) ($cartera->prestado ?? 0),
+                    'paid_count' => (int) ($cartera->saldados ?? 0),
+                    'paid_amount' => (string) ($cartera->total_saldado ?? 0),
+                    'outstanding' => (string) ($cartera->por_cobrar ?? 0),
+                    'overdue' => $vencido['amount'],
+                    'overdue_count' => $vencido['count'],
                     'collected' => (string) LoanPayment::query()->sum('amount'),
                 ];
             },

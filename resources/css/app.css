@@ -139,13 +139,47 @@ body {
     flex: 1;
 }
 
+/* Cabecera de sección: ahora es un botón que pliega su grupo. Se conserva el aspecto de rótulo
+   —mayúsculas, tamaño pequeño, color tenue— para que el menú siga leyéndose igual. */
 .bmos-nav-section {
-    padding: 1rem 0.6rem 0.35rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.9rem 0.6rem 0.35rem;
     font-size: 0.66rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.09em;
     color: #6b7194;
+    text-align: left;
+    transition: color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.bmos-nav-section:hover {
+    color: #b6bcd4;
+}
+
+.bmos-nav-chevron {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+    opacity: 0.6;
+    transition: transform 0.18s ease;
+    /* Plegada apunta a la izquierda; abierta, hacia abajo. */
+    transform: rotate(-90deg);
+}
+
+.bmos-nav-chevron.is-open {
+    transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-nav-chevron {
+        transition: none;
+    }
 }
 
 .bmos-nav-link {
@@ -234,6 +268,22 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     width: 100%;
+}
+
+/* El punto de venta aprovecha todo el ancho: cada píxel que no gasta el contenedor es una ficha más
+   de producto visible sin desplazar. Se conserva un margen mínimo —y el de la muesca en móvil— para
+   que nada quede pegado al borde. */
+.bmos-content--wide {
+    max-width: none;
+    padding: 1rem;
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@media (min-width: 1024px) {
+    .bmos-content--wide {
+        padding: 1.25rem;
+    }
 }
 
 /* ---------- Page header ---------- */
@@ -468,6 +518,364 @@ body {
     height: 1.3rem;
 }
 
+/* ---------- Terminal de venta (modo kiosco) ----------
+   Ocupa el alto real de la ventana con `100dvh` y no `100vh`: en móvil y tablet la barra del
+   navegador se retrae al desplazar, y con `vh` el pie del ticket quedaría cortado bajo ella. */
+.bmos-kiosk {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+}
+
+.bmos-kiosk-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-shrink: 0;
+    padding: 0.5rem 0.9rem;
+    /* Respeta la muesca y la barra de gestos en pantallas con recortes. */
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    background: linear-gradient(120deg, var(--bmos-sidebar-from), var(--bmos-sidebar-to));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bmos-kiosk-btn {
+    display: grid;
+    place-items: center;
+    /* 44px: el mínimo cómodo para el dedo. */
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.7rem;
+    color: #cdd2e4;
+    background: rgba(255, 255, 255, 0.06);
+    transition: background 0.15s ease, color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.bmos-kiosk-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+
+/* El área de venta es la que desplaza; la franja superior queda siempre fija. */
+.bmos-kiosk-main {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.9rem;
+    padding-bottom: max(0.9rem, env(safe-area-inset-bottom));
+}
+
+/* ---------- Categorías del punto de venta ----------
+   En móvil es una fila que se desplaza; a partir de 1024px pasa a columna lateral. La columna solo
+   tiene sentido cuando sobra ancho: en un teléfono robaría el espacio que necesita la rejilla. */
+.bmos-pos-cats {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    /* Frena el desplazamiento en cada categoría en vez de dejarlo a la deriva. */
+    scroll-snap-type: x proximity;
+}
+
+@media (min-width: 1024px) {
+    .bmos-pos-cats {
+        position: sticky;
+        top: 0;
+        flex-direction: column;
+        overflow-x: visible;
+        overflow-y: auto;
+        max-height: calc(100vh - 7rem);
+        padding-bottom: 0;
+        scroll-snap-type: none;
+    }
+}
+
+/* Tarjeta horizontal: icono a la izquierda, nombre al lado. Se lee de un vistazo mejor que apilando
+   el texto bajo el icono, que obliga a encoger la letra hasta hacerla incómoda. */
+.bmos-pos-cat {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.6rem;
+    width: 9rem;
+    min-height: 3.4rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.9rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    color: var(--bmos-text);
+    text-align: left;
+    scroll-snap-align: start;
+    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+@media (min-width: 1024px) {
+    .bmos-pos-cat {
+        width: 100%;
+    }
+}
+
+.bmos-pos-cat:hover:not(.is-active) {
+    box-shadow: 0 6px 14px -8px rgba(16, 24, 40, 0.3);
+}
+
+.bmos-pos-cat:active {
+    transform: scale(0.98);
+}
+
+/* La activa se rellena de color, no solo se le cambia el borde: el dedo tapa media tarjeta y un
+   borde fino se vería a medias. */
+.bmos-pos-cat.is-active {
+    background: linear-gradient(135deg, var(--bmos-primary), #6366f1);
+    color: #fff;
+    box-shadow: 0 8px 18px -10px rgba(79, 70, 229, 0.8);
+}
+
+.bmos-pos-cat-icon {
+    flex-shrink: 0;
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.bmos-pos-cat-name {
+    /* Dos líneas como mucho: «Hamburguesas» no debe estirar la columna. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- Punto de venta táctil ----------
+   Pensado para dedo sobre tablet, no para ratón: los objetivos son grandes, el contraste alto y
+   cada toque responde al instante. La rejilla se adapta sola al ancho disponible en vez de fijar
+   un número de columnas, para que el mismo diseño sirva en tablet vertical y en monitor. */
+.bmos-pos-grid {
+    display: grid;
+    /* Ancho de ficha acotado por arriba y por abajo: nunca baja de 9.5rem (por debajo la foto deja
+       de reconocerse de un vistazo) ni pasa de 13rem. El tope importa en pantalla estrecha, donde
+       una sola columna se estiraba a todo el ancho y convertía cada producto en una tarjeta enorme
+       que obligaba a desplazar para ver tres artículos. */
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 13rem));
+    justify-content: center;
+    gap: 0.85rem;
+}
+
+.bmos-pos-tile {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    text-align: left;
+    background: var(--bmos-surface);
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    /* Evita el destello azul de selección al tocar en móvil y el zoom por doble toque. */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+}
+
+.bmos-pos-tile:hover:not(:disabled) {
+    border-color: #c7cbf5;
+    box-shadow: 0 10px 22px -14px rgba(79, 70, 229, 0.55);
+    transform: translateY(-2px);
+}
+
+/* Respuesta táctil: el dedo tapa la ficha, así que el aviso de «te he oído» tiene que ser el
+   hundimiento, no un cambio de color que quedaría oculto bajo la mano. */
+.bmos-pos-tile:active:not(:disabled) {
+    transform: scale(0.97);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+}
+
+.bmos-pos-tile:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.bmos-pos-tile-img {
+    position: relative;
+    display: block;
+    width: 100%;
+    /* Vertical 3:4, la misma proporción a la que `ProductImageStore` recuadra las fotos al subirlas.
+       Al coincidir hueco e imagen, una foto vertical llena la ficha entera y no se ve dónde acaba
+       una y empieza el otro. */
+    aspect-ratio: 3 / 4;
+    overflow: hidden;
+    background: #fff;
+}
+
+.bmos-pos-tile-img img {
+    width: 100%;
+    height: 100%;
+    /* `contain` y no `cover`: las fotos de producto llegan con proporciones dispares (una botella
+       es alta, una pizza es cuadrada) y recortar para llenar el hueco le cortaba la cabeza al
+       producto. Así se ve entero siempre, sea cual sea la foto que suba el usuario. */
+    object-fit: contain;
+    /* Aire para que el producto no toque el borde de la ficha. */
+    padding: 0.4rem;
+}
+
+.bmos-pos-tile-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.3rem;
+    padding: 0.6rem 0.7rem 0.7rem;
+}
+
+.bmos-pos-tile-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--bmos-text);
+    /* Dos líneas y elipsis: los nombres largos no deben descuadrar la altura de la fila. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.bmos-pos-tile-price {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--bmos-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Etiqueta sobre la foto para lo agotado: se lee sin tener que interpretar la opacidad. */
+.bmos-pos-tile-flag {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 0.2rem 0;
+    text-align: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+    background: rgba(225, 29, 72, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-pos-tile,
+    .bmos-pos-tile:hover:not(:disabled),
+    .bmos-pos-tile:active:not(:disabled) {
+        transition: none;
+        transform: none;
+    }
+}
+
+/* Cierre del ticket: pago recibido, cambio y botón de cobrar.
+   Los tres comparten altura, radio y escala tipográfica para que se lean como un solo bloque; si uno
+   destacara sobre los otros, la vista saltaría al elemento equivocado en el momento de cobrar. */
+.bmos-pos-cierre {
+    /* Una sola variable gobierna el tamaño de los tres. */
+    --bmos-pos-cifra: clamp(1.3rem, 5vw, 1.75rem);
+    --bmos-pos-alto: 3.5rem;
+}
+
+/* Importe tecleado por el cajero: mismo cuerpo que el cambio y que el total del botón. */
+.bmos-pos-input-pago {
+    width: 100%;
+    min-height: var(--bmos-pos-alto);
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.7rem;
+    background: #f8f9fc;
+    font-size: var(--bmos-pos-cifra);
+    font-weight: 700;
+    color: var(--bmos-text);
+    font-variant-numeric: tabular-nums;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bmos-pos-input-pago:focus {
+    outline: none;
+    border-color: var(--bmos-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    background: #fff;
+}
+
+/* Botón de cobrar: misma altura y misma cifra que el campo y el cambio. */
+.bmos-pos-cobrar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: var(--bmos-pos-alto);
+    padding: 0.55rem 1rem;
+    border-radius: 0.7rem;
+    background: linear-gradient(135deg, var(--bmos-primary), #6366f1);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 8px 20px -10px rgba(79, 70, 229, 0.75);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.bmos-pos-cobrar:not(:disabled):active {
+    transform: scale(0.99);
+}
+
+.bmos-pos-cobrar:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.bmos-pos-cobrar-total {
+    font-size: var(--bmos-pos-cifra);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+/* Cambio a devolver: es la cifra que el cajero lee con el cliente delante y con prisa, así que se
+   destaca en vez de dejarla como una nota al pie del campo de pago. */
+.bmos-pos-change {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    min-height: var(--bmos-pos-alto);
+    margin-top: 0.6rem;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid #a7f3d0;
+    border-radius: 0.7rem;
+    background: #ecfdf5;
+}
+
+.bmos-pos-change-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #047857;
+}
+
+.bmos-pos-change-value {
+    /* Misma escala que el campo de pago y que el total del botón. */
+    font-size: var(--bmos-pos-cifra);
+    font-weight: 800;
+    line-height: 1.1;
+    color: #047857;
+    /* Cifras de ancho fijo: el importe no baila mientras se teclea el pago. */
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
 /* ---------- Table ---------- */
 .bmos-table {
     width: 100%;
@@ -577,10 +985,19 @@ body {
 }
 
 /* ---------- Auth (login) ---------- */
+/* El fondo oscuro va también en el <body>. El bloque de abajo mide el alto de la ventana, pero el
+   halo de la tarjeta sobresale y añade algo de desplazamiento: sin esto, en ese sobrante asomaba el
+   fondo claro del panel como una franja blanca al pie. */
+.bmos-auth-body {
+    background: #0f1220;
+}
+
 .bmos-auth {
-    min-height: 100vh;
-    display: grid;
-    place-items: center;
+    /* `dvh` y no `vh`: en el móvil la barra del navegador se retrae al desplazar y `100vh` deja un
+       hueco por debajo del pliegue. */
+    min-height: 100dvh;
+    display: flex;
+    justify-content: center;
     padding: 1.5rem;
     /* El halo decorativo de la tarjeta (::after) sobresale por los lados; se recorta aquí para que
        no genere scroll horizontal (visible sobre todo en el registro, cuya tarjeta es más ancha).
@@ -592,10 +1009,23 @@ body {
         linear-gradient(160deg, #12152a, #0f1220 60%, #171a2b);
 }
 
+/* Pantallas bajas (portátil pequeño, móvil en horizontal): menos aire alrededor para que la tarjeta
+   quepa entera sin obligar a desplazar. */
+@media (max-height: 720px) {
+    .bmos-auth {
+        padding: 0.75rem;
+    }
+}
+
 .bmos-auth-card {
     position: relative;
     width: 100%;
     max-width: 420px;
+    /* `margin: auto` en vez de centrar el contenedor con `place-items`: centra igual, pero cuando la
+       tarjeta no cabe en la ventana se puede desplazar hasta arriba. Con el centrado clásico, el
+       borde superior se salía del área visible y quedaba INALCANZABLE —el logo aparecía cortado y
+       no había forma de subir—. */
+    margin: auto;
     background: #fff;
     border-radius: 1.5rem;
     padding: 2.5rem 2.25rem;
@@ -620,6 +1050,23 @@ body {
 
 .bmos-auth-card.is-error {
     animation: bmos-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Móvil y pantallas bajas: la tarjeta se estrecha y respira menos, para caber sin desplazar. */
+@media (max-width: 420px), (max-height: 720px) {
+    .bmos-auth-card {
+        padding: 1.75rem 1.5rem;
+        border-radius: 1.25rem;
+    }
+}
+
+/* Sin animaciones para quien las haya desactivado en su sistema: la entrada y el temblor de error
+   son decoración, no información. */
+@media (prefers-reduced-motion: reduce) {
+    .bmos-auth-card,
+    .bmos-auth-card.is-error {
+        animation: none;
+    }
 }
 
 @keyframes bmos-card-in {

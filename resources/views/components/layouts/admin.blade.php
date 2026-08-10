@@ -15,31 +15,44 @@
     // Cada entrada declara [ruta, etiqueta, icono, permiso, módulo]. El permiso es el MISMO que
     // protege su ruta; el módulo (5.º, opcional) es el que la empresa debe tener contratado. El
     // menú no decide nada: refleja lo que el usuario puede hacer y lo que su plan incluye.
+    /*
+     * Menú lateral, agrupado por LO QUE SE VA A HACER, no por el módulo técnico al que pertenece
+     * cada pantalla. Por eso «Mostrador de repuestos» vive en «Vender» y no en «Finanzas»: es una
+     * pantalla de cobro, aunque por dentro la sirva el módulo de facturación. Quien busca dónde
+     * cobrar no piensa en qué módulo lo implementa.
+     *
+     * «Compras» (pedir mercancía al proveedor) va con Inventario porque es lo que lo repone;
+     * «Compras (606)» es la declaración fiscal de esas facturas, y esa sí es de Finanzas.
+     */
     $nav = [
         'Principal' => [
             ['dashboard', 'Dashboard', 'home', 'dashboard.view', null],
             ['panel.reports', 'Reportes', 'chart', 'reports.view', 'reports'],
         ],
-        'Operación' => [
+        'Vender' => [
+            ['panel.quick-pos.index', 'Venta rápida', 'pos', 'pos.operate', 'quick_pos'],
             ['panel.pos', 'Punto de Venta', 'pos', 'pos.operate', 'pos'],
+            ['panel.parts', 'Mostrador de repuestos', 'wrench', 'invoices.issue', 'billing'],
             ['panel.sales', 'Ventas', 'receipt', 'sales.view', 'sales'],
-            ['panel.purchases', 'Compras', 'bag', 'purchases.view', 'purchasing'],
+            ['panel.invoices', 'Facturación', 'doc', 'invoices.view', 'billing'],
+        ],
+        'Inventario' => [
             ['panel.products', 'Inventario', 'cube', 'products.view', 'inventory'],
+            ['panel.categories', 'Categorías', 'tag', 'categories.manage', 'inventory'],
             ['panel.stock.entry', 'Entrada de mercancía', 'bag', 'stock.adjust', 'inventory'],
+            ['panel.purchases', 'Compras', 'bag', 'purchases.view', 'purchasing'],
         ],
         'Clientes' => [
             ['panel.customers', 'CRM', 'users', 'customers.view', 'crm'],
             ['panel.whatsapp', 'WhatsApp', 'chat', 'whatsapp.view', 'whatsapp'],
+            ['panel.deliveries', 'Entregas', 'truck', 'delivery.view', 'delivery'],
         ],
         'Finanzas' => [
-            ['panel.parts', 'Mostrador de repuestos', 'wrench', 'invoices.issue', 'billing'],
-            ['panel.invoices', 'Facturación', 'doc', 'invoices.view', 'billing'],
-            ['panel.purchase-invoices', 'Compras (606)', 'receipt', 'purchase_invoices.view', 'billing'],
             ['panel.finance', 'Finanzas', 'cash', 'finance.view', 'finance'],
             ['panel.loans', 'Préstamos', 'loans', 'loans.view', 'loans'],
+            ['panel.purchase-invoices', 'Compras (606)', 'receipt', 'purchase_invoices.view', 'billing'],
         ],
-        'Logística y equipo' => [
-            ['panel.deliveries', 'Entregas', 'truck', 'delivery.view', 'delivery'],
+        'Equipo' => [
             ['panel.employees', 'RRHH', 'id', 'hr.view', 'hr'],
         ],
         'Inteligencia' => [
@@ -62,6 +75,18 @@
         )))
         ->filter(fn (array $items): bool => $items !== [])
         ->all();
+
+    // Sección donde está la pantalla actual. Se fuerza abierta al cargar: si el usuario la había
+    // plegado, dejarla cerrada le escondería dónde se encuentra.
+    $seccionActiva = null;
+    foreach ($nav as $seccion => $items) {
+        foreach ($items as $item) {
+            if (request()->routeIs($item[0])) {
+                $seccionActiva = $seccion;
+                break 2;
+            }
+        }
+    }
 
     $icons = [
         'home' => '<path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/>',
@@ -118,18 +143,34 @@
                 <span class="bmos-brand-logo">BM</span>
             @endif
         </div>
-        <nav class="bmos-nav">
+        {{-- Secciones plegables. Cada usuario deja abiertas las que usa y el navegador lo recuerda:
+             sin persistir, cada clic recargaría la página y volvería a abrirlas todas, que es peor
+             que no poder plegarlas. --}}
+        <nav class="bmos-nav" x-data="menuLateral(@js($seccionActiva))">
             @foreach ($nav as $section => $items)
-                <p class="bmos-nav-section">{{ $section }}</p>
-                @foreach ($items as [$route, $label, $icon, $permission, $module])
-                    <a href="{{ route($route) }}"
-                       class="bmos-nav-link {{ request()->routeIs($route) ? 'is-active' : '' }}">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                            {!! $icons[$icon] !!}
-                        </svg>
-                        <span>{{ $label }}</span>
-                    </a>
-                @endforeach
+                <button type="button" @click="alternar(@js($section))"
+                        :aria-expanded="abierta(@js($section)) ? 'true' : 'false'"
+                        class="bmos-nav-section">
+                    <span>{{ $section }}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                         class="bmos-nav-chevron" :class="abierta(@js($section)) && 'is-open'">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                    </svg>
+                </button>
+
+                {{-- Sin `x-collapse`: ese plugin de Alpine no está instalado y usarlo no haría nada.
+                     Un x-show simple basta y no añade una dependencia por una animación. --}}
+                <div x-show="abierta(@js($section))" x-cloak>
+                    @foreach ($items as [$route, $label, $icon, $permission, $module])
+                        <a href="{{ route($route) }}"
+                           class="bmos-nav-link {{ request()->routeIs($route) ? 'is-active' : '' }}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                {!! $icons[$icon] !!}
+                            </svg>
+                            <span>{{ $label }}</span>
+                        </a>
+                    @endforeach
+                </div>
             @endforeach
         </nav>
     </aside>
@@ -207,7 +248,9 @@
             </div>
         </header>
 
-        <main class="bmos-content">
+        {{-- `wide`: pantallas que aprovechan todo el ancho, como el punto de venta táctil. El resto
+             del panel conserva el ancho máximo de lectura, que es lo cómodo para tablas y formularios. --}}
+        <main class="bmos-content {{ ($wide ?? false) ? 'bmos-content--wide' : '' }}">
             <div class="mb-6">
                 <h1 class="bmos-page-title">{{ $heading ?? ($title ?? 'Dashboard') }}</h1>
                 @isset($subheading)

@@ -23,7 +23,14 @@ final class EnsureModuleActive
 {
     public function __construct(private readonly CurrentCompany $currentCompany) {}
 
-    public function handle(Request $request, Closure $next, string $module): Response
+    /**
+     * Admite VARIOS módulos («module:pos,quick_pos»), y basta con tener uno.
+     *
+     * Lo exigen los endpoints compartidos: el cobro, la apertura y el cierre de caja los usan tanto
+     * el punto de venta de mostrador como el terminal táctil, que son módulos distintos. Atarlos a
+     * uno solo dejaría a quien contrató el otro con una pantalla que no puede cobrar.
+     */
+    public function handle(Request $request, Closure $next, string ...$modules): Response
     {
         $user = $request->user();
 
@@ -34,7 +41,18 @@ final class EnsureModuleActive
         // Instancia compartida de la petición: ya trae suscripción y plan cargados.
         $company = $this->currentCompany->model();
 
-        if ($company === null || ! $company->hasModule($module)) {
+        // Bucle simple y no `array_any()`: esa función es de PHP 8.4 y el proyecto declara ^8.2
+        // (producción corre 8.3), donde sería un error fatal.
+        $permitido = false;
+
+        foreach ($modules as $module) {
+            if ($company !== null && $company->hasModule($module)) {
+                $permitido = true;
+                break;
+            }
+        }
+
+        if (! $permitido) {
             abort(403, 'Este módulo no está incluido en el plan de tu empresa.');
         }
 

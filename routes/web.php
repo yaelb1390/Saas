@@ -23,10 +23,12 @@ use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
+use App\Modules\Inventory\Http\Controllers\CategoryController;
 use App\Modules\Inventory\Http\Controllers\ProductController;
 use App\Modules\Inventory\Http\Controllers\StockController;
 use App\Modules\Loans\Http\Controllers\LoanController;
 use App\Modules\POS\Http\Controllers\PosController;
+use App\Modules\POS\Http\Controllers\QuickPosController;
 use App\Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchasing\Http\Controllers\SupplierController;
 use App\Modules\Sales\Http\Controllers\SaleController;
@@ -81,6 +83,7 @@ Route::middleware(['auth'])->group(function (): void {
     Route::controller(PanelController::class)->prefix('panel')->name('panel.')->middleware('subscription')->group(function (): void {
         Route::get('/pos', 'pos')->middleware(['can:pos.operate', 'module:pos'])->name('pos');
         Route::get('/inventario', 'products')->middleware(['can:products.view', 'module:inventory'])->name('products');
+        Route::get('/categorias', 'categories')->middleware(['can:categories.manage', 'module:inventory'])->name('categories');
         // Entrada de mercancía: dar existencia es un permiso distinto de consultarla.
         Route::get('/inventario/entradas', 'stockEntry')->middleware(['can:stock.adjust', 'module:inventory'])->name('stock.entry');
         Route::get('/ventas', 'sales')->middleware(['can:sales.view', 'module:sales'])->name('sales');
@@ -126,13 +129,14 @@ Route::middleware(['auth'])->group(function (): void {
         Route::delete('/plataforma/planes/{plan}', [PlanController::class, 'destroy'])->name('platform.plans.destroy');
     });
 
-    // Recibo imprimible de una venta.
+    // Recibo imprimible de una venta. Lo abre quien puede ver las ventas… o quien las cobra: el
+    // cajero no tiene `sales.view` y el botón «Imprimir recibo» del POS le devolvía 403.
     Route::get('/panel/ventas/{sale}/recibo', [SaleController::class, 'receipt'])
-        ->middleware(['can:sales.view', 'module:sales'])->name('panel.sales.receipt');
+        ->middleware(['can:pos.sale-receipt', 'module:sales'])->name('panel.sales.receipt');
 
     // Recibo en PDF de 80mm (ver en el navegador o ?mode=descargar). Para imprimir, enviar o archivar.
     Route::get('/panel/ventas/{sale}/recibo/pdf/{mode?}', [SaleController::class, 'receiptPdf'])
-        ->middleware(['can:sales.view', 'module:sales'])->name('panel.sales.receipt.pdf');
+        ->middleware(['can:pos.sale-receipt', 'module:sales'])->name('panel.sales.receipt.pdf');
 
     // Exportaciones a CSV: exigen el mismo permiso (y módulo) que ver los datos que exportan.
     Route::controller(ExportController::class)->prefix('panel/exportar')->name('panel.export.')->group(function (): void {
@@ -143,8 +147,10 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/reporte-ventas', 'salesReport')->middleware(['can:reports.view', 'module:reports'])->name('sales-report');
     });
 
-    // Punto de Venta: abrir y cerrar caja son permisos distintos de cobrar.
-    Route::controller(PosController::class)->prefix('panel/pos')->middleware('module:pos')->name('panel.pos.')->group(function (): void {
+    // Motor de cobro, compartido por las dos pantallas de venta. El módulo se declara como
+    // «pos,quick_pos» —basta con tener uno— porque quien contrate solo la venta rápida tiene que
+    // poder abrir caja y cobrar igual que quien contrate el mostrador.
+    Route::controller(PosController::class)->prefix('panel/pos')->middleware('module:pos,quick_pos')->name('panel.pos.')->group(function (): void {
         // Búsqueda del producto escaneado. Exige el mismo permiso que cobrar: quien no puede
         // operar el POS tampoco tiene por qué consultar precios desde él.
         Route::get('/buscar', 'lookup')->middleware('can:pos.operate')->name('lookup');
@@ -154,6 +160,16 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/cobrar', 'checkout')->middleware('can:pos.operate')->name('checkout');
         Route::post('/cerrar-caja', 'closeSession')->middleware('can:cash.close')->name('close');
     });
+
+    // Punto de venta táctil (heladería y comida rápida). Módulo propio y vendible por separado;
+    // el cobro lo sigue haciendo el motor compartido de arriba.
+    Route::controller(QuickPosController::class)->prefix('panel/pos-rapido')
+        ->middleware(['can:pos.operate', 'module:quick_pos', 'subscription'])->name('panel.quick-pos.')
+        ->group(function (): void {
+            Route::get('/', 'index')->name('index');
+            Route::get('/catalogo', 'catalog')->name('catalog');
+            Route::get('/producto/{product}/opciones', 'options')->name('options');
+        });
 
     // Altas, ediciones y bajas desde el panel. El route model binding resuelve el registro ya
     // aislado por la empresa activa (un id de otra empresa devuelve 404).
@@ -165,15 +181,25 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:products.view')->name('panel.products.lookup');
         Route::post('/panel/inventario/entradas', [StockController::class, 'store'])
             ->middleware('can:stock.adjust')->name('panel.stock.store');
-        // Foto del producto (cacheable). Basta con poder ver el catálogo.
+        // Foto del producto (cacheable). La sirve quien puede ver el catálogo… o quien opera el
+        // punto de venta: el cajero no tiene `products.view` y sin esto la rejilla salía sin fotos.
         Route::get('/panel/inventario/{product}/imagen', [ProductController::class, 'image'])
-            ->middleware('can:products.view')->name('panel.products.image');
+            ->middleware('can:pos.product-image')->name('panel.products.image');
     });
 
     Route::middleware(['can:products.manage', 'module:inventory'])->group(function (): void {
         Route::post('/panel/inventario', [ProductController::class, 'store'])->name('panel.products.store');
         Route::put('/panel/inventario/{product}', [ProductController::class, 'update'])->name('panel.products.update');
         Route::delete('/panel/inventario/{product}', [ProductController::class, 'destroy'])->name('panel.products.destroy');
+    });
+
+    // Categorías: agrupan el catálogo y ordenan la rejilla del punto de venta. Permiso propio
+    // («categories.manage»), distinto de gestionar productos: quien reorganiza el catálogo no tiene
+    // por qué poder cambiar precios.
+    Route::middleware(['can:categories.manage', 'module:inventory'])->group(function (): void {
+        Route::post('/panel/categorias', [CategoryController::class, 'store'])->name('panel.categories.store');
+        Route::put('/panel/categorias/{category}', [CategoryController::class, 'update'])->name('panel.categories.update');
+        Route::delete('/panel/categorias/{category}', [CategoryController::class, 'destroy'])->name('panel.categories.destroy');
     });
 
     // Perfil del cliente y ver/descargar sus documentos: basta con poder ver el CRM.

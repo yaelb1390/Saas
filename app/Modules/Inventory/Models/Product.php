@@ -9,6 +9,7 @@ use App\Modules\Core\Tenancy\HasCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use OwenIt\Auditing\Auditable as AuditableTrait;
@@ -105,11 +106,68 @@ class Product extends Model implements Auditable, HasCompany
     }
 
     /**
+     * Grupos de opciones que ofrece este producto («Tamaño», «Sabor»...), en el orden en que se le
+     * presentan al cajero.
+     *
+     * @return BelongsToMany<OptionGroup, $this>
+     */
+    public function optionGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(OptionGroup::class, 'product_option_group')
+            ->withPivot(['company_id', 'sort_order'])
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
+    }
+
+    /**
+     * Asigna los grupos de opciones del producto, en el orden recibido.
+     *
+     * Existe para que nadie tenga que acordarse del `company_id` de la tabla pivote, que es NOT NULL
+     * y que `attach()` no rellena solo.
+     *
+     * Se resolvió así y no con `withPivotValue('company_id', $this->company_id)` en la relación
+     * porque aquello revienta al PRECARGAR (`with('optionGroups')`): en ese momento Eloquent
+     * construye la relación sobre una instancia sin atributos, `company_id` es null y lanza «The
+     * provided value may not be null».
+     *
+     * @param  array<int, int>  $groupIds
+     */
+    public function syncOptionGroups(array $groupIds): void
+    {
+        $payload = [];
+
+        foreach (array_values($groupIds) as $orden => $groupId) {
+            $payload[$groupId] = [
+                'company_id' => $this->company_id,
+                'sort_order' => $orden,
+            ];
+        }
+
+        $this->optionGroups()->sync($payload);
+    }
+
+    /**
      * Existencia total del producto sumando todos los almacenes.
+     *
+     * Si la relación ya viene precargada (rejilla del punto de venta, listados con `with('stock')`)
+     * se suma en memoria. Sin esta rama, cada ficha lanzaría su propio SUM y pintar el catálogo
+     * sería un N+1: precargar la relación no servía de nada porque este método la ignoraba.
+     *
+     * La suma va con bcmath a escala 3, la misma de la columna, para que ambos caminos devuelvan el
+     * valor con idéntico formato y el payload no cambie según cómo se haya cargado el producto.
      */
     public function totalStock(): string
     {
-        return (string) $this->stock()->sum('quantity');
+        $total = $this->relationLoaded('stock')
+            ? $this->stock->reduce(
+                static fn (string $acc, Stock $row): string => bcadd($acc, (string) $row->quantity, 3),
+                '0',
+            )
+            : (string) $this->stock()->sum('quantity');
+
+        // Se fuerza la escala en ambos casos: la base devuelve «48» y la suma en memoria «48.000».
+        // Sin normalizar, el mismo producto se serializaría distinto según cómo se hubiera cargado.
+        return bcadd($total, '0', 3);
     }
 
     public function hasImage(): bool

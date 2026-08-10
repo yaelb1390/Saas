@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Comprobante de compra recibido de un proveedor (para el 606 de la DGII). El adjunto (foto/PDF) vive
@@ -21,8 +22,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $ncf
  * @property GoodsServicesType $goods_services_type
  * @property TaxIdKind $provider_tax_id_kind
- * @property \Illuminate\Support\Carbon $invoice_date
- * @property \Illuminate\Support\Carbon|null $payment_date
+ * @property Carbon $invoice_date
+ * @property Carbon|null $payment_date
  * @property string $mime
  */
 class PurchaseInvoice extends Model implements HasCompany

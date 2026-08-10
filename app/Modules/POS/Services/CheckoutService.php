@@ -33,12 +33,18 @@ final class CheckoutService
             // Lo único que el POS añade a la venta es la sesión de caja en la que se cobra.
             $sale = $this->sales->complete($data->withCashSession((int) $session->id));
 
-            $this->cash->registerMovement(
-                $session,
-                CashMovementType::Sale,
-                (string) $sale->total,
-                ['reference' => $sale, 'notes' => "Cobro venta {$sale->code}"],
-            );
+            // Solo el efectivo entra al cajón. Una venta con tarjeta o transferencia queda ligada a
+            // la sesión (para saber quién y cuándo la cobró) pero NO suma al arqueo: si sumara, el
+            // cierre arrojaría un faltante exactamente igual a lo cobrado por esas vías, y el cajero
+            // acabaría cuadrando a mano una diferencia que no existe.
+            if ($data->paymentMethod->entersCashDrawer()) {
+                $this->cash->registerMovement(
+                    $session,
+                    CashMovementType::Sale,
+                    (string) $sale->total,
+                    ['reference' => $sale, 'notes' => "Cobro venta {$sale->code}"],
+                );
+            }
 
             return $sale;
         });

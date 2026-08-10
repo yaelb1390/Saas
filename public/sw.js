@@ -8,7 +8,9 @@
  *
  * Sube la versión para invalidar la caché tras un despliegue.
  */
-const VERSION = 'v1';
+// v2: se añade el manifiesto del terminal de venta. Subir la versión es obligatorio o los
+// navegadores que ya tienen cacheada la v1 nunca lo verían.
+const VERSION = 'v2';
 const STATIC_CACHE = `bmos-static-${VERSION}`;
 
 // Solo se cachea lo que es inmutable o cambia con el build (Vite pone hash en el nombre).
@@ -16,7 +18,8 @@ function esEstatico(url) {
     return url.pathname.startsWith('/build/')
         || url.pathname.startsWith('/images/')
         || url.pathname === '/favicon.ico'
-        || url.pathname === '/manifest.json';
+        || url.pathname === '/manifest.json'
+        || url.pathname === '/manifest-pos.json';
 }
 
 self.addEventListener('install', (event) => {

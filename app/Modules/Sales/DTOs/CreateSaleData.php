@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\DTOs;
 
+use App\Modules\Sales\Enums\PaymentMethod;
+
 /**
  * DTO inmutable para registrar una venta con sus líneas.
  *
@@ -24,7 +26,9 @@ final readonly class CreateSaleData
     public function __construct(
         public int $warehouseId,
         public array $lines,
-        public string $paymentMethod = 'cash',
+        // Enum y no cadena: de este valor depende si la venta engorda el arqueo de caja, y una
+        // errata («efectivo» en vez de «cash») habría descuadrado el cierre en silencio.
+        public PaymentMethod $paymentMethod = PaymentMethod::Cash,
         public ?string $paid = null,
         public ?string $customerName = null,
         public ?int $branchId = null,

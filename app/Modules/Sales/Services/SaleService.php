@@ -68,7 +68,7 @@ final class SaleService
                 'discount_total' => $data->discountTotal,
                 'paid' => $paid,
                 'change' => bcsub($paid, $total, self::SCALE),
-                'payment_method' => $data->paymentMethod,
+                'payment_method' => $data->paymentMethod->value,
                 'completed_at' => now(),
                 'user_id' => auth()->id(),
                 'employee_id' => $data->employeeId,
@@ -78,7 +78,7 @@ final class SaleService
             foreach ($data->lines as $line) {
                 $product = Product::findOrFail($line->productId);
 
-                $sale->items()->create([
+                $item = $sale->items()->create([
                     'company_id' => $companyId,
                     'product_id' => $product->id,
                     'quantity' => $line->quantity,
@@ -90,6 +90,22 @@ final class SaleService
                     'serial' => $line->serial,
                     'employee_id' => $line->employeeId,
                 ]);
+
+                // Tamaños, sabores y extras elegidos. Se copian los nombres y el recargo tal como
+                // estaban al vender: un recibo es un documento del pasado y no puede cambiar porque
+                // alguien renombre una opción o suba su precio más adelante.
+                //
+                // El recargo NO se vuelve a sumar aquí: ya está dentro de `unitPrice`, que calculó
+                // el servidor. Sumarlo otra vez cobraría el extra dos veces.
+                foreach ($line->options as $option) {
+                    $item->options()->create([
+                        'company_id' => $companyId,
+                        'option_id' => $option->optionId,
+                        'group_name' => $option->groupName,
+                        'option_name' => $option->optionName,
+                        'price_delta' => $option->priceDelta,
+                    ]);
+                }
 
                 if ($product->track_stock) {
                     $this->stock->decrease(

@@ -1,0 +1,28 @@
+{
+    "name": "BM Venta Rápida",
+    "short_name": "Venta Rápida",
+    "description": "Terminal de cobro. Arranca directo en la pantalla de venta, sin barra de navegador.",
+    "lang": "es",
+    "id": "/panel/pos-rapido",
+    "start_url": "/panel/pos-rapido",
+    "scope": "/",
+    "display": "fullscreen",
+    "display_override": ["fullscreen", "standalone"],
+    "orientation": "landscape",
+    "background_color": "#f4f6fb",
+    "theme_color": "#4f46e5",
+    "icons": [
+        {
+            "src": "/images/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/images/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

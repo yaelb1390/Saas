@@ -150,6 +150,10 @@ final class RoleProvisioner
         // finanzas, CRM, reportes ni gestión: un cajero cobra, no administra el negocio.
         // `dashboard.view` se conserva únicamente para que tenga una pantalla de aterrizaje válida;
         // los indicadores financieros del dashboard se ocultan a quien no tenga `reports.view`.
+        // El cajero NO recibe `products.view` ni `sales.view`: eso le abriría los listados completos
+        // de inventario y de ventas. Lo que el punto de venta necesita —ver la foto de un producto y
+        // el recibo de un cobro— se concede con dos permisos acotados que define
+        // `AppServiceProvider`, derivados de `pos.operate`.
         'staff' => [
             'dashboard.view',
             'pos.operate',

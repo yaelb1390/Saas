@@ -32,7 +32,7 @@
     <div class="space-y-5">
         @foreach ($companies as $company)
             @php $active = $company->activeModules(); @endphp
-            <div class="bmos-card bmos-card-pad" x-data="{ open: false, borrar: false, nombreEscrito: '' }">
+            <div class="bmos-card bmos-card-pad" x-data="{ open: false }">
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div class="flex items-center gap-3">
                         <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
@@ -72,66 +72,28 @@
                         </form>
                         {{-- Eliminar va aparte y sin color de botón: se busca que no se pulse por
                              inercia al ir a «Suspender», que está justo al lado. --}}
-                        <button type="button" @click="borrar = true"
+                        <button type="button"
+                                onclick="window.confirmarEliminarEmpresa({{ Js::from([
+                                    'nombre' => $company->name,
+                                    'usuarios' => $company->users_count,
+                                    'formulario' => 'borrar_empresa_'.$company->id,
+                                ]) }})"
                                 class="rounded-lg px-3 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-50">
                             Eliminar
                         </button>
                     </div>
                 </div>
 
-                {{-- Borrado definitivo. Dos confirmaciones porque protegen de cosas distintas: la
-                     contraseña dice «eres tú» y el nombre dice «es esta». Un «¿estás seguro?» no
-                     sirve para lo segundo: a eso se contesta que sí sin leerlo. --}}
-                <div x-show="borrar" x-cloak class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 py-10"
-                     @keydown.escape.window="borrar = false">
-                    <div @click.outside="borrar = false" x-transition class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-                        <div class="flex items-start gap-3">
-                            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-600">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-                            </span>
-                            <div>
-                                <h3 class="text-lg font-semibold text-slate-800">Eliminar «{{ $company->name }}»</h3>
-                                <p class="mt-1 text-sm text-slate-500">Esto no se puede deshacer.</p>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-                            <p class="font-semibold">Se borrará definitivamente:</p>
-                            <ul class="mt-1 list-disc space-y-0.5 pl-4">
-                                <li>Todas sus ventas, facturas, productos, clientes y préstamos</li>
-                                <li>Sus {{ $company->users_count ?? '' }} usuarios y sus accesos</li>
-                                <li>Sus sucursales, almacenes, cajas y su suscripción</li>
-                            </ul>
-                            <p class="mt-2">No hay copia de seguridad automática. No se puede recuperar.</p>
-                        </div>
-
-                        <form method="POST" action="{{ route('platform.companies.destroy', $company) }}" class="mt-4 space-y-3">
-                            @csrf @method('DELETE')
-                            <div>
-                                <label class="bmos-field-label">Escribe el nombre de la empresa</label>
-                                <input name="confirm_name" x-model="nombreEscrito" autocomplete="off"
-                                       placeholder="{{ $company->name }}" class="bmos-input">
-                                <p class="mt-1 text-xs text-slate-400">
-                                    Para asegurar que es esta y no otra de nombre parecido.
-                                </p>
-                            </div>
-                            <div>
-                                <label class="bmos-field-label">Tu contraseña</label>
-                                <input type="password" name="password" autocomplete="current-password" class="bmos-input">
-                            </div>
-                            <div class="flex justify-end gap-2 pt-1">
-                                <button type="button" @click="borrar = false" class="bmos-btn bmos-btn-ghost">Cancelar</button>
-                                {{-- Deshabilitado hasta que el nombre coincida. El servidor lo vuelve
-                                     a comprobar: esto es una ayuda, no la defensa. --}}
-                                <button type="submit"
-                                        :disabled="nombreEscrito.trim().toLowerCase() !== @js(mb_strtolower($company->name))"
-                                        class="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300">
-                                    Eliminar definitivamente
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                {{-- El diálogo de confirmación lo pinta SweetAlert2 (ver confirmarEliminarEmpresa
+                     en app.js). Aquí solo queda el formulario, oculto: el diálogo rellena sus dos
+                     campos y lo envía, de modo que el token CSRF y el método siguen viniendo de
+                     Blade y no hay que fabricarlos a mano en JavaScript. --}}
+                <form method="POST" action="{{ route('platform.companies.destroy', $company) }}"
+                      id="borrar_empresa_{{ $company->id }}" class="hidden">
+                    @csrf @method('DELETE')
+                    <input type="hidden" name="confirm_name">
+                    <input type="hidden" name="password">
+                </form>
 
                 {{-- Suscripción + módulos. --}}
                 <div x-show="open" x-cloak x-transition class="mt-5 space-y-5 border-t border-slate-100 pt-5">

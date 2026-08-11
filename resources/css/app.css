@@ -1247,3 +1247,51 @@ body {
     filter: brightness(1.07);
     transform: translateY(-1px);
 }
+
+/* ---------------------------------------------------------------------------
+ * Diálogo de confirmación destructiva (SweetAlert2)
+ *
+ * Se desactiva el estilo propio de la librería (`buttonsStyling: false`) para que los botones
+ * hablen el mismo idioma que el resto del panel. El diálogo se usa solo para el borrado de
+ * empresas, así que el botón de confirmar es rojo a propósito: el color forma parte del aviso.
+ * ------------------------------------------------------------------------ */
+.bmos-swal {
+    border-radius: 1.25rem;
+}
+
+.bmos-swal-titulo {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.bmos-swal-borrar,
+.bmos-swal-cancelar {
+    border-radius: 0.85rem;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.bmos-swal-borrar {
+    background: #e11d48;
+    color: #fff;
+    box-shadow: 0 10px 20px -8px rgba(225, 29, 72, 0.6);
+}
+
+.bmos-swal-borrar:hover {
+    background: #be123c;
+}
+
+.bmos-swal-cancelar {
+    background: #fff;
+    color: #475569;
+    border-color: #e2e8f0;
+}
+
+.bmos-swal-cancelar:hover {
+    background: #f8fafc;
+}

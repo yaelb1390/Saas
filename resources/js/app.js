@@ -35,6 +35,85 @@ window.escanerCamara = async (video, alLeer) => {
 };
 
 /**
+ * Confirmación de borrado de una empresa. Cargada bajo demanda, como Chart.js: solo la usa el panel
+ * del operador de la plataforma, y no tiene sentido que el resto del sistema arrastre la librería.
+ *
+ * Pide DOS cosas porque protegen de riesgos distintos: el nombre responde a «¿es esta empresa?»
+ * —conviven nombres casi idénticos en la lista— y la contraseña a «¿eres tú?». El servidor vuelve a
+ * comprobar ambas: esto es la puerta, no la cerradura.
+ *
+ * @param {{nombre: string, usuarios: number, formulario: string}} datos
+ */
+window.confirmarEliminarEmpresa = async ({ nombre, usuarios, formulario }) => {
+    const { default: Swal } = await import('sweetalert2');
+
+    const form = document.getElementById(formulario);
+    if (!form) return;
+
+    const esperado = nombre.trim().toLowerCase();
+
+    await Swal.fire({
+        icon: 'warning',
+        title: `¿Eliminar «${nombre}»?`,
+        width: '44rem',
+        padding: '2rem',
+        buttonsStyling: false,
+        reverseButtons: true,
+        focusConfirm: false,
+        allowOutsideClick: () => !Swal.isLoading(),
+        html: `
+            <div style="text-align:left">
+                <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:.9rem;padding:1rem 1.15rem;color:#9f1239">
+                    <p style="font-weight:700;margin:0 0 .5rem">Se borrará definitivamente:</p>
+                    <ul style="margin:0;padding-left:1.2rem;line-height:1.65">
+                        <li>Todas sus ventas, facturas, productos, clientes y préstamos</li>
+                        <li>Sus ${usuarios} usuarios y sus accesos</li>
+                        <li>Sus sucursales, almacenes, cajas y su suscripción</li>
+                    </ul>
+                    <p style="margin:.75rem 0 0;font-weight:600">No hay copia de seguridad. Esto no se puede deshacer.</p>
+                </div>
+                <label style="display:block;margin-top:1.25rem;font-weight:600;color:#334155">Escribe el nombre de la empresa</label>
+                <input id="swal-nombre" class="swal2-input" style="width:100%;margin:.4rem 0 0" autocomplete="off" placeholder="${nombre}">
+                <p style="margin:.35rem 0 0;font-size:.8rem;color:#94a3b8">Para asegurar que es esta y no otra de nombre parecido.</p>
+                <label style="display:block;margin-top:1rem;font-weight:600;color:#334155">Tu contraseña</label>
+                <input id="swal-clave" type="password" class="swal2-input" style="width:100%;margin:.4rem 0 0" autocomplete="current-password">
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'Eliminar definitivamente',
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            popup: 'bmos-swal',
+            title: 'bmos-swal-titulo',
+            confirmButton: 'bmos-swal-borrar',
+            cancelButton: 'bmos-swal-cancelar',
+        },
+        preConfirm: () => {
+            const escrito = document.getElementById('swal-nombre').value.trim().toLowerCase();
+            const clave = document.getElementById('swal-clave').value;
+
+            if (escrito !== esperado) {
+                Swal.showValidationMessage('El nombre no coincide con el de la empresa.');
+                return false;
+            }
+            if (!clave) {
+                Swal.showValidationMessage('Escribe tu contraseña para confirmar.');
+                return false;
+            }
+
+            // Se envía aquí dentro y se deja el diálogo cargando: así el botón no admite un
+            // segundo clic. Sin esto, un doble clic manda dos borrados y el segundo choca contra
+            // una empresa que ya no existe, dando un 404 desconcertante.
+            Swal.showLoading();
+            form.querySelector('[name="confirm_name"]').value = escrito;
+            form.querySelector('[name="password"]').value = clave;
+            form.submit();
+
+            return new Promise(() => {}); // nunca resuelve: la página va a navegar
+        },
+    });
+};
+
+/**
  * Componente del visor de cámara. Se registra aquí (y no como función suelta en cada vista) porque
  * lo comparten el POS y la entrada de mercancía: definirlo dos veces sería la misma duplicación que
  * evitamos en el backend.

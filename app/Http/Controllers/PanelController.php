@@ -13,6 +13,7 @@ use App\Modules\Billing\Models\FiscalSequence;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Core\Services\PolarCheckoutService;
 use App\Modules\Core\Support\RoleCatalog;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
@@ -295,13 +296,21 @@ final class PanelController extends Controller
         ]);
     }
 
-    public function account(CurrentCompany $currentCompany): View
+    public function account(CurrentCompany $currentCompany, PolarCheckoutService $checkout): View
     {
         $company = $currentCompany->model();
+        $subscription = $company?->subscription;
+        $plan = $subscription?->plan;
 
         return view('panel.account', [
             'company' => $company,
-            'subscription' => $company?->subscription,
+            'subscription' => $subscription,
+
+            // Se puede pagar en línea solo si hay pasarela configurada y el plan está enlazado con
+            // su producto. Si falta cualquiera de las dos, la pantalla ofrece contacto y ya está:
+            // más vale no enseñar un botón que lleva a un callejón sin salida.
+            'canPayOnline' => $plan !== null && $plan->isPurchasable() && $checkout->isConfigured(),
+
             'supportWhatsapp' => (string) config('platform.support_whatsapp'),
             'supportEmail' => (string) config('platform.support_email'),
             'supportPaypal' => (string) config('platform.support_paypal'),

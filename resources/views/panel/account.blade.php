@@ -18,6 +18,25 @@
 @endphp
 <x-layouts.admin title="Mi suscripción" heading="Mi suscripción" subheading="Estado del plan de tu empresa">
     <div class="mx-auto max-w-2xl">
+        {{-- Vuelta de la pasarela. Se dice «estamos confirmando» y no «ya está activo» a propósito:
+             quien activa es el aviso de pago de Polar, que llega por su cuenta unos segundos
+             después. Dar por hecha la activación aquí sería mentir, porque esta dirección la puede
+             escribir cualquiera en la barra del navegador. --}}
+        @if (request('pago') === 'recibido')
+            <div class="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-600 ring-1 ring-emerald-100">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                </span>
+                <div>
+                    <p class="text-sm font-semibold text-emerald-900">Gracias, recibimos tu pago.</p>
+                    <p class="mt-0.5 text-sm text-emerald-800">
+                        Estamos confirmándolo con el banco. Tu plan se activa solo en cuanto se confirme
+                        —suele tardar unos segundos—. Recarga esta página para ver el estado.
+                    </p>
+                </div>
+            </div>
+        @endif
+
         @if ($subscription === null)
             <div class="bmos-card bmos-card-pad flex flex-col items-center py-12 text-center">
                 <span class="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-indigo-50 text-indigo-500">
@@ -146,35 +165,65 @@
                         <p class="text-sm font-semibold text-slate-800">
                             {{ $isTrial ? '¿Listo para activar tu plan?' : '¿Quieres renovar tu suscripción?' }}
                         </p>
-                        <p class="mt-0.5 text-sm text-slate-500">Contáctanos o realiza tu pago y activamos tu cuenta enseguida.</p>
+                        <p class="mt-0.5 text-sm text-slate-500">
+                            @if ($canPayOnline)
+                                Paga con tarjeta y tu cuenta queda activa en cuanto se confirme el cobro.
+                            @else
+                                Contáctanos y activamos tu cuenta enseguida.
+                            @endif
+                        </p>
                     </div>
                 </div>
 
+                {{-- El pago es la acción principal, así que va solo y con peso propio. El contacto
+                     baja a una línea discreta: sirve para dudas, no para contratar. --}}
+                @if ($canPayOnline)
+                    <form method="POST" action="{{ route('panel.account.checkout', $plan) }}" class="mt-5">
+                        @csrf
+                        <button type="submit"
+                                class="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 sm:w-auto">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Z"/>
+                            </svg>
+                            {{ $isTrial ? 'Activar mi plan' : 'Renovar mi plan' }}
+                            <span class="font-bold tabular-nums">{{ number_format((float) $plan->price, 2) }}</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 class="h-4 w-4 transition group-hover:translate-x-0.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
+                            </svg>
+                        </button>
+                        <p class="mt-2 text-xs text-slate-400">
+                            Pago seguro con tarjeta. Se cobra {{ mb_strtolower($plan->billing_cycle->label()) }}; puedes cancelar cuando quieras.
+                        </p>
+                    </form>
+                @endif
+
                 @if ($hasActions)
-                    <div class="mt-4 flex flex-wrap gap-3">
+                    <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-indigo-100/70 pt-4 text-sm">
+                        <span class="text-slate-500">¿Tienes dudas? Escríbenos:</span>
                         @if ($waDigits)
                             <a href="https://wa.me/{{ $waDigits }}?text={{ $waText }}" target="_blank" rel="noopener"
-                               class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 hover:shadow">
+                               class="inline-flex items-center gap-1.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline">
                                 <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884"/></svg>
                                 WhatsApp
                             </a>
                         @endif
                         @if ($supportEmail)
                             <a href="mailto:{{ $supportEmail }}?subject={{ $mailSubject }}"
-                               class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow">
+                               class="inline-flex items-center gap-1.5 font-semibold text-indigo-700 hover:text-indigo-800 hover:underline">
                                 <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                                 Correo
                             </a>
                         @endif
-                        @if ($supportPaypal)
+                        @if ($supportPaypal && ! $canPayOnline)
+                            {{-- Solo si no hay pasarela: dos botones de pago a la vez confunden. --}}
                             <a href="{{ $supportPaypal }}" target="_blank" rel="noopener"
-                               class="inline-flex items-center gap-2 rounded-xl bg-[#0070ba] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#005ea6] hover:shadow">
-                                <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.048.288-.076.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.19a.563.563 0 0 0-.556.479l-1.187 7.527h-.506l-.24 1.516a.56.56 0 0 0 .554.647h3.882c.46 0 .85-.334.922-.788.06-.26.76-4.852.816-5.09a.932.932 0 0 1 .923-.788h.58c3.76 0 6.705-1.528 7.565-5.946.36-1.847.174-3.388-.777-4.471z"/></svg>
+                               class="inline-flex items-center gap-1.5 font-semibold text-[#0070ba] hover:underline">
                                 Pagar con PayPal
                             </a>
                         @endif
                     </div>
-                @else
+                @elseif (! $canPayOnline)
                     <p class="mt-4 text-sm text-slate-400">Contacta con el administrador de la plataforma para activar tu plan.</p>
                 @endif
             </div>

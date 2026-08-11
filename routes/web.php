@@ -15,6 +15,7 @@ use App\Modules\Core\Http\Controllers\DashboardController;
 use App\Modules\Core\Http\Controllers\PlanController;
 use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\RegisterController;
+use App\Modules\Core\Http\Controllers\SubscriptionCheckoutController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
 use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
 use App\Modules\Core\Http\Controllers\UserController;
@@ -80,6 +81,11 @@ Route::middleware(['auth'])->group(function (): void {
     // siendo accesible aunque la suscripción esté vencida, para poder ver el estado y regularizar.
     Route::get('/panel/cuenta', [PanelController::class, 'account'])
         ->middleware('can:company.manage')->name('panel.account');
+
+    // Contratar el plan. Solo el dueño («company.manage»), igual que la pantalla de cuenta, y sin
+    // el middleware de suscripción: hay que poder pagar precisamente cuando está vencida.
+    Route::post('/panel/cuenta/contratar/{plan}', SubscriptionCheckoutController::class)
+        ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.checkout');
 
     // Aviso de cuenta suspendida (accesible sin suscripción/empresa activa, por eso queda fuera
     // del middleware que bloquea).

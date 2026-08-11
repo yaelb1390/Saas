@@ -48,6 +48,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
 
+// «/register» era la ruta que traía Fortify, hoy desactivada (creaba cuentas sin empresa). Se
+// reenvía en vez de dejar un 404: puede estar guardada en marcadores o compartida por ahí.
+//
+// Se declara con `get` y no con `Route::redirect`, que responde a CUALQUIER método: así un POST a
+// la dirección vieja no obtiene una redirección que parezca que algo se envió. La puerta que creaba
+// cuentas sueltas queda cerrada de verdad.
+Route::get('/register', fn () => redirect('/registro'));
+
 // Registro self-service (público): un cliente crea su empresa y arranca una prueba gratuita eligiendo
 // módulos. `throttle` limita el abuso de altas automáticas. `guest` evita registrarse ya logueado.
 Route::middleware(['guest'])->group(function (): void {

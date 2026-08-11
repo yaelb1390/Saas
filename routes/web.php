@@ -10,6 +10,7 @@ use App\Modules\Billing\Http\Controllers\InvoiceController;
 use App\Modules\Billing\Http\Controllers\PartsCounterController;
 use App\Modules\Billing\Http\Controllers\PurchaseInvoiceController;
 use App\Modules\Core\Http\Controllers\CompanyAdminController;
+use App\Modules\Core\Http\Controllers\CompanyDeletionController;
 use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
 use App\Modules\Core\Http\Controllers\PlanController;
@@ -141,6 +142,12 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/plataforma/empresas/{company}/suscribir', [CompanyAdminController::class, 'subscribe'])->name('platform.companies.subscribe');
         Route::post('/plataforma/empresas/{company}/pago', [CompanyAdminController::class, 'registerPayment'])->name('platform.companies.payment');
         Route::post('/plataforma/empresas/{company}/suspender', [CompanyAdminController::class, 'suspendSubscription'])->name('platform.companies.suspend');
+
+        // Borrado definitivo de una empresa y todos sus datos. Irreversible: exige contraseña del
+        // operador y escribir el nombre de la empresa. `throttle` porque una acción así nunca se
+        // repite en ráfaga; si eso ocurre, algo va mal.
+        Route::delete('/plataforma/empresas/{company}', CompanyDeletionController::class)
+            ->middleware('throttle:5,1')->name('platform.companies.destroy');
 
         // Planes de suscripción.
         Route::get('/plataforma/planes', [PlanController::class, 'index'])->name('platform.plans');

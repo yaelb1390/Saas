@@ -18,8 +18,12 @@ use Illuminate\Support\Facades\DB;
  * de empresa). El ORDEN va de hijos a padres para respetar las FK `restrict` internas (p. ej.
  * sale_items→products, loans→customers, purchase_orders→suppliers).
  *
- * IMPORTANTE: si un módulo nuevo agrega una tabla con `company_id`, hay que añadirla a $tables en la
- * posición correcta o sus filas quedarán huérfanas tras la purga.
+ * IMPORTANTE: si un módulo nuevo agrega una tabla con `company_id`, hay que añadirla a TABLES en la
+ * posición correcta —o a KEPT si se conserva a propósito— o sus filas quedarán huérfanas.
+ *
+ * Ese aviso estuvo aquí escrito y aun así se incumplió: seis tablas quedaron fuera. Por eso ahora lo
+ * comprueba un test (TenantPurgeCompletenessTest), que falla si aparece una tabla con `company_id`
+ * que no esté en ninguna de las dos listas. Un comentario pide atención; un test la exige.
  */
 final class TenantDataPurger
 {
@@ -30,7 +34,7 @@ final class TenantDataPurger
      *
      * @var list<string>
      */
-    private const TABLES = [
+    public const TABLES = [
         // IA
         'ai_sentiment_analyses',
         'ai_document_chunks',
@@ -55,25 +59,59 @@ final class TenantDataPurger
         'invoice_items',
         'invoices',
         'fiscal_sequences',
-        // Ventas
+        // Ventas (las opciones vendidas cuelgan de la línea: van antes)
+        'sale_item_options',
         'sale_items',
         'sales',
         // Compras
+        'purchase_invoices',
         'purchase_order_items',
         'purchase_orders',
         'suppliers',
-        // Caja (movimientos/sesiones; las cajas en sí se conservan)
+        // Caja. Los tickets aparcados apuntan a la sesión de caja, así que se borran antes.
+        'held_orders',
         'cash_movements',
         'cash_sessions',
         // CRM (los pipelines/stages se conservan)
         'customer_documents',
         'opportunities',
         'customers',
+        // Opciones de producto. El pivote y las opciones apuntan a productos y a grupos: los tres
+        // van antes que `products`.
+        'product_option_group',
+        'options',
+        'option_groups',
         // Inventario
         'stock_movements',
         'stock',
         'products',
         'categories',
+    ];
+
+    /**
+     * Tablas con `company_id` que NO se purgan, y por qué. Existe para que el test de completitud
+     * pueda distinguir «se conserva a propósito» de «se olvidó»: sin esta lista, ese test no
+     * podría decir la diferencia y no serviría de nada.
+     *
+     * @var list<string>
+     */
+    public const KEPT = [
+        // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
+        'companies',
+        'users',
+        'branches',
+        'warehouses',
+        'cash_registers',
+        'subscriptions',
+        'pipelines',
+        'pipeline_stages',
+        // Roles y permisos por empresa (spatie).
+        'roles',
+        'model_has_roles',
+        'model_has_permissions',
+        // Bitácora de avisos de la pasarela de cobro. Es de la plataforma, no de la empresa, y su
+        // company_id se pone a NULL solo al borrar la empresa: el rastro de un pago debe sobrevivir.
+        'polar_webhook_events',
     ];
 
     public function purge(Company $company): void

@@ -38,6 +38,9 @@
                         <p class="mt-1 text-xs text-slate-400">
                             Súbela <b>en vertical</b> (más alta que ancha). Se muestra en el Punto de Venta. Hasta 8&nbsp;MB.
                         </p>
+                        <p x-show="preparando" x-cloak class="mt-1 text-xs text-indigo-600">
+                            Preparando la foto…
+                        </p>
                         <p x-show="apaisada" x-cloak
                            class="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
                             Esa foto es <b x-text="forma"></b>. Se guardará igualmente, centrada sobre fondo blanco,
@@ -199,6 +202,9 @@
                         <p class="mt-1 text-xs text-slate-400">
                             Sube una nueva para reemplazarla. Mejor <b>en vertical</b> (más alta que ancha).
                         </p>
+                        <p x-show="preparando" x-cloak class="mt-1 text-xs text-indigo-600">
+                            Preparando la foto…
+                        </p>
                         <p x-show="apaisada" x-cloak
                            class="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
                             Esa foto es <b x-text="forma"></b>. Se guardará centrada sobre fondo blanco,
@@ -264,12 +270,17 @@
             return {
                 apaisada: false,
                 forma: '',
+                preparando: false,
 
                 revisar(event) {
-                    const file = event.target.files?.[0];
+                    const input = event.target;
+                    const file = input.files?.[0];
                     this.apaisada = false;
 
                     if (!file || !file.type.startsWith('image/')) return;
+
+                    this.preparando = true;
+                    this.retenerEnvio(input.form);
 
                     const url = URL.createObjectURL(file);
                     const img = new Image();
@@ -279,11 +290,99 @@
                         // así que también se avisa.
                         this.apaisada = img.height <= img.width;
                         this.forma = img.height === img.width ? 'cuadrada' : 'apaisada';
-                        URL.revokeObjectURL(url);
+
+                        this.recuadrar(img, input, file, () => URL.revokeObjectURL(url));
                     };
 
-                    img.onerror = () => URL.revokeObjectURL(url);
+                    img.onerror = () => {
+                        URL.revokeObjectURL(url);
+                        this.preparando = false;
+                    };
+
                     img.src = url;
+                },
+
+                /**
+                 * Retiene el envío mientras se recuadra.
+                 *
+                 * El recuadrado tarda unas décimas de segundo. Sin esta espera, quien pulse Guardar
+                 * enseguida subiría la foto original sin recuadrar —justo el problema que se venía
+                 * a resolver— y encima de forma intermitente, que es lo peor de diagnosticar.
+                 */
+                retenerEnvio(form) {
+                    if (!form || form.dataset.esperaFoto === 'si') return;
+
+                    form.dataset.esperaFoto = 'si';
+
+                    form.addEventListener('submit', (event) => {
+                        if (!this.preparando) return;
+
+                        event.preventDefault();
+
+                        const esperar = setInterval(() => {
+                            if (this.preparando) return;
+
+                            clearInterval(esperar);
+                            form.requestSubmit();
+                        }, 50);
+                    });
+                },
+
+                /**
+                 * Recuadra la foto AQUÍ, en el navegador, antes de subirla.
+                 *
+                 * El servidor lo hace igual cuando puede, pero en producción no puede: el entorno
+                 * sin servidor no trae la extensión de imágenes de PHP, así que allí la foto se
+                 * guardaba tal cual llegaba. Una foto de móvil son 2-3 MB, y el punto de venta
+                 * muestra decenas a la vez: la rejilla se volvía lentísima.
+                 *
+                 * La geometría es la misma que la del servidor (ver ProductImageStore::resize),
+                 * para que una foto quede idéntica venga por donde venga.
+                 *
+                 * Si algo falla, se sube el archivo original: nunca se impide guardar por esto.
+                 */
+                recuadrar(img, input, original, limpiar) {
+                    const MAX = 800, RW = 3, RH = 4;
+
+                    try {
+                        const w = img.naturalWidth || img.width;
+                        const h = img.naturalHeight || img.height;
+
+                        const alto = Math.min(MAX, Math.max(h, Math.ceil(w * RH / RW)));
+                        const ancho = Math.max(1, Math.round(alto * RW / RH));
+
+                        // Nunca amplía: una foto pequeña se centra en vez de estirarse y pixelarse.
+                        const escala = Math.min(1, ancho / w, alto / h);
+                        const nw = Math.max(1, Math.round(w * escala));
+                        const nh = Math.max(1, Math.round(h * escala));
+
+                        const lienzo = document.createElement('canvas');
+                        lienzo.width = ancho;
+                        lienzo.height = alto;
+
+                        const ctx = lienzo.getContext('2d');
+                        // Fondo blanco: aplana transparencias al pasar a JPEG.
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, ancho, alto);
+                        ctx.drawImage(img, Math.round((ancho - nw) / 2), Math.round((alto - nh) / 2), nw, nh);
+
+                        lienzo.toBlob((blob) => {
+                            // Solo se sustituye si de verdad sale más pequeña. Con una foto ya
+                            // pequeña, reprocesarla solo le quitaría calidad.
+                            if (blob && blob.size < original.size) {
+                                const nombre = original.name.replace(/\.[^.]+$/, '') + '.jpg';
+                                const datos = new DataTransfer();
+                                datos.items.add(new File([blob], nombre, { type: 'image/jpeg' }));
+                                input.files = datos.files;
+                            }
+
+                            this.preparando = false;
+                            limpiar();
+                        }, 'image/jpeg', 0.82);
+                    } catch (e) {
+                        this.preparando = false;
+                        limpiar();
+                    }
                 },
             };
         }

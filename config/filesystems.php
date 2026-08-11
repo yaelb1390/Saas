@@ -28,6 +28,25 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Disco de las fotos de producto
+    |--------------------------------------------------------------------------
+    |
+    | En desarrollo es el disco del propio servidor, que es lo más simple.
+    |
+    | En producción NO puede serlo: el entorno serverless monta el código en solo lectura y el
+    | único directorio escribible, /tmp, se vacía en cada arranque en frío. Guardar ahí las fotos
+    | sería peor que no guardarlas: parecerían subidas y desaparecerían solas al rato.
+    |
+    | Por eso allí se pone PRODUCT_IMAGE_DISK=s3, apuntando a Supabase Storage. La decisión vive
+    | aquí y no repartida por el código: quien sube, quien sirve y quien recuadra las fotos
+    | preguntan todos por este mismo valor.
+    |
+    */
+
+    'product_images' => env('PRODUCT_IMAGE_DISK', 'local'),
+
     'disks' => [
 
         'local' => [
@@ -47,6 +66,12 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Supabase Storage y Cloudflare R2 hablan el mismo protocolo que S3, así que este disco
+         * sirve para los tres. Se elige con las variables de entorno, sin tocar código:
+         * AWS_ENDPOINT apunta al proveedor y AWS_USE_PATH_STYLE_ENDPOINT=true es obligatorio en
+         * ambos (no admiten el estilo de subdominio de Amazon).
+         */
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

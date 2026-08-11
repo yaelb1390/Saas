@@ -8,7 +8,6 @@ use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Support\ProductImageStore;
 use Illuminate\Console\Command;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
@@ -44,14 +43,18 @@ final class NormalizeProductImages extends Command
         foreach ($productos as $producto) {
             $ruta = (string) $producto->image_path;
 
-            if (! Storage::disk('local')->exists($ruta)) {
+            if (! ProductImageStore::disk()->exists($ruta)) {
                 $this->warn("Falta el archivo de «{$producto->name}»: {$ruta}");
                 $saltadas++;
 
                 continue;
             }
 
-            [$ancho, $alto] = @getimagesize(Storage::disk('local')->path($ruta)) ?: [0, 0];
+            // Se miden los bytes, no una ruta del sistema de archivos: en producción las fotos
+            // viven en almacenamiento remoto, donde no existe tal ruta.
+            $contenido = (string) ProductImageStore::disk()->get($ruta);
+
+            [$ancho, $alto] = @getimagesizefromstring($contenido) ?: [0, 0];
 
             // Ya está en 3:4: no se vuelve a comprimir. Reprocesar un JPEG que ya pasó por aquí solo
             // le quitaría calidad.
@@ -72,7 +75,7 @@ final class NormalizeProductImages extends Command
                 // Se reutiliza el mismo camino que una subida real para que el resultado sea
                 // idéntico: una sola implementación del recuadrado, no dos que puedan divergir.
                 $temporal = tempnam(sys_get_temp_dir(), 'img');
-                file_put_contents($temporal, Storage::disk('local')->get($ruta));
+                file_put_contents($temporal, $contenido);
 
                 $images->store($producto, new UploadedFile($temporal, basename($ruta), null, null, true));
 

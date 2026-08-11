@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inventory\Support;
 
 use App\Modules\Inventory\Models\Product;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -31,12 +32,26 @@ final class ProductImageStore
 
     private const RATIO_H = 4;
 
+    /**
+     * Disco donde viven las fotos: del servidor en local, Supabase Storage en producción.
+     *
+     * Lo deciden las variables de entorno (ver config/filesystems.php). Todo el que toque fotos
+     * —subida, borrado, servicio y recuadrado— pasa por aquí, para que no puedan divergir.
+     */
+    public static function disk(): Filesystem
+    {
+        return Storage::disk((string) config('filesystems.product_images', 'local'));
+    }
+
     public function store(Product $product, UploadedFile $file): void
     {
         $bytes = $this->resize((string) file_get_contents((string) $file->getRealPath()));
         $path = self::DIR.'/'.Str::ulid()->toBase32().'.jpg';
 
-        Storage::disk('local')->put($path, $bytes);
+        // Sin `throw: true` un fallo de escritura pasaría inadvertido y el producto quedaría
+        // apuntando a una foto que no existe. Es justo lo que ocurría en producción: el disco era
+        // de solo lectura y la subida moría con un 500 sin explicar por qué.
+        self::disk()->put($path, $bytes, ['throw' => true]);
 
         $this->deleteFile($product->image_path);
         $product->update(['image_path' => $path]);
@@ -53,8 +68,8 @@ final class ProductImageStore
 
     private function deleteFile(?string $path): void
     {
-        if ($path !== null && $path !== '' && Storage::disk('local')->exists($path)) {
-            Storage::disk('local')->delete($path);
+        if ($path !== null && $path !== '' && self::disk()->exists($path)) {
+            self::disk()->delete($path);
         }
     }
 

@@ -13,7 +13,6 @@ use App\Modules\Inventory\Services\ProductService;
 use App\Modules\Inventory\Support\ProductImageStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
 final class ProductController extends Controller
@@ -60,7 +59,7 @@ final class ProductController extends Controller
     {
         abort_unless($product->hasImage(), 404);
 
-        $disk = Storage::disk('local');
+        $disk = ProductImageStore::disk();
         $path = (string) $product->image_path;
 
         abort_unless($disk->exists($path), 404);

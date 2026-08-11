@@ -39,6 +39,7 @@
         'Inventario' => [
             ['panel.products', 'Inventario', 'cube', 'products.view', 'inventory'],
             ['panel.categories', 'Categorías', 'tag', 'categories.manage', 'inventory'],
+            ['panel.option-groups', 'Tamaños y sabores', 'tag', 'products.manage', 'inventory'],
             ['panel.stock.entry', 'Entrada de mercancía', 'bag', 'stock.adjust', 'inventory'],
             ['panel.purchases', 'Compras', 'bag', 'purchases.view', 'purchasing'],
         ],

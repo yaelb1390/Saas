@@ -22,6 +22,7 @@ use App\Modules\Finance\Models\Account;
 use App\Modules\Finance\Models\FinancialMovement;
 use App\Modules\HR\Models\Employee;
 use App\Modules\Inventory\Models\Category;
+use App\Modules\Inventory\Models\OptionGroup;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Loans\Enums\InstallmentStatus;
@@ -89,6 +90,20 @@ final class PanelController extends Controller
             // precarga porque la tabla muestra el nombre del padre.
             'categories' => Category::query()->with('parent')->withCount('products')
                 ->orderBy('name')->get(),
+        ]);
+    }
+
+    public function optionGroups(): View
+    {
+        return view('panel.option-groups', [
+            // `options` y `products` se precargan porque cada tarjeta las pinta: sin esto, una
+            // pantalla con 10 grupos lanzaría 20 consultas extra.
+            'groups' => OptionGroup::query()->with(['options', 'products:id,name'])
+                ->orderBy('sort_order')->orderBy('name')->get(),
+
+            // Para el selector de productos. Solo id y nombre: la lista puede ser larga y no hace
+            // falta traer precios, fotos ni existencias para pintar unas casillas.
+            'products' => Product::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 

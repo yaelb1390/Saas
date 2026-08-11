@@ -25,6 +25,7 @@ use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
 use App\Modules\Inventory\Http\Controllers\CategoryController;
+use App\Modules\Inventory\Http\Controllers\OptionGroupController;
 use App\Modules\Inventory\Http\Controllers\ProductController;
 use App\Modules\Inventory\Http\Controllers\StockController;
 use App\Modules\Loans\Http\Controllers\LoanController;
@@ -85,6 +86,10 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/pos', 'pos')->middleware(['can:pos.operate', 'module:pos'])->name('pos');
         Route::get('/inventario', 'products')->middleware(['can:products.view', 'module:inventory'])->name('products');
         Route::get('/categorias', 'categories')->middleware(['can:categories.manage', 'module:inventory'])->name('categories');
+        // Grupos de opciones (tamaños, sabores, extras). Exige `products.manage` y no
+        // `categories.manage`: aquí se fijan RECARGOS DE PRECIO, que es gestionar producto, no
+        // reorganizar el catálogo.
+        Route::get('/opciones', 'optionGroups')->middleware(['can:products.manage', 'module:inventory'])->name('option-groups');
         // Entrada de mercancía: dar existencia es un permiso distinto de consultarla.
         Route::get('/inventario/entradas', 'stockEntry')->middleware(['can:stock.adjust', 'module:inventory'])->name('stock.entry');
         Route::get('/ventas', 'sales')->middleware(['can:sales.view', 'module:sales'])->name('sales');
@@ -207,6 +212,19 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/categorias', [CategoryController::class, 'store'])->name('panel.categories.store');
         Route::put('/panel/categorias/{category}', [CategoryController::class, 'update'])->name('panel.categories.update');
         Route::delete('/panel/categorias/{category}', [CategoryController::class, 'destroy'])->name('panel.categories.destroy');
+    });
+
+    // Grupos de opciones y sus opciones. Van con «products.manage» —y no con «categories.manage»—
+    // porque aquí se fijan recargos: quien puede crear «2 bolas (+60)» está tocando lo que se cobra.
+    Route::middleware(['can:products.manage', 'module:inventory'])->group(function (): void {
+        Route::post('/panel/opciones', [OptionGroupController::class, 'store'])->name('panel.option-groups.store');
+        Route::put('/panel/opciones/{optionGroup}', [OptionGroupController::class, 'update'])->name('panel.option-groups.update');
+        Route::delete('/panel/opciones/{optionGroup}', [OptionGroupController::class, 'destroy'])->name('panel.option-groups.destroy');
+        Route::put('/panel/opciones/{optionGroup}/productos', [OptionGroupController::class, 'syncProducts'])->name('panel.option-groups.products');
+
+        Route::post('/panel/opciones/{optionGroup}/opcion', [OptionGroupController::class, 'storeOption'])->name('panel.options.store');
+        Route::put('/panel/opcion/{option}', [OptionGroupController::class, 'updateOption'])->name('panel.options.update');
+        Route::delete('/panel/opcion/{option}', [OptionGroupController::class, 'destroyOption'])->name('panel.options.destroy');
     });
 
     // Perfil del cliente y ver/descargar sus documentos: basta con poder ver el CRM.

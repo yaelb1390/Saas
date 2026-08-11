@@ -162,7 +162,23 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        /*
+         * El registro de Fortify queda DESACTIVADO: la aplicación tiene el suyo en /registro, que
+         * crea empresa, sucursal, almacén, roles y usuario propietario, y arranca la prueba.
+         *
+         * Tenerlo activo causaba dos problemas, uno visible y otro no:
+         *
+         * 1. Su ruta se llama «register.store», igual que la nuestra. Con dos rutas compartiendo
+         *    nombre, el formulario acababa enviando a la de Fortify, que exige un campo «name» que
+         *    aquí no existe: el alta fallaba con «The name field is required» pese a estar todo
+         *    relleno.
+         *
+         * 2. Esa ruta crea un usuario SUELTO, sin empresa ni rol. Un usuario sin company_id nunca
+         *    activa el filtro de empresa (ver SetCurrentCompany), así que navegaría sin el
+         *    aislamiento multiempresa. Sin permisos no llegaría lejos, pero es una cuenta que no
+         *    debería poder crearse.
+         */
+        // Features::registration(),
         Features::resetPasswords(),
         // Features::emailVerification(),
         Features::updateProfileInformation(),

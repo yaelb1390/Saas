@@ -13,11 +13,26 @@ return [
     | cuántos días dispone. La pantalla de registro anuncia estos días, así que hacerlos depender del
     | plan obligaría a matizar la promesa en cada tarjeta.
     |
-    | Ya no hay `plan_slug`: antes fijaba el plan de toda prueba porque el cliente elegía módulos
-    | sueltos y hacía falta uno de referencia del que heredarlos. Ahora el plan lo elige él.
-    |
     */
     'trial' => [
         'days' => (int) env('BMOS_TRIAL_DAYS', 15),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Registro
+    |--------------------------------------------------------------------------
+    |
+    | Plan con el que entra todo el que se registra. El alta no pregunta cuál: comparar precios en
+    | mitad de un formulario es pedir una decisión que el cliente aún no puede tomar, y es donde más
+    | gente abandona. Entra por el más sencillo y lo cambia desde su panel cuando entienda qué
+    | necesita.
+    |
+    | Si el plan indicado no existe o está inactivo, el registro cae en el plan activo más barato:
+    | un catálogo mal configurado no puede dejar sin alta a un cliente.
+    |
+    */
+    'registration' => [
+        'default_plan_slug' => env('BMOS_REGISTRATION_PLAN_SLUG', 'basico'),
     ],
 ];

@@ -67,7 +67,6 @@ it('el registro propio crea la cuenta con su empresa', function (): void {
         'owner_email' => 'juana@prestamosbm.test',
         'password' => 'secret-password',
         'password_confirmation' => 'secret-password',
-        'plan_id' => $this->plan->id,
     ])->assertRedirect()->assertSessionHasNoErrors();
 
     $owner = User::firstWhere('email', 'juana@prestamosbm.test');

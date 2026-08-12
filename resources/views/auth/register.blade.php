@@ -18,8 +18,8 @@
             $logoPath = public_path('images/bm-logo.png');
             $hasLogo = file_exists($logoPath);
         @endphp
-        {{-- Más ancha que el login: aquí caben tres planes en fila en escritorio. --}}
-        <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" style="max-width:52rem">
+        {{-- Algo más ancha que el login: el alta lleva cinco campos en dos columnas. --}}
+        <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" style="max-width:40rem">
             @if ($hasLogo)
                 <img src="{{ asset('images/bm-logo.png') }}?v={{ filemtime($logoPath) }}"
                      alt="BM Business OS" class="bmos-auth-logo-img">
@@ -88,79 +88,26 @@
                     </label>
                 </div>
 
-                {{-- Elección del plan a probar.
-                     Se muestran los módulos de cada plan, pero NO se pueden elegir sueltos: probar
-                     exactamente lo que se va a comprar es lo que hace que al terminar la prueba el
-                     paso natural sea pagar ese mismo plan.
-                     Sin JavaScript: el estado marcado sale de `has-[:checked]:`, el mismo recurso
-                     que ya usaban las casillas de módulos. --}}
-                <div>
-                    <label class="bmos-field-label">¿Qué plan quieres probar?</label>
-                    <p class="mb-3 text-xs text-slate-500">
-                        Gratis los {{ $trialDays }} días, sin tarjeta. Podrás cambiarlo cuando actives tu plan.
-                    </p>
-
-                    @if ($plans->isEmpty())
-                        <p class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                            Ahora mismo no hay planes disponibles. Escríbenos y te damos de alta a mano.
-                        </p>
-                    @else
-                        {{-- Clases literales, nunca interpoladas: Tailwind solo genera las que
-                             encuentra escritas tal cual al escanear, y una construida al vuelo
-                             quedaría sin estilo. --}}
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            @foreach ($plans as $plan)
-                                <label class="bmos-plan-pick bmos-plan-pick--nivel{{ min($loop->index + 1, 3) }}">
-                                    <input type="radio" name="plan_id" value="{{ $plan->id }}"
-                                           @checked((int) old('plan_id') === (int) $plan->id) class="sr-only">
-                                    <span class="bmos-plan-pick-acento"></span>
-
-                                    <span class="flex items-baseline justify-between gap-2">
-                                        <span class="text-base font-bold text-slate-800">{{ $plan->name }}</span>
-                                        <span class="bmos-plan-pick-check" aria-hidden="true">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="h-3 w-3">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
-                                            </svg>
-                                        </span>
-                                    </span>
-
-                                    <span class="mt-1 flex items-baseline gap-1">
-                                        <span class="text-xs font-semibold text-slate-400">RD$</span>
-                                        <span class="bmos-plan-pick-precio">{{ number_format((float) $plan->price, 0) }}</span>
-                                        <span class="text-xs text-slate-400">/ {{ mb_strtolower($plan->billing_cycle->label()) }}</span>
-                                    </span>
-
-                                    @if ($plan->description)
-                                        <span class="mt-1 block text-xs leading-snug text-slate-500">{{ $plan->description }}</span>
-                                    @endif
-
-                                    <span class="mt-3 block border-t border-slate-100 pt-2.5">
-                                        @if ($plan->modules === null)
-                                            <span class="text-xs font-semibold text-indigo-600">Todos los módulos</span>
-                                        @else
-                                            <span class="flex flex-wrap gap-1">
-                                                @foreach (array_slice($plan->moduleKeys(), 0, 4) as $clave)
-                                                    <span class="bmos-plan-pick-modulo">{{ \App\Modules\Core\Support\ModuleRegistry::label($clave) }}</span>
-                                                @endforeach
-                                                @if (count($plan->moduleKeys()) > 4)
-                                                    <span class="bmos-plan-pick-modulo">+{{ count($plan->moduleKeys()) - 4 }}</span>
-                                                @endif
-                                            </span>
-                                        @endif
-                                    </span>
-                                </label>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-
                 <button type="submit" class="bmos-auth-btn mt-2">
                     Crear mi cuenta y empezar la prueba
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
                     </svg>
                 </button>
+
+                <p class="text-center text-xs text-slate-400">
+                    Empiezas en el plan Básico. Podrás cambiarlo cuando quieras desde tu panel.
+                </p>
             </form>
+
+            {{-- Comparar va aparte del formulario y con menos peso: el objetivo de esta pantalla es
+                 registrarse, y dos botones igual de llamativos no eligen por nadie. --}}
+            <a href="{{ route('plans.public') }}" class="bmos-auth-btn-alt mt-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v4.5m3-6v6"/>
+                </svg>
+                Comparar planes
+            </a>
 
             <p class="mt-5 text-center text-sm text-slate-500">
                 ¿Ya tienes cuenta?

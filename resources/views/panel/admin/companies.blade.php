@@ -54,7 +54,15 @@
                                 @endif
                             </div>
                             <p class="text-xs text-slate-400">
-                                {{ $company->users_count }} {{ $company->users_count === 1 ? 'usuario' : 'usuarios' }}
+                                {{-- El tope del plan se muestra junto al conteo porque el sistema NO lo
+                                     aplica: lo aplica el operador. Sin tenerlo aquí, tendría que
+                                     recordar de memoria el cupo de cada plan para poder hacerlo. --}}
+                                @php $tope = $sub?->plan?->max_users; @endphp
+                                <span class="{{ $tope && $company->users_count > $tope ? 'font-semibold text-rose-600' : '' }}">
+                                    {{ $company->users_count }}@if ($tope) de {{ $tope }}@endif
+                                    {{ ($tope ?? $company->users_count) === 1 ? 'usuario' : 'usuarios' }}
+                                    @if ($tope && $company->users_count > $tope) (excede el plan) @endif
+                                </span>
                                 @if ($company->tax_id) · RNC {{ $company->tax_id }} @endif
                                 @if ($sub?->renewsAt()) · {{ $sub->status->value === 'trialing' ? 'prueba hasta' : 'renueva' }} {{ $sub->renewsAt()->format('d/m/Y') }} @endif
                             </p>

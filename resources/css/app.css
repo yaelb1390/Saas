@@ -1446,63 +1446,81 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * Tarjeta de plan SELECCIONABLE (registro público)
+ * Botón secundario de las pantallas de acceso
  *
- * Prima de la del panel (.bmos-plan) pero no la misma: aquella está pensada para una pantalla ancha
- * con precio de 2,4rem, y aquí caben tres en la tarjeta del formulario. Comparten el lenguaje
- * —franja de acento por escalón, chips de módulo— y no las clases.
- *
- * Toda la tarjeta es la etiqueta del radio, así que se selecciona pulsando en cualquier punto: un
- * botón de un centímetro es un mal blanco en un móvil. El radio va oculto pero PRESENTE (`sr-only`,
- * no `display:none`) para que siga navegándose con el teclado y lo anuncien los lectores de pantalla.
+ * Mismo tamaño que el principal pero sin relleno de color: en el registro compite con «Crear mi
+ * cuenta», y dos botones igual de llamativos no eligen por nadie.
  * ------------------------------------------------------------------------ */
-.bmos-plan-pick {
-    position: relative;
-    display: block;
-    cursor: pointer;
-    background: #fff;
+.bmos-auth-btn-alt {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    border-radius: 0.85rem;
     border: 1px solid #e2e5ee;
-    border-radius: 1rem;
-    padding: 1.1rem 1rem 0.9rem;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-
-.bmos-plan-pick:hover {
-    border-color: #c7d2fe;
-    background: #fcfdff;
-}
-
-/* Seleccionado: borde índigo y anillo. El color no es la única señal —también aparece la marca de
-   verificación—, para que se distinga sin depender de percibir el matiz. */
-.bmos-plan-pick:has(:checked) {
-    border-color: #6366f1;
     background: #fff;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16), 0 12px 24px -14px rgba(79, 70, 229, 0.55);
+    color: #4f46e5;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.15s ease;
 }
 
-/* Foco por teclado: el radio está oculto, así que el anillo tiene que pintarlo la tarjeta. */
-.bmos-plan-pick:has(:focus-visible) {
-    border-color: #818cf8;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+.bmos-auth-btn-alt:hover {
+    border-color: #c7d2fe;
+    background: #f8f9ff;
 }
 
-.bmos-plan-pick-acento {
+/* ---------------------------------------------------------------------------
+ * Pantalla pública de planes (/planes)
+ *
+ * Vive sobre el fondo oscuro de las pantallas de acceso, no dentro del panel, así que no reutiliza
+ * `.bmos-plan` (pensada para fondo claro y sin lista de características). Comparte el lenguaje:
+ * franja de acento que sube con el escalón y chips de módulo.
+ * ------------------------------------------------------------------------ */
+.bmos-pricing {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #e6e9f2;
+    border-radius: 1.25rem;
+    padding: 1.75rem 1.5rem 1.5rem;
+    box-shadow: 0 12px 28px -18px rgba(2, 6, 23, 0.5);
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.bmos-pricing:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 22px 44px -22px rgba(2, 6, 23, 0.55);
+}
+
+/* El plan recomendado se separa del resto con borde y elevación, no solo con una etiqueta. */
+.bmos-pricing--destacado {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14), 0 26px 50px -24px rgba(79, 70, 229, 0.6);
+}
+
+/* El plan que el cliente ya tiene: se apaga y deja de invitar a pulsar. */
+.bmos-pricing--actual {
+    border-color: #a7f3d0;
+    background: #f8fffc;
+}
+
+.bmos-pricing-acento {
     position: absolute;
     inset: 0 0 auto 0;
-    height: 4px;
-    border-radius: 1rem 1rem 0 0;
-    opacity: 0.55;
-    transition: opacity 0.15s ease;
+    height: 5px;
+    border-radius: 1.25rem 1.25rem 0 0;
 }
 
-.bmos-plan-pick:has(:checked) .bmos-plan-pick-acento { opacity: 1; }
+.bmos-pricing--nivel1 .bmos-pricing-acento { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+.bmos-pricing--nivel2 .bmos-pricing-acento { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.bmos-pricing--nivel3 .bmos-pricing-acento { background: linear-gradient(90deg, #7c3aed, #a855f7); }
 
-.bmos-plan-pick--nivel1 .bmos-plan-pick-acento { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
-.bmos-plan-pick--nivel2 .bmos-plan-pick-acento { background: linear-gradient(90deg, #6366f1, #818cf8); }
-.bmos-plan-pick--nivel3 .bmos-plan-pick-acento { background: linear-gradient(90deg, #7c3aed, #a855f7); }
-
-.bmos-plan-pick-precio {
-    font-size: 1.6rem;
+.bmos-pricing-precio {
+    font-size: 2.6rem;
     line-height: 1;
     font-weight: 800;
     letter-spacing: -0.03em;
@@ -1510,42 +1528,72 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
-/* La marca solo se ve al seleccionar; el hueco se reserva siempre para que la tarjeta no dé un
-   salto al marcarla. */
-.bmos-plan-pick-check {
-    display: grid;
-    place-items: center;
-    width: 1.15rem;
-    height: 1.15rem;
-    flex-shrink: 0;
-    border-radius: 999px;
-    background: #4f46e5;
-    color: #fff;
-    opacity: 0;
-    transform: scale(0.6);
-    transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.bmos-plan-pick:has(:checked) .bmos-plan-pick-check {
-    opacity: 1;
-    transform: scale(1);
-}
-
-.bmos-plan-pick-modulo {
+.bmos-pricing-cinta {
     display: inline-flex;
     align-items: center;
-    border-radius: 0.5rem;
-    background: #f1f5f9;
-    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4f46e5, #7c3aed);
+    padding: 0.3rem 0.75rem;
     font-size: 0.7rem;
-    font-weight: 500;
-    color: #475569;
+    font-weight: 700;
+    color: #fff;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .bmos-plan-pick,
-    .bmos-plan-pick-check,
-    .bmos-plan-pick-acento {
-        transition: none;
-    }
+/* Cada característica con su marca: la lista se recorre con la vista sin leerla entera. */
+.bmos-pricing-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0.4rem 0;
+    font-size: 0.85rem;
+    color: #475569;
+    line-height: 1.45;
+}
+
+.bmos-pricing-item svg {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    color: #10b981;
+}
+
+.bmos-pricing-btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1rem;
+    border-radius: 0.85rem;
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    box-shadow: 0 14px 26px -12px rgba(79, 70, 229, 0.7);
+    transition: all 0.15s ease;
+}
+
+.bmos-pricing-btn:hover { filter: brightness(1.07); }
+
+.bmos-pricing-btn--suave {
+    background: #fff;
+    color: #4f46e5;
+    border: 1px solid #e2e5ee;
+    box-shadow: none;
+}
+
+.bmos-pricing-btn--suave:hover { border-color: #c7d2fe; background: #f8f9ff; filter: none; }
+
+/* Estado «este es tu plan»: no es un botón, es una etiqueta. No debe invitar a pulsar. */
+.bmos-pricing-actual {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.8rem 1rem;
+    border-radius: 0.85rem;
+    background: #ecfdf5;
+    color: #047857;
+    font-weight: 700;
+    font-size: 0.9rem;
 }

@@ -15,8 +15,10 @@ use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
 use App\Modules\Core\Http\Controllers\PlanController;
 use App\Modules\Core\Http\Controllers\PolarWebhookController;
+use App\Modules\Core\Http\Controllers\PublicPlanController;
 use App\Modules\Core\Http\Controllers\RegisterController;
 use App\Modules\Core\Http\Controllers\SubscriptionCheckoutController;
+use App\Modules\Core\Http\Controllers\SubscriptionPlanController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
 use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
 use App\Modules\Core\Http\Controllers\UserController;
@@ -58,8 +60,14 @@ Route::redirect('/', '/dashboard');
 // cuentas sueltas queda cerrada de verdad.
 Route::get('/register', fn () => redirect('/registro'));
 
-// Registro self-service (público): un cliente crea su empresa y arranca una prueba gratuita eligiendo
-// módulos. `throttle` limita el abuso de altas automáticas. `guest` evita registrarse ya logueado.
+// Planes: pública y FUERA del grupo `guest` a propósito. La consulta un cliente potencial antes de
+// registrarse, y también quien ya tiene cuenta y quiere cambiar de plan; con `guest` los segundos
+// quedarían fuera. El controlador decide qué botón ve cada uno.
+Route::get('/planes', PublicPlanController::class)->name('plans.public');
+
+// Registro self-service (público): un cliente crea su empresa y arranca una prueba gratuita en el
+// plan de entrada. `throttle` limita el abuso de altas automáticas. `guest` evita registrarse ya
+// logueado.
 Route::middleware(['guest'])->group(function (): void {
     Route::get('/registro', [RegisterController::class, 'create'])->name('register.form');
     Route::post('/registro', [RegisterController::class, 'store'])
@@ -87,6 +95,11 @@ Route::middleware(['auth'])->group(function (): void {
     // el middleware de suscripción: hay que poder pagar precisamente cuando está vencida.
     Route::post('/panel/cuenta/contratar/{plan}', SubscriptionCheckoutController::class)
         ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.checkout');
+
+    // Cambiar de plan durante la prueba, sin coste. Mismo permiso y misma ausencia del middleware
+    // `subscription`: el propio controlador comprueba que la prueba siga vigente.
+    Route::post('/panel/cuenta/plan/{plan}', SubscriptionPlanController::class)
+        ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.plan');
 
     // Aviso de cuenta suspendida (accesible sin suscripción/empresa activa, por eso queda fuera
     // del middleware que bloquea).

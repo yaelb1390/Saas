@@ -37,11 +37,48 @@ final class ModuleRegistry
     ];
 
     /**
+     * Qué hace cada módulo, en una frase, para quien todavía no es cliente.
+     *
+     * Va aparte de MODULES y no dentro de cada entrada porque `all()` devuelve «clave => etiqueta» y
+     * varias pantallas lo recorren así; cambiar esa forma las rompería a todas para ganar poco.
+     *
+     * Están escritas para un dueño de negocio, no para un programador: dicen qué resuelven, no cómo
+     * se llaman por dentro.
+     *
+     * @var array<string, string>
+     */
+    private const DESCRIPTIONS = [
+        'pos' => 'Cobra en mostrador con lector de código de barras y control de caja.',
+        'quick_pos' => 'Terminal táctil para cobrar rápido, con fotos, tamaños y sabores.',
+        'inventory' => 'Productos, existencias por almacén y entradas de mercancía.',
+        'sales' => 'Historial de ventas, recibos y devoluciones.',
+        'purchasing' => 'Proveedores y órdenes de compra para reponer existencias.',
+        'crm' => 'Ficha de cada cliente, su historial y las oportunidades de venta.',
+        'whatsapp' => 'Atiende y responde a tus clientes por WhatsApp desde el sistema.',
+        'billing' => 'Comprobantes fiscales con NCF y los reportes 606 y 607 de la DGII.',
+        'finance' => 'Cuentas, ingresos y gastos para saber en qué se va el dinero.',
+        'loans' => 'Préstamos con sus cuotas, pagos y mora al día.',
+        'delivery' => 'Reparto a domicilio con seguimiento de cada entrega.',
+        'hr' => 'Empleados, asistencia y su portal para consultar sus datos.',
+        'ai' => 'Asistente que responde sobre tus propios documentos y ventas.',
+        'reports' => 'Informes de ventas, ganancias y productos más vendidos.',
+    ];
+
+    /**
      * @return array<string, string>
      */
     public static function all(): array
     {
         return self::MODULES;
+    }
+
+    /**
+     * Frase que explica el módulo. Cadena vacía si no se ha escrito: quien la pinte debe poder
+     * omitirla sin enseñar un hueco.
+     */
+    public static function description(string $key): string
+    {
+        return self::DESCRIPTIONS[$key] ?? '';
     }
 
     /**

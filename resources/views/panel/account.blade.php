@@ -127,7 +127,15 @@
                 @unless ($subscription->isUsable())
                     <div class="flex items-start gap-2.5 border-t border-rose-100 bg-rose-50/70 p-4 text-sm text-rose-700">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="mt-0.5 h-5 w-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/></svg>
-                        <span>Tu suscripción no está al día. Realiza el pago y el administrador lo registrará para reactivar el acceso.</span>
+                        {{-- El texto depende de si hay pasarela: decir «el administrador lo
+                             registrará» junto a un botón de pago automático confunde al cliente
+                             sobre qué tiene que hacer. --}}
+                        <span>
+                            Tu suscripción no está al día.
+                            {{ $canPayOnline
+                                ? 'Paga con tarjeta aquí abajo y el acceso se reactiva al confirmarse el cobro.'
+                                : 'Realiza el pago y el administrador lo registrará para reactivar el acceso.' }}
+                        </span>
                     </div>
                 @endunless
             </div>
@@ -196,6 +204,18 @@
                             Pago seguro con tarjeta. Se cobra {{ mb_strtolower($plan->billing_cycle->label()) }}; puedes cancelar cuando quieras.
                         </p>
                     </form>
+                @endif
+
+                {{-- Cambiar de plan lleva a la MISMA pantalla pública de planes, no a una lista
+                     propia: dos sitios donde comparar planes acabarían diciendo cosas distintas. --}}
+                @if ($plan)
+                    <a href="{{ route('plans.public') }}"
+                       class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" class="h-4 w-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+                        </svg>
+                        {{ $isTrial ? 'Probar otro plan' : 'Cambiar de plan' }}
+                    </a>
                 @endif
 
                 @if ($hasActions)

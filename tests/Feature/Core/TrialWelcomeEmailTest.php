@@ -28,12 +28,11 @@ it('envía el correo de bienvenida al dueño al registrarse', function (): void 
         'owner_email' => 'yael@colmado.test',
         'password' => 'Password123!',
         'password_confirmation' => 'Password123!',
-        'plan_id' => $this->plan->id,
     ])->assertRedirect(route('dashboard'));
 
     Mail::assertQueued(TrialWelcomeMail::class, fn (TrialWelcomeMail $mail): bool => $mail->hasTo('yael@colmado.test')
         && $mail->companyName === 'Colmado La Bendición'
-        // Los módulos del PLAN elegido, no una selección suelta.
+        // Los módulos del plan con el que entra, no una selección suelta del cliente.
         && $mail->moduleLabels === ['Punto de Venta', 'Inventario']);
 });
 
@@ -44,7 +43,6 @@ it('el correo renderiza el negocio y el botón al panel', function (): void {
         'owner_email' => 'ana@empresa.test',
         'password' => 'Password123!',
         'password_confirmation' => 'Password123!',
-        'plan_id' => $this->plan->id,
     ]);
 
     Mail::assertQueued(TrialWelcomeMail::class, function (TrialWelcomeMail $mail): bool {
@@ -54,11 +52,12 @@ it('el correo renderiza el negocio y el botón al panel', function (): void {
     });
 });
 
-it('no envía correo si el registro es inválido (sin plan)', function (): void {
+it('no envía correo si el registro es inválido', function (): void {
+    // Un alta rechazada no puede dar la bienvenida a nadie.
     $this->post('/registro', [
-        'company_name' => 'X', 'owner_name' => 'X', 'owner_email' => 'x@y.test',
+        'company_name' => '', 'owner_name' => 'X', 'owner_email' => 'x@y.test',
         'password' => 'Password123!', 'password_confirmation' => 'Password123!',
-    ])->assertSessionHasErrors('plan_id');
+    ])->assertSessionHasErrors('company_name');
 
     Mail::assertNothingQueued();
 });

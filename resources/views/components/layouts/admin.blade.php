@@ -61,6 +61,9 @@
         ],
         'Administración' => [
             ['panel.users', 'Usuarios', 'shield', 'users.manage', null],
+            // Estaba solo en el desplegable del avatar: quien no lo abriera nunca encontraba dónde
+            // ver su plan ni dónde pagar. Sin módulo asociado: la suscripción no se contrata.
+            ['panel.account', 'Suscripción', 'tag', 'company.manage', null],
             ['platform.companies', 'Empresas', 'building', 'platform.manage', null],
             ['platform.plans', 'Planes', 'tag', 'platform.manage', null],
         ],

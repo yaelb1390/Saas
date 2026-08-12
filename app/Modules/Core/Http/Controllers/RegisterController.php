@@ -23,10 +23,11 @@ use Illuminate\Support\Facades\Mail;
  * elija. Los datos que registre son de prueba y se borran automáticamente 24 h después de vencer la
  * prueba si no contrata un plan (ver TenantDataPurger / trials:purge).
  *
- * Antes se le pedía marcar módulos sueltos de una lista de catorce. Se cambió por el plan porque esa
- * era una decisión que el cliente no podía tomar: aún no conoce el producto y los nombres de los
- * módulos no le dicen cuánto va a pagar. Eligiendo plan prueba exactamente lo que va a comprar, y al
- * terminar la prueba el paso natural es pagar ese mismo plan.
+ * El alta NO pregunta el plan: entra todo el mundo por el de configuración (el más sencillo) y lo
+ * cambia luego desde su panel. Antes se pedía marcar módulos sueltos, y después elegir plan entre
+ * tres tarjetas; las dos versiones exigían una decisión que el cliente no puede tomar todavía —aún
+ * no ha visto el producto— justo en el punto donde más gente abandona. Quien quiera comparar antes
+ * de decidir tiene la pantalla pública de planes, enlazada desde el formulario.
  *
  * Es público (guest). No usa el registro de Fortify porque este solo crea el usuario, no el tenant
  * completo (empresa + roles + suscripción de prueba).
@@ -36,11 +37,24 @@ final class RegisterController extends Controller
     public function create(): View
     {
         return view('auth.register', [
-            // Solo los planes en venta, ordenados de menor a mayor precio para que se lean como una
-            // escalera. Un plan inactivo no se ofrece, y la validación lo vuelve a comprobar.
-            'plans' => Plan::query()->where('is_active', true)->orderBy('price')->get(),
             'trialDays' => (int) config('bmos.trial.days'),
         ]);
+    }
+
+    /**
+     * Plan con el que arranca toda prueba.
+     *
+     * Si el configurado no existe o está inactivo, se cae al plan activo más barato: un catálogo mal
+     * configurado no puede dejar sin alta a un cliente que ya rellenó el formulario.
+     */
+    private function planDeRegistro(): ?Plan
+    {
+        $porConfiguracion = Plan::query()
+            ->where('slug', (string) config('bmos.registration.default_plan_slug'))
+            ->where('is_active', true)
+            ->first();
+
+        return $porConfiguracion ?? Plan::query()->where('is_active', true)->orderBy('price')->first();
     }
 
     public function store(
@@ -50,9 +64,14 @@ final class RegisterController extends Controller
     ): RedirectResponse {
         $data = $request->validated();
 
-        // El plan se resuelve ANTES de crear nada: si algo fallara al buscarlo, no queremos una
-        // empresa ya creada y sin suscripción. La validación garantiza que existe y está activo.
-        $plan = Plan::query()->findOrFail($data['plan_id']);
+        // El plan se resuelve ANTES de crear nada: si no hubiera ninguno, no queremos una empresa ya
+        // creada y sin suscripción, que es lo que dejaba el `firstOrFail()` que había aquí.
+        $plan = $this->planDeRegistro();
+
+        if ($plan === null) {
+            return back()->withInput()->with('panel_error',
+                'No hay planes disponibles ahora mismo. Escríbenos y te damos de alta a mano.');
+        }
 
         // Crea empresa + sucursal + almacén + roles + usuario propietario.
         //
@@ -69,8 +88,8 @@ final class RegisterController extends Controller
             modules: null,
         );
 
-        // La duración la manda la configuración, no `plan->trial_days`: la pantalla promete los
-        // mismos días para todos, y elegir plan cambia QUÉ se prueba, no CUÁNTO.
+        // La duración la manda la configuración, no `plan->trial_days`: la pantalla promete unos días
+        // concretos y siguen siendo esos aunque luego cambie de plan durante la prueba.
         $subscription = $subscriptions->startSelfServiceTrial($company, $plan, (int) config('bmos.trial.days'));
 
         // Entra directo a su panel.

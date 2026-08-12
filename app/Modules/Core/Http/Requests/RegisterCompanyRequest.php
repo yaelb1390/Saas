@@ -29,12 +29,6 @@ final class RegisterCompanyRequest extends FormRequest
             'owner_name' => ['required', 'string', 'max:120'],
             'owner_email' => ['required', 'string', 'email', 'max:190', Rule::unique('users', 'email')],
             'password' => ['required', 'string', Password::default(), 'confirmed'],
-
-            // El cliente elige QUÉ PLAN quiere probar; de él heredará los módulos.
-            //
-            // La condición `is_active` es la parte que importa: sin ella se podría arrancar una
-            // prueba de un plan retirado de la venta enviando su id a mano.
-            'plan_id' => ['required', 'integer', Rule::exists('plans', 'id')->where('is_active', true)],
         ];
     }
 
@@ -45,8 +39,6 @@ final class RegisterCompanyRequest extends FormRequest
     {
         return [
             'owner_email.unique' => 'Ya existe una cuenta con ese correo. Inicia sesión.',
-            'plan_id.required' => 'Elige el plan que quieres probar.',
-            'plan_id.exists' => 'Ese plan no está disponible. Elige uno de la lista.',
         ];
     }
 
@@ -60,7 +52,6 @@ final class RegisterCompanyRequest extends FormRequest
             'owner_name' => 'tu nombre',
             'owner_email' => 'correo',
             'password' => 'contraseña',
-            'plan_id' => 'plan',
         ];
     }
 }

@@ -1389,3 +1389,58 @@ body {
     color: #4f46e5;
     font-weight: 600;
 }
+
+/* ---------------------------------------------------------------------------
+ * Aviso flotante (SweetAlert2 en modo toast)
+ *
+ * Entra con un rebote corto: llama la atención sin tapar nada, porque aparece tras una acción que
+ * el usuario acaba de hacer y solo tiene que confirmarle el resultado. Sale hacia arriba, por donde
+ * vino, para que el movimiento se lea como «esto ya está».
+ * ------------------------------------------------------------------------ */
+@keyframes bmos-aviso-entra {
+    0%   { opacity: 0; transform: translateY(-1.4rem) scale(0.94); }
+    60%  { opacity: 1; transform: translateY(0.28rem) scale(1.02); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bmos-aviso-sale {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-1.1rem) scale(0.97); }
+}
+
+.bmos-aviso-entra { animation: bmos-aviso-entra 0.42s cubic-bezier(0.22, 1.2, 0.36, 1) both; }
+.bmos-aviso-sale  { animation: bmos-aviso-sale 0.2s ease-in both; }
+
+.bmos-aviso {
+    border-radius: 1rem !important;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.4) !important;
+    padding: 0.9rem 1rem !important;
+}
+
+.bmos-aviso--ok { border-color: #a7f3d0; }
+.bmos-aviso--error { border-color: #fecdd3; }
+
+.bmos-aviso-titulo {
+    font-size: 0.92rem !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.bmos-aviso--ok .bmos-aviso-titulo { color: #047857; }
+.bmos-aviso--error .bmos-aviso-titulo { color: #be123c; }
+
+.bmos-aviso-texto {
+    font-size: 0.86rem;
+    color: #475569;
+    margin-top: 0.15rem;
+    line-height: 1.45;
+    text-align: left;
+}
+
+/* La barra del temporizador dice cuánto queda: el aviso no desaparece «de repente». */
+.bmos-aviso .swal2-timer-progress-bar {
+    background: linear-gradient(90deg, #10b981, #34d399);
+    height: 3px;
+}

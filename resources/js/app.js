@@ -114,6 +114,52 @@ window.confirmarEliminarEmpresa = async ({ nombre, usuarios, formulario }) => {
 };
 
 /**
+ * Aviso flotante del resultado de una acción («15 productos eliminados», «No se pudo guardar»).
+ *
+ * Es un TOAST, no un diálogo: aparece en una esquina y no bloquea. La diferencia importa, porque
+ * esto sale después de cada guardado del panel —decenas de veces al día— y un modal que hay que
+ * cerrar convertiría cada acción rutinaria en dos clics.
+ *
+ * El éxito se va solo con una barra que muestra cuánto queda; el error se queda hasta que lo
+ * cierres, porque explica QUÉ corregir y leerlo lleva más tiempo.
+ *
+ * @param {{tipo: 'success'|'error', titulo: string, texto: string}} aviso
+ */
+window.avisoFlash = async ({ tipo, titulo, texto }) => {
+    const { default: Swal } = await import('sweetalert2');
+
+    const ok = tipo === 'success';
+
+    const toast = Swal.mixin({
+        toast: true,
+        position: 'top',
+        showConfirmButton: false,
+        timer: ok ? 4500 : undefined,
+        timerProgressBar: ok,
+        width: '26rem',
+        showClass: { popup: 'bmos-aviso-entra' },
+        hideClass: { popup: 'bmos-aviso-sale' },
+        customClass: {
+            popup: `bmos-aviso ${ok ? 'bmos-aviso--ok' : 'bmos-aviso--error'}`,
+            title: 'bmos-aviso-titulo',
+        },
+        // Al pasar el ratón se detiene la cuenta atrás: si alguien se para a leerlo, no se le
+        // escapa a media frase.
+        didOpen: (el) => {
+            el.addEventListener('mouseenter', Swal.stopTimer);
+            el.addEventListener('mouseleave', Swal.resumeTimer);
+        },
+    });
+
+    await toast.fire({
+        icon: tipo,
+        title: titulo,
+        html: `<p class="bmos-aviso-texto">${texto}</p>`,
+        showCloseButton: ! ok,
+    });
+};
+
+/**
  * Confirmación de borrado múltiple de productos.
  *
  * El borrado es lógico: los productos se archivan y las ventas ya registradas siguen intactas. Se

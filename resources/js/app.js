@@ -114,6 +114,67 @@ window.confirmarEliminarEmpresa = async ({ nombre, usuarios, formulario }) => {
 };
 
 /**
+ * Confirmación de borrado múltiple de productos.
+ *
+ * El borrado es lógico: los productos se archivan y las ventas ya registradas siguen intactas. Se
+ * dice en el propio diálogo, porque es la pregunta que se hace cualquiera antes de pulsar y de la
+ * respuesta depende que se atreva.
+ *
+ * @param {{cantidad: number, exigirCifra: boolean, formulario: string}} datos
+ */
+window.confirmarBorrarProductos = async ({ cantidad, exigirCifra, formulario }) => {
+    const { default: Swal } = await import('sweetalert2');
+
+    const form = document.getElementById(formulario);
+    if (!form || cantidad < 1) return;
+
+    const plural = cantidad === 1 ? 'producto' : 'productos';
+
+    await Swal.fire({
+        icon: 'warning',
+        title: `¿Eliminar ${cantidad} ${plural}?`,
+        width: '38rem',
+        padding: '2rem',
+        buttonsStyling: false,
+        reverseButtons: true,
+        focusConfirm: false,
+        html: `
+            <div style="text-align:left;color:#475569;line-height:1.6">
+                <p>Dejarán de aparecer en el inventario y en el punto de venta.</p>
+                <p style="margin:.6rem 0 0"><b>Las ventas ya registradas no cambian:</b> los recibos y los
+                informes siguen mostrando lo que se vendió.</p>
+                ${exigirCifra ? `
+                    <label style="display:block;margin-top:1.15rem;font-weight:600;color:#334155">
+                        Escribe <b>${cantidad}</b> para confirmar
+                    </label>
+                    <input id="swal-cifra" class="swal2-input" style="width:100%;margin:.4rem 0 0" inputmode="numeric" autocomplete="off">
+                ` : ''}
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: `Eliminar ${cantidad} ${plural}`,
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            popup: 'bmos-swal',
+            title: 'bmos-swal-titulo',
+            confirmButton: 'bmos-swal-borrar',
+            cancelButton: 'bmos-swal-cancelar',
+        },
+        preConfirm: () => {
+            if (exigirCifra && document.getElementById('swal-cifra').value.trim() !== String(cantidad)) {
+                Swal.showValidationMessage(`Escribe ${cantidad} para confirmar.`);
+                return false;
+            }
+
+            // Se envía desde aquí y el diálogo queda cargando: así no admite un segundo clic.
+            Swal.showLoading();
+            form.submit();
+
+            return new Promise(() => {}); // nunca resuelve: la página va a navegar
+        },
+    });
+};
+
+/**
  * Componente del visor de cámara. Se registra aquí (y no como función suelta en cada vista) porque
  * lo comparten el POS y la entrada de mercancía: definirlo dos veces sería la misma duplicación que
  * evitamos en el backend.

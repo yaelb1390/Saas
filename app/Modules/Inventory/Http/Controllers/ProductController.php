@@ -12,6 +12,7 @@ use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\ProductService;
 use App\Modules\Inventory\Support\ProductImageStore;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -52,6 +53,48 @@ final class ProductController extends Controller
         $product->delete();
 
         return back()->with('panel_ok', 'Producto eliminado.');
+    }
+
+    /**
+     * Borrado de varios productos a la vez.
+     *
+     * Dos modos: los marcados en pantalla, o TODOS los que coinciden con la búsqueda activa —que es
+     * lo que hace falta para vaciar un catálogo de cientos sin recorrer veinte páginas—.
+     *
+     * El borrado es lógico, como el de uno solo: `sale_items` apunta a `products` con RESTRICT, así
+     * que un borrado real fallaría en cuanto un producto tuviera una venta. Archivarlo lo saca del
+     * inventario y del punto de venta sin tocar el histórico ni los recibos ya emitidos.
+     */
+    public function bulkDestroy(Request $request, ProductImageStore $images): RedirectResponse
+    {
+        $datos = $request->validate([
+            'ids' => ['array'],
+            'ids.*' => ['integer'],
+            'todos' => ['sometimes', 'boolean'],
+            'q' => ['nullable', 'string'],
+            'filter' => ['nullable', 'string'],
+        ]);
+
+        // El ámbito de empresa va en el modelo, así que un id de otra empresa no aparece por aquí
+        // aunque se envíe a mano: la consulta simplemente no lo encuentra.
+        $productos = $request->boolean('todos')
+            ? Product::query()->filtered($datos['q'] ?? null, ($datos['filter'] ?? null) === 'low_stock')->get()
+            : Product::query()->whereIn('id', $datos['ids'] ?? [])->get();
+
+        if ($productos->isEmpty()) {
+            return back()->with('panel_error', 'No se seleccionó ningún producto.');
+        }
+
+        foreach ($productos as $producto) {
+            $images->delete($producto);
+            $producto->delete();
+        }
+
+        $total = $productos->count();
+
+        return back()->with('panel_ok', $total === 1
+            ? 'Producto eliminado.'
+            : "{$total} productos eliminados. Las ventas ya registradas no cambian.");
     }
 
     /** Sirve la foto del producto (cacheable). */

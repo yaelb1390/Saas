@@ -6,6 +6,7 @@ namespace App\Modules\Inventory\Models;
 
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -87,6 +88,29 @@ class Product extends Model implements Auditable, HasCompany
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /**
+     * Filtros del listado de inventario: búsqueda libre y «solo stock bajo».
+     *
+     * Vive en el modelo y no en el controlador porque lo usan DOS sitios que tienen que coincidir
+     * exactamente: la pantalla que enseña los productos y el borrado múltiple de «seleccionar todos
+     * los que coinciden». Si cada uno filtrara por su cuenta, alguien podría acabar borrando un
+     * conjunto distinto del que está viendo.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public function scopeFiltered(Builder $query, ?string $texto = null, bool $soloStockBajo = false): void
+    {
+        $query
+            ->when(filled($texto), fn (Builder $q) => $q->where(
+                fn (Builder $sub) => $sub->whereLike('sku', "%{$texto}%")
+                    ->orWhereLike('name', "%{$texto}%")
+                    ->orWhereLike('barcode', "%{$texto}%")
+            ))
+            // Mismo umbral que la tarjeta «Stock bajo» del resumen.
+            ->when($soloStockBajo, fn (Builder $q) => $q
+                ->whereHas('stock', fn ($s) => $s->where('quantity', '<', 5)));
     }
 
     /**

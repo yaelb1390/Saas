@@ -100,10 +100,58 @@
                 @endcan
                 </div>
             </div>
+            @can('products.manage')
+                {{-- Barra de selección. Solo aparece con algo marcado: si estuviera siempre, sería
+                     un botón de borrado permanente sobre el inventario. --}}
+                <div x-show="marcados.length > 0" x-cloak
+                     class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-indigo-50/60 px-4 py-3">
+                    <div class="text-sm text-slate-700">
+                        <span class="font-semibold" x-text="etiquetaSeleccion()"></span>
+                        {{-- Con la página entera marcada se ofrece abarcar TODO lo que coincide con la
+                             búsqueda: es lo que hace falta para vaciar un catálogo de cientos sin
+                             recorrer veinte páginas. --}}
+                        <template x-if="paginaCompleta() && !todos && {{ $products->total() }} > marcados.length">
+                            <button type="button" @click="todos = true"
+                                    class="ml-2 font-semibold text-indigo-600 underline hover:text-indigo-700">
+                                Seleccionar los {{ number_format($products->total()) }} que coinciden
+                            </button>
+                        </template>
+                        <template x-if="todos">
+                            <button type="button" @click="todos = false; marcados = []"
+                                    class="ml-2 font-semibold text-indigo-600 underline hover:text-indigo-700">
+                                Quitar la selección
+                            </button>
+                        </template>
+                    </div>
+                    <button type="button" @click="confirmarBorrado()"
+                            class="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+                        Eliminar
+                    </button>
+                </div>
+
+                <form method="POST" action="{{ route('panel.products.bulk-destroy') }}" id="borrar_productos" class="hidden">
+                    @csrf @method('DELETE')
+                    <input type="hidden" name="todos" x-bind:value="todos ? 1 : 0">
+                    <input type="hidden" name="q" value="{{ request('q') }}">
+                    <input type="hidden" name="filter" value="{{ request('filter') }}">
+                    <template x-for="id in marcados" :key="id">
+                        <input type="hidden" name="ids[]" :value="id">
+                    </template>
+                </form>
+            @endcan
+
             <div class="overflow-x-auto">
                 <table class="bmos-table">
                     <thead>
                         <tr>
+                            @can('products.manage')
+                                <th class="w-10">
+                                    <input type="checkbox" @change="alternarPagina($event.target.checked)"
+                                           :checked="paginaCompleta()" aria-label="Seleccionar todos"
+                                           class="rounded border-slate-300 text-indigo-600">
+                                </th>
+                            @endcan
                             <th>SKU</th><th>Producto</th><th>Código</th><th>Categoría</th><th>Unidad</th>
                             <th>Costo</th><th>Precio</th><th>Stock</th><th>Estado</th><th class="text-right">Acciones</th>
                         </tr>
@@ -111,7 +159,14 @@
                     <tbody>
                         @forelse ($products as $product)
                             @php $stock = (float) $product->stock->sum('quantity'); @endphp
-                            <tr>
+                            <tr :class="marcados.includes({{ $product->id }}) ? 'bg-indigo-50/50' : ''">
+                                @can('products.manage')
+                                    <td>
+                                        <input type="checkbox" value="{{ $product->id }}" x-model.number="marcados"
+                                               aria-label="Seleccionar {{ $product->name }}"
+                                               class="rounded border-slate-300 text-indigo-600">
+                                    </td>
+                                @endcan
                                 <td class="font-mono text-xs text-slate-500">{{ $product->sku }}</td>
                                 <td class="font-medium text-slate-800">
                                     <div class="flex items-center gap-2.5">
@@ -158,7 +213,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="10" class="bmos-empty">Aún no hay productos.</td></tr>
+                            <tr><td colspan="{{ auth()->user()?->can('products.manage') ? 11 : 10 }}" class="bmos-empty">Aún no hay productos.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -394,6 +449,43 @@
                        part_number: '', brand: '', vehicle_make: '', vehicle_model: '', year_from: '', year_to: '', location: '' },
                 get editUrl() { return '{{ url('panel/inventario') }}/' + this.row.id; },
                 edit(data) { this.row = { ...data }; this.open = true; },
+
+                /* ---- Selección múltiple para borrar en lote ---- */
+
+                marcados: [],
+                // «todos» abarca lo que coincide con la búsqueda, no solo la página a la vista.
+                todos: false,
+                enPagina: @js($products->pluck('id')->all()),
+                totalCoincidencias: {{ $products->total() }},
+
+                paginaCompleta() {
+                    return this.enPagina.length > 0 && this.enPagina.every((id) => this.marcados.includes(id));
+                },
+
+                alternarPagina(marcar) {
+                    this.marcados = marcar ? [...this.enPagina] : [];
+                    if (!marcar) this.todos = false;
+                },
+
+                cuantos() {
+                    return this.todos ? this.totalCoincidencias : this.marcados.length;
+                },
+
+                etiquetaSeleccion() {
+                    const n = this.cuantos();
+                    return n === 1 ? '1 producto seleccionado' : `${n} productos seleccionados`;
+                },
+
+                async confirmarBorrado() {
+                    // Al abarcar TODO lo que coincide se pide teclear la cifra. Marcar unos pocos es
+                    // un acto deliberado; «seleccionar los 500» es un clic, y conviene que quien lo
+                    // pulsa haya leído cuántos se lleva por delante.
+                    await window.confirmarBorrarProductos({
+                        cantidad: this.cuantos(),
+                        exigirCifra: this.todos,
+                        formulario: 'borrar_productos',
+                    });
+                },
                 init() {
                     @if (old('_form') === 'product_edit')
                         this.row = {

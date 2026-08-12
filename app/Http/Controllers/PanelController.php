@@ -67,15 +67,9 @@ final class PanelController extends Controller
 
         return view('panel.products', [
             'products' => Product::query()->with(['category', 'stock'])
-                ->when(request('q'), fn ($query, $q) => $query->where(
-                    fn ($sub) => $sub->whereLike('sku', "%{$q}%")
-                        ->orWhereLike('name', "%{$q}%")
-                        ->orWhereLike('barcode', "%{$q}%")
-                ))
-                // Drill-down de la tarjeta «Stock bajo» del dashboard: solo los productos con alguna
-                // existencia por debajo del umbral (mismo criterio que el indicador del resumen).
-                ->when(request('filter') === 'low_stock', fn ($query) => $query
-                    ->whereHas('stock', fn ($s) => $s->where('quantity', '<', 5)))
+                // Mismo filtro que usa el borrado múltiple (ver Product::scopeFiltered): así
+                // «seleccionar todos los que coinciden» borra exactamente lo que hay en pantalla.
+                ->filtered(request('q'), request('filter') === 'low_stock')
                 ->orderBy('name')->paginate(15)->withQueryString(),
             'lowStockFilter' => request('filter') === 'low_stock',
             'categories' => Category::query()->orderBy('name')->get(),

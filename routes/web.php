@@ -224,6 +224,9 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/inventario', [ProductController::class, 'store'])->name('panel.products.store');
         Route::put('/panel/inventario/{product}', [ProductController::class, 'update'])->name('panel.products.update');
         Route::delete('/panel/inventario/{product}', [ProductController::class, 'destroy'])->name('panel.products.destroy');
+        // Borrado múltiple. `throttle` porque vaciar el catálogo no es algo que se repita en ráfaga.
+        Route::delete('/panel/inventario', [ProductController::class, 'bulkDestroy'])
+            ->middleware('throttle:10,1')->name('panel.products.bulk-destroy');
     });
 
     // Categorías: agrupan el catálogo y ordenan la rejilla del punto de venta. Permiso propio

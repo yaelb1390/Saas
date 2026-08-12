@@ -24,3 +24,6 @@ Homestead.yaml
 Thumbs.db
 
 .vercel
+
+# Capturas que genera scripts/mobile-audit.cjs al ejecutarse. Son artefactos, no fuente.
+scripts/shot-*.png

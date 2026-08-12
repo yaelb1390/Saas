@@ -17,9 +17,9 @@
             $hasError = $errors->any();
             $logoPath = public_path('images/bm-logo.png');
             $hasLogo = file_exists($logoPath);
-            $oldModules = (array) old('modules', []);
         @endphp
-        <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" style="max-width:40rem">
+        {{-- Más ancha que el login: aquí caben tres planes en fila en escritorio. --}}
+        <div class="bmos-auth-card {{ $hasError ? 'is-error' : '' }}" style="max-width:52rem">
             @if ($hasLogo)
                 <img src="{{ asset('images/bm-logo.png') }}?v={{ filemtime($logoPath) }}"
                      alt="BM Business OS" class="bmos-auth-logo-img">
@@ -88,20 +88,70 @@
                     </label>
                 </div>
 
-                {{-- Selección de módulos a probar --}}
+                {{-- Elección del plan a probar.
+                     Se muestran los módulos de cada plan, pero NO se pueden elegir sueltos: probar
+                     exactamente lo que se va a comprar es lo que hace que al terminar la prueba el
+                     paso natural sea pagar ese mismo plan.
+                     Sin JavaScript: el estado marcado sale de `has-[:checked]:`, el mismo recurso
+                     que ya usaban las casillas de módulos. --}}
                 <div>
-                    <label class="bmos-field-label">¿Qué módulos quieres probar?</label>
-                    <p class="mb-2 text-xs text-slate-500">Selecciona solo los que tu negocio necesita; podrás activar más al contratar tu plan.</p>
-                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        @foreach ($modules as $key => $label)
-                            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50/40 has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50">
-                                <input type="checkbox" name="modules[]" value="{{ $key }}"
-                                       @checked(in_array($key, $oldModules, true))
-                                       class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                                {{ $label }}
-                            </label>
-                        @endforeach
-                    </div>
+                    <label class="bmos-field-label">¿Qué plan quieres probar?</label>
+                    <p class="mb-3 text-xs text-slate-500">
+                        Gratis los {{ $trialDays }} días, sin tarjeta. Podrás cambiarlo cuando actives tu plan.
+                    </p>
+
+                    @if ($plans->isEmpty())
+                        <p class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            Ahora mismo no hay planes disponibles. Escríbenos y te damos de alta a mano.
+                        </p>
+                    @else
+                        {{-- Clases literales, nunca interpoladas: Tailwind solo genera las que
+                             encuentra escritas tal cual al escanear, y una construida al vuelo
+                             quedaría sin estilo. --}}
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            @foreach ($plans as $plan)
+                                <label class="bmos-plan-pick bmos-plan-pick--nivel{{ min($loop->index + 1, 3) }}">
+                                    <input type="radio" name="plan_id" value="{{ $plan->id }}"
+                                           @checked((int) old('plan_id') === (int) $plan->id) class="sr-only">
+                                    <span class="bmos-plan-pick-acento"></span>
+
+                                    <span class="flex items-baseline justify-between gap-2">
+                                        <span class="text-base font-bold text-slate-800">{{ $plan->name }}</span>
+                                        <span class="bmos-plan-pick-check" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="h-3 w-3">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                                            </svg>
+                                        </span>
+                                    </span>
+
+                                    <span class="mt-1 flex items-baseline gap-1">
+                                        <span class="text-xs font-semibold text-slate-400">RD$</span>
+                                        <span class="bmos-plan-pick-precio">{{ number_format((float) $plan->price, 0) }}</span>
+                                        <span class="text-xs text-slate-400">/ {{ mb_strtolower($plan->billing_cycle->label()) }}</span>
+                                    </span>
+
+                                    @if ($plan->description)
+                                        <span class="mt-1 block text-xs leading-snug text-slate-500">{{ $plan->description }}</span>
+                                    @endif
+
+                                    <span class="mt-3 block border-t border-slate-100 pt-2.5">
+                                        @if ($plan->modules === null)
+                                            <span class="text-xs font-semibold text-indigo-600">Todos los módulos</span>
+                                        @else
+                                            <span class="flex flex-wrap gap-1">
+                                                @foreach (array_slice($plan->moduleKeys(), 0, 4) as $clave)
+                                                    <span class="bmos-plan-pick-modulo">{{ \App\Modules\Core\Support\ModuleRegistry::label($clave) }}</span>
+                                                @endforeach
+                                                @if (count($plan->moduleKeys()) > 4)
+                                                    <span class="bmos-plan-pick-modulo">+{{ count($plan->moduleKeys()) - 4 }}</span>
+                                                @endif
+                                            </span>
+                                        @endif
+                                    </span>
+                                </label>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
 
                 <button type="submit" class="bmos-auth-btn mt-2">

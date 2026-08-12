@@ -1444,3 +1444,108 @@ body {
     background: linear-gradient(90deg, #10b981, #34d399);
     height: 3px;
 }
+
+/* ---------------------------------------------------------------------------
+ * Tarjeta de plan SELECCIONABLE (registro público)
+ *
+ * Prima de la del panel (.bmos-plan) pero no la misma: aquella está pensada para una pantalla ancha
+ * con precio de 2,4rem, y aquí caben tres en la tarjeta del formulario. Comparten el lenguaje
+ * —franja de acento por escalón, chips de módulo— y no las clases.
+ *
+ * Toda la tarjeta es la etiqueta del radio, así que se selecciona pulsando en cualquier punto: un
+ * botón de un centímetro es un mal blanco en un móvil. El radio va oculto pero PRESENTE (`sr-only`,
+ * no `display:none`) para que siga navegándose con el teclado y lo anuncien los lectores de pantalla.
+ * ------------------------------------------------------------------------ */
+.bmos-plan-pick {
+    position: relative;
+    display: block;
+    cursor: pointer;
+    background: #fff;
+    border: 1px solid #e2e5ee;
+    border-radius: 1rem;
+    padding: 1.1rem 1rem 0.9rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.bmos-plan-pick:hover {
+    border-color: #c7d2fe;
+    background: #fcfdff;
+}
+
+/* Seleccionado: borde índigo y anillo. El color no es la única señal —también aparece la marca de
+   verificación—, para que se distinga sin depender de percibir el matiz. */
+.bmos-plan-pick:has(:checked) {
+    border-color: #6366f1;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16), 0 12px 24px -14px rgba(79, 70, 229, 0.55);
+}
+
+/* Foco por teclado: el radio está oculto, así que el anillo tiene que pintarlo la tarjeta. */
+.bmos-plan-pick:has(:focus-visible) {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+.bmos-plan-pick-acento {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    border-radius: 1rem 1rem 0 0;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+
+.bmos-plan-pick:has(:checked) .bmos-plan-pick-acento { opacity: 1; }
+
+.bmos-plan-pick--nivel1 .bmos-plan-pick-acento { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+.bmos-plan-pick--nivel2 .bmos-plan-pick-acento { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.bmos-plan-pick--nivel3 .bmos-plan-pick-acento { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+
+.bmos-plan-pick-precio {
+    font-size: 1.6rem;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+
+/* La marca solo se ve al seleccionar; el hueco se reserva siempre para que la tarjeta no dé un
+   salto al marcarla. */
+.bmos-plan-pick-check {
+    display: grid;
+    place-items: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: #4f46e5;
+    color: #fff;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.bmos-plan-pick:has(:checked) .bmos-plan-pick-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.bmos-plan-pick-modulo {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.5rem;
+    background: #f1f5f9;
+    padding: 0.18rem 0.45rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #475569;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-plan-pick,
+    .bmos-plan-pick-check,
+    .bmos-plan-pick-acento {
+        transition: none;
+    }
+}

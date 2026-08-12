@@ -22,8 +22,8 @@ use Illuminate\Support\Facades\Route;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    // El registro engancha la prueba al plan de config('bmos.trial.plan_slug').
-    Plan::create([
+    // El cliente elige el plan al registrarse, así que tiene que haber alguno en venta.
+    $this->plan = Plan::create([
         'name' => 'Empresarial', 'slug' => 'empresarial', 'price' => '3000',
         'billing_cycle' => 'monthly', 'trial_days' => 0, 'modules' => null, 'is_active' => true,
     ]);
@@ -67,7 +67,7 @@ it('el registro propio crea la cuenta con su empresa', function (): void {
         'owner_email' => 'juana@prestamosbm.test',
         'password' => 'secret-password',
         'password_confirmation' => 'secret-password',
-        'modules' => ['pos', 'inventory'],
+        'plan_id' => $this->plan->id,
     ])->assertRedirect()->assertSessionHasNoErrors();
 
     $owner = User::firstWhere('email', 'juana@prestamosbm.test');

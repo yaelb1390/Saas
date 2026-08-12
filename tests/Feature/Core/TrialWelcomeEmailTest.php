@@ -12,9 +12,11 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     app(CurrentCompany::class)->forget();
-    Plan::create([
-        'name' => 'Empresarial', 'slug' => 'empresarial', 'price' => '7000',
-        'billing_cycle' => 'monthly', 'trial_days' => 0, 'modules' => null, 'is_active' => true,
+    // Plan recortado a propósito: así el correo tiene que listar los módulos DEL PLAN elegido.
+    $this->plan = Plan::create([
+        'name' => 'Básico', 'slug' => 'basico', 'price' => '750',
+        'billing_cycle' => 'monthly', 'trial_days' => 0,
+        'modules' => ['pos', 'inventory'], 'is_active' => true,
     ]);
     Mail::fake();
 });
@@ -26,12 +28,13 @@ it('envía el correo de bienvenida al dueño al registrarse', function (): void 
         'owner_email' => 'yael@colmado.test',
         'password' => 'Password123!',
         'password_confirmation' => 'Password123!',
-        'modules' => ['loans', 'pos'],
+        'plan_id' => $this->plan->id,
     ])->assertRedirect(route('dashboard'));
 
     Mail::assertQueued(TrialWelcomeMail::class, fn (TrialWelcomeMail $mail): bool => $mail->hasTo('yael@colmado.test')
         && $mail->companyName === 'Colmado La Bendición'
-        && count($mail->moduleLabels) === 2);
+        // Los módulos del PLAN elegido, no una selección suelta.
+        && $mail->moduleLabels === ['Punto de Venta', 'Inventario']);
 });
 
 it('el correo renderiza el negocio y el botón al panel', function (): void {
@@ -41,7 +44,7 @@ it('el correo renderiza el negocio y el botón al panel', function (): void {
         'owner_email' => 'ana@empresa.test',
         'password' => 'Password123!',
         'password_confirmation' => 'Password123!',
-        'modules' => ['pos'],
+        'plan_id' => $this->plan->id,
     ]);
 
     Mail::assertQueued(TrialWelcomeMail::class, function (TrialWelcomeMail $mail): bool {
@@ -51,11 +54,11 @@ it('el correo renderiza el negocio y el botón al panel', function (): void {
     });
 });
 
-it('no envía correo si el registro es inválido (sin módulos)', function (): void {
+it('no envía correo si el registro es inválido (sin plan)', function (): void {
     $this->post('/registro', [
         'company_name' => 'X', 'owner_name' => 'X', 'owner_email' => 'x@y.test',
         'password' => 'Password123!', 'password_confirmation' => 'Password123!',
-    ])->assertSessionHasErrors('modules');
+    ])->assertSessionHasErrors('plan_id');
 
     Mail::assertNothingQueued();
 });

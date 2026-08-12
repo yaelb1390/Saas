@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Http\Requests;
 
-use App\Modules\Core\Support\ModuleRegistry;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -30,9 +29,12 @@ final class RegisterCompanyRequest extends FormRequest
             'owner_name' => ['required', 'string', 'max:120'],
             'owner_email' => ['required', 'string', 'email', 'max:190', Rule::unique('users', 'email')],
             'password' => ['required', 'string', Password::default(), 'confirmed'],
-            // El cliente elige qué módulos probar; al menos uno.
-            'modules' => ['required', 'array', 'min:1'],
-            'modules.*' => ['string', Rule::in(ModuleRegistry::keys())],
+
+            // El cliente elige QUÉ PLAN quiere probar; de él heredará los módulos.
+            //
+            // La condición `is_active` es la parte que importa: sin ella se podría arrancar una
+            // prueba de un plan retirado de la venta enviando su id a mano.
+            'plan_id' => ['required', 'integer', Rule::exists('plans', 'id')->where('is_active', true)],
         ];
     }
 
@@ -43,8 +45,8 @@ final class RegisterCompanyRequest extends FormRequest
     {
         return [
             'owner_email.unique' => 'Ya existe una cuenta con ese correo. Inicia sesión.',
-            'modules.required' => 'Selecciona al menos un módulo para tu prueba.',
-            'modules.min' => 'Selecciona al menos un módulo para tu prueba.',
+            'plan_id.required' => 'Elige el plan que quieres probar.',
+            'plan_id.exists' => 'Ese plan no está disponible. Elige uno de la lista.',
         ];
     }
 
@@ -58,7 +60,7 @@ final class RegisterCompanyRequest extends FormRequest
             'owner_name' => 'tu nombre',
             'owner_email' => 'correo',
             'password' => 'contraseña',
-            'modules' => 'módulos',
+            'plan_id' => 'plan',
         ];
     }
 }

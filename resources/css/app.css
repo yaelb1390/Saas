@@ -1295,3 +1295,87 @@ body {
 .bmos-swal-cancelar:hover {
     background: #f8fafc;
 }
+
+/* ---------------------------------------------------------------------------
+ * Tarjetas de plan
+ *
+ * La franja superior sube de tono con el escalón del plan (van ordenados por precio), para que la
+ * lista se lea como una escalera y no como tres tarjetas idénticas. Es la única señal de jerarquía
+ * que no obliga a comparar cifras.
+ * ------------------------------------------------------------------------ */
+.bmos-plan {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #e9edf3;
+    border-radius: 1.25rem;
+    padding: 1.6rem 1.5rem 1.25rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.bmos-plan:hover {
+    transform: translateY(-3px);
+    border-color: #dbe2ec;
+    box-shadow: 0 18px 36px -20px rgba(15, 23, 42, 0.35);
+}
+
+/* Un plan inactivo no se vende: se apaga en vez de esconderse, para que siga siendo editable. */
+.bmos-plan--inactivo {
+    background: #fbfcfd;
+}
+
+.bmos-plan--inactivo .bmos-plan-precio {
+    color: #94a3b8;
+}
+
+.bmos-plan-acento {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 5px;
+}
+
+.bmos-plan--nivel1 .bmos-plan-acento { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+.bmos-plan--nivel2 .bmos-plan-acento { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.bmos-plan--nivel3 .bmos-plan-acento { background: linear-gradient(90deg, #7c3aed, #a855f7); }
+.bmos-plan--inactivo .bmos-plan-acento { background: #e2e8f0; }
+
+.bmos-plan-precio {
+    font-size: 2.4rem;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+
+.bmos-plan-estrella {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4f46e5, #7c3aed);
+    padding: 0.3rem 0.7rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.01em;
+}
+
+.bmos-plan-modulo {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 0.6rem;
+    background: #f1f5f9;
+    padding: 0.28rem 0.6rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #475569;
+}
+
+.bmos-plan-modulo--resto {
+    background: #eef2ff;
+    color: #4f46e5;
+    font-weight: 600;
+}

@@ -72,6 +72,9 @@
                         <input type="checkbox" name="remember" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                         Recordarme
                     </label>
+                    <a href="{{ route('password.request') }}" class="text-sm font-semibold text-indigo-600 hover:underline">
+                        ¿Olvidaste tu contraseña?
+                    </a>
                 </div>
 
                 <button type="submit" class="bmos-auth-btn mt-2">

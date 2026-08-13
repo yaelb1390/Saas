@@ -97,7 +97,9 @@ final class RegisterController extends Controller
         Auth::login($owner);
         $request->session()->regenerate();
 
-        // Correo de bienvenida (encolado). Un fallo de correo NUNCA debe romper el alta ya hecha.
+        // Correo de bienvenida. Un fallo de correo NUNCA debe romper el alta ya hecha, pero sí queda
+        // registrado (`report: true`): en producción el envío es inmediato, así que este `rescue` es
+        // lo único que separa un problema del proveedor de correo de un 500 en pleno registro.
         rescue(fn () => Mail::to($owner->email)->send(new TrialWelcomeMail(
             ownerName: (string) $owner->name,
             companyName: (string) $company->name,

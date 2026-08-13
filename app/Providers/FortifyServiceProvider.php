@@ -38,7 +38,15 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
 
         // Vistas (Fortify es headless): registramos las pantallas de autenticación.
+        //
+        // Sin registrar, Fortify NO cae en una vista por defecto ni devuelve un 404: intenta
+        // resolver una interfaz que nadie ha enlazado y revienta con un 500. Es lo que le pasaba a
+        // la recuperación de contraseña, cuyas rutas llevaban tiempo publicadas y rotas.
         Fortify::loginView(fn () => view('auth.login'));
+        Fortify::requestPasswordResetLinkView(fn () => view('auth.forgot-password'));
+        Fortify::resetPasswordView(fn (Request $request) => view('auth.reset-password', [
+            'request' => $request,
+        ]));
 
         // La autenticación valida credenciales Y que la cuenta esté activa: un usuario desactivado
         // no puede iniciar sesión, aunque su contraseña sea correcta.

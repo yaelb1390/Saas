@@ -71,8 +71,29 @@ DB_PASSWORD=********
 CACHE_STORE=database
 SESSION_DRIVER=database
 SESSION_ENCRYPT=true
-QUEUE_CONNECTION=database
+QUEUE_CONNECTION=sync
 ```
+> `QUEUE_CONNECTION=sync` a propósito: en Vercel **no hay ningún proceso en segundo plano** que
+> vacíe la cola. Con `database`, los correos encolados (bienvenida, confirmación de pago, aviso de
+> vencimiento) se quedarían en la tabla `jobs` para siempre y nadie se enteraría. Con `sync` se
+> envían durante la petición; el coste es la latencia del SMTP en tres acciones poco frecuentes.
+
+### Correo — IMPRESCINDIBLE
+Sin estas variables `MAIL_MAILER` cae a `log` y **ningún correo llega a nadie**: ni el enlace para
+recuperar la contraseña, ni la bienvenida, ni los avisos de vencimiento. El sistema no da error, se
+comporta como si hubiera enviado. Es el fallo que tuvo este proyecto durante meses.
+```
+MAIL_MAILER=smtp
+MAIL_HOST=smtp-relay.brevo.com
+MAIL_PORT=587
+MAIL_SCHEME=tls
+MAIL_USERNAME=...          # el usuario de Brevo, acaba en @smtp-brevo.com
+MAIL_PASSWORD=...          # la CLAVE SMTP, no la contraseña de la cuenta
+MAIL_FROM_ADDRESS=...      # remitente VERIFICADO en el proveedor
+MAIL_FROM_NAME="BM Business OS"
+```
+> El remitente decide si el correo llega. Un dominio sin verificar hace que los mensajes se rechacen
+> o acaben en no deseados, y eso **no lo detecta ningún test**: hay que enviarse uno de verdad.
 > Con Upstash Redis en su lugar: `CACHE_STORE=redis`, `SESSION_DRIVER=redis`,
 > `REDIS_CLIENT=predis`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` de Upstash, y añade
 > `predis/predis` a composer (`composer require predis/predis`).

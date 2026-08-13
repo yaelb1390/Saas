@@ -10,6 +10,7 @@ use App\Modules\Core\Models\Subscription;
 use App\Modules\Core\Support\SubscriptionNotice;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 /**
  * Avisa por correo a las suscripciones de PAGO que están por vencer, usando el MISMO umbral que el
@@ -62,16 +63,30 @@ final class SendExpiringSubscriptionReminders extends Command
                 continue;
             }
 
-            Mail::to($to)->send(new SubscriptionExpiringMail(
-                ownerName: (string) ($owner !== null ? $owner->name : $company->name),
-                companyName: (string) $company->name,
-                planName: (string) $plan->name,
-                renewsAt: $subscription->current_period_end,
-                daysLeft: max(0, $notice->days),
-                loginUrl: route('login'),
-                supportWhatsapp: (string) config('platform.support_whatsapp'),
-                supportEmail: (string) config('platform.support_email'),
-            ));
+            // Solo se marca como avisada si el correo SALIÓ. Antes se marcaba justo después de
+            // llamar a send(), que con la cola solo encolaba y nunca fallaba; ahora que el envío es
+            // real, marcar a ciegas dejaría la suscripción como «ya avisada» tras un fallo y ese
+            // cliente no recibiría el aviso NUNCA, que es justo lo contrario de lo que hace falta.
+            //
+            // Y el fallo de un destinatario no puede abortar el recorrido: los siguientes se
+            // quedarían sin avisar por culpa de una dirección mal escrita.
+            try {
+                Mail::to($to)->send(new SubscriptionExpiringMail(
+                    ownerName: (string) ($owner !== null ? $owner->name : $company->name),
+                    companyName: (string) $company->name,
+                    planName: (string) $plan->name,
+                    renewsAt: $subscription->current_period_end,
+                    daysLeft: max(0, $notice->days),
+                    loginUrl: route('login'),
+                    supportWhatsapp: (string) config('platform.support_whatsapp'),
+                    supportEmail: (string) config('platform.support_email'),
+                ));
+            } catch (Throwable $e) {
+                report($e);
+                $this->error("No se pudo avisar a «{$company->name}» ({$to}): {$e->getMessage()}");
+
+                continue; // sin marcar: se reintentará en la próxima corrida
+            }
 
             $subscription->update(['renewal_reminded_at' => now()]);
             $sent++;

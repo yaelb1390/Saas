@@ -12,6 +12,7 @@ const WIDTH = 390, HEIGHT = 844; // iPhone 12/13/14
 const PAGES = [
     ['login', '/login', false],
     ['registro', '/registro', false],
+    ['recuperar', '/forgot-password', false],
     // Pública y con una rejilla de planes que debe apilarse en móvil.
     ['planes', '/planes', false],
     ['dashboard', '/dashboard', true],

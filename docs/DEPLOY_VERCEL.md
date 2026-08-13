@@ -78,6 +78,10 @@ QUEUE_CONNECTION=sync
 > vencimiento) se quedarían en la tabla `jobs` para siempre y nadie se enteraría. Con `sync` se
 > envían durante la petición; el coste es la latencia del SMTP en tres acciones poco frecuentes.
 
+> Con Upstash Redis en su lugar: `CACHE_STORE=redis`, `SESSION_DRIVER=redis`,
+> `REDIS_CLIENT=predis`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` de Upstash, y añade
+> `predis/predis` a composer (`composer require predis/predis`).
+
 ### Correo — IMPRESCINDIBLE
 Sin estas variables `MAIL_MAILER` cae a `log` y **ningún correo llega a nadie**: ni el enlace para
 recuperar la contraseña, ni la bienvenida, ni los avisos de vencimiento. El sistema no da error, se
@@ -86,7 +90,7 @@ comporta como si hubiera enviado. Es el fallo que tuvo este proyecto durante mes
 MAIL_MAILER=smtp
 MAIL_HOST=smtp-relay.brevo.com
 MAIL_PORT=587
-MAIL_SCHEME=tls
+MAIL_SCHEME=smtp
 MAIL_USERNAME=...          # el usuario de Brevo, acaba en @smtp-brevo.com
 MAIL_PASSWORD=...          # la CLAVE SMTP, no la contraseña de la cuenta
 MAIL_FROM_ADDRESS=...      # remitente VERIFICADO en el proveedor
@@ -94,9 +98,10 @@ MAIL_FROM_NAME="BM Business OS"
 ```
 > El remitente decide si el correo llega. Un dominio sin verificar hace que los mensajes se rechacen
 > o acaben en no deseados, y eso **no lo detecta ningún test**: hay que enviarse uno de verdad.
-> Con Upstash Redis en su lugar: `CACHE_STORE=redis`, `SESSION_DRIVER=redis`,
-> `REDIS_CLIENT=predis`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` de Upstash, y añade
-> `predis/predis` a composer (`composer require predis/predis`).
+
+> Si el proveedor restringe el envío por IP (Brevo lo trae activado), **hay que desactivarlo**: las
+> funciones de Vercel salen por direcciones que cambian y no se pueden listar. El síntoma es un
+> `525 Unauthorized IP address` en los registros.
 
 ### Almacenamiento (R2 / S3)
 ```

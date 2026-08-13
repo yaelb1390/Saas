@@ -84,6 +84,27 @@ it('explica qué hace cada módulo, no solo cómo se llama', function (): void {
         ->assertSee('Cobra en mostrador');
 });
 
+it('un plan superior solo lista lo que AÑADE al anterior', function (): void {
+    // Repetir los catorce módulos en cada tarjeta hacía que la más completa midiera el triple y no
+    // cupiera en pantalla. Quien compara necesita ver qué gana al subir, no leer tres veces lo mismo.
+    $this->get(route('plans.public'))
+        ->assertOk()
+        ->assertSee('Todo lo de')
+        ->assertSee('Básico'); // Pro se apoya en él
+});
+
+it('no dice «todo lo del plan anterior» si no es verdad', function (): void {
+    // Pro deja de contener a Básico: la frase seria una promesa falsa, asi que no debe aparecer y
+    // la tarjeta tiene que listar sus propios módulos.
+    $this->basico->update(['modules' => ['pos', 'inventory', 'loans']]); // «loans» no está en Pro
+    $this->pro->update(['modules' => ['pos', 'inventory', 'crm']]);
+
+    $this->get(route('plans.public'))
+        ->assertOk()
+        ->assertDontSee('Todo lo de')
+        ->assertSee('CRM');
+});
+
 it('a un cliente en prueba le ofrece cambiar, y le marca el suyo', function (): void {
     ponerEnPrueba();
 

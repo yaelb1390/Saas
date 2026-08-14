@@ -27,7 +27,7 @@
                 <a href="{{ route('login') }}" class="inline-block">
                     @if ($hasLogo)
                         <img src="{{ asset('images/bm-logo.png') }}?v={{ filemtime($logoPath) }}"
-                             alt="BM Business OS" class="mx-auto h-10 object-contain">
+                             alt="BM Business OS" class="bmos-logo-fluido">
                     @else
                         <span class="bmos-auth-logo">BM</span>
                     @endif

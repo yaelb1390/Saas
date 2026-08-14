@@ -4,7 +4,9 @@
     };
 @endphp
 <x-layouts.admin title="Ventas" heading="Ventas" subheading="Historial de ventas y su estado">
-    <div class="bmos-card overflow-hidden">
+    @php $puedeAnular = auth()->user()?->can('sales.void') ?? false; @endphp
+
+    <div class="bmos-card overflow-hidden" x-data="ventasSeleccion(@js($sales->pluck('id')->all()))">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
             <p class="font-semibold text-slate-800">Ventas</p>
             <div class="flex flex-wrap items-center gap-3">
@@ -12,14 +14,54 @@
                 <x-panel.export-button route="panel.export.sales" />
             </div>
         </div>
+
+        @if ($puedeAnular)
+            {{-- Solo aparece con algo marcado: una barra permanente sobre el historial de ventas
+                 invitaría a deshacer cobros por descuido. --}}
+            <div x-show="marcados.length > 0" x-cloak
+                 class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-rose-50/70 px-4 py-3">
+                <span class="text-sm text-slate-700">
+                    <span class="font-semibold" x-text="etiqueta()"></span>
+                    <span class="text-slate-500">— se devolverá el stock y se retirará el cobro de la caja</span>
+                </span>
+                <button type="button" @click="confirmar()"
+                        class="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700">
+                    Anular
+                </button>
+            </div>
+
+            <form method="POST" action="{{ route('panel.sales.bulk-void') }}" id="anular_ventas" class="hidden">
+                @csrf @method('DELETE')
+                <template x-for="id in marcados" :key="id">
+                    <input type="hidden" name="ids[]" :value="id">
+                </template>
+            </form>
+        @endif
+
         <div class="overflow-x-auto">
             <table class="bmos-table">
                 <thead>
-                    <tr><th>Código</th><th>Cliente</th><th>Líneas</th><th>Subtotal</th><th>Total</th><th>Pago</th><th>Estado</th><th>Fecha</th><th class="text-right">Recibo</th></tr>
+                    <tr>
+                        @if ($puedeAnular)
+                            <th class="w-10">
+                                <input type="checkbox" @change="alternarPagina($event.target.checked)"
+                                       :checked="paginaCompleta()" aria-label="Seleccionar todas"
+                                       class="rounded border-slate-300 text-indigo-600">
+                            </th>
+                        @endif
+                        <th>Código</th><th>Cliente</th><th>Líneas</th><th>Subtotal</th><th>Total</th><th>Pago</th><th>Estado</th><th>Fecha</th><th class="text-right">Recibo</th>
+                    </tr>
                 </thead>
                 <tbody>
                     @forelse ($sales as $sale)
-                        <tr>
+                        <tr :class="marcados.includes({{ $sale->id }}) ? 'bg-rose-50/40' : ''">
+                            @if ($puedeAnular)
+                                <td>
+                                    <input type="checkbox" value="{{ $sale->id }}" x-model.number="marcados"
+                                           aria-label="Seleccionar {{ $sale->code }}"
+                                           class="rounded border-slate-300 text-indigo-600">
+                                </td>
+                            @endif
                             <td class="font-mono text-xs font-semibold text-indigo-600">{{ $sale->code }}</td>
                             <td>{{ $sale->customer_name ?? 'Consumidor final' }}</td>
                             <td>{{ $sale->items_count }}</td>
@@ -37,11 +79,42 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="bmos-empty">Aún no hay ventas registradas.</td></tr>
+                        <tr><td colspan="{{ $puedeAnular ? 10 : 9 }}" class="bmos-empty">Aún no hay ventas registradas.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
     </div>
     <div class="mt-4">{{ $sales->links() }}</div>
+
+    <script>
+        function ventasSeleccion(enPagina) {
+            return {
+                marcados: [],
+                enPagina,
+
+                paginaCompleta() {
+                    return this.enPagina.length > 0 && this.enPagina.every((id) => this.marcados.includes(id));
+                },
+
+                alternarPagina(marcar) {
+                    this.marcados = marcar ? [...this.enPagina] : [];
+                },
+
+                etiqueta() {
+                    const n = this.marcados.length;
+                    return n === 1 ? '1 venta seleccionada' : `${n} ventas seleccionadas`;
+                },
+
+                async confirmar() {
+                    // A diferencia del inventario, aquí SIEMPRE se pide teclear la cantidad: anular
+                    // una venta mueve dinero y existencias, y no hay «pocas» que no importen.
+                    await window.confirmarAnularVentas({
+                        cantidad: this.marcados.length,
+                        formulario: 'anular_ventas',
+                    });
+                },
+            };
+        }
+    </script>
 </x-layouts.admin>

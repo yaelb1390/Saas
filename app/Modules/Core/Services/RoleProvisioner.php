@@ -51,6 +51,10 @@ final class RoleProvisioner
         // Ventas / POS
         'sales.view',
         'sales.create',
+        // Anular una venta devuelve el stock y saca el cobro de la caja: mueve dinero y existencias,
+        // así que es un permiso aparte y no se deduce de «ver ventas». Quien consulta el historial no
+        // tiene por qué poder deshacerlo.
+        'sales.void',
         'pos.operate',
         // Facturación
         'invoices.view',
@@ -117,6 +121,7 @@ final class RoleProvisioner
             'cash.manage',
             'sales.view',
             'sales.create',
+            'sales.void',
             'pos.operate',
             'invoices.view',
             'invoices.issue',

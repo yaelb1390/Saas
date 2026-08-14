@@ -242,6 +242,13 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('throttle:10,1')->name('panel.products.bulk-destroy');
     });
 
+    // Anular ventas. Permiso propio («sales.void») y no `sales.view`: anular devuelve el stock y
+    // saca el cobro de la caja, así que quien consulta el historial no tiene por qué poder deshacerlo.
+    Route::middleware(['can:sales.void', 'module:sales'])->group(function (): void {
+        Route::delete('/panel/ventas', [SaleController::class, 'bulkVoid'])
+            ->middleware('throttle:10,1')->name('panel.sales.bulk-void');
+    });
+
     // Categorías: agrupan el catálogo y ordenan la rejilla del punto de venta. Permiso propio
     // («categories.manage»), distinto de gestionar productos: quien reorganiza el catálogo no tiene
     // por qué poder cambiar precios.

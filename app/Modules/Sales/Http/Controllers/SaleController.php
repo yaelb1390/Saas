@@ -6,8 +6,11 @@ namespace App\Modules\Sales\Http\Controllers;
 
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Services\SaleVoidService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -20,6 +23,60 @@ final class SaleController extends Controller
     public function receipt(Sale $sale): View
     {
         return view('sales.receipt', $this->receiptData($sale));
+    }
+
+    /**
+     * Anula varias ventas a la vez.
+     *
+     * «Anular» y no «borrar»: además de retirarlas del historial, devuelve el stock y saca el cobro
+     * de la caja (ver SaleVoidService). Las que no se pueden tocar —facturadas o con el arqueo ya
+     * cerrado— se saltan y se explica por qué, en vez de fallar entera la operación por una sola.
+     */
+    public function bulkVoid(Request $request, SaleVoidService $voids): RedirectResponse
+    {
+        $datos = $request->validate([
+            'ids' => ['array'],
+            'ids.*' => ['integer'],
+        ]);
+
+        // El ámbito de empresa lo pone el modelo: un id de otra empresa no aparece en la consulta
+        // aunque se envíe a mano.
+        $ventas = Sale::query()->with('items.product')->whereIn('id', $datos['ids'] ?? [])->get();
+
+        if ($ventas->isEmpty()) {
+            return back()->with('panel_error', 'No se seleccionó ninguna venta.');
+        }
+
+        $anuladas = 0;
+        $facturadas = 0;
+        $cajaCerrada = 0;
+
+        foreach ($ventas as $venta) {
+            $motivo = $voids->motivoParaNoAnular($venta);
+
+            match ($motivo) {
+                SaleVoidService::MOTIVO_FACTURADA => $facturadas++,
+                SaleVoidService::MOTIVO_CAJA_CERRADA => $cajaCerrada++,
+                default => tap($anuladas++, fn () => $voids->void($venta)),
+            };
+        }
+
+        $pendientes = array_filter([
+            $facturadas > 0 ? "{$facturadas} con factura fiscal (anúlalas por la vía fiscal)" : null,
+            $cajaCerrada > 0 ? "{$cajaCerrada} con el arqueo de caja ya cerrado" : null,
+        ]);
+
+        if ($anuladas === 0) {
+            return back()->with('panel_error', 'No se anuló ninguna venta: '.implode(' y ', $pendientes).'.');
+        }
+
+        $mensaje = $anuladas === 1
+            ? 'Venta anulada. Se devolvió el stock y se retiró el cobro de la caja.'
+            : "{$anuladas} ventas anuladas. Se devolvió el stock y se retiraron los cobros de la caja.";
+
+        return back()->with('panel_ok', $pendientes === []
+            ? $mensaje
+            : $mensaje.' Se saltaron '.implode(' y ', $pendientes).'.');
     }
 
     /**

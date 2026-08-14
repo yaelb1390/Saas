@@ -221,6 +221,73 @@ window.confirmarBorrarProductos = async ({ cantidad, exigirCifra, formulario }) 
 };
 
 /**
+ * Confirmación de anulación de ventas.
+ *
+ * Se separa de la de productos porque lo que ocurre es distinto y hay que decirlo: anular una venta
+ * NO es solo quitarla de una lista, devuelve el stock y saca el cobro de la caja. Quien lo pulsa
+ * tiene que saber que las cifras del día van a cambiar.
+ *
+ * Aquí siempre se pide teclear la cantidad, sin importar cuántas sean: en el inventario unos pocos
+ * productos son inofensivos, pero una sola venta ya mueve dinero.
+ *
+ * @param {{cantidad: number, formulario: string}} datos
+ */
+window.confirmarAnularVentas = async ({ cantidad, formulario }) => {
+    const { default: Swal } = await import('sweetalert2');
+
+    const form = document.getElementById(formulario);
+    if (!form || cantidad < 1) return;
+
+    const plural = cantidad === 1 ? 'venta' : 'ventas';
+
+    await Swal.fire({
+        icon: 'warning',
+        title: `¿Anular ${cantidad} ${plural}?`,
+        width: '40rem',
+        padding: '2rem',
+        buttonsStyling: false,
+        reverseButtons: true,
+        focusConfirm: false,
+        html: `
+            <div style="text-align:left;color:#475569;line-height:1.6">
+                <p style="margin:0 0 .6rem">Al anular se deshace lo que hizo la venta:</p>
+                <ul style="margin:0;padding-left:1.2rem">
+                    <li>Los productos <b>vuelven al inventario</b>.</li>
+                    <li>El cobro <b>sale de la caja</b>, así que el arqueo del día cambia.</li>
+                    <li>Deja de contar en los informes de ventas y ganancias.</li>
+                </ul>
+                <p style="margin:.7rem 0 0;font-size:.88rem;color:#64748b">
+                    Las ventas con factura fiscal o con el arqueo ya cerrado se saltan y te lo indicamos.
+                </p>
+                <label style="display:block;margin-top:1.15rem;font-weight:600;color:#334155">
+                    Escribe <b>${cantidad}</b> para confirmar
+                </label>
+                <input id="swal-cifra-ventas" class="swal2-input" style="width:100%;margin:.4rem 0 0" inputmode="numeric" autocomplete="off">
+            </div>`,
+        showCancelButton: true,
+        confirmButtonText: `Anular ${cantidad} ${plural}`,
+        cancelButtonText: 'Cancelar',
+        customClass: {
+            popup: 'bmos-swal',
+            title: 'bmos-swal-titulo',
+            confirmButton: 'bmos-swal-borrar',
+            cancelButton: 'bmos-swal-cancelar',
+        },
+        preConfirm: () => {
+            if (document.getElementById('swal-cifra-ventas').value.trim() !== String(cantidad)) {
+                Swal.showValidationMessage(`Escribe ${cantidad} para confirmar.`);
+                return false;
+            }
+
+            Swal.showLoading();
+            form.submit();
+
+            return new Promise(() => {}); // nunca resuelve: la página va a navegar
+        },
+    });
+};
+
+/**
  * Componente del visor de cámara. Se registra aquí (y no como función suelta en cada vista) porque
  * lo comparten el POS y la entrada de mercancía: definirlo dos veces sería la misma duplicación que
  * evitamos en el backend.

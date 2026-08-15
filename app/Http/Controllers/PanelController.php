@@ -255,7 +255,9 @@ final class PanelController extends Controller
 
     public function loanShow(Loan $loan): View
     {
-        $loan->load(['customer', 'installments', 'payments']);
+        // `application` es la solicitud de la que salió, si nació de una: la ficha ofrece el enlace
+        // al expediente. Se carga aquí para que la vista no lance su propia consulta.
+        $loan->load(['customer', 'installments', 'payments', 'application']);
 
         return view('panel.loan', ['loan' => $loan]);
     }

@@ -86,6 +86,11 @@ final class RoleProvisioner
         // Préstamos
         'loans.view',
         'loans.manage',
+        // Solicitudes de préstamo. Van aparte de `loans.*` para que quien recibe la solicitud y
+        // toma los datos del garante NO sea necesariamente quien decide entregar el dinero:
+        // aprobar, rechazar y desembolsar siguen exigiendo `loans.manage`.
+        'loan_applications.view',
+        'loan_applications.manage',
         // RRHH
         'hr.view',
         'hr.manage',
@@ -146,6 +151,8 @@ final class RoleProvisioner
             'finance.manage',
             'loans.view',
             'loans.manage',
+            'loan_applications.view',
+            'loan_applications.manage',
             'hr.view',
             'hr.manage',
             'reports.view',

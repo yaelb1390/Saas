@@ -32,6 +32,7 @@ use App\Modules\Inventory\Http\Controllers\CategoryController;
 use App\Modules\Inventory\Http\Controllers\OptionGroupController;
 use App\Modules\Inventory\Http\Controllers\ProductController;
 use App\Modules\Inventory\Http\Controllers\StockController;
+use App\Modules\Loans\Http\Controllers\LoanApplicationController;
 use App\Modules\Loans\Http\Controllers\LoanController;
 use App\Modules\POS\Http\Controllers\PosController;
 use App\Modules\POS\Http\Controllers\QuickPosController;
@@ -335,6 +336,37 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/prestamos/{loan}/pagos', [LoanController::class, 'payment'])->name('panel.loans.payments.store');
         Route::post('/panel/prestamos/{loan}/cuotas/{installment}/mora', [LoanController::class, 'setFee'])->name('panel.loans.installments.fee');
         Route::post('/panel/prestamos/{loan}/anular', [LoanController::class, 'cancel'])->name('panel.loans.cancel');
+    });
+
+    /*
+     * Solicitudes de préstamo. El permiso está partido en dos a propósito, y es la única razón por
+     * la que la evaluación sirve de algo:
+     *
+     *   - Recibir la solicitud y tomar los datos (ingresos, garante) va con `loan_applications.*`.
+     *   - Aprobar, rechazar y desembolsar van con `loans.manage`, el permiso que YA gobierna el
+     *     dinero en este módulo.
+     *
+     * Así, quien atiende el mostrador no puede concederse un préstamo a sí mismo, que es justo lo
+     * que hace falta separar. No se inventa un `loan_applications.decide` porque decidir sobre una
+     * solicitud es decidir sobre dinero, y ese permiso ya existe.
+     */
+    Route::middleware(['can:loan_applications.view', 'module:loans'])->group(function (): void {
+        Route::get('/panel/solicitudes', [LoanApplicationController::class, 'index'])->name('panel.loan-applications');
+        Route::get('/panel/solicitudes/{application}', [LoanApplicationController::class, 'show'])->name('panel.loan-applications.show');
+    });
+
+    Route::middleware(['can:loan_applications.manage', 'module:loans'])->group(function (): void {
+        Route::post('/panel/solicitudes', [LoanApplicationController::class, 'store'])->name('panel.loan-applications.store');
+        Route::put('/panel/solicitudes/{application}/evaluacion', [LoanApplicationController::class, 'evaluate'])->name('panel.loan-applications.evaluate');
+        Route::post('/panel/solicitudes/{application}/desistir', [LoanApplicationController::class, 'cancelApplication'])->name('panel.loan-applications.cancel');
+    });
+
+    Route::middleware(['can:loans.manage', 'module:loans'])->group(function (): void {
+        Route::post('/panel/solicitudes/{application}/aprobar', [LoanApplicationController::class, 'approve'])->name('panel.loan-applications.approve');
+        Route::post('/panel/solicitudes/{application}/rechazar', [LoanApplicationController::class, 'reject'])->name('panel.loan-applications.reject');
+        Route::post('/panel/solicitudes/{application}/reabrir', [LoanApplicationController::class, 'reopen'])->name('panel.loan-applications.reopen');
+        // La única de todo el grupo que saca dinero de la caja.
+        Route::post('/panel/solicitudes/{application}/desembolsar', [LoanApplicationController::class, 'disburse'])->name('panel.loan-applications.disburse');
     });
 
     Route::middleware(['can:hr.manage', 'module:hr'])->group(function (): void {

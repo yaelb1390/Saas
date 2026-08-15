@@ -1,0 +1,79 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Loans\Http\Requests;
+
+use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Loans\Enums\LoanFrequency;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+/**
+ * Alta de una solicitud de préstamo.
+ *
+ * Pide lo mismo que `StoreLoanRequest` porque la solicitud desemboca en un préstamo con esos
+ * términos, más el destino del dinero. Lo que NO pide es nada de la evaluación: los ingresos y el
+ * garante llegan después, a veces en otra visita, y exigirlos aquí obligaría a inventárselos en el
+ * mostrador para poder guardar.
+ */
+final class StoreApplicationRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        $companyId = app(CurrentCompany::class)->id();
+
+        return [
+            // Cliente existente (de la empresa activa) O uno nuevo escrito a mano: uno de los dos.
+            'customer_id' => [
+                'required_without:new_customer_name', 'nullable', 'integer',
+                Rule::exists('customers', 'id')
+                    ->where('company_id', $companyId)
+                    ->whereNull('deleted_at'),
+            ],
+            'new_customer_name' => ['required_without:customer_id', 'nullable', 'string', 'max:255'],
+            'new_customer_phone' => ['nullable', 'string', 'max:50'],
+            'new_customer_cedula' => ['nullable', 'string', 'max:20'],
+            'principal' => ['required', 'numeric', 'gt:0'],
+            'interest_rate' => ['nullable', 'numeric', 'min:0'],
+            'interest_amount' => ['nullable', 'numeric', 'min:0'],
+            'installments_count' => ['required', 'integer', 'min:1', 'max:1000'],
+            'frequency' => ['required', Rule::enum(LoanFrequency::class)],
+            'start_date' => ['required', 'date'],
+            'late_fee_rate' => ['nullable', 'numeric', 'min:0'],
+            'collateral' => ['nullable', 'string', 'max:500'],
+            'purpose' => ['nullable', 'string', 'max:500'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'customer_id' => 'cliente',
+            'new_customer_name' => 'nombre del cliente',
+            'new_customer_phone' => 'teléfono del cliente',
+            'new_customer_cedula' => 'cédula del cliente',
+            'principal' => 'capital solicitado',
+            'interest_rate' => 'tasa de interés',
+            'interest_amount' => 'monto de interés',
+            'installments_count' => 'número de cuotas',
+            'frequency' => 'frecuencia',
+            'start_date' => 'fecha de inicio',
+            'late_fee_rate' => 'tasa de mora',
+            'collateral' => 'garantía',
+            'purpose' => 'destino del préstamo',
+        ];
+    }
+}

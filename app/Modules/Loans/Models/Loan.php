@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
@@ -86,6 +87,20 @@ class Loan extends Model implements Auditable, HasCompany
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /**
+     * Solicitud de la que salió este préstamo, si nació de una.
+     *
+     * Es nula en los préstamos creados directamente desde la pantalla de Préstamos, que sigue
+     * existiendo: no toda agencia lleva expediente, y obligar a abrir una solicitud para prestar
+     * 2.000 al vecino sería peor que no tenerla.
+     *
+     * @return HasOne<LoanApplication, $this>
+     */
+    public function application(): HasOne
+    {
+        return $this->hasOne(LoanApplication::class);
     }
 
     /**

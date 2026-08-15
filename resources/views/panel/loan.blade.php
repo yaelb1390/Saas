@@ -24,6 +24,17 @@
                 @if ($loan->customer)
                     <a href="{{ route('panel.customers.show', $loan->customer) }}" class="mb-2 inline-block text-xs text-indigo-600 hover:underline">Ver perfil del cliente →</a>
                 @endif
+                @can('loan_applications.view')
+                    {{-- Enlace al expediente: con qué ingresos y qué garante se concedió, y quién lo
+                         aprobó. Nulo en los préstamos hechos directamente desde esta pantalla, que
+                         siguen siendo válidos. --}}
+                    @if ($loan->application)
+                        <a href="{{ route('panel.loan-applications.show', $loan->application) }}"
+                           class="mb-2 block text-xs text-indigo-600 hover:underline">
+                            Ver la solicitud {{ $loan->application->code }} →
+                        </a>
+                    @endif
+                @endcan
                 <dl class="space-y-2 text-sm">
                     <div class="flex justify-between"><dt class="text-slate-500">Capital</dt><dd class="font-medium">{{ money($loan->principal) }}</dd></div>
                     <div class="flex justify-between"><dt class="text-slate-500">Interés ({{ number_format((float) $loan->interest_rate, 2) }}%)</dt><dd class="font-medium">{{ money($loan->interest_amount) }}</dd></div>

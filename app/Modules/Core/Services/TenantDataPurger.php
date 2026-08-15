@@ -51,7 +51,10 @@ final class TenantDataPurger
         'accounts',
         // Entregas
         'deliveries',
-        // Préstamos (installments/payments también cuelgan de loans, pero se listan por company_id)
+        // Préstamos (installments/payments también cuelgan de loans, pero se listan por company_id).
+        // Las solicitudes van PRIMERO: apuntan al préstamo que salió de ellas, así que borrar
+        // `loans` antes dejaría una clave foránea colgando.
+        'loan_applications',
         'loan_payments',
         'loan_installments',
         'loans',

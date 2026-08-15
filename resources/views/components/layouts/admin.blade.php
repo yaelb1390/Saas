@@ -53,6 +53,9 @@
         ],
         'Finanzas' => [
             ['panel.finance', 'Finanzas', 'cash', 'finance.view', 'finance'],
+            // Antes de Préstamos porque es lo que va antes en la vida real: primero se solicita y
+            // se evalúa, y solo entonces sale el dinero.
+            ['panel.loan-applications', 'Solicitudes', 'doc', 'loan_applications.view', 'loans'],
             ['panel.loans', 'Préstamos', 'loans', 'loans.view', 'loans'],
             ['panel.purchase-invoices', 'Compras (606)', 'receipt', 'purchase_invoices.view', 'billing'],
         ],

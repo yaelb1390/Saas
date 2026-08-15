@@ -95,11 +95,9 @@ final class AlertService
             ];
         }
 
-        $pendingDeliveries = Delivery::query()->whereIn('status', [
-            DeliveryStatus::Pending,
-            DeliveryStatus::Assigned,
-            DeliveryStatus::InTransit,
-        ])->count();
+        // La lista de estados «abiertos» vive en el enum y no se repite aquí: con dos copias, añadir
+        // un estado nuevo dejaría la campana contando de menos y nadie lo notaría.
+        $pendingDeliveries = Delivery::query()->whereIn('status', DeliveryStatus::abiertas())->count();
         if ($pendingDeliveries > 0) {
             $alerts[] = [
                 'key' => 'pending_deliveries',

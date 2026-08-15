@@ -47,6 +47,10 @@ final class TenantDataPurger
         'attendances',
         'employees',
         // Finanzas
+        // Entradas de mercancía: las líneas apuntan a la remesa y a los productos, así que van antes
+        // que ambos.
+        'goods_receipt_lines',
+        'goods_receipts',
         // Gastos antes que `accounts` y que `expense_categories`: apuntan a las dos.
         'expenses',
         'expense_categories',

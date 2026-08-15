@@ -6,6 +6,7 @@ namespace App\Modules\Inventory\Support;
 
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Repositories\Contracts\ProductRepositoryInterface;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Resuelve el código que emite un lector y lo aplana a datos serializables.
@@ -105,6 +106,15 @@ final class ProductLookupPresenter
             'vehicle' => $product->vehicleFit(),
             'location' => $product->location,
             'price' => (string) $product->price,
+            /*
+             * El COSTO solo para quien puede dar entrada de mercancía.
+             *
+             * Este presenter lo comparten el punto de venta y el almacén, así que ponerlo sin
+             * condición se lo enseñaría al cajero: sabría lo que le cuesta cada producto al negocio
+             * con solo abrir las herramientas del navegador. Lo necesita la pantalla de entradas para
+             * avisar de que el costo cambió, y nadie más.
+             */
+            'cost' => Gate::allows('stock.adjust') ? (string) $product->cost : null,
             'stock' => $stock,
             'image' => $product->imageUrl(),
             // La rejilla táctil filtra por categoría en el cliente sin volver al servidor.

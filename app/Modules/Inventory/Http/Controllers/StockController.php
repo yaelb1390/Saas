@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Http\Controllers;
 
-use App\Modules\Core\Models\Warehouse;
-use App\Modules\Inventory\Enums\StockMovementType;
-use App\Modules\Inventory\Http\Requests\StoreStockEntryRequest;
-use App\Modules\Inventory\Models\Product;
-use App\Modules\Inventory\Services\StockService;
+use App\Modules\Inventory\DTOs\CreateGoodsReceiptData;
+use App\Modules\Inventory\Http\Requests\StoreGoodsReceiptRequest;
+use App\Modules\Inventory\Services\GoodsReceiptService;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,9 +17,12 @@ use Illuminate\Routing\Controller;
 /**
  * Entrada de mercancía al almacén.
  *
- * Delgado a propósito: el caso de uso ya es StockService::increase() (transacción, bloqueo de fila,
- * kardex con saldo antes/después y evento). Envolverlo en un servicio propio solo añadiría una capa
- * vacía y, peor, una segunda puerta al stock: StockService debe seguir siendo la única.
+ * Delgado: valida, delega en GoodsReceiptService y traduce las reglas de dominio a mensajes. El
+ * servicio existe —antes esto llamaba directamente a StockService— porque una remesa es más que
+ * sumar existencia: es un documento con sus líneas, su proveedor y su costo, y las tres cosas tienen
+ * que entrar juntas o no entrar.
+ *
+ * StockService sigue siendo la única puerta al stock; GoodsReceiptService pasa por él.
  */
 final class StockController extends Controller
 {
@@ -34,29 +36,34 @@ final class StockController extends Controller
         return response()->json($lookup->payload((string) $request->query('codigo', '')));
     }
 
-    public function store(StoreStockEntryRequest $request, StockService $stock): RedirectResponse
+    /**
+     * Confirma la remesa entera.
+     *
+     * Antes cada producto era un envío y una recarga de página; una remesa de treinta artículos eran
+     * treinta viajes al servidor y, si el almacenista se distraía a la mitad, quedaban quince dentro
+     * y quince fuera sin nada que dijera cuáles.
+     */
+    public function store(StoreGoodsReceiptRequest $request, GoodsReceiptService $remesas): RedirectResponse
     {
-        $data = $request->validated();
+        try {
+            $remesa = $remesas->create(CreateGoodsReceiptData::fromArray($request->validated()));
+        } catch (DomainException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
 
-        // El Form Request ya garantizó que ambos son de la empresa activa.
-        $product = Product::findOrFail($data['product_id']);
-        $warehouse = Warehouse::findOrFail($data['warehouse_id']);
+        $lineas = $remesa->lines->count();
+        $actualizados = $remesa->lines->where('cost_updated', true)->count();
 
-        // Adjustment y no Purchase: «Purchase» significa entrada respaldada por una orden de compra
-        // y la emite PurchaseOrderService::receive() con su referencia. Una entrada rápida no tiene
-        // orden, proveedor ni costo; tiparla como compra ensuciaría el kardex y cualquier informe
-        // de compras con movimientos huérfanos imposibles de conciliar.
-        $movement = $stock->increase(
-            $product,
-            $warehouse,
-            StockMovementType::Adjustment,
-            (string) $data['quantity'],
-            ['notes' => $data['notes'] ?? 'Entrada de mercancía'],
-        );
+        $aviso = $actualizados > 0
+            ? sprintf(' Se actualizó el costo de %d producto%s.', $actualizados, $actualizados === 1 ? '' : 's')
+            : '';
 
-        return back()->with(
-            'panel_ok',
-            "Entrada registrada: {$product->name} · {$movement->quantity_before} → {$movement->quantity_after}",
-        );
+        return back()->with('panel_ok', sprintf(
+            'Entrada %s registrada: %d %s.%s',
+            $remesa->code,
+            $lineas,
+            $lineas === 1 ? 'producto' : 'productos',
+            $aviso,
+        ));
     }
 }

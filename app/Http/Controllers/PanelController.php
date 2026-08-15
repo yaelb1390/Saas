@@ -23,9 +23,9 @@ use App\Modules\Finance\Models\Account;
 use App\Modules\Finance\Models\FinancialMovement;
 use App\Modules\HR\Models\Employee;
 use App\Modules\Inventory\Models\Category;
+use App\Modules\Inventory\Models\GoodsReceipt;
 use App\Modules\Inventory\Models\OptionGroup;
 use App\Modules\Inventory\Models\Product;
-use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Loans\Enums\InstallmentStatus;
 use App\Modules\Loans\Enums\LoanFrequency;
 use App\Modules\Loans\Models\Loan;
@@ -125,20 +125,24 @@ final class PanelController extends Controller
     }
 
     /**
-     * Entrada de mercancía: escanear o teclear el código y sumar existencia.
+     * Entrada de mercancía: se arma la remesa escaneando y se confirma entera de una vez.
      *
-     * Los movimientos recientes se muestran como acuse de recibo: el almacenista necesita ver que
-     * lo que acaba de pasar por el lector quedó registrado, y con qué saldo.
+     * El panel lateral enseña las ÚLTIMAS REMESAS, no los últimos movimientos de existencia. Antes
+     * mostraba los movimientos y ahí salían también las ventas del punto de venta: en una pantalla de
+     * entradas, ver «−1 Venta» entre lo que acabas de meter no es un acuse de recibo, es ruido. Y los
+     * productos borrados aparecían como un guion, así que había filas que no decían nada.
      */
     public function stockEntry(): View
     {
         return view('panel.stock-entry', [
             'warehouses' => Warehouse::query()->orderByDesc('is_default')->orderBy('name')->get(),
             'categories' => Category::query()->orderBy('name')->get(),
-            'movements' => StockMovement::query()
-                ->with(['product', 'warehouse'])
+            'suppliers' => Supplier::query()->orderBy('name')->get(['id', 'name']),
+            'receipts' => GoodsReceipt::query()
+                ->with(['lines', 'warehouse', 'supplier'])
+                ->withCount('lines')
                 ->latest('id')
-                ->limit(15)
+                ->limit(8)
                 ->get(),
         ]);
     }

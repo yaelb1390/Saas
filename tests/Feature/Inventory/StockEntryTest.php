@@ -8,9 +8,16 @@ use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
-use App\Modules\Inventory\Models\Stock;
 use App\Modules\Inventory\Models\StockMovement;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+
+/*
+ * La PANTALLA de entrada de mercancía: sus puertas y las herramientas que ofrece.
+ *
+ * Las reglas de la remesa —que entre entera, el kardex, el costo, el proveedor— viven en
+ * GoodsReceiptTest. Aquí queda lo que es de la pantalla y de quién puede llegar a ella, que es
+ * distinto y se rompe por otros motivos.
+ */
 
 uses(RefreshDatabase::class);
 
@@ -32,103 +39,29 @@ beforeEach(function (): void {
     ]);
 });
 
-// ---------------------------------------------------------------- Registro de la entrada
-
-it('la entrada suma existencia y deja el movimiento en el kardex', function (): void {
-    $this->actingAs($this->admin)
-        ->post(route('panel.stock.store'), [
-            'product_id' => $this->product->id,
-            'warehouse_id' => $this->warehouse->id,
+/** El cuerpo de una remesa de una sola línea, tal como lo manda el formulario. */
+function remesaDeUnaLinea(array $linea = [], array $extra = []): array
+{
+    return array_merge([
+        'warehouse_id' => test()->warehouse->id,
+        'lines' => [array_merge([
+            'product_id' => test()->product->id,
             'quantity' => '12',
-        ])
-        ->assertRedirect();
+        ], $linea)],
+    ], $extra);
+}
 
-    $stock = Stock::where('product_id', $this->product->id)->firstOrFail();
-    $movement = StockMovement::latest('id')->firstOrFail();
+// ---------------------------------------------------------------- Herramientas de la pantalla
 
-    expect($stock->quantity)->toBe('12.000')
-        // Adjustment, no Purchase: esta entrada no viene respaldada por una orden de compra.
-        ->and($movement->type)->toBe(StockMovementType::Adjustment)
-        ->and($movement->quantity)->toBe('12.000')
-        ->and($movement->quantity_before)->toBe('0.000')
-        ->and($movement->quantity_after)->toBe('12.000')
-        ->and($movement->user_id)->toBe($this->admin->id);
-});
-
-it('dos entradas seguidas acumulan', function (): void {
-    foreach (['5', '7'] as $qty) {
-        $this->actingAs($this->admin)->post(route('panel.stock.store'), [
-            'product_id' => $this->product->id,
-            'warehouse_id' => $this->warehouse->id,
-            'quantity' => $qty,
-        ])->assertRedirect();
-    }
-
-    expect(Stock::where('product_id', $this->product->id)->firstOrFail()->quantity)->toBe('12.000');
-});
-
-it('guarda la nota cuando se indica', function (): void {
-    $this->actingAs($this->admin)->post(route('panel.stock.store'), [
-        'product_id' => $this->product->id,
-        'warehouse_id' => $this->warehouse->id,
-        'quantity' => '3',
-        'notes' => 'Factura 00123 del proveedor',
-    ])->assertRedirect();
-
-    expect(StockMovement::latest('id')->firstOrFail()->notes)->toBe('Factura 00123 del proveedor');
-});
-
-// ---------------------------------------------------------------- Validación
-
-it('rechaza una cantidad de cero o negativa', function (string $qty): void {
+it('ofrece el campo de escaneo y la cámara', function (): void {
+    // La cámara no es un adorno: es la única forma de escanear a pie de estantería cuando el lector
+    // de pistola está atado a la caja. Se perdió una vez al rehacer la pantalla y nadie lo habría
+    // notado hasta que un almacenista subiera al segundo piso con el móvil.
     $this->actingAs($this->admin)
-        ->post(route('panel.stock.store'), [
-            'product_id' => $this->product->id,
-            'warehouse_id' => $this->warehouse->id,
-            'quantity' => $qty,
-        ])
-        ->assertSessionHasErrors('quantity');
-
-    expect(StockMovement::count())->toBe(0);
-})->with(['0', '-5']);
-
-// ---------------------------------------------------------------- Aislamiento multiempresa
-
-it('rechaza un producto de otra empresa', function (): void {
-    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Ajena Co'));
-    app(CurrentCompany::class)->set($otra->id);
-    $ajeno = Product::create(['sku' => 'AJ-1', 'name' => 'Ajeno', 'price' => '10']);
-    app(CurrentCompany::class)->set($this->company->id);
-
-    $this->actingAs($this->admin)
-        ->post(route('panel.stock.store'), [
-            'product_id' => $ajeno->id,
-            'warehouse_id' => $this->warehouse->id,
-            'quantity' => '10',
-        ])
-        ->assertSessionHasErrors('product_id');
-
-    expect(StockMovement::withoutCompanyScope()->count())->toBe(0);
-});
-
-it('rechaza un almacén de otra empresa', function (): void {
-    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Ajena Dos'));
-
-    // Hay que situarse en la otra empresa para poder leer su almacén: el CompanyScope lo esconde
-    // desde aquí, que es justamente el aislamiento que se quiere comprobar.
-    app(CurrentCompany::class)->set($otra->id);
-    $almacenAjeno = $otra->warehouses()->where('is_default', true)->firstOrFail();
-    app(CurrentCompany::class)->set($this->company->id);
-
-    $this->actingAs($this->admin)
-        ->post(route('panel.stock.store'), [
-            'product_id' => $this->product->id,
-            'warehouse_id' => $almacenAjeno->id,
-            'quantity' => '10',
-        ])
-        ->assertSessionHasErrors('warehouse_id');
-
-    expect(StockMovement::withoutCompanyScope()->count())->toBe(0);
+        ->get(route('panel.stock.entry'))
+        ->assertOk()
+        ->assertSee('entry-scan', false)
+        ->assertSee('Usar cámara', false);
 });
 
 it('la búsqueda del inventario no ve productos de otra empresa', function (): void {
@@ -143,6 +76,32 @@ it('la búsqueda del inventario no ve productos de otra empresa', function (): v
         ->assertJsonPath('found', false);
 });
 
+// ---------------------------------------------------------------- Validación de lo que llega
+
+it('rechaza una cantidad de cero o negativa', function (string $qty): void {
+    $this->actingAs($this->admin)
+        ->post(route('panel.stock.store'), remesaDeUnaLinea(['quantity' => $qty]))
+        ->assertSessionHasErrors('lines.0.quantity');
+
+    expect(StockMovement::count())->toBe(0);
+})->with(['0', '-5']);
+
+it('rechaza un almacén de otra empresa', function (): void {
+    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Ajena Dos'));
+
+    // Hay que situarse en la otra empresa para poder leer su almacén: el CompanyScope lo esconde
+    // desde aquí, que es justamente el aislamiento que se quiere comprobar.
+    app(CurrentCompany::class)->set($otra->id);
+    $almacenAjeno = $otra->warehouses()->where('is_default', true)->firstOrFail();
+    app(CurrentCompany::class)->set($this->company->id);
+
+    $this->actingAs($this->admin)
+        ->post(route('panel.stock.store'), remesaDeUnaLinea([], ['warehouse_id' => $almacenAjeno->id]))
+        ->assertSessionHasErrors('warehouse_id');
+
+    expect(StockMovement::withoutCompanyScope()->count())->toBe(0);
+});
+
 // ---------------------------------------------------------------- Permisos
 
 it('el cajero no puede dar entrada de mercancía', function (): void {
@@ -154,12 +113,7 @@ it('el cajero no puede dar entrada de mercancía', function (): void {
     ]), 'staff');
 
     $this->actingAs($cajero)->get(route('panel.stock.entry'))->assertForbidden();
-
-    $this->actingAs($cajero)->post(route('panel.stock.store'), [
-        'product_id' => $this->product->id,
-        'warehouse_id' => $this->warehouse->id,
-        'quantity' => '10',
-    ])->assertForbidden();
+    $this->actingAs($cajero)->post(route('panel.stock.store'), remesaDeUnaLinea())->assertForbidden();
 });
 
 it('una empresa sin el módulo de inventario no entra', function (): void {
@@ -168,18 +122,10 @@ it('una empresa sin el módulo de inventario no entra', function (): void {
     $this->actingAs($this->admin)->get(route('panel.stock.entry'))->assertForbidden();
 });
 
-// ---------------------------------------------------------------- Pantalla y alta desde código
-
-it('la pantalla ofrece el campo de escaneo y la cámara', function (): void {
-    $this->actingAs($this->admin)
-        ->get(route('panel.stock.entry'))
-        ->assertOk()
-        ->assertSee('entry-scan', false)
-        ->assertSee('Usar cámara', false);
-});
+// ---------------------------------------------------------------- Alta desde un código desconocido
 
 it('un código desconocido se puede dar de alta con su código y su existencia inicial', function (): void {
-    // Es el camino del botón «Crear producto con este código»: reutiliza el alta que ya existía.
+    // Es el camino del botón «Crear el producto»: reutiliza el alta que ya existía.
     $this->actingAs($this->admin)
         ->post(route('panel.products.store'), [
             'sku' => 'NUEVO-1', 'name' => 'Producto Nuevo',

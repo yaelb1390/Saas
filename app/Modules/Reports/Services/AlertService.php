@@ -10,7 +10,7 @@ use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
-use App\Modules\Inventory\Models\Stock;
+use App\Modules\Inventory\Models\Product;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -19,8 +19,6 @@ use Illuminate\Support\Facades\Cache;
  */
 final class AlertService
 {
-    private const LOW_STOCK_THRESHOLD = '5';
-
     /** Margen de NCF restantes por debajo del cual conviene solicitar una nueva secuencia. */
     private const LOW_NCF_THRESHOLD = 50;
 
@@ -50,7 +48,9 @@ final class AlertService
     {
         $alerts = [];
 
-        $lowStock = Stock::query()->where('quantity', '<', self::LOW_STOCK_THRESHOLD)->count();
+        // Se cuentan PRODUCTOS, no filas de existencia, y con el mismo criterio que el listado al que
+        // lleva el aviso: si la campana y la pantalla no coinciden, el aviso deja de creerse.
+        $lowStock = Product::query()->stockBajo()->count();
         if ($lowStock > 0) {
             $alerts[] = [
                 'key' => 'low_stock',

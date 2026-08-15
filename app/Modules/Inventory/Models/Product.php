@@ -26,6 +26,14 @@ class Product extends Model implements Auditable, HasCompany
     use HasFactory;
     use SoftDeletes;
 
+    /**
+     * Existencia por debajo de la cual un producto se considera «stock bajo».
+     *
+     * Es una cadena porque la existencia se guarda como decimal y se compara con bcmath en el resto
+     * del sistema: pasarlo como entero invitaría a que alguien lo tratara como número más adelante.
+     */
+    public const UMBRAL_STOCK_BAJO = '5';
+
     protected $fillable = [
         'company_id',
         'category_id',
@@ -108,9 +116,37 @@ class Product extends Model implements Auditable, HasCompany
                     ->orWhereLike('name', "%{$texto}%")
                     ->orWhereLike('barcode', "%{$texto}%")
             ))
-            // Mismo umbral que la tarjeta «Stock bajo» del resumen.
-            ->when($soloStockBajo, fn (Builder $q) => $q
-                ->whereHas('stock', fn ($s) => $s->where('quantity', '<', 5)));
+            ->when($soloStockBajo, fn (Builder $q) => $q->stockBajo());
+    }
+
+    /**
+     * Productos que se están quedando sin existencia.
+     *
+     * Es la ÚNICA definición de «stock bajo» del sistema, y tiene que serlo. Antes había tres: esta,
+     * la campana de alertas y la tarjeta del resumen. Las dos últimas contaban filas de la tabla
+     * `stock` en vez de productos, y de ahí salía el aviso que no cuadraba con nada:
+     *
+     *  - Un producto borrado CONSERVA sus filas de existencia, así que la campana seguía avisando de
+     *    productos que ya no estaban en el inventario. Con el inventario vacío decía «8 productos con
+     *    stock bajo» y al pulsar no aparecía ninguno.
+     *  - Un producto en tres almacenes contaba tres veces, aunque el aviso dijera «productos».
+     *
+     * Contar productos —y no filas— arregla las tres cosas de una vez, porque el borrado lógico ya lo
+     * descuenta el propio modelo.
+     *
+     * Los que no llevan seguimiento de existencia quedan fuera: para un servicio o algo que se
+     * fabrica al momento, «stock bajo» no significa nada.
+     *
+     * Un producto SIN ninguna fila de existencia tampoco cuenta. Es deliberado: si contara, cada
+     * producto recién creado nacería como alerta y la campana dejaría de mirarse.
+     *
+     * @param  Builder<Product>  $query
+     */
+    public function scopeStockBajo(Builder $query): void
+    {
+        $query
+            ->where('track_stock', true)
+            ->whereHas('stock', fn ($s) => $s->where('quantity', '<', self::UMBRAL_STOCK_BAJO));
     }
 
     /**

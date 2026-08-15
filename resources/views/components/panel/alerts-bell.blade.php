@@ -1,10 +1,13 @@
 @php
     $alerts = app(\App\Modules\Reports\Services\AlertService::class)->forCurrentCompany();
     $total = array_sum(array_column($alerts, 'count'));
+    // Un tono por cada `tone` que devuelve AlertService. El de las secuencias de NCF («rose») faltaba,
+    // así que el aviso más urgente de todos —quedarse sin facturar— se pintaba gris como si diera igual.
     $tones = [
         'amber' => 'bg-amber-100 text-amber-600',
         'indigo' => 'bg-indigo-100 text-indigo-600',
         'sky' => 'bg-sky-100 text-sky-600',
+        'rose' => 'bg-rose-100 text-rose-600',
     ];
 @endphp
 

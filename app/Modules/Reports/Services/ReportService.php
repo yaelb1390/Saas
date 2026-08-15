@@ -11,7 +11,6 @@ use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Finance\Models\Account;
 use App\Modules\Inventory\Models\Product;
-use App\Modules\Inventory\Models\Stock;
 use App\Modules\Loans\Enums\InstallmentStatus;
 use App\Modules\Loans\Enums\LoanStatus;
 use App\Modules\Loans\Models\Loan;
@@ -30,8 +29,6 @@ use Illuminate\Support\Facades\Cache;
  */
 final class ReportService
 {
-    private const LOW_STOCK_THRESHOLD = '5';
-
     /** Segundos que se sirve el resumen desde caché antes de recalcularlo. */
     private const SUMMARY_TTL = 60;
 
@@ -110,7 +107,9 @@ final class ReportService
                 DeliveryStatus::InTransit,
             ])->count(),
             'products' => Product::query()->count(),
-            'low_stock' => Stock::query()->where('quantity', '<', self::LOW_STOCK_THRESHOLD)->count(),
+            // Productos, no filas de existencia: ver Product::scopeStockBajo(). La tarjeta y la
+            // campana enseñan la misma cifra porque preguntan lo mismo.
+            'low_stock' => Product::query()->stockBajo()->count(),
             // Cartera de préstamos: saldo vigente y lo que está vencido (cuota + mora − abonado).
             'loans_outstanding' => $prestamos['balance'],
             'loans_count' => $prestamos['count'],

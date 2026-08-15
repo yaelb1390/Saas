@@ -59,12 +59,26 @@ final class LoanApplicationController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // Cuántas hay en cada estado, en UNA sola consulta agrupada.
+        //
+        // Sin esto hay que ir pestaña por pestaña para descubrir dónde está el trabajo, y con la
+        // empresa recién estrenada las seis salen vacías y parece que la pantalla no funciona. La
+        // cifra al lado del nombre responde eso antes de pulsar nada.
+        $porEstado = LoanApplication::query()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
         return view('panel.loan-applications', [
             'applications' => $solicitudes,
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'cedula']),
             'frequencies' => LoanFrequency::cases(),
             'statuses' => LoanApplicationStatus::cases(),
             'estadoActivo' => request('estado'),
+            'porEstado' => $porEstado,
+            // «No hay ninguna» y «ninguna coincide con el filtro» son cosas distintas, y decir la
+            // segunda cuando pasa la primera manda al cliente a buscar un filtro que no existe.
+            'hayAlguna' => $porEstado->sum() > 0,
         ]);
     }
 

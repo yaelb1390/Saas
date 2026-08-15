@@ -1,4 +1,11 @@
+@use('App\Modules\Loans\Enums\LoanApplicationStatus')
 @use('App\Modules\Loans\Enums\LoanFrequency')
+
+@php
+    // `tryFrom` y no `from`: el estado llega de la URL y basta con teclear «?estado=loquesea» para
+    // reventar la pantalla con un error de enumerado. Si no vale, se trata como si no hubiera filtro.
+    $filtro = $estadoActivo ? LoanApplicationStatus::tryFrom((string) $estadoActivo) : null;
+@endphp
 
 <x-layouts.admin title="Solicitudes" heading="Solicitudes de préstamo"
                  subheading="Quién pidió, con qué respaldo y qué se decidió">
@@ -12,11 +19,20 @@
             <a href="{{ route('panel.loan-applications', ['q' => request('q')]) }}"
                class="bmos-btn {{ $estadoActivo ? 'bmos-btn-ghost' : 'bmos-btn-primary' }} text-xs">
                 Todas
+                @if ($porEstado->sum() > 0)
+                    <span class="ml-1.5 opacity-60">{{ $porEstado->sum() }}</span>
+                @endif
             </a>
             @foreach ($statuses as $estado)
+                @php $cuantas = (int) ($porEstado[$estado->value] ?? 0); @endphp
                 <a href="{{ route('panel.loan-applications', ['estado' => $estado->value, 'q' => request('q')]) }}"
-                   class="bmos-btn {{ $estadoActivo === $estado->value ? 'bmos-btn-primary' : 'bmos-btn-ghost' }} text-xs">
+                   class="bmos-btn text-xs {{ $estadoActivo === $estado->value ? 'bmos-btn-primary' : 'bmos-btn-ghost' }} {{ $cuantas === 0 && $estadoActivo !== $estado->value ? 'opacity-50' : '' }}">
                     {{ $estado->label() }}
+                    {{-- La cifra solo cuando hay algo. Un «0» en cada pestaña es ruido; la pestaña
+                         atenuada ya dice que ahí no hay nada. --}}
+                    @if ($cuantas > 0)
+                        <span class="ml-1.5 opacity-60">{{ $cuantas }}</span>
+                    @endif
                 </a>
             @endforeach
         </div>
@@ -172,10 +188,21 @@
                             </tr>
                         @empty
                             <tr><td colspan="8" class="bmos-empty">
-                                @if (request('q') || $estadoActivo)
-                                    Ninguna solicitud coincide con lo que buscas.
-                                @else
+                                {{-- Tres mensajes distintos porque son tres situaciones distintas.
+                                     Decir «ninguna coincide con lo que buscas» cuando no existe
+                                     ninguna solicitud manda al cliente a buscar un filtro que no
+                                     tiene puesto. --}}
+                                @if (! $hayAlguna)
                                     Sin solicitudes todavía. Registra la primera con «Nueva solicitud».
+                                @elseif (request('q'))
+                                    Ninguna solicitud coincide con «{{ request('q') }}».
+                                    <a href="{{ route('panel.loan-applications', ['estado' => $filtro?->value]) }}" class="text-indigo-600 hover:underline">Quitar la búsqueda</a>
+                                @elseif ($filtro)
+                                    Ninguna solicitud está «{{ $filtro->label() }}».
+                                    <a href="{{ route('panel.loan-applications') }}" class="text-indigo-600 hover:underline">Ver todas</a>
+                                @else
+                                    No hay nada en esta página.
+                                    <a href="{{ route('panel.loan-applications') }}" class="text-indigo-600 hover:underline">Volver al principio</a>
                                 @endif
                             </td></tr>
                         @endforelse

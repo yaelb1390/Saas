@@ -31,12 +31,7 @@
     </style>
 </head>
 <body>
-    <div class="center">
-        <div class="brand">{{ $company?->name ?? 'BM Business OS' }}</div>
-        @if ($company?->tax_id)<div class="muted">RNC: {{ $company->tax_id }}</div>@endif
-        @if ($company?->address)<div class="muted">{{ $company->address }}</div>@endif
-        @if ($company?->phone)<div class="muted">Tel: {{ $company->phone }}</div>@endif
-    </div>
+    @include('partials.document-header', ['company' => $company, 'pdf' => true])
 
     <div class="sep"></div>
 

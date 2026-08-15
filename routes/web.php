@@ -11,6 +11,7 @@ use App\Modules\Billing\Http\Controllers\PartsCounterController;
 use App\Modules\Billing\Http\Controllers\PurchaseInvoiceController;
 use App\Modules\Core\Http\Controllers\CompanyAdminController;
 use App\Modules\Core\Http\Controllers\CompanyDeletionController;
+use App\Modules\Core\Http\Controllers\CompanyProfileController;
 use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
 use App\Modules\Core\Http\Controllers\PlanController;
@@ -104,6 +105,25 @@ Route::middleware(['auth'])->group(function (): void {
     Route::post('/panel/cuenta/plan/{plan}', SubscriptionPlanController::class)
         ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.plan');
 
+    /*
+     * Datos de la empresa: lo que sale impreso en cada recibo que recibe un cliente.
+     *
+     * Mismo permiso que la cuenta (`company.manage`): cambiar la razón social o el RNC de la empresa
+     * es tan delicado como tocar la suscripción, y un cajero no tiene por qué poder hacerlo.
+     *
+     * El logo se sirve por su propia ruta y NO exige `company.manage`: lo pinta el recibo, que
+     * también miran los cajeros al cobrar. Basta con estar dentro y pertenecer a la empresa, que es
+     * lo que ya garantiza la sesión.
+     */
+    Route::get('/panel/mi-empresa', [CompanyProfileController::class, 'edit'])
+        ->middleware('can:company.manage')->name('panel.company-profile');
+    Route::put('/panel/mi-empresa', [CompanyProfileController::class, 'update'])
+        ->middleware('can:company.manage')->name('panel.company-profile.update');
+    Route::delete('/panel/mi-empresa/logo', [CompanyProfileController::class, 'deleteLogo'])
+        ->middleware('can:company.manage')->name('panel.company-profile.logo.destroy');
+
+    Route::get('/panel/empresa/logo', [CompanyProfileController::class, 'logo'])->name('panel.company.logo');
+
     // Aviso de cuenta suspendida (accesible sin suscripción/empresa activa, por eso queda fuera
     // del middleware que bloquea).
     Route::get('/cuenta-suspendida', SuspensionController::class)->name('panel.suspended');
@@ -123,7 +143,7 @@ Route::middleware(['auth'])->group(function (): void {
         // Tamaños y sabores van con «quick_pos», no con «inventory»: solo el terminal táctil los
         // pregunta al vender. Ocultarlos del menú no basta —la URL seguiría abierta—, así que la
         // puerta de verdad es esta.
-        Route::get('/opciones', 'optionGroups')->middleware(['can:products.manage', 'module:quick_pos'])->name('option-groups');
+        Route::get('/opciones', 'optionGroups')->middleware(['can:products.manage', 'module:quick_pos', 'feature:option_groups'])->name('option-groups');
         // Entrada de mercancía: dar existencia es un permiso distinto de consultarla.
         Route::get('/inventario/entradas', 'stockEntry')->middleware(['can:stock.adjust', 'module:inventory'])->name('stock.entry');
         Route::get('/ventas', 'sales')->middleware(['can:sales.view', 'module:sales'])->name('sales');
@@ -283,7 +303,7 @@ Route::middleware(['auth'])->group(function (): void {
     // Y con «quick_pos», igual que la pantalla que los edita: sin el terminal táctil no hay dónde
     // preguntarlos. Si aquí se quedara «inventory», quien no contrató comida rápida no vería el
     // menú pero podría crear grupos a mano contra estas rutas.
-    Route::middleware(['can:products.manage', 'module:quick_pos'])->group(function (): void {
+    Route::middleware(['can:products.manage', 'module:quick_pos', 'feature:option_groups'])->group(function (): void {
         Route::post('/panel/opciones', [OptionGroupController::class, 'store'])->name('panel.option-groups.store');
         Route::put('/panel/opciones/{optionGroup}', [OptionGroupController::class, 'update'])->name('panel.option-groups.update');
         Route::delete('/panel/opciones/{optionGroup}', [OptionGroupController::class, 'destroy'])->name('panel.option-groups.destroy');

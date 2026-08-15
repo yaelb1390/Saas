@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Loans\Http\Controllers;
 
+use App\Modules\Core\Support\CompanyLogoStore;
 use App\Modules\CRM\DTOs\CreateCustomerData;
 use App\Modules\CRM\Services\CrmService;
 use App\Modules\Loans\DTOs\CreateLoanData;
@@ -84,8 +85,11 @@ final class LoanController extends Controller
     {
         $data = $this->receiptData($loan, $payment);
 
-        // 80mm ≈ 226.77 pt. Alto fijo: el recibo del cobro no tiene líneas variables.
-        $pdf = Pdf::loadView('loans.receipt-pdf', $data)->setPaper([0, 0, 226.77, 420]);
+        // 80mm ≈ 226.77 pt. Alto fijo: el recibo del cobro no tiene líneas variables, salvo el logo
+        // de la empresa, que sí ocupa y hay que reservarle su espacio o el recibo se parte en dos.
+        $alto = 420 + ($loan->company?->hasLogo() ? CompanyLogoStore::PDF_ESPACIO_PT : 0);
+
+        $pdf = Pdf::loadView('loans.receipt-pdf', $data)->setPaper([0, 0, 226.77, $alto]);
         $filename = 'recibo-cobro-'.$loan->code.'.pdf';
 
         return $mode === 'descargar' ? $pdf->download($filename) : $pdf->stream($filename);

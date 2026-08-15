@@ -39,10 +39,11 @@
         'Inventario' => [
             ['panel.products', 'Inventario', 'cube', 'products.view', 'inventory'],
             ['panel.categories', 'Categorías', 'tag', 'categories.manage', 'inventory'],
-            // Va con «quick_pos» y no con «inventory»: los tamaños y sabores solo se preguntan en el
-            // terminal táctil (heladería, comida rápida). El punto de venta de mostrador ni los
-            // ofrece, así que a una ferretería le aparecía una pantalla que no iba a usar nunca.
-            ['panel.option-groups', 'Tamaños y sabores', 'tag', 'products.manage', 'quick_pos'],
+            // Dos puertas: el MÓDULO «quick_pos» (los tamaños y sabores solo se preguntan en el
+            // terminal táctil; el de mostrador ni los ofrece) y la FUNCIÓN, que enciende el propio
+            // cliente. Una heladería y una ferretería pueden tener las dos el terminal, y solo a una
+            // le sirve esto.
+            ['panel.option-groups', 'Tamaños y sabores', 'tag', 'products.manage', 'quick_pos', 'option_groups'],
             ['panel.stock.entry', 'Entrada de mercancía', 'bag', 'stock.adjust', 'inventory'],
             ['panel.purchases', 'Compras', 'bag', 'purchases.view', 'purchasing'],
         ],
@@ -67,6 +68,7 @@
             ['panel.ai', 'IA & RAG', 'spark', 'ai.assistant.use', 'ai'],
         ],
         'Administración' => [
+            ['panel.company-profile', 'Mi empresa', 'id', 'company.manage', null],
             ['panel.users', 'Usuarios', 'shield', 'users.manage', null],
             // Estaba solo en el desplegable del avatar: quien no lo abriera nunca encontraba dónde
             // ver su plan ni dónde pagar. Sin módulo asociado: la suscripción no se contrata.
@@ -76,13 +78,21 @@
         ],
     ];
 
-    // Se ocultan los enlaces sin permiso, los de módulos que la empresa no contrató, y las
-    // secciones que quedan vacías. El super admin (Gate::before) ve todo.
+    /*
+     * Se ocultan los enlaces sin permiso, los de módulos que la empresa no contrató, los de funciones
+     * que ha decidido no usar, y las secciones que quedan vacías. El super admin (Gate::before) ve
+     * todo.
+     *
+     * Cada entrada es: [ruta, etiqueta, icono, permiso, módulo, función opcional]. El módulo y la
+     * función son cosas distintas: el módulo es lo que se CONTRATÓ y lo decide el plan; la función es
+     * lo que el cliente USA de lo que ya tiene, y la enciende él en «Mi empresa».
+     */
     $nav = collect($nav)
         ->map(fn (array $items): array => array_values(array_filter(
             $items,
             fn (array $item): bool => Gate::allows($item[3])
-                && ($isSuper || $item[4] === null || $activeCompany === null || $activeCompany->hasModule($item[4])),
+                && ($isSuper || $item[4] === null || $activeCompany === null || $activeCompany->hasModule($item[4]))
+                && ($isSuper || ($item[5] ?? null) === null || $activeCompany === null || $activeCompany->usesFeature($item[5])),
         )))
         ->filter(fn (array $items): bool => $items !== [])
         ->all();

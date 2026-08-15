@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Http\Controllers;
 
 use App\Modules\Billing\Models\Invoice;
+use App\Modules\Core\Support\CompanyLogoStore;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Services\SaleVoidService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -88,9 +89,19 @@ final class SaleController extends Controller
     {
         $data = $this->receiptData($sale);
 
-        // 80mm ≈ 226.77 pt. Alto = cabecera/pie fijos + una banda por cada línea de artículo.
+        /*
+         * 80 mm ≈ 226.77 pt de ancho. El alto se calcula: parte fija + una banda por artículo.
+         *
+         * La base era 360 pt y NO daba: el recibo salía en dos páginas incluso con un solo artículo,
+         * así que cada venta imprimía una segunda hoja casi en blanco. Se midió por búsqueda binaria
+         * cuál es el alto mínimo con el que cabe en una —519 pt— y de ahí sale esta cifra, con un
+         * pequeño respiro para las direcciones largas que ocupan dos renglones.
+         *
+         * El logo suma aparte porque ocupa un alto que la parte fija no contempla.
+         */
         $width = 226.77;
-        $height = 360 + ($sale->items->count() * 30);
+        $height = 540 + ($sale->items->count() * 30)
+            + ($sale->company?->hasLogo() ? CompanyLogoStore::PDF_ESPACIO_PT : 0);
 
         $pdf = Pdf::loadView('sales.receipt-pdf', $data)
             ->setPaper([0, 0, $width, $height]);

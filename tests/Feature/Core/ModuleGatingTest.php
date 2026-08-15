@@ -100,8 +100,36 @@ it('tamaños y sabores solo existe con el terminal táctil contratado', function
     expect($html)->not->toContain(route('panel.option-groups'));
 });
 
-it('con el terminal táctil contratado, tamaños y sabores está disponible', function (): void {
+it('con el terminal contratado pero la función apagada, sigue cerrado', function (): void {
+    /*
+     * Son DOS puertas y hacen falta las dos:
+     *
+     *  - El MÓDULO dice qué compró la empresa. Lo decide el plan.
+     *  - La FUNCIÓN dice qué usa de lo que ya tiene. La enciende el propio cliente.
+     *
+     * Una heladería y una ferretería pueden tener las dos el terminal táctil, y solo a una le sirven
+     * los tamaños y sabores. Viene apagada, así que contratar el módulo NO basta.
+     */
     $this->company->update(['modules' => ['quick_pos', 'inventory']]);
+
+    expect($this->company->fresh()->usesFeature('option_groups'))->toBeFalse();
+
+    $this->actingAs($this->owner)->get(route('panel.option-groups'))->assertForbidden();
+
+    // Y tampoco por la puerta de atrás: ocultar el menú nunca es la protección.
+    $this->actingAs($this->owner)
+        ->post(route('panel.option-groups.store'), ['name' => 'Tamaño', 'min_select' => 1, 'max_select' => 1])
+        ->assertForbidden();
+
+    $html = $this->actingAs($this->owner)->get(route('dashboard'))->assertOk()->getContent();
+    expect($html)->not->toContain(route('panel.option-groups'));
+});
+
+it('con el terminal táctil contratado Y la función encendida, está disponible', function (): void {
+    $this->company->update([
+        'modules' => ['quick_pos', 'inventory'],
+        'settings' => ['features' => ['option_groups' => true]],
+    ]);
 
     $this->actingAs($this->owner)->get(route('panel.option-groups'))->assertOk();
 

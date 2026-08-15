@@ -152,4 +152,60 @@ class Company extends Model implements Auditable
     {
         return $this->users()->where('is_active', true)->orderBy('id')->first();
     }
+
+    /**
+     * Funciones que la empresa enciende o apaga por su cuenta.
+     *
+     * No son módulos: un módulo es lo que se CONTRATA y decide el plan; esto es lo que el propio
+     * cliente elige usar de lo que ya tiene. Una heladería y una ferretería pueden tener las dos el
+     * terminal táctil, y solo a una le sirven los tamaños y sabores.
+     *
+     * Viven en `settings` y no en columnas propias porque son interruptores que van y vienen; una
+     * migración por cada uno sería una columna nueva cada vez que alguien pide ocultar algo.
+     *
+     * @var array<string, string>
+     */
+    public const FEATURES = [
+        'option_groups' => 'Tamaños y sabores',
+    ];
+
+    /**
+     * ¿Tiene encendida esta función?
+     *
+     * Apagada por defecto: el menú de un colmado no tiene por qué llevar una entrada de sabores de
+     * helado. Las empresas que YA usaban la función la conservan porque una migración se la dejó
+     * encendida al implantar esto.
+     */
+    public function usesFeature(string $key): bool
+    {
+        return (bool) data_get($this->settings, "features.{$key}", false);
+    }
+
+    public function hasLogo(): bool
+    {
+        return $this->logo_path !== null && $this->logo_path !== '';
+    }
+
+    /**
+     * URL del logo para el recibo que se mira en pantalla.
+     *
+     * Lleva la marca de tiempo detrás para que, al cambiar el logo, el navegador no siga enseñando el
+     * anterior: la dirección es la misma y sin esto la caché la daría por buena durante días.
+     */
+    public function logoUrl(): ?string
+    {
+        if (! $this->hasLogo()) {
+            return null;
+        }
+
+        return route('panel.company.logo').'?v='.($this->updated_at?->timestamp ?? 0);
+    }
+
+    /** El nombre que debe salir en un documento: el legal si lo hay, y si no el comercial. */
+    public function nombreParaDocumentos(): string
+    {
+        $legal = trim((string) $this->legal_name);
+
+        return $legal !== '' ? $legal : (string) $this->name;
+    }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Core\Http\Middleware\EnsureFeatureEnabled;
 use App\Modules\Core\Http\Middleware\EnsureModuleActive;
 use App\Modules\Core\Http\Middleware\EnsureSubscriptionActive;
 use App\Modules\Core\Http\Middleware\SetApiCompany;
@@ -37,7 +38,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'company' => SetCurrentCompany::class,
+            // «module»: lo que la empresa CONTRATÓ (lo decide el plan).
             'module' => EnsureModuleActive::class,
+            // «feature»: lo que la empresa USA de lo que ya tiene (lo enciende el propio cliente).
+            'feature' => EnsureFeatureEnabled::class,
             'subscription' => EnsureSubscriptionActive::class,
         ]);
 

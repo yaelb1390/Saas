@@ -47,6 +47,14 @@ return [
 
     'product_images' => env('PRODUCT_IMAGE_DISK', 'local'),
 
+    /*
+     * Logo de cada empresa (el que sale en sus recibos). Cae por defecto en el mismo disco que las
+     * fotos de producto porque el problema es idéntico —en Vercel el sistema de ficheros es de solo
+     * lectura— y así una instalación ya configurada no tiene que tocar nada. La variable propia
+     * existe por si algún día conviene separarlos.
+     */
+    'company_logos' => env('COMPANY_LOGO_DISK', env('PRODUCT_IMAGE_DISK', 'local')),
+
     'disks' => [
 
         'local' => [

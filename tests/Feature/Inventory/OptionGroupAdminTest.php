@@ -28,6 +28,11 @@ beforeEach(function (): void {
     $this->company = app(CompanyService::class)->create(new CreateCompanyData(name: 'Heladería'));
     app(CurrentCompany::class)->set($this->company->id);
 
+    // «Tamaños y sabores» es una función opcional y viene APAGADA: no todo negocio vende lo mismo, y
+    // el menú de un colmado no tiene por qué llevar una entrada de sabores de helado. Esta empresa es
+    // una heladería, así que la enciende.
+    $this->company->update(['settings' => ['features' => ['option_groups' => true]]]);
+
     $this->owner = withRole(User::create([
         'company_id' => $this->company->id, 'name' => 'Dueña',
         'email' => 'duena@heladeria.test', 'password' => 'secret-password',

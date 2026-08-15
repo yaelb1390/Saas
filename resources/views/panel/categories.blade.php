@@ -66,13 +66,15 @@
                                                     ]))">
                                                 Editar
                                             </button>
-                                            <form method="POST" action="{{ route('panel.categories.destroy', $category) }}"
-                                                  class="inline"
-                                                  onsubmit="return confirm('¿Eliminar «{{ $category->name }}»? Sus productos quedarán sin categoría.')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="bmos-btn bmos-btn-ghost text-xs text-rose-600">Eliminar</button>
-                                            </form>
+                                            <x-panel.confirm-action
+                                                :action="route('panel.categories.destroy', $category)"
+                                                title="¿Eliminar «{{ $category->name }}»?"
+                                                message="Sus productos quedarán sin categoría, pero se siguen vendiendo con normalidad."
+                                                note="Aunque la categoría se restaure, los productos NO vuelven a ella: hay que asignarlos otra vez."
+                                                irreversible
+                                                class="bmos-btn bmos-btn-ghost text-xs text-rose-600">
+                                                Eliminar
+                                            </x-panel.confirm-action>
                                         @endcan
                                     </td>
                                 </tr>

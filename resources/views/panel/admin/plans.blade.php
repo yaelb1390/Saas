@@ -184,11 +184,16 @@
                         </label>
                     </x-panel.edit-modal>
 
-                    <form method="POST" action="{{ route('platform.plans.destroy', $plan) }}"
-                          onsubmit="return confirm('¿Eliminar el plan «{{ $plan->name }}»?')">
-                        @csrf @method('DELETE')
-                        <button type="submit" class="bmos-btn bmos-btn-ghost text-rose-600">Eliminar</button>
-                    </form>
+                    <x-panel.confirm-action
+                        :action="route('platform.plans.destroy', $plan)"
+                        title="¿Eliminar el plan «{{ $plan->name }}»?"
+                        message="Desaparece de la comparativa pública y ya no se podrá asignar a ninguna empresa."
+                        note="Esto no se puede deshacer: el plan se borra, no se archiva. Si solo quieres dejar de ofrecerlo, desmarca «Plan disponible para asignar» en «Editar»."
+                        irreversible
+                        :require-text="$plan->name"
+                        class="bmos-btn bmos-btn-ghost text-rose-600">
+                        Eliminar
+                    </x-panel.confirm-action>
                 </div>
             </div>
         @empty

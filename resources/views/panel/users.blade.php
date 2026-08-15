@@ -72,18 +72,30 @@
                                                 @click="edit({ id: {{ $user->id }}, name: @js($user->name), email: @js($user->email), role: @js($role), is_active: {{ $user->is_active ? 'true' : 'false' }} })">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                         </button>
-                                        <form method="POST" action="{{ route('panel.users.toggle', $user) }}"
-                                              onsubmit="return confirm('{{ $user->is_active ? '¿Desactivar' : '¿Reactivar' }} a «{{ $user->name }}»?')">
-                                            @csrf
-                                            <button type="submit" class="rounded-lg p-1.5 {{ $user->is_active ? 'text-slate-500 hover:bg-rose-50 hover:text-rose-600' : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600' }}"
-                                                    title="{{ $user->is_active ? 'Desactivar' : 'Reactivar' }}">
-                                                @if ($user->is_active)
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                                                @else
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                                                @endif
-                                            </button>
-                                        </form>
+                                        {{-- Desactivar no borra: el usuario queda ahí y se puede volver a
+                                             activar cuando haga falta. De ahí que el aviso sea índigo y no
+                                             rojo, aunque el icono siga siendo el de bloquear. --}}
+                                        <x-panel.confirm-action
+                                            :action="route('panel.users.toggle', $user)"
+                                            method="POST"
+                                            tone="neutral"
+                                            title="{{ $user->is_active ? '¿Desactivar' : '¿Reactivar' }} a «{{ $user->name }}»?"
+                                            {{-- La comprobación es al entrar (ver FortifyServiceProvider), no en
+                                                 cada petición: quien ya tenga la sesión abierta la conserva. Se
+                                                 dice, porque de otro modo se supone que el corte es inmediato. --}}
+                                            :message="$user->is_active
+                                                ? 'No podrá volver a entrar al sistema. Si tiene la sesión abierta ahora mismo, la conserva hasta que la cierre.'
+                                                : 'Podrá volver a entrar con su correo y su contraseña de siempre.'"
+                                            :note="$user->is_active ? 'Se puede reactivar en cualquier momento desde esta misma pantalla.' : null"
+                                            confirm="{{ $user->is_active ? 'Desactivar' : 'Reactivar' }}"
+                                            tooltip="{{ $user->is_active ? 'Desactivar' : 'Reactivar' }}"
+                                            class="rounded-lg p-1.5 {{ $user->is_active ? 'text-slate-500 hover:bg-rose-50 hover:text-rose-600' : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-600' }}">
+                                            @if ($user->is_active)
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                            @else
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                                            @endif
+                                        </x-panel.confirm-action>
                                     </div>
                                 </td>
                             </tr>

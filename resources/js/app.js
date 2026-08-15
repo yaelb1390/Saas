@@ -160,130 +160,170 @@ window.avisoFlash = async ({ tipo, titulo, texto }) => {
 };
 
 /**
- * Confirmación de borrado múltiple de productos.
+ * Confirmación de una acción, con el aspecto del panel en lugar del diálogo gris del navegador.
  *
- * El borrado es lógico: los productos se archivan y las ventas ya registradas siguen intactas. Se
- * dice en el propio diálogo, porque es la pregunta que se hace cualquiera antes de pulsar y de la
- * respuesta depende que se atreva.
+ * Es la única de su clase: antes había veinte `confirm()` nativos repartidos por las vistas y tres
+ * diálogos casi idénticos aquí. Todos pasan por esta.
  *
- * @param {{cantidad: number, exigirCifra: boolean, formulario: string}} datos
+ * Sirve a las DOS formas que existen en el proyecto, que es lo que obliga a que devuelva algo:
+ *
+ *  - Con `formulario`: lo envía y deja el diálogo cargando, de modo que no admite un segundo clic.
+ *    Es el caso de los botones de borrar, donde el token y el método vienen del <form> de Blade.
+ *  - Sin `formulario`: resuelve `true` o `false`. Lo necesitan los métodos `async` de Alpine del
+ *    punto de venta rápido, que preguntan antes de seguir (`if (! await ...) return;`).
+ *
+ * El TONO no es decoración: rojo para lo que destruye, índigo para lo que no. Archivar un cliente y
+ * destruir un plan preguntaban igual, y el color es lo primero que se lee.
+ *
+ * @param {{
+ *   titulo: string,
+ *   mensaje?: string,
+ *   aviso?: string,
+ *   avisoGrave?: boolean,
+ *   confirmar?: string,
+ *   tono?: 'peligro'|'neutro',
+ *   exigirTexto?: string|number,
+ *   formulario?: string,
+ * }} opciones
+ * @returns {Promise<boolean>}
  */
-window.confirmarBorrarProductos = async ({ cantidad, exigirCifra, formulario }) => {
+window.confirmarAccion = async ({
+    titulo,
+    mensaje = '',
+    aviso = '',
+    avisoGrave = false,
+    confirmar = 'Confirmar',
+    tono = 'peligro',
+    exigirTexto = null,
+    formulario = null,
+}) => {
     const { default: Swal } = await import('sweetalert2');
 
-    const form = document.getElementById(formulario);
-    if (!form || cantidad < 1) return;
+    const form = formulario ? document.getElementById(formulario) : null;
 
-    const plural = cantidad === 1 ? 'producto' : 'productos';
+    // Un formulario que no aparece significa que la vista cambió y el botón quedó suelto: mejor no
+    // abrir un diálogo que al confirmar no haría nada.
+    if (formulario && !form) return false;
 
-    await Swal.fire({
-        icon: 'warning',
-        title: `¿Eliminar ${cantidad} ${plural}?`,
-        width: '38rem',
+    const peligro = tono === 'peligro';
+    const esperado = exigirTexto === null ? null : String(exigirTexto);
+
+    const bloques = [];
+
+    if (mensaje) {
+        bloques.push(`<p style="margin:0">${mensaje}</p>`);
+    }
+
+    if (aviso) {
+        // El aviso grave va sobre fondo rojo: es el que dice «esto no se puede deshacer», y tiene
+        // que distinguirse de una aclaración cualquiera aunque no se lea entero.
+        bloques.push(avisoGrave
+            ? `<p style="margin:.7rem 0 0;padding:.6rem .8rem;border-radius:.7rem;background:#fff1f2;color:#9f1239;font-weight:600">${aviso}</p>`
+            : `<p style="margin:.6rem 0 0;color:#64748b;font-size:.9rem">${aviso}</p>`);
+    }
+
+    if (esperado !== null) {
+        // Cuando lo que se pide teclear es una cifra, el teclado numérico del móvil ahorra un paso.
+        const teclado = /^\d+$/.test(esperado) ? ' inputmode="numeric"' : '';
+
+        bloques.push(`
+            <label style="display:block;margin-top:1.15rem;font-weight:600;color:#334155">
+                Escribe <b>${esperado}</b> para confirmar
+            </label>
+            <input id="swal-exigido" class="swal2-input" style="width:100%;margin:.4rem 0 0"${teclado} autocomplete="off">`);
+    }
+
+    const { isConfirmed } = await Swal.fire({
+        icon: peligro ? 'warning' : 'question',
+        title: titulo,
+        width: '36rem',
         padding: '2rem',
         buttonsStyling: false,
         reverseButtons: true,
         focusConfirm: false,
-        html: `
-            <div style="text-align:left;color:#475569;line-height:1.6">
-                <p>Dejarán de aparecer en el inventario y en el punto de venta.</p>
-                <p style="margin:.6rem 0 0"><b>Las ventas ya registradas no cambian:</b> los recibos y los
-                informes siguen mostrando lo que se vendió.</p>
-                ${exigirCifra ? `
-                    <label style="display:block;margin-top:1.15rem;font-weight:600;color:#334155">
-                        Escribe <b>${cantidad}</b> para confirmar
-                    </label>
-                    <input id="swal-cifra" class="swal2-input" style="width:100%;margin:.4rem 0 0" inputmode="numeric" autocomplete="off">
-                ` : ''}
-            </div>`,
+        html: bloques.length > 0
+            ? `<div style="text-align:left;color:#475569;line-height:1.6">${bloques.join('')}</div>`
+            : undefined,
         showCancelButton: true,
-        confirmButtonText: `Eliminar ${cantidad} ${plural}`,
+        confirmButtonText: confirmar,
         cancelButtonText: 'Cancelar',
         customClass: {
             popup: 'bmos-swal',
             title: 'bmos-swal-titulo',
-            confirmButton: 'bmos-swal-borrar',
+            confirmButton: peligro ? 'bmos-swal-borrar' : 'bmos-swal-confirmar',
             cancelButton: 'bmos-swal-cancelar',
         },
         preConfirm: () => {
-            if (exigirCifra && document.getElementById('swal-cifra').value.trim() !== String(cantidad)) {
-                Swal.showValidationMessage(`Escribe ${cantidad} para confirmar.`);
+            if (esperado !== null && document.getElementById('swal-exigido').value.trim() !== esperado) {
+                Swal.showValidationMessage(`Escribe ${esperado} para confirmar.`);
                 return false;
             }
 
-            // Se envía desde aquí y el diálogo queda cargando: así no admite un segundo clic.
+            if (!form) return true;
+
+            // Se envía desde aquí y el diálogo queda cargando: sin esto, un doble clic manda dos
+            // peticiones y la segunda choca contra un registro que ya no existe.
             Swal.showLoading();
             form.submit();
 
             return new Promise(() => {}); // nunca resuelve: la página va a navegar
         },
     });
+
+    return isConfirmed === true;
 };
 
 /**
- * Confirmación de anulación de ventas.
+ * Borrado múltiple de productos.
  *
- * Se separa de la de productos porque lo que ocurre es distinto y hay que decirlo: anular una venta
- * NO es solo quitarla de una lista, devuelve el stock y saca el cobro de la caja. Quien lo pulsa
- * tiene que saber que las cifras del día van a cambiar.
+ * El borrado es lógico: se archivan y las ventas ya registradas siguen intactas. Se dice en el
+ * diálogo porque es la pregunta que se hace cualquiera antes de pulsar.
  *
- * Aquí siempre se pide teclear la cantidad, sin importar cuántas sean: en el inventario unos pocos
- * productos son inofensivos, pero una sola venta ya mueve dinero.
+ * Al abarcar TODOS los que coinciden con la búsqueda se pide teclear la cifra: marcar unos pocos es
+ * un acto deliberado, pero «seleccionar los 500» es un solo clic.
+ *
+ * @param {{cantidad: number, exigirCifra: boolean, formulario: string}} datos
+ */
+window.confirmarBorrarProductos = ({ cantidad, exigirCifra, formulario }) => {
+    if (cantidad < 1) return Promise.resolve(false);
+
+    const plural = cantidad === 1 ? 'producto' : 'productos';
+
+    return window.confirmarAccion({
+        titulo: `¿Eliminar ${cantidad} ${plural}?`,
+        mensaje: 'Dejarán de aparecer en el inventario y en el punto de venta.',
+        aviso: '<b>Las ventas ya registradas no cambian:</b> los recibos y los informes siguen mostrando lo que se vendió.',
+        confirmar: `Eliminar ${cantidad} ${plural}`,
+        exigirTexto: exigirCifra ? cantidad : null,
+        formulario,
+    });
+};
+
+/**
+ * Anulación múltiple de ventas.
+ *
+ * Aquí SIEMPRE se pide teclear la cantidad, sin importar cuántas sean: en el inventario unos pocos
+ * productos son inofensivos, pero una sola venta ya mueve dinero y existencias.
  *
  * @param {{cantidad: number, formulario: string}} datos
  */
-window.confirmarAnularVentas = async ({ cantidad, formulario }) => {
-    const { default: Swal } = await import('sweetalert2');
-
-    const form = document.getElementById(formulario);
-    if (!form || cantidad < 1) return;
+window.confirmarAnularVentas = ({ cantidad, formulario }) => {
+    if (cantidad < 1) return Promise.resolve(false);
 
     const plural = cantidad === 1 ? 'venta' : 'ventas';
 
-    await Swal.fire({
-        icon: 'warning',
-        title: `¿Anular ${cantidad} ${plural}?`,
-        width: '40rem',
-        padding: '2rem',
-        buttonsStyling: false,
-        reverseButtons: true,
-        focusConfirm: false,
-        html: `
-            <div style="text-align:left;color:#475569;line-height:1.6">
-                <p style="margin:0 0 .6rem">Al anular se deshace lo que hizo la venta:</p>
-                <ul style="margin:0;padding-left:1.2rem">
-                    <li>Los productos <b>vuelven al inventario</b>.</li>
-                    <li>El cobro <b>sale de la caja</b>, así que el arqueo del día cambia.</li>
-                    <li>Deja de contar en los informes de ventas y ganancias.</li>
-                </ul>
-                <p style="margin:.7rem 0 0;font-size:.88rem;color:#64748b">
-                    Las ventas con factura fiscal o con el arqueo ya cerrado se saltan y te lo indicamos.
-                </p>
-                <label style="display:block;margin-top:1.15rem;font-weight:600;color:#334155">
-                    Escribe <b>${cantidad}</b> para confirmar
-                </label>
-                <input id="swal-cifra-ventas" class="swal2-input" style="width:100%;margin:.4rem 0 0" inputmode="numeric" autocomplete="off">
-            </div>`,
-        showCancelButton: true,
-        confirmButtonText: `Anular ${cantidad} ${plural}`,
-        cancelButtonText: 'Cancelar',
-        customClass: {
-            popup: 'bmos-swal',
-            title: 'bmos-swal-titulo',
-            confirmButton: 'bmos-swal-borrar',
-            cancelButton: 'bmos-swal-cancelar',
-        },
-        preConfirm: () => {
-            if (document.getElementById('swal-cifra-ventas').value.trim() !== String(cantidad)) {
-                Swal.showValidationMessage(`Escribe ${cantidad} para confirmar.`);
-                return false;
-            }
-
-            Swal.showLoading();
-            form.submit();
-
-            return new Promise(() => {}); // nunca resuelve: la página va a navegar
-        },
+    return window.confirmarAccion({
+        titulo: `¿Anular ${cantidad} ${plural}?`,
+        mensaje: `Al anular se deshace lo que hizo la venta:
+            <ul style="margin:.5rem 0 0;padding-left:1.2rem">
+                <li>Los productos <b>vuelven al inventario</b>.</li>
+                <li>El cobro <b>sale de la caja</b>, así que el arqueo del día cambia.</li>
+                <li>Deja de contar en los informes de ventas y ganancias.</li>
+            </ul>`,
+        aviso: 'Las ventas con factura fiscal o con el arqueo ya cerrado se saltan y te lo indicamos.',
+        confirmar: `Anular ${cantidad} ${plural}`,
+        exigirTexto: cantidad,
+        formulario,
     });
 };
 

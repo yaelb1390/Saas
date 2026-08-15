@@ -71,13 +71,18 @@
 
                     <div class="flex items-center gap-2">
                         <button type="button" @click="open = !open" class="bmos-btn bmos-btn-ghost" x-text="open ? 'Cerrar' : 'Editar plan'"></button>
-                        <form method="POST" action="{{ route('platform.companies.toggle', $company) }}"
-                              onsubmit="return confirm('{{ $company->is_active ? '¿Suspender' : '¿Reactivar' }} «{{ $company->name }}»?')">
-                            @csrf
-                            <button type="submit" class="bmos-btn {{ $company->is_active ? 'bmos-btn-ghost' : 'bmos-btn-primary' }}">
-                                {{ $company->is_active ? 'Suspender' : 'Reactivar' }}
-                            </button>
-                        </form>
+                        <x-panel.confirm-action
+                            :action="route('platform.companies.toggle', $company)"
+                            method="POST"
+                            tone="neutral"
+                            title="{{ $company->is_active ? '¿Suspender' : '¿Reactivar' }} «{{ $company->name }}»?"
+                            :message="$company->is_active
+                                ? ($company->users_count === 1 ? 'Su usuario verá' : 'Sus '.$company->users_count.' usuarios verán').' una pantalla de cuenta suspendida en lugar del panel. No se borra nada y se puede reactivar cuando quieras.'
+                                : 'Sus usuarios volverán a entrar al panel con normalidad, con todo tal como lo dejaron.'"
+                            confirm="{{ $company->is_active ? 'Suspender' : 'Reactivar' }}"
+                            class="bmos-btn {{ $company->is_active ? 'bmos-btn-ghost' : 'bmos-btn-primary' }}">
+                            {{ $company->is_active ? 'Suspender' : 'Reactivar' }}
+                        </x-panel.confirm-action>
                         {{-- Eliminar va aparte y sin color de botón: se busca que no se pulse por
                              inercia al ir a «Suspender», que está justo al lado. --}}
                         <button type="button"
@@ -135,11 +140,17 @@
                                     <button type="submit" class="bmos-btn bmos-btn-ghost">Registrar pago</button>
                                 </form>
                                 @if ($sub->isUsable())
-                                    <form method="POST" action="{{ route('platform.companies.suspend', $company) }}"
-                                          onsubmit="return confirm('¿Suspender la suscripción de «{{ $company->name }}»?')">
-                                        @csrf
-                                        <button type="submit" class="bmos-btn bmos-btn-ghost">Suspender</button>
-                                    </form>
+                                    <x-panel.confirm-action
+                                        :action="route('platform.companies.suspend', $company)"
+                                        method="POST"
+                                        tone="neutral"
+                                        title="¿Suspender la suscripción de «{{ $company->name }}»?"
+                                        message="La empresa pierde el acceso al panel hasta que se registre un pago. Sus datos quedan intactos."
+                                        note="Es lo que se hace cuando deja de pagar; para cerrarla del todo está «Eliminar»."
+                                        confirm="Suspender la suscripción"
+                                        class="bmos-btn bmos-btn-ghost">
+                                        Suspender
+                                    </x-panel.confirm-action>
                                 @endif
                             @endif
                         </div>

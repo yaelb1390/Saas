@@ -644,7 +644,12 @@
                     /** Devuelve un pedido aparcado al ticket, con los precios de hoy. */
                     async recuperar(p) {
                         // Con un pedido a medias, recuperar otro perdería el actual sin aviso.
-                        if (this.cart.length > 0 && !confirm('Se reemplazará el pedido actual. ¿Continuar?')) {
+                        if (this.cart.length > 0 && ! await window.confirmarAccion({
+                            titulo: '¿Reemplazar el pedido actual?',
+                            mensaje: `Se quitará del ticket lo que hay ahora (${this.cart.length} línea${this.cart.length === 1 ? '' : 's'}) y en su lugar entrará el pedido ${p.reference}.`,
+                            aviso: 'Si lo que quieres es guardarlo para después, cierra esto y púlsalo en «Aparcar».',
+                            confirmar: 'Reemplazar',
+                        })) {
                             return;
                         }
 
@@ -670,7 +675,17 @@
                     },
 
                     async descartar(p, silencioso = false) {
-                        if (!silencioso && !confirm(`¿Descartar el pedido ${p.reference}?`)) return;
+                        // `silencioso` es el descarte que hace `recuperar()` por dentro: ahí ya se
+                        // preguntó, y volver a preguntar sería incomprensible.
+                        if (! silencioso && ! await window.confirmarAccion({
+                            titulo: `¿Descartar el pedido ${p.reference}?`,
+                            mensaje: 'Sale de la barra de pedidos en espera sin llegar a cobrarse.',
+                            aviso: 'Esto no se puede deshacer: el pedido se borra y habría que volver a montarlo línea por línea.',
+                            avisoGrave: true,
+                            confirmar: 'Descartar',
+                        })) {
+                            return;
+                        }
 
                         try {
                             const res = await fetch(`${this.holdUrl}/${p.id}`, {

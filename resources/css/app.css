@@ -1249,11 +1249,15 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * Diálogo de confirmación destructiva (SweetAlert2)
+ * Diálogo de confirmación (SweetAlert2)
  *
  * Se desactiva el estilo propio de la librería (`buttonsStyling: false`) para que los botones
- * hablen el mismo idioma que el resto del panel. El diálogo se usa solo para el borrado de
- * empresas, así que el botón de confirmar es rojo a propósito: el color forma parte del aviso.
+ * hablen el mismo idioma que el resto del panel.
+ *
+ * Hay DOS botones de confirmar y la diferencia no es decorativa: `bmos-swal-borrar` es rojo y se
+ * reserva a lo que destruye datos, mientras que `bmos-swal-confirmar` es índigo —el color de acción
+ * del panel— para lo que solo pide una confirmación (reactivar un usuario, recibir una orden,
+ * cerrar la sesión de un terminal). Cuando todo se preguntaba en rojo, el aviso dejaba de avisar.
  * ------------------------------------------------------------------------ */
 .bmos-swal {
     border-radius: 1.25rem;
@@ -1266,6 +1270,7 @@ body {
 }
 
 .bmos-swal-borrar,
+.bmos-swal-confirmar,
 .bmos-swal-cancelar {
     border-radius: 0.85rem;
     padding: 0.8rem 1.5rem;
@@ -1284,6 +1289,16 @@ body {
 
 .bmos-swal-borrar:hover {
     background: #be123c;
+}
+
+.bmos-swal-confirmar {
+    background: #4f46e5;
+    color: #fff;
+    box-shadow: 0 10px 20px -8px rgba(79, 70, 229, 0.6);
+}
+
+.bmos-swal-confirmar:hover {
+    background: #4338ca;
 }
 
 .bmos-swal-cancelar {

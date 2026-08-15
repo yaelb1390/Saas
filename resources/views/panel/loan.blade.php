@@ -64,11 +64,16 @@
                 @endif
 
                 @if ($loan->status === LoanStatus::Active && $loan->payments->isEmpty())
-                    <form method="POST" action="{{ route('panel.loans.cancel', $loan) }}"
-                          onsubmit="return confirm('¿Anular el préstamo {{ $loan->code }}? Solo se puede si no tiene cobros.')">
-                        @csrf
-                        <button type="submit" class="bmos-btn bmos-btn-ghost w-full justify-center text-rose-600 hover:bg-rose-50">Anular préstamo</button>
-                    </form>
+                    <x-panel.confirm-action
+                        :action="route('panel.loans.cancel', $loan)"
+                        method="POST"
+                        title="¿Anular el préstamo {{ $loan->code }}?"
+                        message="Deja de contar como cartera activa y desaparece de la tabla de amortización."
+                        note="Solo se puede anular mientras no tenga ningún cobro registrado."
+                        confirm="Anular el préstamo"
+                        class="bmos-btn bmos-btn-ghost w-full justify-center text-rose-600 hover:bg-rose-50">
+                        Anular préstamo
+                    </x-panel.confirm-action>
                 @endif
             @endcan
         </div>

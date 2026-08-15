@@ -106,11 +106,16 @@
                                                             'price_delta' => (string) $option->price_delta,
                                                             'is_active' => $option->is_active,
                                                         ]))">Editar</button>
-                                                <form method="POST" action="{{ route('panel.options.destroy', $option) }}" class="inline"
-                                                      onsubmit="return confirm('¿Eliminar «{{ $option->name }}»? Los tickets antiguos la seguirán mostrando tal como se vendió.')">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="bmos-btn bmos-btn-ghost text-xs text-rose-600">✕</button>
-                                                </form>
+                                                <x-panel.confirm-action
+                                                    :action="route('panel.options.destroy', $option)"
+                                                    title="¿Eliminar la opción «{{ $option->name }}»?"
+                                                    message="Dejará de ofrecerse al vender. Los tickets antiguos la seguirán mostrando tal como se vendió."
+                                                    note="Esto no se puede deshacer: la opción se borra, no se archiva."
+                                                    irreversible
+                                                    tooltip="Eliminar opción"
+                                                    class="bmos-btn bmos-btn-ghost text-xs text-rose-600">
+                                                    ✕
+                                                </x-panel.confirm-action>
                                             </span>
                                         </li>
                                     @endforeach
@@ -144,12 +149,36 @@
                             @endif
                         </div>
 
+                        @php
+                            // El grupo se archiva, pero sus opciones se BORRAN en duro: es lo que
+                            // nadie espera del botón, así que se dice con la cifra delante.
+                            $cuantasOpciones = $group->options->count();
+                            $cuantosProductos = $group->products->count();
+
+                            $avisoGrupo = match (true) {
+                                $cuantasOpciones === 0 => 'Esto no se puede deshacer.',
+                                $cuantasOpciones === 1 => 'Se llevará por delante su única opción, y eso no se puede deshacer.',
+                                default => "Se llevará por delante sus {$cuantasOpciones} opciones, y eso no se puede deshacer.",
+                            };
+
+                            $textoGrupo = match (true) {
+                                $cuantosProductos === 0 => 'Ahora mismo no lo usa ningún producto.',
+                                $cuantosProductos === 1 => 'Dejará de preguntarse al vender el producto que lo usaba.',
+                                default => "Dejará de preguntarse al vender los {$cuantosProductos} productos que lo usaban.",
+                            };
+                        @endphp
+
                         <div class="mt-4 flex justify-end border-t border-slate-100 pt-3">
-                            <form method="POST" action="{{ route('panel.option-groups.destroy', $group) }}"
-                                  onsubmit="return confirm('¿Eliminar el grupo «{{ $group->name }}»? Dejará de preguntarse en los productos que lo usaban.')">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="bmos-btn bmos-btn-ghost text-xs text-rose-600">Eliminar grupo</button>
-                            </form>
+                            <x-panel.confirm-action
+                                :action="route('panel.option-groups.destroy', $group)"
+                                title="¿Eliminar el grupo «{{ $group->name }}»?"
+                                :message="$textoGrupo"
+                                :note="$avisoGrupo"
+                                irreversible
+                                :confirm="$cuantasOpciones > 0 ? 'Eliminar el grupo y sus opciones' : 'Eliminar el grupo'"
+                                class="bmos-btn bmos-btn-ghost text-xs text-rose-600">
+                                Eliminar grupo
+                            </x-panel.confirm-action>
                         </div>
                     </div>
                 @endforeach

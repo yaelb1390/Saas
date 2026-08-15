@@ -55,15 +55,19 @@
                 </svg>
             </button>
 
-            <form method="POST" action="{{ route('logout') }}"
-                  onsubmit="return confirm('¿Cerrar la sesión del terminal?')">
-                @csrf
-                <button type="submit" class="bmos-kiosk-btn" aria-label="Cerrar sesión">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/>
-                    </svg>
-                </button>
-            </form>
+            <x-panel.confirm-action
+                :action="route('logout')"
+                method="POST"
+                tone="neutral"
+                title="¿Cerrar la sesión del terminal?"
+                message="Habrá que volver a entrar con usuario y contraseña para seguir vendiendo."
+                confirm="Cerrar sesión"
+                class="bmos-kiosk-btn"
+                aria-label="Cerrar sesión">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9"/>
+                </svg>
+            </x-panel.confirm-action>
         </div>
     </header>
 

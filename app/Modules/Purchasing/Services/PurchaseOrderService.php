@@ -95,9 +95,15 @@ final class PurchaseOrderService
         });
     }
 
+    /**
+     * `withTrashed()` porque la orden se archiva, no se destruye: sin contar las archivadas, la
+     * siguiente reutilizaría un código ya usado y chocaría contra el índice único de
+     * `(company_id, code)`.
+     */
     private function nextCode(int $companyId): string
     {
         $count = PurchaseOrder::withoutCompanyScope()
+            ->withTrashed()
             ->where('company_id', $companyId)
             ->count();
 

@@ -9,6 +9,7 @@ use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Finance\Models\Account;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
@@ -99,6 +100,67 @@ it('anular saca el cobro de la caja', function (): void {
     $this->actingAs($this->owner)->delete(route('panel.sales.bulk-void'), ['ids' => [$venta->id]]);
 
     expect(DB::table('cash_movements')->where('reference_id', $venta->id)->count())->toBe(0);
+});
+
+/*
+ * El dinero de una venta se apunta en DOS libros: el cajón del turno y la cuenta de la empresa.
+ *
+ * Durante un tiempo anular solo deshacía el primero. El saldo de la cuenta se quedaba con el ingreso
+ * de ventas que ya no existían, y la desviación se acumulaba con cada anulación hasta que alguien
+ * intentaba cuadrar contra el banco. No lo cazó ningún test porque los de arriba miran el cajón, que
+ * sí se limpiaba.
+ */
+
+it('anular retira el ingreso de la cuenta de la empresa', function (): void {
+    $cuenta = Account::query()->where('is_default', true)->firstOrFail();
+    expect((string) $cuenta->fresh()->balance)->toBe('0.00');
+
+    $venta = venderUnidades(3);
+
+    // La venta entró: 3 × 100.
+    expect((string) $cuenta->fresh()->balance)->toBe('300.00')
+        ->and(DB::table('financial_movements')->where('reference_id', $venta->id)->count())->toBe(1);
+
+    $this->actingAs($this->owner)->delete(route('panel.sales.bulk-void'), ['ids' => [$venta->id]]);
+
+    expect((string) $cuenta->fresh()->balance)->toBe('0.00')
+        ->and(DB::table('financial_movements')->where('reference_id', $venta->id)->count())->toBe(0);
+});
+
+it('vender y anular en bucle no desvía el saldo ni un céntimo', function (): void {
+    // El error de signo natural —sumar el importe en vez de restarlo, al leer «devolver el dinero»—
+    // duplicaría el ingreso en cada vuelta en lugar de deshacerlo.
+    $cuenta = Account::query()->where('is_default', true)->firstOrFail();
+
+    foreach ([1, 2, 1] as $unidades) {
+        $venta = venderUnidades($unidades);
+        $this->actingAs($this->owner)->delete(route('panel.sales.bulk-void'), ['ids' => [$venta->id]]);
+    }
+
+    expect((string) $cuenta->fresh()->balance)->toBe('0.00')
+        ->and(DB::table('financial_movements')->count())->toBe(0);
+});
+
+it('después de anular se puede seguir vendiendo', function (): void {
+    /*
+     * El fallo más grave que ha tenido este flujo, y el que menos se veía venir.
+     *
+     * El código de la venta se saca contando ventas, y las anuladas se ARCHIVAN. Al no contarlas, la
+     * siguiente venta reutilizaba el código de la anulada y chocaba contra el índice único de
+     * `(company_id, code)`: la venta no se guardaba. Es decir, anulabas una venta y el punto de
+     * venta dejaba de cobrar.
+     *
+     * No lo cazó ningún test porque todos anulaban al final, nunca antes de volver a vender.
+     */
+    $primera = venderUnidades(1);
+    expect($primera->code)->toBe('V-000001');
+
+    $this->actingAs($this->owner)->delete(route('panel.sales.bulk-void'), ['ids' => [$primera->id]]);
+
+    $segunda = venderUnidades(1);
+
+    expect($segunda->code)->toBe('V-000002')
+        ->and($segunda->exists)->toBeTrue();
 });
 
 it('archiva la venta en vez de destruirla', function (): void {

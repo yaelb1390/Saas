@@ -151,9 +151,23 @@ final class SaleService
         return $customer;
     }
 
+    /**
+     * Código correlativo de la venta.
+     *
+     * `withTrashed()` NO es opcional: las ventas anuladas se archivan (borrado lógico) y sin esto
+     * dejarían de contarse, así que la siguiente venta reutilizaría el código de la anulada y
+     * chocaría contra el índice único de `(company_id, code)`. En la práctica: anulabas una venta y
+     * la siguiente NO SE PODÍA COBRAR.
+     *
+     * Contar filas sigue teniendo un límite conocido: dos cajeros cobrando en el mismo instante
+     * cuentan lo mismo y uno de los dos choca. El índice único evita el código duplicado —que es lo
+     * grave—, pero esa venta habría que repetirla. Resolverlo bien pide un contador por empresa con
+     * bloqueo, no un `count()`.
+     */
     private function nextCode(int $companyId): string
     {
         $count = Sale::withoutCompanyScope()
+            ->withTrashed()
             ->where('company_id', $companyId)
             ->count();
 

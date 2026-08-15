@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Services;
 
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Finance\Models\Account;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Sales\Models\Sale;
@@ -17,8 +18,14 @@ use Illuminate\Support\Facades\DB;
  * el stock descontado y el dinero contado en la caja. Las existencias y el arqueo quedarían
  * mintiendo, y nadie se enteraría hasta cuadrar la caja o contar el inventario.
  *
- * Por eso anular hace tres cosas en una sola transacción: devuelve el stock, saca el cobro de la
- * caja y archiva la venta (borrado lógico: el registro sigue en la base y se puede recuperar).
+ * Por eso anular hace CUATRO cosas en una sola transacción: devuelve el stock, saca el cobro de la
+ * caja, retira el ingreso de la cuenta de la empresa y archiva la venta (borrado lógico: el registro
+ * sigue en la base y se puede recuperar).
+ *
+ * El dinero de una venta se apunta en DOS libros —el cajón del turno y la cuenta de la empresa— y
+ * durante un tiempo esto solo deshacía el primero, así que el saldo de la cuenta se quedaba con el
+ * ingreso de ventas que ya no existían. Si se añade un tercer sitio donde una venta deje dinero,
+ * tiene que deshacerse aquí también.
  *
  * Hay dos casos que NO se anulan, y se informa de por qué:
  *
@@ -89,8 +96,57 @@ final class SaleVoidService
                 ->where('reference_id', $sale->id)
                 ->delete();
 
+            $this->retirarIngresoDeLaCuenta($sale);
+
             // Borrado lógico: la venta desaparece de listados e informes, pero la fila sigue ahí.
             $sale->delete();
         });
+    }
+
+    /**
+     * Deshace el ingreso que la venta dejó en la cuenta de la empresa.
+     *
+     * Una venta apunta el dinero en DOS libros distintos, y hasta ahora anular solo tocaba uno:
+     *
+     *   - El CAJÓN del turno (`cash_movements`), que sí se retiraba.
+     *   - La CUENTA de la empresa (`financial_movements`), que se quedaba con el ingreso para
+     *     siempre. El saldo conservaba el dinero de una venta que ya no existía, y la desviación se
+     *     acumulaba con cada anulación hasta que alguien intentaba cuadrar con el banco.
+     *
+     * Se recorre por el apunte y no por la cuenta por defecto: el ingreso entró en la cuenta que
+     * fuera la predeterminada AQUEL día, y devolvérselo a la de hoy movería dinero entre cuentas.
+     *
+     * Se borra el apunte en vez de dejar un contraasiento, por el mismo motivo que en la caja y para
+     * que anular una venta y anular un gasto se comporten igual.
+     */
+    private function retirarIngresoDeLaCuenta(Sale $sale): void
+    {
+        $apuntes = DB::table('financial_movements')
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->get(['id', 'account_id', 'amount']);
+
+        foreach ($apuntes as $apunte) {
+            /** @var Account|null $cuenta */
+            $cuenta = Account::withoutCompanyScope()
+                ->where('company_id', $sale->company_id)
+                ->whereKey($apunte->account_id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($cuenta === null) {
+                continue;
+            }
+
+            // El importe se guarda CON SIGNO (un ingreso es positivo), así que restarlo lo deshace.
+            // Sumarlo —el error natural al leer «devolver el dinero»— duplicaría el ingreso.
+            $cuenta->balance = bcsub((string) $cuenta->balance, (string) $apunte->amount, 2);
+            $cuenta->save();
+        }
+
+        DB::table('financial_movements')
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->delete();
     }
 }

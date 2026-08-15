@@ -69,9 +69,14 @@ final class DeliveryService
         return $delivery;
     }
 
+    /**
+     * `withTrashed()` porque la entrega se archiva, no se destruye: sin contar las archivadas, la
+     * siguiente reutilizaría un código ya usado y chocaría contra el índice único de
+     * `(company_id, code)`.
+     */
     private function nextCode(int $companyId): string
     {
-        $count = Delivery::withoutCompanyScope()->where('company_id', $companyId)->count();
+        $count = Delivery::withoutCompanyScope()->withTrashed()->where('company_id', $companyId)->count();
 
         return 'ENV-'.str_pad((string) ($count + 1), 6, '0', STR_PAD_LEFT);
     }

@@ -285,9 +285,16 @@ final class LoanService
         return $customer;
     }
 
+    /**
+     * `withTrashed()` porque el préstamo se archiva, no se destruye: sin contar los archivados, el
+     * siguiente reutilizaría un código ya usado y chocaría contra el índice único de
+     * `(company_id, code)`. Hoy nada borra un préstamo, pero el modelo ya admite borrado lógico y
+     * el día que se añada el botón el fallo aparecería en el momento de prestar.
+     */
     private function nextCode(int $companyId): string
     {
         $count = Loan::withoutCompanyScope()
+            ->withTrashed()
             ->where('company_id', $companyId)
             ->count();
 

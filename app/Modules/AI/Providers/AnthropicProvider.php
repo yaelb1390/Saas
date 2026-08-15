@@ -55,6 +55,12 @@ final class AnthropicProvider implements AiProvider
         return (string) $response->json('content.0.text', '');
     }
 
+    /** Sí: solo se instancia cuando hay clave de API, así que `chat()` redacta de verdad. */
+    public function redactaRespuestas(): bool
+    {
+        return true;
+    }
+
     public function classifySentiment(string $text): array
     {
         $answer = $this->chat([

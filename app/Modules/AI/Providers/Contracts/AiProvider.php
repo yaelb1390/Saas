@@ -30,4 +30,16 @@ interface AiProvider
      * @return array{sentiment: string, score: float}
      */
     public function classifySentiment(string $text): array;
+
+    /**
+     * ¿Este proveedor redacta texto de verdad?
+     *
+     * El proveedor local no: su `chat()` devuelve una plantilla determinista con el contexto pegado
+     * detrás. Sirve para tests y para que nada reviente sin clave de API, pero enseñárselo a un
+     * cliente como respuesta parece que el sistema está roto.
+     *
+     * Quien necesite saberlo pregunta AQUÍ y no rehace la lógica de `AiServiceProvider` mirando la
+     * configuración: si mañana cambia cómo se elige el proveedor, cambia en un sitio.
+     */
+    public function redactaRespuestas(): bool;
 }

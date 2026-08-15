@@ -27,6 +27,7 @@ use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
+use App\Modules\Help\Http\Controllers\HelpController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
 use App\Modules\Inventory\Http\Controllers\CategoryController;
@@ -139,6 +140,19 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/reportes', 'reports')->middleware(['can:reports.view', 'module:reports'])->name('reports');
         Route::get('/usuarios', 'users')->middleware('can:users.manage')->name('users');
     });
+
+    /*
+     * Ayuda: cómo se usa el sistema.
+     *
+     * SIN `can:` y SIN `module:`, y es deliberado. La ayuda de uso no es una función que se venda:
+     * es lo que evita que el cliente nuevo abandone en la primera semana, y quien más la necesita es
+     * justo el del plan más barato, que es el que se quedaría fuera de cualquier puerta que pusiéramos.
+     *
+     * Lo que sí se filtra es el CONTENIDO: `HelpSearch` solo devuelve artículos de los módulos que esa
+     * empresa contrató y de lo que ese usuario puede hacer.
+     */
+    Route::get('/panel/ayuda', [HelpController::class, 'index'])->name('panel.help');
+    Route::get('/panel/ayuda/{slug}', [HelpController::class, 'show'])->name('panel.help.article');
 
     // Administración de usuarios y sus roles (dentro de la empresa activa).
     Route::middleware(['can:users.manage', 'subscription'])->group(function (): void {

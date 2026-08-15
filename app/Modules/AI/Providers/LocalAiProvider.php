@@ -53,6 +53,15 @@ final class LocalAiProvider implements AiProvider
         return trim("Respuesta (local) a: {$question}\nBasada en el contexto proporcionado.\n{$context}");
     }
 
+    /**
+     * No. `chat()` devuelve una plantilla con el contexto pegado detrás, no una redacción. Quien
+     * necesite texto para un cliente tiene que ofrecer otra salida cuando esto es false.
+     */
+    public function redactaRespuestas(): bool
+    {
+        return false;
+    }
+
     public function classifySentiment(string $text): array
     {
         $tokens = $this->tokenize($text);

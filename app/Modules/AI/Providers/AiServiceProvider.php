@@ -21,11 +21,15 @@ final class AiServiceProvider extends ServiceProvider
             /** @var array<string, array<string, mixed>> $providers */
             $providers = config('ai.providers');
 
+            // «claude» es sinónimo de «anthropic»: es como se llama el modelo y es lo que documenta
+            // .env.example, así que era lo que la gente escribía. Al no reconocerlo, caía al proveedor
+            // local AUNQUE la clave de Anthropic estuviera puesta, y la IA se quedaba muda sin decir
+            // por qué. Se acepta aquí para arreglar de paso las instalaciones que ya lo tengan así.
             return match ($default) {
                 'openai' => empty($providers['openai']['api_key'])
                     ? new LocalAiProvider($dimensions)
                     : new OpenAiProvider($providers['openai']),
-                'anthropic' => empty($providers['anthropic']['api_key'])
+                'anthropic', 'claude' => empty($providers['anthropic']['api_key'])
                     ? new LocalAiProvider($dimensions)
                     : new AnthropicProvider($providers['anthropic']),
                 default => new LocalAiProvider($dimensions),

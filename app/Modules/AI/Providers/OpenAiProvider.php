@@ -42,6 +42,12 @@ final class OpenAiProvider implements AiProvider
         return (string) $response->json('choices.0.message.content', '');
     }
 
+    /** Sí: solo se instancia cuando hay clave de API, así que `chat()` redacta de verdad. */
+    public function redactaRespuestas(): bool
+    {
+        return true;
+    }
+
     public function classifySentiment(string $text): array
     {
         $answer = $this->chat([

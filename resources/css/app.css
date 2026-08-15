@@ -1636,3 +1636,76 @@ body {
     max-width: 100%;
     object-fit: contain;
 }
+
+/* ---------------------------------------------------------------------------
+ * Texto del manual de ayuda
+ *
+ * El cuerpo de los artículos llega como markdown convertido a HTML, así que son etiquetas peladas
+ * (<h2>, <ul>, <strong>...) sin ninguna clase. Tailwind no les pone nada por defecto —su reset las
+ * deja sin márgenes ni viñetas—, de modo que sin estas reglas el artículo se lee como un párrafo
+ * gigante y la ayuda deja de ayudar.
+ * ------------------------------------------------------------------------ */
+.bmos-prose {
+    color: #475569;
+    line-height: 1.7;
+}
+
+.bmos-prose > * + * {
+    margin-top: 0.9rem;
+}
+
+.bmos-prose h2 {
+    margin-top: 1.6rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.bmos-prose h3 {
+    margin-top: 1.3rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.bmos-prose ul,
+.bmos-prose ol {
+    padding-left: 1.4rem;
+    list-style: disc;
+}
+
+.bmos-prose ol {
+    list-style: decimal;
+}
+
+.bmos-prose li + li {
+    margin-top: 0.35rem;
+}
+
+.bmos-prose strong {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.bmos-prose code {
+    border-radius: 0.35rem;
+    background: #f1f5f9;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.9em;
+}
+
+.bmos-prose a {
+    color: #4f46e5;
+    text-decoration: underline;
+}
+
+/* El aviso de «esto no se puede deshacer» se escribe como cita en el markdown. Es lo más importante
+   que puede leer alguien a punto de tocar dinero o existencias, así que se pinta como una alerta. */
+.bmos-prose blockquote {
+    border-left: 3px solid #f43f5e;
+    border-radius: 0 0.5rem 0.5rem 0;
+    background: #fff1f2;
+    padding: 0.7rem 1rem;
+    color: #9f1239;
+    font-weight: 500;
+}

@@ -45,8 +45,20 @@
              añadir líneas al pedido no estreche la rejilla de fotos. El `minmax(0,1fr)` es
              obligatorio: con `1fr` a secas, una miniatura ancha puede empujar la columna y
              desbordar la página (misma lección que ya está documentada en `.bmos-stat`). --}}
-        <div x-data="quickPos('{{ route('panel.quick-pos.catalog') }}', @js($categories))" x-init="arrancar()"
-             class="grid grid-cols-1 gap-4 lg:grid-cols-[10rem_minmax(0,1fr)_21rem] xl:grid-cols-[11.5rem_minmax(0,1fr)_23rem]">
+        {{-- El tablero ocupa EXACTAMENTE lo que queda de pantalla y cada columna se desplaza por
+             dentro. Así el botón de Cobrar nunca se va por debajo del borde, que es lo que pasaba:
+             con la pantalla de un portátil, el ticket terminaba 72 px más abajo del viewport y había
+             que desplazar la página entera para poder cobrar.
+
+             El alto se MIDE en vez de escribirse a mano porque el hueco de arriba no es constante:
+             un aviso de «venta cobrada» o el banner de vencimiento de la suscripción empujan el
+             tablero hacia abajo, y un `calc(100dvh - 11rem)` fijo se equivocaría justo en esos
+             momentos. --}}
+        <div x-data="quickPos('{{ route('panel.quick-pos.catalog') }}', @js($categories))"
+             x-init="arrancar(); medirAlto()"
+             @resize.window.debounce.150ms="medirAlto()"
+             :style="altoTablero"
+             class="grid grid-cols-1 gap-4 lg:grid-cols-[10rem_minmax(0,1fr)_21rem] lg:overflow-hidden xl:grid-cols-[11.5rem_minmax(0,1fr)_23rem]">
 
             {{-- ── Categorías ───────────────────────────────────────────────────────────── --}}
             {{-- Columna lateral en pantalla grande; en móvil se convierte en una fila que se
@@ -54,7 +66,7 @@
             {{-- Se pinta desde el estado de Alpine, sembrado con los datos del servidor: así aparece
                  al instante en la primera carga y luego se actualiza sola cuando el inventario
                  cambia, sin recargar la página. --}}
-            <nav class="bmos-pos-cats" aria-label="Categorías">
+            <nav class="bmos-pos-cats lg:min-h-0 lg:overflow-y-auto" aria-label="Categorías">
                 <button type="button" @click="pick(null)" :aria-pressed="category === null"
                         :class="category === null && 'is-active'" class="bmos-pos-cat">
                     <span class="bmos-pos-cat-icon">🗂️</span>
@@ -71,7 +83,7 @@
             </nav>
 
             {{-- ── Catálogo ─────────────────────────────────────────────────────────────── --}}
-            <div class="bmos-card flex min-w-0 flex-col overflow-hidden">
+            <div class="bmos-card flex min-w-0 flex-col overflow-hidden lg:min-h-0">
                 <div class="border-b border-slate-100 p-3">
                     <input type="search" x-model="query" placeholder="Buscar en el catálogo..."
                            class="bmos-input" aria-label="Buscar producto">
@@ -121,7 +133,9 @@
             </div>
 
             {{-- ── Ticket ───────────────────────────────────────────────────────────────── --}}
-            <div class="bmos-card flex min-w-0 flex-col overflow-hidden lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)]">
+            {{-- Ya no hace falta `sticky` ni un alto máximo inventado: el tablero mide lo que hay y
+                 esta columna se limita a ocuparlo entero. --}}
+            <div class="bmos-card flex min-w-0 flex-col overflow-hidden lg:min-h-0">
                 <div class="flex items-center justify-between gap-2 border-b border-slate-100 p-3">
                     <p class="font-semibold text-slate-800">
                         Pedido
@@ -330,6 +344,9 @@
                     query: '',
                     loading: false,
                     hasMore: false,
+                    // Alto del tablero, calculado en `medirAlto()`. Vacío en móvil, donde la página
+                    // se desplaza con normalidad.
+                    altoTablero: '',
                     cart: [],
                     paid: '',
                     method: 'cash',
@@ -370,9 +387,46 @@
                      * un terminal en modo kiosco puede quedarse abierto toda la jornada, y sin esto
                      * no vería los productos que se den de alta durante el turno.
                      */
+                    /**
+                     * Ajusta el tablero para que ocupe justo lo que queda de pantalla.
+                     *
+                     * Sin esto, el ticket crecía con cada producto y el botón de Cobrar acababa por
+                     * debajo del borde: en un portátil de 1366x768 se salía 72 px ya con el carrito
+                     * VACÍO, y había que desplazar la página entera para poder cobrar. En un punto de
+                     * venta eso no es un detalle estético; es el cajero buscando el botón con el
+                     * cliente delante.
+                     *
+                     * El hueco de arriba se MIDE en lugar de escribirse a mano porque no es fijo: un
+                     * aviso de «venta cobrada» o el banner de vencimiento de la suscripción empujan
+                     * el tablero hacia abajo, y un alto fijo se equivocaría justo en esos momentos.
+                     *
+                     * Solo en pantalla grande. En el teléfono las columnas se apilan y desplazar la
+                     * página es lo natural; encajarlo todo en una pantalla dejaría cada trozo
+                     * inservible de pequeño.
+                     */
+                    medirAlto() {
+                        if (window.innerWidth < 1024) {
+                            this.altoTablero = '';
+                            return;
+                        }
+
+                        const arriba = this.$el.getBoundingClientRect().top + window.scrollY;
+
+                        // El margen de abajo es el mismo respiro que el padding del contenido.
+                        this.altoTablero = `height: calc(100dvh - ${Math.round(arriba)}px - 1.25rem)`;
+                    },
+
                     arrancar() {
                         this.load();
                         this.cargarEnEspera();
+
+                        // El tablero se remide cuando aparece o desaparece un aviso arriba: sin esto,
+                        // tras cobrar una venta el banner de «venta cobrada» lo empujaría hacia abajo
+                        // y el botón volvería a salirse.
+                        if (typeof ResizeObserver !== 'undefined' && this.$el.parentElement) {
+                            this._observador = new ResizeObserver(() => this.medirAlto());
+                            this._observador.observe(this.$el.parentElement);
+                        }
 
                         // Al volver a la pestaña: es el momento típico tras dar de alta un producto
                         // en otra ventana, y no cuesta nada mientras el terminal está en segundo plano.
@@ -388,6 +442,7 @@
                     destroy() {
                         document.removeEventListener('visibilitychange', this._alVolver);
                         clearInterval(this._reloj);
+                        this._observador?.disconnect();
                     },
 
                     /**

@@ -26,6 +26,7 @@ use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
+use App\Modules\Finance\Http\Controllers\ExpenseController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
 use App\Modules\Inventory\Http\Controllers\CategoryController;
@@ -367,6 +368,24 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/solicitudes/{application}/reabrir', [LoanApplicationController::class, 'reopen'])->name('panel.loan-applications.reopen');
         // La única de todo el grupo que saca dinero de la caja.
         Route::post('/panel/solicitudes/{application}/desembolsar', [LoanApplicationController::class, 'disburse'])->name('panel.loan-applications.disburse');
+    });
+
+    /*
+     * Gastos. Ver va con `finance.view` y anotar/anular con `finance.manage`, los dos permisos que ya
+     * gobiernan Finanzas: un gasto no es una categoría nueva de riesgo, es exactamente lo mismo que
+     * ya protegían —el dinero de la empresa—.
+     */
+    Route::middleware(['can:finance.view', 'module:finance'])->group(function (): void {
+        Route::get('/panel/gastos', [ExpenseController::class, 'index'])->name('panel.expenses');
+    });
+
+    Route::middleware(['can:finance.manage', 'module:finance'])->group(function (): void {
+        Route::post('/panel/gastos', [ExpenseController::class, 'store'])->name('panel.expenses.store');
+        // Anular devuelve el dinero al saldo y, si salió del cajón, al turno.
+        Route::delete('/panel/gastos/{expense}', [ExpenseController::class, 'destroy'])->name('panel.expenses.destroy');
+
+        Route::post('/panel/gastos/conceptos', [ExpenseController::class, 'storeCategory'])->name('panel.expense-categories.store');
+        Route::put('/panel/gastos/conceptos/{category}', [ExpenseController::class, 'updateCategory'])->name('panel.expense-categories.update');
     });
 
     Route::middleware(['can:hr.manage', 'module:hr'])->group(function (): void {

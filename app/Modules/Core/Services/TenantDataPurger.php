@@ -47,6 +47,9 @@ final class TenantDataPurger
         'attendances',
         'employees',
         // Finanzas
+        // Gastos antes que `accounts` y que `expense_categories`: apuntan a las dos.
+        'expenses',
+        'expense_categories',
         'financial_movements',
         'accounts',
         // Entregas

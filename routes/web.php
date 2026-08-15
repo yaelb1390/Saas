@@ -27,6 +27,7 @@ use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
+use App\Modules\Delivery\Http\Controllers\DeliveryController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
 use App\Modules\Help\Http\Controllers\HelpController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
@@ -420,6 +421,22 @@ Route::middleware(['auth'])->group(function (): void {
 
         Route::post('/panel/gastos/conceptos', [ExpenseController::class, 'storeCategory'])->name('panel.expense-categories.store');
         Route::put('/panel/gastos/conceptos/{category}', [ExpenseController::class, 'updateCategory'])->name('panel.expense-categories.update');
+    });
+
+    /*
+     * Reparto. Hasta ahora la única ruta de Entregas era la pantalla de solo lectura: no había forma
+     * de crear una, ni de asignarla, ni de cambiarle el estado, así que la tabla solo podía estar
+     * vacía. Estas son las puertas que faltaban.
+     *
+     * Van con `delivery.manage`: asignar el reparto y, sobre todo, dar por cobrada y liquidada una
+     * entrega es mover dinero, y no es tarea de quien solo consulta el estado de un pedido.
+     */
+    Route::middleware(['can:delivery.manage', 'module:delivery'])->group(function (): void {
+        Route::post('/panel/entregas', [DeliveryController::class, 'store'])->name('panel.deliveries.store');
+        Route::post('/panel/entregas/{delivery}/asignar', [DeliveryController::class, 'assign'])->name('panel.deliveries.assign');
+        Route::post('/panel/entregas/{delivery}/estado', [DeliveryController::class, 'transition'])->name('panel.deliveries.transition');
+        Route::post('/panel/entregas/{delivery}/cobrada', [DeliveryController::class, 'collect'])->name('panel.deliveries.collect');
+        Route::post('/panel/entregas/liquidar/{employee}', [DeliveryController::class, 'settle'])->name('panel.deliveries.settle');
     });
 
     Route::middleware(['can:hr.manage', 'module:hr'])->group(function (): void {

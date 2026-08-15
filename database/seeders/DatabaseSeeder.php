@@ -205,13 +205,6 @@ class DatabaseSeeder extends Seeder
         app(WhatsAppService::class)->recordInbound('18095551234', '¡Gracias, excelente servicio, me encanta!');
 
         // --- Datos demo de Fase 7 (Delivery + RRHH) ---
-        // La venta demo ya registró su ingreso en "Caja General" vía el listener de Finanzas.
-        $delivery = app(DeliveryService::class)->create(
-            'Calle Demo #1, Santo Domingo',
-            sale: $sale,
-        );
-        app(DeliveryService::class)->assign($delivery, 'Repartidor Demo');
-
         // Empleado vinculado al usuario owner (para el portal del empleado) + una entrada.
         $employee = app(HrService::class)->hire(new CreateEmployeeData(
             name: 'Owner Demo',
@@ -220,6 +213,21 @@ class DatabaseSeeder extends Seeder
             userId: $owner->id,
         ));
         app(HrService::class)->clockIn($employee);
+
+        // El repartidor es un empleado de la ficha, no un nombre suelto: es lo que permite preguntar
+        // luego cuánto dinero lleva encima sin haberlo entregado en caja.
+        $repartidor = app(HrService::class)->hire(new CreateEmployeeData(
+            name: 'Repartidor Demo',
+            position: 'Mensajero',
+        ));
+
+        // La venta demo ya registró su ingreso en "Caja General" vía el listener de Finanzas, así que
+        // esta entrega no cobra nada en la puerta.
+        $delivery = app(DeliveryService::class)->create(
+            'Calle Demo #1, Santo Domingo',
+            sale: $sale,
+        );
+        app(DeliveryService::class)->assign($delivery, $repartidor);
 
         app(CurrentCompany::class)->forget();
     }

@@ -8,6 +8,7 @@ use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\Delivery\Enums\DeliveryStatus;
+use App\Modules\HR\Models\Employee;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -41,6 +42,8 @@ class Delivery extends Model implements Auditable, HasCompany
         'phone',
         'address',
         'driver_name',
+        'employee_id',
+        'amount_to_collect',
         'assigned_at',
         'delivered_at',
         'notes',
@@ -51,9 +54,43 @@ class Delivery extends Model implements Auditable, HasCompany
     {
         return [
             'status' => DeliveryStatus::class,
+            'amount_to_collect' => 'decimal:2',
             'assigned_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'collected_at' => 'datetime',
+            'settled_at' => 'datetime',
         ];
+    }
+
+    /**
+     * El repartidor, ahora un empleado del sistema.
+     *
+     * `driver_name` sigue existiendo con su nombre copiado: si mañana se borra la ficha, la entrega
+     * tiene que poder decir quién la llevó.
+     *
+     * @return BelongsTo<Employee, $this>
+     */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
+    }
+
+    /** ¿Hay que cobrarle algo al cliente en la puerta? */
+    public function cobraEnLaPuerta(): bool
+    {
+        return bccomp((string) $this->amount_to_collect, '0', 2) > 0;
+    }
+
+    /** Dinero que el repartidor tiene encima por esta entrega. */
+    public function pendienteDeLiquidar(): bool
+    {
+        return $this->collected_at !== null && $this->settled_at === null;
+    }
+
+    /** A quién se le entrega, venga del CRM o escrito a mano. */
+    public function paraQuien(): string
+    {
+        return $this->customer_name ?? $this->customer?->name ?? 'Sin nombre';
     }
 
     /**

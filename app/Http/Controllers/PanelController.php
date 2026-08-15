@@ -18,6 +18,7 @@ use App\Modules\Core\Support\RoleCatalog;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\CRM\Models\Opportunity;
+use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Finance\Models\Account;
 use App\Modules\Finance\Models\FinancialMovement;
@@ -266,14 +267,45 @@ final class PanelController extends Controller
         return view('panel.loan', ['loan' => $loan]);
     }
 
+    /**
+     * Reparto.
+     *
+     * Además del listado se pasa el CUADRE POR REPARTIDOR: cuánto lleva cobrado cada motorista y no
+     * ha entregado en caja. Es la pregunta del cierre del día, y hasta ahora no tenía respuesta en
+     * ninguna pantalla: ese efectivo salía por la puerta y no aparecía en ningún sitio.
+     */
     public function deliveries(): View
     {
+        $abiertas = DeliveryStatus::abiertas();
+
         return view('panel.deliveries', [
             'deliveries' => Delivery::query()
+                ->with(['employee', 'sale'])
                 ->when(request('q'), fn ($query, $q) => $query->where(
-                    fn ($sub) => $sub->whereLike('code', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")->orWhereLike('driver_name', "%{$q}%")
+                    fn ($sub) => $sub->whereLike('code', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")
+                        ->orWhereLike('driver_name', "%{$q}%")->orWhereLike('address', "%{$q}%")
                 ))
+                ->when(
+                    request('estado') && DeliveryStatus::tryFrom((string) request('estado')),
+                    fn ($query) => $query->where('status', request('estado')),
+                )
                 ->latest()->paginate(15)->withQueryString(),
+
+            'statuses' => DeliveryStatus::cases(),
+            'estadoActivo' => request('estado'),
+            'abiertas' => Delivery::query()->whereIn('status', $abiertas)->count(),
+
+            // Solo los empleados activos: no tiene sentido ofrecer como repartidor a quien ya no está.
+            'drivers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+
+            'porLiquidar' => Delivery::query()
+                ->selectRaw('employee_id, count(*) as entregas, sum(amount_to_collect) as total')
+                ->whereNotNull('collected_at')
+                ->whereNull('settled_at')
+                ->whereNotNull('employee_id')
+                ->groupBy('employee_id')
+                ->with('employee')
+                ->get(),
         ]);
     }
 

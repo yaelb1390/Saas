@@ -117,7 +117,10 @@ Route::middleware(['auth'])->group(function (): void {
         // Grupos de opciones (tamaños, sabores, extras). Exige `products.manage` y no
         // `categories.manage`: aquí se fijan RECARGOS DE PRECIO, que es gestionar producto, no
         // reorganizar el catálogo.
-        Route::get('/opciones', 'optionGroups')->middleware(['can:products.manage', 'module:inventory'])->name('option-groups');
+        // Tamaños y sabores van con «quick_pos», no con «inventory»: solo el terminal táctil los
+        // pregunta al vender. Ocultarlos del menú no basta —la URL seguiría abierta—, así que la
+        // puerta de verdad es esta.
+        Route::get('/opciones', 'optionGroups')->middleware(['can:products.manage', 'module:quick_pos'])->name('option-groups');
         // Entrada de mercancía: dar existencia es un permiso distinto de consultarla.
         Route::get('/inventario/entradas', 'stockEntry')->middleware(['can:stock.adjust', 'module:inventory'])->name('stock.entry');
         Route::get('/ventas', 'sales')->middleware(['can:sales.view', 'module:sales'])->name('sales');
@@ -260,7 +263,11 @@ Route::middleware(['auth'])->group(function (): void {
 
     // Grupos de opciones y sus opciones. Van con «products.manage» —y no con «categories.manage»—
     // porque aquí se fijan recargos: quien puede crear «2 bolas (+60)» está tocando lo que se cobra.
-    Route::middleware(['can:products.manage', 'module:inventory'])->group(function (): void {
+    //
+    // Y con «quick_pos», igual que la pantalla que los edita: sin el terminal táctil no hay dónde
+    // preguntarlos. Si aquí se quedara «inventory», quien no contrató comida rápida no vería el
+    // menú pero podría crear grupos a mano contra estas rutas.
+    Route::middleware(['can:products.manage', 'module:quick_pos'])->group(function (): void {
         Route::post('/panel/opciones', [OptionGroupController::class, 'store'])->name('panel.option-groups.store');
         Route::put('/panel/opciones/{optionGroup}', [OptionGroupController::class, 'update'])->name('panel.option-groups.update');
         Route::delete('/panel/opciones/{optionGroup}', [OptionGroupController::class, 'destroy'])->name('panel.option-groups.destroy');

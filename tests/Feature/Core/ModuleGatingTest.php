@@ -74,6 +74,41 @@ it('el menú oculta los módulos que la empresa no contrató', function (): void
         ->and($html)->not->toContain(route('panel.ai'));
 });
 
+/*
+ * Tamaños y sabores es del terminal táctil, no del inventario.
+ *
+ * Es la excepción que conviene tener escrita, porque la pantalla VIVE en el módulo de Inventario y
+ * aparece en su sección del menú: lo natural al tocar estas rutas es atarla a «inventory», y ahí
+ * volvería a salirle a una ferretería una pantalla de sabores de helado.
+ *
+ * Solo el terminal táctil pregunta las opciones al vender; el punto de venta de mostrador ni las
+ * ofrece. Sin «quick_pos» no hay dónde usarlas.
+ */
+
+it('tamaños y sabores solo existe con el terminal táctil contratado', function (): void {
+    // Inventario completo, pero sin comida rápida.
+    $this->company->update(['modules' => ['pos', 'sales', 'inventory']]);
+
+    $this->actingAs($this->owner)->get(route('panel.option-groups'))->assertForbidden();
+
+    // Y no basta con quitarlo del menú: las rutas que crean grupos son la puerta de verdad.
+    $this->actingAs($this->owner)
+        ->post(route('panel.option-groups.store'), ['name' => 'Tamaño', 'min_select' => 1, 'max_select' => 1])
+        ->assertForbidden();
+
+    $html = $this->actingAs($this->owner)->get(route('dashboard'))->assertOk()->getContent();
+    expect($html)->not->toContain(route('panel.option-groups'));
+});
+
+it('con el terminal táctil contratado, tamaños y sabores está disponible', function (): void {
+    $this->company->update(['modules' => ['quick_pos', 'inventory']]);
+
+    $this->actingAs($this->owner)->get(route('panel.option-groups'))->assertOk();
+
+    $html = $this->actingAs($this->owner)->get(route('dashboard'))->assertOk()->getContent();
+    expect($html)->toContain(route('panel.option-groups'));
+});
+
 // ---------------------------------------------------------------- Panel de plataforma
 
 it('el super admin ve el panel de empresas; un dueño no', function (): void {

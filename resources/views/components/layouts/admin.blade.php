@@ -39,7 +39,10 @@
         'Inventario' => [
             ['panel.products', 'Inventario', 'cube', 'products.view', 'inventory'],
             ['panel.categories', 'Categorías', 'tag', 'categories.manage', 'inventory'],
-            ['panel.option-groups', 'Tamaños y sabores', 'tag', 'products.manage', 'inventory'],
+            // Va con «quick_pos» y no con «inventory»: los tamaños y sabores solo se preguntan en el
+            // terminal táctil (heladería, comida rápida). El punto de venta de mostrador ni los
+            // ofrece, así que a una ferretería le aparecía una pantalla que no iba a usar nunca.
+            ['panel.option-groups', 'Tamaños y sabores', 'tag', 'products.manage', 'quick_pos'],
             ['panel.stock.entry', 'Entrada de mercancía', 'bag', 'stock.adjust', 'inventory'],
             ['panel.purchases', 'Compras', 'bag', 'purchases.view', 'purchasing'],
         ],

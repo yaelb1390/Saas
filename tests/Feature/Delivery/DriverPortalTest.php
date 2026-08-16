@@ -93,15 +93,15 @@ it('no puede cerrar una entrega que no lleva él, aunque teclee la URL', functio
 });
 
 it('un usuario sin ficha de empleado no ve entregas, y se le dice por qué', function (): void {
-    // Pasa de verdad: se crea la cuenta y se olvida el vínculo. Sin el aviso, el repartidor ve una
-    // pantalla vacía y concluye que no le han asignado nada.
-    $suelto = app(CompanyUserService::class)->create(
-        (int) $this->company->id,
-        ['name' => 'Suelto', 'email' => 'suelto@reparto.test', 'password' => 'secret-password'],
-        'driver',
-    );
+    // Dar de alta un repartidor YA le crea la ficha, así que este estado solo se alcanza si alguien
+    // la borra después. Se simula así en vez de crear la cuenta a medias: probar un caso que el
+    // sistema ya no produce diría que el aviso sobra, y no sobra —el día que borren una ficha, el
+    // repartidor vería una pantalla vacía y concluiría que no le han asignado nada—.
+    $suelto = motoristaLlamado('Suelto');
+    $usuario = $suelto->user;
+    $suelto->delete();
 
-    $this->actingAs($suelto)->get(route('portal.deliveries'))
+    $this->actingAs($usuario)->get(route('portal.deliveries'))
         ->assertOk()
         ->assertSee('no está vinculado a tu ficha de empleado', false);
 });
@@ -343,4 +343,97 @@ it('el rol de repartidor existe en la empresa y lleva su permiso', function (): 
         ->and($rol->hasPermissionTo('delivery.own'))->toBeTrue()
         // Y ni uno más: es la sesión que anda por la calle.
         ->and($rol->permissions)->toHaveCount(1);
+});
+
+// ------------------------------------------------------------ La ficha de un repartidor nunca falta
+
+it('al crear un repartidor se le crea la ficha de empleado sola', function (): void {
+    // Un usuario con rol «Repartidor» y sin ficha NO SIRVE PARA NADA: no sale en la lista de
+    // repartidores de Entregas —que se saca de los empleados, no de los usuarios— y su portal aparece
+    // vacío. Se podían crear así y nada lo impedía: la pantalla lo avisaba en amarillo y ahí acababa.
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña',
+        'email' => 'duena@reparto.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($dueno)->post(route('panel.users.store'), [
+        'name' => 'Yael', 'email' => 'yael@reparto.test',
+        'password' => 'secret-password-99', 'password_confirmation' => 'secret-password-99',
+        'role' => 'driver',
+    ])->assertSessionHasNoErrors();
+
+    $ficha = Employee::query()->where('name', 'Yael')->first();
+
+    expect($ficha)->not->toBeNull()
+        ->and($ficha->is_active)->toBeTrue()
+        ->and($ficha->user->email)->toBe('yael@reparto.test');
+});
+
+it('y así aparece en la lista de repartidores de Entregas', function (): void {
+    // Es la queja concreta: se crea el usuario con el rol y no se ve por ningún lado.
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña',
+        'email' => 'duena2@reparto.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($dueno)->post(route('panel.users.store'), [
+        'name' => 'Yael', 'email' => 'yael2@reparto.test',
+        'password' => 'secret-password-99', 'password_confirmation' => 'secret-password-99',
+        'role' => 'driver',
+    ]);
+
+    $this->actingAs($dueno)->get(route('panel.deliveries'))->assertOk()->assertSee('Yael');
+});
+
+it('a un dueño no se le inventa una ficha: no todo usuario está en la plantilla', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña',
+        'email' => 'duena3@reparto.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($dueno)->post(route('panel.users.store'), [
+        'name' => 'Otro Dueño', 'email' => 'otro@reparto.test',
+        'password' => 'secret-password-99', 'password_confirmation' => 'secret-password-99',
+        'role' => 'owner',
+    ]);
+
+    expect(Employee::query()->where('name', 'Otro Dueño')->exists())->toBeFalse();
+});
+
+it('si ya se eligió una ficha, no se crea otra', function (): void {
+    // Duplicarla dejaría dos empleados con el mismo nombre y las entregas repartidas entre los dos.
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña',
+        'email' => 'duena4@reparto.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $existente = Employee::create(['name' => 'Ya fichado', 'is_active' => true]);
+
+    $this->actingAs($dueno)->post(route('panel.users.store'), [
+        'name' => 'Yael', 'email' => 'yael4@reparto.test',
+        'password' => 'secret-password-99', 'password_confirmation' => 'secret-password-99',
+        'role' => 'driver', 'employee_id' => $existente->id,
+    ])->assertSessionHasNoErrors();
+
+    expect(Employee::query()->count())->toBe(1)
+        ->and($existente->fresh()->user->email)->toBe('yael4@reparto.test');
+});
+
+it('ascender a alguien a repartidor también le crea la ficha', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña',
+        'email' => 'duena5@reparto.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $cajero = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Cajero Ascendido',
+        'email' => 'cajero5@reparto.test', 'password' => 'secret-password',
+    ]), 'staff');
+
+    $this->actingAs($dueno)->put(route('panel.users.update', $cajero), [
+        'name' => 'Cajero Ascendido', 'email' => 'cajero5@reparto.test',
+        'role' => 'driver', 'is_active' => '1',
+    ])->assertSessionHasNoErrors();
+
+    expect(Employee::query()->where('name', 'Cajero Ascendido')->exists())->toBeTrue();
 });

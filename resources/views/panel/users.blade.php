@@ -83,10 +83,18 @@
                                     @if ($vinculos->has($user->id))
                                         <span class="block text-xs text-slate-400">ficha de {{ $vinculos[$user->id]->name }}</span>
                                     @elseif ($role === 'driver')
-                                        {{-- Un repartidor sin ficha entra y no ve nada. Vale la pena
-                                             cantarlo aquí y no esperar a que llame diciendo que su
-                                             pantalla está vacía. --}}
-                                        <span class="block text-xs font-medium text-amber-600">Sin empleado: no verá ninguna entrega</span>
+                                        {{-- Un repartidor sin ficha entra y no ve nada: la lista de
+                                             repartidores de Entregas se saca de los EMPLEADOS, no de
+                                             los usuarios. Ya no debería pasar —la ficha se crea sola
+                                             al dar de alta la cuenta— pero queda el aviso por si
+                                             alguien la borra, y ahora dice qué hacer. --}}
+                                        <span class="block text-xs font-medium text-amber-600">
+                                            Sin ficha de empleado: no aparecerá en Entregas.
+                                            @can('hr.manage')
+                                                <a href="{{ route('panel.employees') }}" class="underline">Créala en Equipo</a>
+                                                y luego elígela aquí al editarlo.
+                                            @endcan
+                                        </span>
                                     @endif
                                 </td>
                                 <td><span class="bmos-badge {{ $roleBadge($role) }}">{{ RoleCatalog::label($role) }}</span></td>

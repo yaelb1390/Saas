@@ -7,6 +7,7 @@ namespace App\Modules\HR\Models;
 use App\Models\User;
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
+use App\Modules\Delivery\Models\Delivery;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -59,5 +60,18 @@ class Employee extends Model implements Auditable, HasCompany
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);
+    }
+
+    /**
+     * Los repartos que lleva o llevó.
+     *
+     * Existe para poder preguntar cuántos tiene abiertos, que es lo que decide a quién se le asigna el
+     * siguiente pedido. Sin la relación habría que contarlos con una consulta suelta por empleado.
+     *
+     * @return HasMany<Delivery, $this>
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(Delivery::class);
     }
 }

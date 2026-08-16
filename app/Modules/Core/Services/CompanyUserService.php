@@ -37,6 +37,7 @@ final class CompanyUserService
 
             $this->assignRole($user, $role);
             $this->linkEmployee($user, $data['employee_id'] ?? null);
+            $this->fichaSiEsRepartidor($user, $role);
 
             return $user;
         });
@@ -68,8 +69,37 @@ final class CompanyUserService
                 $this->linkEmployee($user, $data['employee_id']);
             }
 
+            $this->fichaSiEsRepartidor($user, $data['role']);
+
             return $user->refresh();
         });
+    }
+
+    /**
+     * Un repartidor SIEMPRE tiene ficha de empleado. Si no se eligió una, se le crea.
+     *
+     * No es una comodidad: es que un usuario con rol «Repartidor» y sin ficha NO SIRVE PARA NADA. No
+     * aparece en la lista de repartidores de Entregas —que se saca de los empleados, no de los
+     * usuarios— y su portal sale vacío. Se podía crear así, y no había nada que lo impidiera: la
+     * pantalla lo avisaba en amarillo y ahí terminaba.
+     *
+     * Solo para este rol. Un dueño o un administrador no tienen por qué estar en la plantilla.
+     */
+    private function fichaSiEsRepartidor(User $user, string $role): void
+    {
+        if ($role !== 'driver' || $user->employee()->exists()) {
+            return;
+        }
+
+        Employee::create([
+            'company_id' => $user->company_id,
+            'user_id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'position' => 'Repartidor',
+            'hired_at' => now()->toDateString(),
+            'is_active' => true,
+        ]);
     }
 
     /**

@@ -73,6 +73,13 @@ final class RoleProvisioner
         'whatsapp.send',
         'whatsapp.connect',         // vincula/desvincula la línea de la empresa
         'whatsapp.templates.manage',
+        // Redes sociales. Publicar es hablar en nombre del negocio ante todo el mundo, así que va
+        // con permiso propio y NO se deduce de «ver»: un empleado puede consultar qué se publicó sin
+        // poder escribir en el Instagram de la empresa.
+        'social.view',
+        'social.publish',
+        // Conectar y desconectar cuentas mueve credenciales de las redes del negocio: aparte.
+        'social.connect',
         // IA
         'ai.documents.manage',
         'ai.assistant.use',
@@ -146,6 +153,9 @@ final class RoleProvisioner
             'whatsapp.send',
             'whatsapp.connect',
             'whatsapp.templates.manage',
+            'social.view',
+            'social.publish',
+            'social.connect',
             'ai.documents.manage',
             'ai.assistant.use',
             'ai.sentiment.view',

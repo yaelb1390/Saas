@@ -1709,3 +1709,217 @@ body {
     color: #9f1239;
     font-weight: 500;
 }
+
+/* ==========================================================================
+   Redes sociales
+   --------------------------------------------------------------------------
+   Sigue el lenguaje de siempre —superficie blanca, radio de 1rem, acento
+   índigo, sombras discretas— y solo añade lo que estas dos pantallas
+   necesitaban y no existía: fichas de red con su color de marca, pasos
+   numerados para que un formulario largo se lea como un camino, y una vista
+   previa del mensaje.
+
+   La vista previa no es adorno: el formulario redacta lo que va a recibir un
+   cliente y hasta ahora se escribía a ciegas, dentro de un cuadro de texto que
+   no se parece en nada a un mensaje de Instagram.
+   ========================================================================== */
+
+/* ---------- Fichas de red ---------- */
+.bmos-red {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.6rem 0.95rem;
+    border-radius: 0.8rem;
+    /* Cada red con su color atenuado desde el principio, no solo al pasar por
+       encima: la fila se lee como una paleta y no como ocho botones grises. */
+    border: 1px solid color-mix(in srgb, var(--tono, #4f46e5) 25%, #fff);
+    background: var(--bmos-surface);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.bmos-red:hover {
+    /* El borde toma el color de la marca, atenuado: se reconoce la red sin que
+       la fila entera parezca un semáforo. */
+    border-color: color-mix(in srgb, var(--tono, #4f46e5) 45%, #fff);
+    box-shadow: 0 8px 18px -12px color-mix(in srgb, var(--tono, #4f46e5) 60%, transparent);
+    transform: translateY(-1px);
+}
+
+.bmos-red-punto {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 999px;
+    background: var(--tono, #94a3b8);
+    flex: none;
+}
+
+/* ---------- Pasos de un formulario largo ---------- */
+.bmos-paso {
+    position: relative;
+    padding-left: 2.6rem;
+    padding-bottom: 1.6rem;
+}
+
+.bmos-paso:last-child {
+    padding-bottom: 0;
+}
+
+/* La línea que une los pasos: convierte una pila de campos en una secuencia. */
+.bmos-paso::before {
+    content: '';
+    position: absolute;
+    left: 0.87rem;
+    top: 1.9rem;
+    bottom: 0;
+    width: 2px;
+    background: var(--bmos-border);
+}
+
+.bmos-paso:last-child::before {
+    display: none;
+}
+
+.bmos-paso-num {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bmos-primary) 10%, #fff);
+    color: var(--bmos-primary);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.bmos-paso-titulo {
+    font-weight: 600;
+    color: var(--bmos-text);
+    line-height: 1.8rem;
+    margin-bottom: 0.6rem;
+}
+
+/* ---------- Vista previa del mensaje ---------- */
+.bmos-previa {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid var(--bmos-border);
+    border-radius: 1rem;
+    padding: 1.1rem;
+}
+
+.bmos-previa-burbuja {
+    background: var(--bmos-surface);
+    border-radius: 1.1rem 1.1rem 1.1rem 0.3rem;
+    padding: 0.8rem 0.95rem;
+    box-shadow: 0 2px 10px -4px rgba(16, 24, 40, 0.16);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--bmos-text);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.bmos-previa-boton {
+    display: block;
+    margin-top: 0.5rem;
+    padding: 0.6rem;
+    border-radius: 0.8rem;
+    background: var(--bmos-surface);
+    border: 1px solid color-mix(in srgb, var(--bmos-primary) 30%, #fff);
+    color: var(--bmos-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 2px 10px -4px rgba(16, 24, 40, 0.16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-red {
+        transition: none;
+    }
+
+    .bmos-red:hover {
+        transform: none;
+    }
+}
+
+/* ---------- Color de marca permanente ----------
+   Todo lo que pertenece a una red la lleva puesta SIEMPRE, no solo al pasar por
+   encima: franja a la izquierda y borde del mismo tono. Es lo único que
+   distingue una cuenta de otra cuando los nombres se parecen, y una respuesta
+   automática de Instagram de una de Facebook.
+
+   No es una variante de `.bmos-module`: esa la usa la rejilla del dashboard,
+   donde el acento aparece solo al pasar por encima a propósito —allí son quince
+   tarjetas y encenderlas todas sería ruido—. Aquí son una o dos y el color es
+   información.
+
+   El acento va aparte de la tarjeta porque lo llevan formas distintas: una
+   cuenta es una fila con avatar, una automatización es un bloque con
+   estadísticas dentro. Lo único que comparten es a qué red pertenecen. */
+.bmos-marca {
+    position: relative;
+    overflow: hidden;
+    border-color: color-mix(in srgb, var(--tono, #4f46e5) 30%, #fff);
+}
+
+.bmos-marca::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 4px;
+    background: var(--tono, #4f46e5);
+}
+
+/* Caducada o apagada pierde su color: el ámbar del aviso manda sobre la marca,
+   porque lo que hay que mirar es que eso no va a publicar ni a contestar. */
+.bmos-marca.is-caducada {
+    border-color: #fcd34d;
+    background: #fffbeb;
+}
+
+.bmos-marca.is-caducada::before {
+    background: #f59e0b;
+}
+
+.bmos-marca.is-apagada::before {
+    background: #cbd5e1;
+}
+
+/* La tarjeta de cuenta: avatar, nombre y seguidores en una fila.
+   El borde se declara sin color para que lo ponga `.bmos-marca`, que va antes en
+   la hoja; con el atajo `border: 1px solid …` este ganaría y la borraría. */
+.bmos-cuenta {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 1rem 1rem 1rem 1.25rem;
+    background: var(--bmos-surface);
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 0.9rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bmos-cuenta:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--tono, #4f46e5) 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-cuenta {
+        transition: none;
+    }
+
+    .bmos-cuenta:hover {
+        transform: none;
+    }
+}

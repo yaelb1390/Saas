@@ -27,6 +27,9 @@ final class ModuleRegistry
         'purchasing' => 'Compras',
         'crm' => 'CRM',
         'whatsapp' => 'WhatsApp',
+        // Publicar en Instagram, Facebook y demás desde el panel. Va aparte de «whatsapp» porque son
+        // dos cosas distintas: aquello es conversación con un cliente concreto, esto es difusión.
+        'social' => 'Redes sociales',
         'billing' => 'Facturación',
         'finance' => 'Finanzas',
         'loans' => 'Préstamos',
@@ -55,6 +58,7 @@ final class ModuleRegistry
         'purchasing' => 'Proveedores y órdenes de compra para reponer existencias.',
         'crm' => 'Ficha de cada cliente, su historial y las oportunidades de venta.',
         'whatsapp' => 'Atiende y responde a tus clientes por WhatsApp desde el sistema.',
+        'social' => 'Publica en Instagram, Facebook y TikTok a la vez, ahora o programado.',
         'billing' => 'Comprobantes fiscales con NCF y los reportes 606 y 607 de la DGII.',
         'finance' => 'Cuentas, ingresos y gastos para saber en qué se va el dinero.',
         'loans' => 'Préstamos con sus cuotas, pagos y mora al día.',

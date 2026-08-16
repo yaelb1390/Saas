@@ -19,8 +19,8 @@ use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\PublicPlanController;
 use App\Modules\Core\Http\Controllers\RegisterController;
 use App\Modules\Core\Http\Controllers\SubscriptionCheckoutController;
-use App\Modules\Core\Http\Controllers\SubscriptionStatusController;
 use App\Modules\Core\Http\Controllers\SubscriptionPlanController;
+use App\Modules\Core\Http\Controllers\SubscriptionStatusController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
 use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
 use App\Modules\Core\Http\Controllers\UserController;
@@ -36,6 +36,7 @@ use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
 use App\Modules\Inventory\Http\Controllers\CategoryController;
 use App\Modules\Inventory\Http\Controllers\OptionGroupController;
+use App\Modules\Inventory\Http\Controllers\ProductAvailabilityController;
 use App\Modules\Inventory\Http\Controllers\ProductController;
 use App\Modules\Inventory\Http\Controllers\StockController;
 use App\Modules\Loans\Http\Controllers\LoanApplicationController;
@@ -45,6 +46,8 @@ use App\Modules\POS\Http\Controllers\QuickPosController;
 use App\Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchasing\Http\Controllers\SupplierController;
 use App\Modules\Sales\Http\Controllers\SaleController;
+use App\Modules\Social\Http\Controllers\SocialAutomationController;
+use App\Modules\Social\Http\Controllers\SocialController;
 use App\Modules\WhatsApp\Http\Controllers\EvolutionWebhookController;
 use App\Modules\WhatsApp\Http\Controllers\WhatsAppController;
 use Illuminate\Support\Facades\Route;
@@ -298,6 +301,17 @@ Route::middleware(['auth'])->group(function (): void {
         // punto de venta: el cajero no tiene `products.view` y sin esto la rejilla salía sin fotos.
         Route::get('/panel/inventario/{product}/imagen', [ProductController::class, 'image'])
             ->middleware('can:pos.product-image')->name('panel.products.image');
+
+        /*
+         * «Hoy no hay». Va con `products.view` —lo que ya tiene quien opera el terminal— y NO con
+         * `products.manage`.
+         *
+         * Es deliberado: que se acabó el guineo lo sabe el cajero a las tres de la tarde, no el dueño
+         * desde su casa. Apagar lo que se acabó es operación; retirar un producto del catálogo sigue
+         * siendo gestión y sigue exigiendo el otro permiso.
+         */
+        Route::post('/panel/inventario/{product}/disponible', ProductAvailabilityController::class)
+            ->middleware('can:products.view')->name('panel.products.availability');
     });
 
     Route::middleware(['can:products.manage', 'module:inventory'])->group(function (): void {
@@ -448,6 +462,54 @@ Route::middleware(['auth'])->group(function (): void {
 
         Route::post('/panel/gastos/conceptos', [ExpenseController::class, 'storeCategory'])->name('panel.expense-categories.store');
         Route::put('/panel/gastos/conceptos/{category}', [ExpenseController::class, 'updateCategory'])->name('panel.expense-categories.update');
+    });
+
+    /*
+     * Redes sociales: publicar en Instagram, Facebook y demás desde el panel.
+     *
+     * Tres permisos y no uno, porque son tres riesgos distintos: VER qué se publicó es inofensivo;
+     * PUBLICAR es hablar en nombre del negocio ante todo el mundo; y CONECTAR mueve las credenciales
+     * de las redes. Quien consulta no tiene por qué poder escribir, y quien escribe no tiene por qué
+     * poder desconectar la cuenta.
+     */
+    Route::middleware('module:social')->group(function (): void {
+        Route::get('/panel/redes', [SocialController::class, 'index'])
+            ->middleware('can:social.view')->name('panel.social');
+
+        Route::post('/panel/redes/publicar', [SocialController::class, 'publish'])
+            ->middleware('can:social.publish')->name('panel.social.publish');
+        Route::post('/panel/redes/imagen', [SocialController::class, 'presign'])
+            ->middleware('can:social.publish')->name('panel.social.presign');
+
+        /*
+         * Respuestas automáticas a comentarios y mensajes.
+         *
+         * Van con `social.publish` y no con un permiso propio: una automatización publica en nombre
+         * del negocio igual que un post, solo que sin nadie delante y para siempre. Quien no puede
+         * publicar tampoco debería poder dejar montado algo que publique solo.
+         */
+        Route::controller(SocialAutomationController::class)
+            ->prefix('panel/redes/automaticas')->name('panel.social.automations')
+            ->middleware('can:social.publish')->group(function (): void {
+                Route::get('/', 'index')->name('');
+                Route::post('/', 'store')->name('.store');
+                // Trae de la red lo publicado desde el móvil, para poder colgarle una automatización.
+                // `throttle` porque cada llamada va a Instagram a leer el historial.
+                Route::post('/sincronizar', 'syncPosts')
+                    ->middleware('throttle:10,1')->name('.sync');
+                Route::get('/{automation}/registro', 'logs')->name('.logs');
+                Route::put('/{automation}', 'update')->name('.update');
+                // Apagar tiene su propia puerta: quien ve que está contestando mal necesita un clic,
+                // no abrir un formulario y volver a guardarlo entero.
+                Route::post('/{automation}/estado', 'toggle')->name('.toggle');
+                Route::delete('/{automation}', 'destroy')->name('.destroy');
+            });
+
+        // La clave es una credencial de la empresa: mismo permiso que conectar cuentas.
+        Route::put('/panel/redes/clave', [SocialController::class, 'saveKey'])
+            ->middleware('can:social.connect')->name('panel.social.key');
+        Route::post('/panel/redes/conectar', [SocialController::class, 'connect'])
+            ->middleware('can:social.connect')->name('panel.social.connect');
     });
 
     /*

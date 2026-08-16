@@ -38,6 +38,7 @@ class Company extends Model implements Auditable
         'is_active',
         'settings',
         'modules',
+        'social_api_key',
     ];
 
     protected function casts(): array
@@ -46,7 +47,16 @@ class Company extends Model implements Auditable
             'is_active' => 'boolean',
             'settings' => 'array',
             'modules' => 'array',
+            // Credencial de Zernio: cifrada en reposo. Quien la tenga puede publicar en el Instagram
+            // del cliente, así que no puede quedar legible para nadie que abra la tabla.
+            'social_api_key' => 'encrypted',
         ];
+    }
+
+    /** ¿Tiene esta empresa conectadas sus redes sociales? */
+    public function publicaEnRedes(): bool
+    {
+        return filled($this->social_api_key);
     }
 
     /**

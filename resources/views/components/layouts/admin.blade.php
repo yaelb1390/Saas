@@ -50,6 +50,7 @@
         'Clientes' => [
             ['panel.customers', 'CRM', 'users', 'customers.view', 'crm'],
             ['panel.whatsapp', 'WhatsApp', 'chat', 'whatsapp.view', 'whatsapp'],
+            ['panel.social', 'Redes sociales', 'spark', 'social.view', 'social'],
             ['panel.deliveries', 'Entregas', 'truck', 'delivery.view', 'delivery'],
         ],
         'Finanzas' => [

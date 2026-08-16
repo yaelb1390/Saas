@@ -11,6 +11,7 @@ use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\HR\Models\Employee;
+use App\Modules\Sales\Enums\OrderType;
 use App\Modules\Sales\Enums\SaleStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -46,6 +47,7 @@ class Sale extends Model implements Auditable, HasCompany
         'cash_session_id',
         'code',
         'status',
+        'order_type',
         'customer_name',
         'subtotal',
         'tax',
@@ -64,6 +66,7 @@ class Sale extends Model implements Auditable, HasCompany
     {
         return [
             'status' => SaleStatus::class,
+            'order_type' => OrderType::class,
             'subtotal' => 'decimal:2',
             'tax' => 'decimal:2',
             'total' => 'decimal:2',
@@ -73,6 +76,21 @@ class Sale extends Model implements Auditable, HasCompany
             'change' => 'decimal:2',
             'completed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * ¿El dinero de esta venta ya entró?
+     *
+     * Se mira lo PAGADO y no la forma de pago: es el dinero lo que importa, no la etiqueta. Un pedido
+     * a domicilio que paga el cliente en la puerta se registra a crédito y con «pagado 0», y hasta que
+     * el motorista lo entregue no puede contar como ingreso ni engordar ninguna cuenta.
+     *
+     * Todas las ventas de mostrador cumplen esto desde siempre: el punto de venta exige que el pago
+     * cubra el total.
+     */
+    public function estaCobrada(): bool
+    {
+        return bccomp((string) $this->paid, (string) $this->total, 2) >= 0;
     }
 
     /**

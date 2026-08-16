@@ -7,6 +7,7 @@ namespace App\Modules\POS\Support;
 use App\Modules\HR\Models\Employee;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Support\OptionResolver;
+use App\Modules\POS\Exceptions\ProductUnavailableException;
 use App\Modules\Sales\DTOs\SaleLineData;
 
 /**
@@ -55,6 +56,13 @@ final class CartResolver
 
             if ($product === null) {
                 continue;
+            }
+
+            // El guarda de verdad está AQUÍ y no en la rejilla. Un producto agotado se sigue viendo
+            // en pantalla —en gris, para poder reactivarlo— así que se puede tocar por descuido, y
+            // ocultar algo nunca ha sido protegerlo.
+            if (! $product->sePuedeVender()) {
+                throw ProductUnavailableException::para((string) $product->name);
             }
 
             // Tamaños, sabores y extras: se verifican contra los grupos del propio producto y su

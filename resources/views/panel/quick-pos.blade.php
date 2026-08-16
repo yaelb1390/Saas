@@ -102,6 +102,25 @@
 
                     <div class="bmos-pos-grid">
                         <template x-for="p in visible" :key="p.id">
+                          <div class="relative">
+                            {{-- «Hoy no hay». Va FUERA de la ficha porque un botón dentro de otro es
+                                 HTML inválido y el navegador desmonta el interior en silencio.
+
+                                 El producto agotado se queda a la vista, en gris: es lo que permite
+                                 volver a encenderlo mañana desde el mismo sitio. Desactivarlo en
+                                 Inventario lo haría desaparecer de aquí y el cajero se quedaría sin
+                                 desde dónde revivirlo. --}}
+                            @can('products.view')
+                                <button type="button" @click.stop="alternarDisponible(p)"
+                                        :title="p.reason === 'unavailable' ? 'Volver a tenerlo' : 'Marcar que se acabó'"
+                                        :class="p.reason === 'unavailable' ? 'bg-amber-500 text-white' : 'bg-white/90 text-slate-400 hover:text-slate-700'"
+                                        class="absolute right-1.5 top-1.5 z-10 grid h-8 w-8 place-items-center rounded-full shadow ring-1 ring-slate-200">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                              d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243"/>
+                                    </svg>
+                                </button>
+                            @endcan
                             <button type="button" @click="add(p)" :disabled="!p.sellable" class="bmos-pos-tile">
                                 <span class="bmos-pos-tile-img">
                                     <template x-if="p.image">
@@ -112,7 +131,11 @@
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" class="h-9 w-9"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z"/></svg>
                                         </span>
                                     </template>
-                                    <span x-show="!p.sellable" class="bmos-pos-tile-flag">Agotado</span>
+                                    {{-- «Se acabó» y «sin existencia» se distinguen: lo primero lo
+                                         decidió alguien y se arregla con un toque; lo segundo hay que
+                                         reponerlo. --}}
+                                    <span x-show="!p.sellable" class="bmos-pos-tile-flag"
+                                          x-text="p.reason === 'unavailable' ? 'Se acabó' : 'Agotado'"></span>
                                 </span>
                                 <span class="bmos-pos-tile-body">
                                     <span class="bmos-pos-tile-name" x-text="p.name"></span>
@@ -123,6 +146,7 @@
                                     </span>
                                 </span>
                             </button>
+                          </div>
                         </template>
                     </div>
 
@@ -241,9 +265,62 @@
                         <span>ITBIS incluido en el precio</span>
                     </div>
 
+                    @if ($pideTipoDePedido)
+                        {{-- Cómo se lleva el cliente el pedido. Va ANTES de la forma de pago porque
+                             cambia lo que se pregunta después: un envío pide dirección y puede
+                             cobrarse en la puerta. --}}
+                        <div class="mb-3">
+                            <label class="bmos-field-label">Tipo de pedido</label>
+                            <input type="hidden" name="order_type" :value="orderType">
+                            <div class="grid grid-cols-{{ $ofreceEnvio ? '3' : '2' }} gap-1.5">
+                                @foreach (\App\Modules\Sales\Enums\OrderType::cases() as $tipo)
+                                    @continue($tipo->generaEntrega() && ! $ofreceEnvio)
+                                    <button type="button" @click="orderType = '{{ $tipo->value }}'"
+                                            :class="orderType === '{{ $tipo->value }}' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500'"
+                                            class="min-h-[44px] rounded-lg border px-1 text-xs font-semibold transition">
+                                        {{ $tipo->label() }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        @if ($ofreceEnvio)
+                            {{-- A dónde va. Solo la dirección es obligatoria: sin ella la entrega no
+                                 sirve de nada, y el resto se puede preguntar por teléfono. --}}
+                            <div x-show="esEnvio" x-cloak class="mb-3 space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
+                                <div>
+                                    <label class="bmos-field-label">Dirección <span class="text-rose-500">*</span></label>
+                                    <input type="text" name="delivery_address" x-model="envio.direccion"
+                                           class="bmos-input" placeholder="Calle Duarte 45, casa amarilla">
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="text" name="delivery_phone" x-model="envio.telefono"
+                                           class="bmos-input" placeholder="Teléfono">
+                                    <select name="delivery_employee_id" x-model="envio.repartidor" class="bmos-input">
+                                        <option value="">Asignar solo</option>
+                                        @foreach ($repartidores as $r)
+                                            <option value="{{ $r->id }}">{{ $r->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <input type="text" name="delivery_notes" x-model="envio.notas"
+                                       class="bmos-input" placeholder="Referencia: portón azul, timbre de abajo">
+
+                                {{-- Quién cobra. Si lo cobra el motorista, la venta se registra a
+                                     crédito y ese dinero NO entra en la caja hasta que él lo trae:
+                                     lo decide el servidor a partir de esta casilla. --}}
+                                <label class="flex items-center gap-2 text-sm font-medium text-violet-900">
+                                    <input type="checkbox" name="delivery_pay_on_arrival" value="1"
+                                           x-model="envio.pagaAlRecibir" class="rounded border-violet-300">
+                                    El cliente paga al recibir
+                                </label>
+                            </div>
+                        @endif
+                    @endif
+
                     {{-- Forma de cobro. Solo el efectivo suma al arqueo de la caja; el servidor
                          decide eso a partir de este valor, no el navegador. --}}
-                    <div class="mb-3">
+                    <div class="mb-3" x-show="! cobraElMotorista" x-cloak>
                         <label class="bmos-field-label">Forma de pago</label>
                         <input type="hidden" name="payment_method" :value="method">
                         <div class="grid grid-cols-3 gap-1.5">
@@ -259,29 +336,46 @@
 
                     {{-- Pago, cambio y cobrar comparten escala: se leen como un solo bloque. --}}
                     <div class="bmos-pos-cierre mb-3">
-                        <label class="bmos-field-label" x-text="method === 'cash' ? 'Pago recibido' : 'Importe cobrado'"></label>
-                        <input type="number" name="paid" x-model="paid" step="0.01" min="0" inputmode="decimal"
-                               class="bmos-pos-input-pago" placeholder="0.00">
-                        {{-- El cambio solo tiene sentido en efectivo: con tarjeta se cobra el importe exacto. --}}
-                        <div x-show="method === 'cash' && change > 0" x-cloak class="bmos-pos-change">
-                            <span class="bmos-pos-change-label">Cambio</span>
-                            <span class="bmos-pos-change-value" x-text="rd(change)"></span>
-                        </div>
-                        <button type="button" x-show="method !== 'cash'" @click="paid = subtotal.toFixed(2)"
-                                class="mt-1 text-xs font-semibold text-indigo-600">Poner el importe exacto</button>
+                        <template x-if="! cobraElMotorista">
+                            <div>
+                                <label class="bmos-field-label" x-text="method === 'cash' ? 'Pago recibido' : 'Importe cobrado'"></label>
+                                <input type="number" name="paid" x-model="paid" step="0.01" min="0" inputmode="decimal"
+                                       class="bmos-pos-input-pago" placeholder="0.00">
+                                {{-- El cambio solo tiene sentido en efectivo: con tarjeta se cobra el importe exacto. --}}
+                                <div x-show="method === 'cash' && change > 0" x-cloak class="bmos-pos-change">
+                                    <span class="bmos-pos-change-label">Cambio</span>
+                                    <span class="bmos-pos-change-value" x-text="rd(change)"></span>
+                                </div>
+                                <button type="button" x-show="method !== 'cash'" @click="paid = subtotal.toFixed(2)"
+                                        class="mt-1 text-xs font-semibold text-indigo-600">Poner el importe exacto</button>
+                            </div>
+                        </template>
+
+                        {{-- Lo cobra el motorista: aquí no se recibe dinero. Se dice en vez de dejar
+                             un campo de pago vacío que el cajero intentaría rellenar. --}}
+                        <p x-show="cobraElMotorista" x-cloak
+                           class="rounded-lg bg-violet-100 px-3 py-2 text-sm font-medium text-violet-900">
+                            El motorista cobra <span x-text="rd(subtotal)"></span> en la puerta. No recibas nada ahora.
+                        </p>
 
                         {{-- `cobrando` bloquea el botón mientras vuela la petición: sin esto, un
                              doble toque impaciente cobraría la venta dos veces. --}}
                         <button type="submit" :disabled="!canPay || cobrando" class="bmos-pos-cobrar mt-3">
-                            <span x-text="cobrando ? 'Cobrando...' : 'Cobrar'"></span>
+                            <span x-text="cobrando ? 'Cobrando...' : (cobraElMotorista ? 'Enviar pedido' : 'Cobrar')"></span>
                             <span class="bmos-pos-cobrar-total" x-text="rd(subtotal)"></span>
                         </button>
                     </div>
                 </form>
             </div>
-        </div>
 
-        {{-- Paso de elección: aparece al tocar un producto que ofrece tamaño, sabor o extras. --}}
+        {{-- Paso de elección: aparece al tocar un producto que ofrece tamaño, sabor o extras.
+
+             VA DENTRO del `x-data`, y esto era un fallo: estaba fuera, así que Alpine no le daba
+             ámbito y tocar un producto con tamaños o sabores lanzaba «eligiendo is not defined» sin
+             abrir nada. La función se vendía y no funcionaba en el terminal.
+
+             Ser hijo de la rejilla no le estorba: `position: fixed` lo saca del flujo, así que no
+             ocupa una celda de la cuadrícula. --}}
         <div x-show="eligiendo" x-cloak @keydown.escape.window="cerrarOpciones()"
              class="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4">
             <div @click.outside="cerrarOpciones()"
@@ -330,6 +424,7 @@
                 </div>
             </div>
         </div>
+        </div>
 
         <script>
             function quickPos(catalogUrl, categoriasIniciales) {
@@ -350,6 +445,10 @@
                     cart: [],
                     paid: '',
                     method: 'cash',
+                    // Cómo se lleva el cliente el pedido. Por omisión, para comer aquí: es lo que más
+                    // pasa en un local con mesas, y el cajero no tiene que tocar nada en ese caso.
+                    orderType: 'dine_in',
+                    envio: { direccion: '', telefono: '', notas: '', repartidor: '', pagaAlRecibir: false },
                     cobrando: false,
                     ultimaVenta: null,
                     errorCobro: '',
@@ -635,8 +734,53 @@
                     get count() { return this.cart.reduce((n, i) => n + i.qty, 0); },
                     get subtotal() { return this.cart.reduce((n, i) => n + this.lineNet(i), 0); },
                     get change() { return Math.max(0, Number(this.paid || 0) - this.subtotal); },
+
+                    get esEnvio() { return this.orderType === 'delivery'; },
+
+                    /** Lo cobra el motorista en la puerta: aquí no se recibe dinero. */
+                    get cobraElMotorista() { return this.esEnvio && this.envio.pagaAlRecibir; },
+
                     get canPay() {
-                        return this.cart.length > 0 && Number(this.paid || 0) >= this.subtotal;
+                        if (this.cart.length === 0) return false;
+
+                        // Un envío sin dirección no se puede mandar a ninguna parte. Se bloquea el
+                        // botón además de validarlo en el servidor: descubrirlo al pulsar, con el
+                        // cliente delante, es peor que no poder pulsar.
+                        if (this.esEnvio && this.envio.direccion.trim() === '') return false;
+
+                        // Si paga al recibir no hay pago que comprobar: la venta va a crédito.
+                        if (this.cobraElMotorista) return true;
+
+                        return Number(this.paid || 0) >= this.subtotal;
+                    },
+
+                    /**
+                     * «Hoy no hay» / «ya volvimos a tener».
+                     *
+                     * Se pinta el cambio ANTES de que responda el servidor: el cajero está atendiendo
+                     * y esperar medio segundo a que se ponga gris es medio segundo mirando la pantalla
+                     * sin saber si el toque entró. Si el servidor lo rechaza, se deshace.
+                     */
+                    async alternarDisponible(p) {
+                        const antes = p.reason;
+                        const disponible = p.reason === 'unavailable';
+
+                        p.reason = disponible ? null : 'unavailable';
+                        p.sellable = disponible;
+
+                        try {
+                            const res = await fetch(`{{ url('panel/inventario') }}/${p.id}/disponible`, {
+                                method: 'POST',
+                                headers: this._cabeceras(),
+                                body: JSON.stringify({ is_available: disponible }),
+                            });
+
+                            if (!res.ok) throw new Error('rechazado');
+                        } catch (e) {
+                            p.reason = antes;
+                            p.sellable = antes === null;
+                            this.errorCobro = 'No se pudo cambiar la disponibilidad.';
+                        }
                     },
 
                     /** Cabeceras comunes de las peticiones que escriben. */
@@ -779,8 +923,22 @@
                                         qty: i.qty,
                                         options: (i.opciones ?? []).map((o) => o.id),
                                     }))),
-                                    paid: this.paid,
+                                    // Si lo cobra el motorista no se recibe nada aquí. Se manda cero
+                                    // en vez de vacío para no depender de cómo trate el servidor un
+                                    // campo ausente.
+                                    paid: this.cobraElMotorista ? '0' : this.paid,
                                     payment_method: this.method,
+                                    order_type: this.orderType,
+                                    // Los datos del reparto viajan siempre que el pedido sea envío. El
+                                    // servidor decide qué hacer con ellos —y si la forma de pago pasa
+                                    // a crédito—: aquí no se decide nada sobre el dinero.
+                                    ...(this.esEnvio ? {
+                                        delivery_address: this.envio.direccion,
+                                        delivery_phone: this.envio.telefono,
+                                        delivery_notes: this.envio.notas,
+                                        delivery_employee_id: this.envio.repartidor,
+                                        delivery_pay_on_arrival: this.envio.pagaAlRecibir,
+                                    } : {}),
                                 }),
                             });
 
@@ -799,6 +957,10 @@
                             this.paid = '';
                             this.method = 'cash';
                             this.refActiva = '';
+                            // El pedido siguiente empieza limpio: si la dirección del anterior se
+                            // quedara puesta, el segundo envío saldría a la casa del primero.
+                            this.orderType = 'dine_in';
+                            this.envio = { direccion: '', telefono: '', notas: '', repartidor: '', pagaAlRecibir: false };
 
                             // La venta acaba de mover el stock: un producto que se agotó tiene que
                             // aparecer marcado antes de que el cajero intente venderlo otra vez.

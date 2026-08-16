@@ -11,6 +11,7 @@ use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Sales\DTOs\CreateSaleData;
+use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Events\SaleCompleted;
 use App\Modules\Sales\Exceptions\CustomerNotInCompanyException;
@@ -46,9 +47,23 @@ final class SaleService
             $total = bcadd($amounts['total'], $tip, self::SCALE);
             $paid = $data->paid ?? $total;
 
-            if (bccomp($paid, $total, self::SCALE) < 0) {
+            /*
+             * El pago tiene que cubrir el total... salvo a crédito, que es precisamente «se cobra
+             * después»: un pedido a domicilio que paga el cliente en la puerta.
+             *
+             * La excepción se ata a la forma de pago y no a un interruptor suelto para que no se
+             * pueda registrar por descuido una venta de mostrador a medio pagar. Y `entersCashDrawer()`
+             * ya devuelve false para crédito, así que ese dinero no toca el arqueo: el turno cuadra sin
+             * que haya que acordarse de nada.
+             */
+            if ($data->paymentMethod !== PaymentMethod::Credit && bccomp($paid, $total, self::SCALE) < 0) {
                 throw InsufficientPaymentException::for($total, $paid);
             }
+
+            // A crédito no hay vuelto que dar: lo pendiente no es un cambio a favor del cliente.
+            $change = $data->paymentMethod === PaymentMethod::Credit
+                ? '0.00'
+                : bcsub($paid, $total, self::SCALE);
 
             $customer = $this->resolveCustomer($data->customerId, $companyId);
 
@@ -60,6 +75,7 @@ final class SaleService
                 'cash_session_id' => $data->cashSessionId,
                 'code' => $this->nextCode($companyId),
                 'status' => SaleStatus::Completed,
+                'order_type' => $data->orderType?->value,
                 'customer_name' => $data->customerName ?? $customer?->name,
                 'subtotal' => $amounts['subtotal'],
                 'tax' => $amounts['tax'],
@@ -67,7 +83,7 @@ final class SaleService
                 'tip' => $tip,
                 'discount_total' => $data->discountTotal,
                 'paid' => $paid,
-                'change' => bcsub($paid, $total, self::SCALE),
+                'change' => $change,
                 'payment_method' => $data->paymentMethod->value,
                 'completed_at' => now(),
                 'user_id' => auth()->id(),

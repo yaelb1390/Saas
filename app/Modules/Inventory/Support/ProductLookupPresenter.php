@@ -92,6 +92,9 @@ final class ProductLookupPresenter
 
         $reason = match (true) {
             ! $product->is_active => 'inactive',
+            // «Hoy no hay»: se acabó el guineo. Va ANTES del stock porque es una decisión de alguien
+            // y no un cálculo, y porque un producto sin control de existencia nunca daría «no_stock».
+            ! $product->is_available => 'unavailable',
             $product->track_stock && bccomp($stock, '0', 3) <= 0 => 'no_stock',
             default => null,
         };

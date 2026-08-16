@@ -32,6 +32,9 @@ final class PosProfile
         'line_note' => 'Nota por línea',
         'decimal_qty' => 'Cantidad decimal (peso/medida)',
         'services' => 'Servicios (sin stock)',
+        // Comida: preguntar al cobrar si es para comer aquí, para llevar o con envío. Solo el envío
+        // crea una entrega; los otros dos se anotan para saber después qué se vende de cada forma.
+        'order_type' => 'Tipo de pedido (local / llevar / envío)',
     ];
 
     /**

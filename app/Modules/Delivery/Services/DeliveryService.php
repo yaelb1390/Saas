@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Delivery\Services;
 
+use App\Modules\Cash\Enums\CashMovementType;
+use App\Modules\Cash\Enums\CashSessionStatus;
+use App\Modules\Cash\Models\CashSession;
+use App\Modules\Cash\Services\CashService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
@@ -11,6 +15,9 @@ use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Events\DeliveryStatusChanged;
 use App\Modules\Delivery\Exceptions\DeliveryException;
 use App\Modules\Delivery\Models\Delivery;
+use App\Modules\Finance\Enums\MovementType;
+use App\Modules\Finance\Models\Account;
+use App\Modules\Finance\Services\FinanceService;
 use App\Modules\HR\Models\Employee;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +41,11 @@ use Illuminate\Support\Facades\DB;
  */
 final class DeliveryService
 {
+    public function __construct(
+        private readonly FinanceService $finance,
+        private readonly CashService $cash,
+    ) {}
+
     public function create(
         string $address,
         ?string $customerName = null,
@@ -87,6 +99,34 @@ final class DeliveryService
         ]);
 
         return $this->transition($delivery, DeliveryStatus::Assigned);
+    }
+
+    /**
+     * Le busca repartidor sola: el empleado activo con MENOS entregas abiertas encima.
+     *
+     * Reparte la carga en vez de amontonarla. Con «el primero de la lista» o «el que lleva menos
+     * tiempo», uno acabaría saliendo con seis pedidos mientras otro espera de brazos cruzados —y el
+     * cliente del sexto pedido paga esa espera—.
+     *
+     * Si no hay nadie activo NO se inventa un repartidor: la entrega se queda sin asignar y aparece
+     * en la lista para hacerlo a mano. Colgársela a alguien que no está es peor que dejarla visible.
+     */
+    public function assignAutomatically(Delivery $delivery): Delivery
+    {
+        $candidato = Employee::query()
+            ->where('is_active', true)
+            ->withCount(['deliveries' => fn ($q) => $q->whereIn('status', DeliveryStatus::abiertas())])
+            ->orderBy('deliveries_count')
+            // Desempate estable: sin él, dos motoristas a cero saldrían en un orden que depende de la
+            // base de datos y el reparto parecería caprichoso.
+            ->orderBy('id')
+            ->first();
+
+        if ($candidato === null) {
+            return $delivery;
+        }
+
+        return $this->assign($delivery, $candidato);
     }
 
     public function transition(Delivery $delivery, DeliveryStatus $to): Delivery
@@ -195,8 +235,25 @@ final class DeliveryService
     /**
      * Liquida de golpe todo lo que un repartidor tiene cobrado y sin entregar en caja.
      *
-     * Devuelve cuántas entregas y cuánto dinero, que es lo que el cajero necesita para contar antes
-     * de dar el visto bueno.
+     * AQUÍ ES DONDE ENTRA EL DINERO, y esto es una corrección: antes solo se sellaba la fecha y los
+     * pesos que el motorista dejaba sobre el mostrador no aparecían en ningún sitio —ni en el saldo
+     * de la cuenta ni en el arqueo del turno—. Se escribió así razonando que «la venta ya lo anotó»,
+     * y eso solo era cierto para una entrega de una venta ya pagada, que no cobra nada en la puerta.
+     * Una entrega con dinero a cobrar nunca lo tuvo anotado.
+     *
+     * La regla es una sola frase: EL DINERO SE ANOTA CUANDO LLEGA.
+     *
+     *   · Pedido pagado en el mostrador → ya se anotó al cobrar, y nace con «a cobrar 0», así que ni
+     *     siquiera llega hasta aquí.
+     *   · Pedido pagado en la puerta    → no se anotó nada al venderlo; se anota ahora.
+     *
+     * Se anota en los dos sitios porque son dos preguntas distintas: el INGRESO dice que el negocio
+     * ganó ese dinero, y el MOVIMIENTO DE CAJA dice que está físicamente en el cajón. Sin el primero
+     * las ganancias salen cortas; sin el segundo, el cierre del turno canta un sobrante.
+     *
+     * El movimiento de caja solo se anota si hay un turno abierto: si el motorista llega con la caja
+     * ya cerrada, el ingreso queda igual y el efectivo se cuadra en el turno siguiente. Cerrar la
+     * liquidación por eso dejaría el dinero en la calle una noche entera.
      *
      * @return array{entregas: int, total: string}
      */
@@ -225,8 +282,32 @@ final class DeliveryService
                 $entrega->forceFill(['settled_at' => $ahora, 'settled_by' => auth()->id()])->save();
             }
 
+            $this->anotarElDinero($employee, $total, $pendientes->count());
+
             return ['entregas' => $pendientes->count(), 'total' => $total];
         });
+    }
+
+    /** El efectivo que el motorista acaba de entregar: en las ganancias y en el cajón. */
+    private function anotarElDinero(Employee $employee, string $total, int $entregas): void
+    {
+        if (bccomp($total, '0', 2) <= 0) {
+            return;
+        }
+
+        $concepto = "Liquidación de {$employee->name}: {$entregas} ".($entregas === 1 ? 'entrega' : 'entregas');
+
+        $cuenta = Account::query()->where('is_default', true)->first();
+
+        if ($cuenta !== null) {
+            $this->finance->record($cuenta, MovementType::Income, $total, $concepto);
+        }
+
+        $turno = CashSession::query()->where('status', CashSessionStatus::Open)->latest('opened_at')->first();
+
+        if ($turno !== null) {
+            $this->cash->registerMovement($turno, CashMovementType::Income, $total, ['notes' => $concepto]);
+        }
     }
 
     /**

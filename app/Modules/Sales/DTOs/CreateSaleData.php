@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\DTOs;
 
+use App\Modules\Sales\Enums\OrderType;
 use App\Modules\Sales\Enums\PaymentMethod;
 
 /**
@@ -38,6 +39,9 @@ final readonly class CreateSaleData
         public string $tip = '0',
         public string $discountTotal = '0',
         public ?int $employeeId = null,
+        // Cómo se lleva el cliente lo que compró. Null = no se preguntó (el negocio no encendió la
+        // opción, o la venta viene de la API). Solo el envío genera entrega; ver OrderType.
+        public ?OrderType $orderType = null,
     ) {}
 
     /**
@@ -62,6 +66,7 @@ final readonly class CreateSaleData
             tip: $this->tip,
             discountTotal: $this->discountTotal,
             employeeId: $this->employeeId,
+            orderType: $this->orderType,
         );
     }
 

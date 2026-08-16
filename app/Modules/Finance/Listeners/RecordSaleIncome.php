@@ -14,6 +14,14 @@ use Throwable;
 /**
  * Automatización: al completarse una venta, registra el ingreso en la cuenta por defecto.
  * Es defensivo: un fallo contable nunca debe abortar la venta ya realizada.
+ *
+ * SALVO SI LA VENTA NO SE HA COBRADO. Un pedido a domicilio que paga el cliente en la puerta se
+ * registra a crédito y con «pagado 0»: el negocio hizo la venta, pero el dinero está en la calle. Si
+ * se anotara aquí, el saldo de «Caja General» diría que tiene unos pesos que nadie ha traído todavía,
+ * y el dueño vería más dinero del que puede contar.
+ *
+ * La regla del sistema es una sola frase: el dinero se anota cuando llega. Lo de estas ventas lo
+ * anota `DeliveryService::settle()` cuando el motorista lo entrega.
  */
 final class RecordSaleIncome
 {
@@ -22,6 +30,10 @@ final class RecordSaleIncome
     public function handle(SaleCompleted $event): void
     {
         $sale = $event->sale;
+
+        if (! $sale->estaCobrada()) {
+            return;
+        }
 
         $account = Account::query()
             ->withoutGlobalScope(CompanyScope::class)

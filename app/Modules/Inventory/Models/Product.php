@@ -54,6 +54,7 @@ class Product extends Model implements Auditable, HasCompany
         'price',
         'track_stock',
         'is_active',
+        'is_available',
     ];
 
     protected function casts(): array
@@ -65,7 +66,21 @@ class Product extends Model implements Auditable, HasCompany
             'year_to' => 'integer',
             'track_stock' => 'boolean',
             'is_active' => 'boolean',
+            // «Hoy no hay». NO es lo mismo que `is_active`: aquel saca el producto del catálogo para
+            // siempre; este dice que se acabó y se enciende otra vez mañana. Ver la migración.
+            'is_available' => 'boolean',
         ];
+    }
+
+    /**
+     * ¿Se puede meter al ticket ahora mismo?
+     *
+     * Reúne las dos puertas para que ningún camino se olvide de una: el producto tiene que estar en el
+     * catálogo Y no estar agotado a mano. El stock se comprueba aparte, al descontarlo.
+     */
+    public function sePuedeVender(): bool
+    {
+        return $this->is_active && $this->is_available;
     }
 
     /**

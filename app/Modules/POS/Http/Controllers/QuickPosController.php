@@ -7,6 +7,7 @@ namespace App\Modules\POS\Http\Controllers;
 use App\Modules\Cash\Enums\CashSessionStatus;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\HR\Models\Employee;
 use App\Modules\Inventory\Models\Category;
 use App\Modules\Inventory\Models\Option;
 use App\Modules\Inventory\Models\OptionGroup;
@@ -16,6 +17,7 @@ use App\Modules\Inventory\Support\ProductLookupPresenter;
 use App\Modules\POS\Models\HeldOrder;
 use App\Modules\POS\Services\HeldOrderService;
 use App\Modules\POS\Support\KioskMode;
+use App\Modules\POS\Support\PosProfile;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,13 +38,30 @@ final class QuickPosController extends Controller
 {
     public function index(Request $request, CurrentCompany $currentCompany): View
     {
+        $company = $currentCompany->model();
+        $reparte = $company?->hasModule('delivery') ?? false;
+
         return view('panel.quick-pos', [
             // Un cajero ve el terminal a pantalla completa, sin menú ni barra: se concentra en
             // vender. El dueño ve la misma pantalla dentro del panel de siempre.
-            'kiosk' => KioskMode::applies($request->user(), $currentCompany->model()),
+            'kiosk' => KioskMode::applies($request->user(), $company),
             'openSession' => CashSession::query()
                 ->where('status', CashSessionStatus::Open)->latest('opened_at')->first(),
             'categories' => $this->categoriasConProductos(),
+
+            // ¿Se pregunta el tipo de pedido al cobrar? Lo enciende el dueño en los ajustes del
+            // terminal: una ferretería no tiene por qué ver «para comer aquí».
+            'pideTipoDePedido' => $company !== null
+                && (bool) (PosProfile::for($company)['options']['order_type'] ?? false),
+
+            // El envío solo se ofrece si la empresa contrató el módulo. Sin él, el pedido se cobra
+            // igual pero no hay a dónde mandarlo.
+            'ofreceEnvio' => $reparte,
+
+            // Para elegir repartidor a mano en el momento del cobro. Vacío = solo automático.
+            'repartidores' => $reparte
+                ? Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : collect(),
         ]);
     }
 

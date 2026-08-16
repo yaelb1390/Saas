@@ -194,9 +194,38 @@
                                 <td>{{ number_format((float) $product->cost, 2) }}</td>
                                 <td class="font-semibold">{{ number_format((float) $product->price, 2) }}</td>
                                 <td><span class="bmos-badge {{ $stock < 5 ? 'badge-amber' : 'badge-blue' }}">{{ number_format($stock, 0) }}</span></td>
-                                <td><span class="bmos-badge {{ $product->is_active ? 'badge-green' : 'badge-gray' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span></td>
+                                <td>
+                                    <span class="bmos-badge {{ $product->is_active ? 'badge-green' : 'badge-gray' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
+                                    {{-- «Se acabó» no es lo mismo que «inactivo»: lo primero cambia
+                                         dos veces al día y lo segundo es retirarlo del catálogo. Se
+                                         enseña aparte para que no se confundan de un vistazo. --}}
+                                    @if ($product->is_active && ! $product->is_available)
+                                        <span class="bmos-badge badge-amber mt-1 block">Se acabó</span>
+                                    @endif
+                                </td>
                                 <td>
                                     <div class="flex items-center justify-end gap-1">
+                                        {{-- «Hoy no hay». Con `products.view`, que es lo que ya tiene
+                                             quien opera el terminal: que se acabó el guineo lo sabe
+                                             el cajero, no el dueño desde su casa. --}}
+                                        @can('products.view')
+                                            <form method="POST" action="{{ route('panel.products.availability', $product) }}">
+                                                @csrf
+                                                <input type="hidden" name="is_available" value="{{ $product->is_available ? '0' : '1' }}">
+                                                <button type="submit"
+                                                        class="rounded-lg p-1.5 {{ $product->is_available ? 'text-slate-500 hover:bg-amber-50 hover:text-amber-600' : 'text-amber-600 hover:bg-emerald-50 hover:text-emerald-600' }}"
+                                                        title="{{ $product->is_available ? 'Marcar que se acabó' : 'Volver a tenerlo' }}">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem">
+                                                        @if ($product->is_available)
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243"/>
+                                                        @else
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                                                        @endif
+                                                    </svg>
+                                                </button>
+                                            </form>
+                                        @endcan
                                         @can('products.manage')
                                         <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
                                                 @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">

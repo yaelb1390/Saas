@@ -15,9 +15,12 @@ use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
+use App\Modules\POS\DTOs\DeliveryOrderData;
+use App\Modules\POS\Exceptions\ProductUnavailableException;
 use App\Modules\POS\Services\CheckoutService;
 use App\Modules\POS\Support\CartResolver;
 use App\Modules\Sales\DTOs\CreateSaleData;
+use App\Modules\Sales\Enums\OrderType;
 use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Exceptions\InsufficientPaymentException;
 use Illuminate\Http\JsonResponse;
@@ -90,7 +93,11 @@ final class PosController extends Controller
 
         $request->validate([
             'cart' => ['required', 'string'],
-            'paid' => ['required', 'numeric', 'min:0'],
+            // Deja de ser obligatorio a secas: un pedido que paga el cliente en la puerta no recibe
+            // nada en el mostrador, y exigir un importe ahí obligaría al cajero a escribir un cero
+            // que no significa nada. Se sigue exigiendo para el resto, unas líneas más abajo, cuando
+            // ya se sabe qué clase de pedido es.
+            'paid' => ['nullable', 'numeric', 'min:0'],
             'tip' => ['nullable', 'numeric', 'min:0'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'customer_name' => ['nullable', 'string', 'max:255'],
@@ -105,8 +112,33 @@ final class PosController extends Controller
                 Rule::exists('employees', 'id')->where('company_id', $companyId)->whereNull('deleted_at'),
             ],
             // Solo las formas de cobro al contado: cheque y crédito no cubren el total en el acto.
+            // El crédito entra por otra puerta —«paga al recibir» en un pedido con envío—, donde es
+            // el propio servidor quien lo decide y no algo que pueda llegar del navegador.
             'payment_method' => ['nullable', Rule::enum(PaymentMethod::class)->only(PaymentMethod::counterOptions())],
+
+            // Cómo se lleva el cliente el pedido. Solo el envío exige dirección: sin ella no hay a
+            // dónde ir, y una entrega sin destino es un pedido perdido.
+            'order_type' => ['nullable', Rule::enum(OrderType::class)],
+            'delivery_address' => ['nullable', 'required_if:order_type,delivery', 'string', 'max:255'],
+            'delivery_phone' => ['nullable', 'string', 'max:40'],
+            'delivery_notes' => ['nullable', 'string', 'max:255'],
+            'delivery_pay_on_arrival' => ['sometimes', 'boolean'],
+            // Vacío = que lo decida el sistema. Ver DeliveryOrderData.
+            'delivery_employee_id' => [
+                'nullable', 'integer',
+                Rule::exists('employees', 'id')->where('company_id', $companyId)->whereNull('deleted_at'),
+            ],
+        ], [
+            'delivery_address.required_if' => 'Un pedido con envío necesita la dirección.',
         ]);
+
+        $orderType = OrderType::tryFrom((string) $request->input('order_type'));
+
+        // El envío exige el módulo contratado. Se corta aquí y no en la vista: ocultar un botón nunca
+        // ha impedido que alguien mande la petición a mano.
+        if ($orderType?->generaEntrega() && ! app(CurrentCompany::class)->model()?->hasModule('delivery')) {
+            return $this->fallo($request, 'Tu plan no incluye el módulo de entregas.');
+        }
 
         $session = CashSession::query()->where('status', CashSessionStatus::Open)->latest('opened_at')->first();
         if ($session === null) {
@@ -119,25 +151,57 @@ final class PosController extends Controller
         }
 
         // El precio SIEMPRE se relee del catálogo dentro del resolvedor: nada de lo que llegue del
-        // navegador decide lo que se cobra.
-        $lines = $cart->toLines($cart->decode($request->string('cart')->toString()));
+        // navegador decide lo que se cobra. Y ahí mismo se rechaza lo que el negocio marcó como
+        // agotado, que es antes de tocar la caja: no llega a abrirse ninguna transacción.
+        try {
+            $lines = $cart->toLines($cart->decode($request->string('cart')->toString()));
+        } catch (ProductUnavailableException $e) {
+            return $this->fallo($request, $e->getMessage());
+        }
 
         if ($lines === []) {
             return $this->fallo($request, 'El ticket está vacío.');
         }
 
+        // Lo paga el motorista en la puerta: la venta se registra a crédito y con pago cero. No es una
+        // forma de pago que pueda elegir el navegador; se deduce de que el pedido lleva envío y de que
+        // el cajero marcó «paga al recibir».
+        $cobraElMotorista = $orderType?->generaEntrega() && $request->boolean('delivery_pay_on_arrival');
+
+        // Fuera de ese caso, el importe recibido sigue siendo obligatorio: es lo que decide el cambio
+        // que se le devuelve al cliente y lo que entra al cajón.
+        if (! $cobraElMotorista && ! $request->filled('paid')) {
+            return $this->fallo($request, 'Indica cuánto recibiste.');
+        }
+
         try {
-            $sale = $checkout->checkout($session, new CreateSaleData(
-                warehouseId: $warehouse->id,
-                lines: $lines,
-                paymentMethod: PaymentMethod::tryFrom((string) $request->input('payment_method')) ?? PaymentMethod::Cash,
-                paid: (string) $request->input('paid'),
-                customerName: $request->filled('customer_name') ? (string) $request->input('customer_name') : null,
-                customerId: $request->filled('customer_id') ? (int) $request->input('customer_id') : null,
-                tip: (string) max(0, (float) $request->input('tip', 0)),
-                discountTotal: (string) max(0, (float) $request->input('discount_total', 0)),
-                employeeId: $request->filled('employee_id') ? (int) $request->input('employee_id') : null,
-            ));
+            $sale = $checkout->checkout(
+                $session,
+                new CreateSaleData(
+                    warehouseId: $warehouse->id,
+                    lines: $lines,
+                    paymentMethod: $cobraElMotorista
+                        ? PaymentMethod::Credit
+                        : (PaymentMethod::tryFrom((string) $request->input('payment_method')) ?? PaymentMethod::Cash),
+                    paid: $cobraElMotorista ? '0' : (string) $request->input('paid'),
+                    customerName: $request->filled('customer_name') ? (string) $request->input('customer_name') : null,
+                    customerId: $request->filled('customer_id') ? (int) $request->input('customer_id') : null,
+                    tip: (string) max(0, (float) $request->input('tip', 0)),
+                    discountTotal: (string) max(0, (float) $request->input('discount_total', 0)),
+                    employeeId: $request->filled('employee_id') ? (int) $request->input('employee_id') : null,
+                    orderType: $orderType,
+                ),
+                $orderType?->generaEntrega()
+                    ? new DeliveryOrderData(
+                        address: (string) $request->input('delivery_address'),
+                        customerName: $request->filled('customer_name') ? (string) $request->input('customer_name') : null,
+                        phone: $request->filled('delivery_phone') ? (string) $request->input('delivery_phone') : null,
+                        notes: $request->filled('delivery_notes') ? (string) $request->input('delivery_notes') : null,
+                        employeeId: $request->filled('delivery_employee_id') ? (int) $request->input('delivery_employee_id') : null,
+                        cobraElMotorista: $cobraElMotorista,
+                    )
+                    : null,
+            );
         } catch (InsufficientStockException) {
             return $this->fallo($request, 'Stock insuficiente para completar la venta.');
         } catch (InsufficientPaymentException) {

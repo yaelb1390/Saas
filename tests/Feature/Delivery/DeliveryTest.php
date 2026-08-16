@@ -8,11 +8,12 @@ use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Events\DeliveryStatusChanged;
+use App\Modules\Delivery\Exceptions\DeliveryException;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Delivery\Services\DeliveryService;
+use App\Modules\Finance\Models\Account;
 use App\Modules\HR\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 
 /*
@@ -194,19 +195,49 @@ it('liquida de una vez todo lo que el repartidor trae', function (): void {
         ->and(Delivery::whereNotNull('settled_at')->count())->toBe(2);
 });
 
-it('liquidar no registra ningún ingreso: la venta ya lo anotó', function (): void {
-    // Es la regla del módulo. Apuntar el dinero otra vez al liquidar contaría lo mismo dos veces y
-    // el negocio se creería más rico de lo que es. La liquidación resuelve la CUSTODIA, no el cobro.
+it('al liquidar, el dinero del motorista entra en las cuentas', function (): void {
+    /*
+     * ESTE TEST ANTES DECÍA LO CONTRARIO, y estaba mal.
+     *
+     * Afirmaba que liquidar no anota nada «porque la venta ya lo anotó al cobrarse». Eso solo es
+     * cierto de una entrega de una venta ya pagada —que nace con «a cobrar 0» y ni siquiera llega a
+     * liquidarse—. Una entrega CON dinero a cobrar nunca lo tuvo anotado: esos pesos entraban por la
+     * puerta del local y desaparecían de los libros.
+     *
+     * La regla correcta es una sola frase: el dinero se anota cuando llega.
+     */
     $kelvin = repartidorLlamado();
     $entrega = entregaHacia(aCobrar: '450');
     app(DeliveryService::class)->assign($entrega, $kelvin);
     app(DeliveryService::class)->markCollected($entrega);
 
-    $movimientosAntes = DB::table('financial_movements')->count();
+    $cuenta = Account::query()->where('is_default', true)->firstOrFail();
+    $saldoAntes = (string) $cuenta->balance;
 
     app(DeliveryService::class)->settle($kelvin);
 
-    expect(DB::table('financial_movements')->count())->toBe($movimientosAntes);
+    // Se comprueba el SALDO y no que «haya un movimiento más»: lo que importa es que el dueño pueda
+    // contar ese dinero, no que quedara constancia de algo.
+    expect((string) $cuenta->fresh()->balance)->toBe(bcadd($saldoAntes, '450', 2));
+});
+
+it('y no se cuenta dos veces cuando la venta ya lo había cobrado', function (): void {
+    // Un pedido pagado en el mostrador nace con «a cobrar 0». Si aun así llegara a liquidarse, anotar
+    // otra vez su importe haría que el negocio se creyera más rico de lo que es.
+    $kelvin = repartidorLlamado();
+    $entrega = entregaHacia(aCobrar: '450');
+    app(DeliveryService::class)->assign($entrega, $kelvin);
+    app(DeliveryService::class)->markCollected($entrega);
+    app(DeliveryService::class)->settle($kelvin);
+
+    $cuenta = Account::query()->where('is_default', true)->firstOrFail();
+    $saldo = (string) $cuenta->fresh()->balance;
+
+    // Liquidar otra vez no encuentra nada pendiente y no puede volver a sumar.
+    expect(fn () => app(DeliveryService::class)->settle($kelvin))
+        ->toThrow(DeliveryException::class);
+
+    expect((string) $cuenta->fresh()->balance)->toBe($saldo);
 });
 
 it('no liquida a quien no tiene nada pendiente', function (): void {

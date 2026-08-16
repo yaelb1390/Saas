@@ -268,7 +268,16 @@
                         @can('company.manage')
                             <a href="{{ route('panel.account') }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mi suscripción</a>
                         @endcan
-                        <a href="{{ route('portal.employee') }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mi portal</a>
+                        {{-- «Mi portal» solo a quien tiene ficha de empleado. Se ofrecía a todo el
+                             mundo, y para el resto —que son la mayoría: el dueño no suele estar en la
+                             plantilla— llevaba a una pantalla que solo decía «no estás vinculado». Un
+                             enlace que no lleva a ningún sitio es peor que no tenerlo. --}}
+                        @if ($authUser?->esEmpleado())
+                            <a href="{{ route('portal.employee') }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mi portal</a>
+                            @can('delivery.own')
+                                <a href="{{ route('portal.deliveries') }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Mis entregas</a>
+                            @endcan
+                        @endif
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <button type="submit" class="block w-full px-4 py-2 text-left text-sm text-rose-600 hover:bg-rose-50">Cerrar sesión</button>

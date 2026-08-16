@@ -66,6 +66,25 @@
                                 {{ $a['postId'] ? 'En una publicación concreta' : 'En cualquier publicación' }}
                                 @if ($a['alsoMatchInDms']) · y a quien escriba por privado @endif
                                 @if ($a['followGate']) · solo a quien te siga @endif
+                                {{-- La espera se dice en la lista: es la diferencia entre «no funciona»
+                                     y «todavía no le toca», y sin verla se abre un ticket por nada. --}}
+                                @if ($a['dmDelaySeconds'] > 0)
+                                    · espera {{ $a['dmDelaySeconds'] < 60
+                                        ? $a['dmDelaySeconds'].' segundos'
+                                        : round($a['dmDelaySeconds'] / 60).' min' }}
+                                @endif
+                            </p>
+
+                            {{-- Cuántos textos distintos rotan. Va a la vista y no escondido en la
+                                 edición porque una automatización con un solo texto es la que se
+                                 gana el bloqueo por spam, y eso hay que verlo sin abrir nada. --}}
+                            @php $versiones = 1 + count($a['dmMessageVariations']); @endphp
+                            <p class="mt-1.5 text-xs {{ $versiones > 1 ? 'text-emerald-600' : 'text-amber-600' }}">
+                                @if ($versiones > 1)
+                                    Rotan {{ $versiones }} mensajes distintos
+                                @else
+                                    ⚠ Un solo mensaje, siempre igual — añade versiones para que no la marquen como spam
+                                @endif
                             </p>
                         </div>
 

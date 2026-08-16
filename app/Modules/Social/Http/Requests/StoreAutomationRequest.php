@@ -28,6 +28,14 @@ final class StoreAutomationRequest extends FormRequest
 
     private const MAX_DM = 1000;
 
+    /**
+     * Cuántas versiones alternativas admite Zernio, además de la principal.
+     *
+     * Son 5, o sea 6 textos distintos rotando. El tope es de la API y no una decisión nuestra:
+     * mandar una sexta hace que rechace la automatización entera.
+     */
+    private const MAX_VARIACIONES = 5;
+
     public function authorize(): bool
     {
         return true;
@@ -48,10 +56,18 @@ final class StoreAutomationRequest extends FormRequest
             'match_mode' => ['nullable', Rule::enum(KeywordMatch::class)],
             'comment_reply' => ['nullable', 'string', 'max:500'],
             'dm_message' => ['required', 'string', 'max:'.($this->llevaBoton() ? self::MAX_DM_CON_BOTON : self::MAX_DM)],
+            // Versiones alternativas. Mismo tope de caracteres que la principal: Zernio manda una
+            // cualquiera de las seis, así que una que se pase rechazaría la automatización entera.
+            'dm_variations' => ['sometimes', 'array', 'max:'.self::MAX_VARIACIONES],
+            'dm_variations.*' => ['nullable', 'string', 'max:'.($this->llevaBoton() ? self::MAX_DM_CON_BOTON : self::MAX_DM)],
+            'reply_variations' => ['sometimes', 'array', 'max:'.self::MAX_VARIACIONES],
+            'reply_variations.*' => ['nullable', 'string', 'max:500'],
             'button_title' => ['nullable', 'string', 'max:20'],
             // Un botón sin dirección es un botón que no lleva a ningún sitio: peor que no ponerlo,
             // porque el cliente lo pulsa y no pasa nada.
             'button_url' => ['nullable', 'required_with:button_title', 'url', 'max:2000'],
+            // Cuánto espera antes de contestar. El tope de 86400 (24 h) es de la API.
+            'dm_delay' => ['nullable', 'integer', 'min:0', 'max:86400'],
             'also_in_dms' => ['sometimes', 'boolean'],
             'follow_gate' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
@@ -65,6 +81,12 @@ final class StoreAutomationRequest extends FormRequest
             // entre. La API lo rechaza; se corta aquí para que el motivo se lea en el formulario.
             if ($this->boolean('also_in_dms') && $this->palabras() === []) {
                 $v->errors()->add('keywords', 'Para responder también por privado hace falta al menos una palabra clave: sin ninguna contestaría a todos los mensajes.');
+            }
+
+            // Las versiones de la respuesta pública rotan JUNTO a la principal, no en su lugar. Sin
+            // principal no hay nada con qué alternar, y quedaría media función encendida.
+            if ($this->variaciones('reply_variations') !== [] && blank($this->input('comment_reply'))) {
+                $v->errors()->add('comment_reply', 'Para tener varias respuestas públicas, escribe primero la principal.');
             }
         });
     }
@@ -107,10 +129,27 @@ final class StoreAutomationRequest extends FormRequest
     }
 
     /**
+     * Las versiones alternativas de un campo, sin los huecos que deja el formulario.
+     *
+     * Se filtran los vacíos porque las casillas se añaden y se borran en pantalla: si alguien abre
+     * tres y solo escribe en la primera, mandar dos cadenas vacías haría que Zernio contestara con
+     * un mensaje en blanco una de cada tres veces.
+     *
+     * @return array<int, string>
+     */
+    public function variaciones(string $campo): array
+    {
+        return array_values(array_filter(array_map(
+            static fn (mixed $v): string => trim((string) $v),
+            (array) $this->input($campo, []),
+        ), static fn (string $v): bool => $v !== ''));
+    }
+
+    /**
      * El cuerpo tal como lo espera Zernio.
      *
-     * Lo que no se ofrece en el formulario no se manda: la API acepta ausentes las variaciones, los
-     * retrasos y las palabras excluidas, y mandarlos vacíos sería decirle que los queremos vacíos.
+     * Lo que no se ofrece en el formulario no se manda: la API acepta ausentes los retrasos y las
+     * palabras excluidas, y mandarlos vacíos sería decirle que los queremos vacíos.
      *
      * @return array<string, mixed>
      */
@@ -129,6 +168,46 @@ final class StoreAutomationRequest extends FormRequest
 
         if (filled($this->input('comment_reply'))) {
             $cuerpo['commentReply'] = (string) $this->input('comment_reply');
+        }
+
+        /*
+         * Varias versiones del mismo mensaje, para que no salga siempre el mismo texto.
+         *
+         * NO es un adorno: Instagram y Facebook detectan el mensaje idéntico repetido y limitan o
+         * bloquean la cuenta por spam. La respuesta pública es aún más visible —queda escrita bajo
+         * cada comentario, a la vista de todos— y ahí un texto calcado se nota a simple vista.
+         *
+         * Zernio elige una al azar entre la principal y sus alternativas, y lo hace por separado
+         * para el privado y para el comentario, así que las combinaciones se multiplican.
+         *
+         * Se omiten cuando no hay ninguna: mandar un array vacío sería pedirle explícitamente que
+         * no varíe, y no es lo mismo que no opinar.
+         */
+        if (($dm = $this->variaciones('dm_variations')) !== []) {
+            $cuerpo['dmMessageVariations'] = $dm;
+        }
+
+        if (($publicas = $this->variaciones('reply_variations')) !== []) {
+            $cuerpo['commentReplyVariations'] = $publicas;
+        }
+
+        /*
+         * Esperar un poco antes de contestar.
+         *
+         * Contestar en el mismo segundo, siempre, es tan reconocible como el texto repetido: ninguna
+         * persona responde en cuatro décimas a cualquier hora. Un retraso rompe esa firma.
+         *
+         * OJO: el retraso es FIJO, la API no ofrece variarlo al azar. Ayuda, pero no imita a una
+         * persona; lo que de verdad rompe el patrón son las versiones del mensaje.
+         *
+         * No hace falta tocar `commentReplyDelaySeconds`: Zernio nunca publica la respuesta pública
+         * antes de mandar el privado, así que la sube sola hasta este valor. Un segundo control solo
+         * podría retrasarla MÁS, y no hay motivo para quererlo.
+         *
+         * El cero se omite en vez de mandarse: es el valor por omisión de la API y decirlo no aporta.
+         */
+        if (($espera = (int) $this->input('dm_delay', 0)) > 0) {
+            $cuerpo['dmDelaySeconds'] = $espera;
         }
 
         /*

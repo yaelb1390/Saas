@@ -157,6 +157,12 @@ final class ZernioClient
             'matchMode' => (string) ($a['matchMode'] ?? 'contains'),
             'commentReply' => $a['commentReply'] ?? null,
             'dmMessage' => (string) ($a['dmMessage'] ?? ''),
+            // Las versiones alternativas, para poder editarlas. Sin esto, abrir una automatización
+            // y guardarla sin tocar nada le borraría las variaciones sin decir nada.
+            'dmMessageVariations' => array_values((array) ($a['dmMessageVariations'] ?? [])),
+            'commentReplyVariations' => array_values((array) ($a['commentReplyVariations'] ?? [])),
+            // Ausente significa «al instante»: la API lo omite cuando no hay espera.
+            'dmDelaySeconds' => (int) ($a['dmDelaySeconds'] ?? 0),
             'buttons' => (array) ($a['buttons'] ?? []),
             'alsoMatchInDms' => ($a['alsoMatchInDms'] ?? false) === true,
             // Comparación estricta y NO `filled()`: `filled(false)` vale true —solo el nulo y la

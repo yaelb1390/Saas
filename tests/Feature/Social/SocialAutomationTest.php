@@ -511,3 +511,208 @@ it('dice de qué red es cada automatización, con letra y no solo con color', fu
         ->assertOk()
         ->assertSee('Facebook');
 });
+
+// ------------------------------------------------ Varias versiones, para que no la marquen de spam
+
+it('manda las versiones alternativas con los nombres que la API usa', function (): void {
+    /*
+     * Un texto idéntico repetido cientos de veces es EXACTAMENTE lo que Instagram busca para
+     * limitar una cuenta. Los nombres salen del OpenAPI de Zernio: `dmMessageVariations` y
+     * `commentReplyVariations`, hasta cinco cada uno, sorteados por separado.
+     */
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'comment_reply' => '¡Te escribí!',
+        'dm_variations' => ['Va a RD$150.', 'Cuesta RD$150 y te la llevamos.'],
+        'reply_variations' => ['Ya te mandé el privado 😉'],
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return true;
+        }
+
+        return $request->data()['dmMessageVariations'] === ['Va a RD$150.', 'Cuesta RD$150 y te la llevamos.']
+            && $request->data()['commentReplyVariations'] === ['Ya te mandé el privado 😉'];
+    });
+});
+
+it('las casillas que quedaron en blanco no viajan', function (): void {
+    // Las versiones se añaden y se quitan en pantalla. Una cadena vacía haría que Zernio contestara
+    // con un mensaje en blanco una de cada tres veces, que es peor que no variar.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'dm_variations' => ['Va a RD$150.', '', '   '],
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return true;
+        }
+
+        return $request->data()['dmMessageVariations'] === ['Va a RD$150.'];
+    });
+});
+
+it('sin ninguna versión no se manda el campo', function (): void {
+    // Un array vacío le diría a Zernio «no quiero que varíe», que no es lo mismo que no opinar.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'dm_variations' => ['', ''],
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return true;
+        }
+
+        return ! array_key_exists('dmMessageVariations', $request->data());
+    });
+});
+
+it('no admite más de cinco versiones, que es el tope de la API', function (): void {
+    // Una sexta hace que Zernio rechace la automatización ENTERA, no que ignore la sobrante.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.social.automations.store'), formularioAuto([
+            'dm_variations' => ['a', 'b', 'c', 'd', 'e', 'f'],
+        ]))
+        ->assertSessionHasErrors('dm_variations');
+});
+
+it('una versión del privado también respeta el tope de caracteres', function (): void {
+    // Zernio manda una CUALQUIERA de las seis: si una se pasa, la automatización entera se cae.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.social.automations.store'), formularioAuto([
+            'button_title' => 'Pedir', 'button_url' => 'https://wa.me/18095551234',
+            'dm_variations' => [str_repeat('a', 641)],
+        ]))
+        ->assertSessionHasErrors('dm_variations.0');
+});
+
+it('versiones de la respuesta pública sin la principal no se guardan', function (): void {
+    // Rotan JUNTO a la principal, no en su lugar: sin ella quedaría media función encendida.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.social.automations.store'), formularioAuto([
+            'comment_reply' => '',
+            'reply_variations' => ['Ya te escribí'],
+        ]))
+        ->assertSessionHasErrors('comment_reply');
+});
+
+it('al editar, las versiones que ya tenía se ven en el formulario', function (): void {
+    // Sin esto, abrir una automatización y guardarla sin tocar nada le borraría las variaciones.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        // Sin acentos a proposito: @js los escapa a é y la asercion no los veria. Que
+        // sobrevivan es cosa del navegador, y ahi se comprueba.
+        'dmMessageVariations' => ['Va a RD$150 con delivery'],
+        'commentReplyVariations' => ['Ya te mande el privado'],
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('Va a RD$150 con delivery', false)
+        ->assertSee('Ya te mande el privado', false)
+        // Y se dice cuántos rotan, para ver de un vistazo cuál es la que se gana el bloqueo.
+        ->assertSee('Rotan 2 mensajes distintos');
+});
+
+it('avisa cuando una automatización manda siempre el mismo texto', function (): void {
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('Un solo mensaje, siempre igual');
+});
+
+// ---------------------------------------------------------------- La espera antes de contestar
+
+it('manda la espera con el nombre que la API usa', function (): void {
+    // Contestar en el mismo segundo, siempre, se reconoce tan fácil como el texto repetido.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'dm_delay' => 180,
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return true;
+        }
+
+        return ($request->data()['dmDelaySeconds'] ?? null) === 180;
+    });
+});
+
+it('«al instante» no manda el campo', function (): void {
+    // Cero es el valor por omisión de la API: decirlo no aporta nada.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'dm_delay' => 0,
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return true;
+        }
+
+        return ! array_key_exists('dmDelaySeconds', $request->data());
+    });
+});
+
+it('no se puede pedir una espera de más de un día', function (): void {
+    // El tope de 86400 lo impone la API; pasarlo rechazaría la automatización entera.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.social.automations.store'), formularioAuto(['dm_delay' => 90000]))
+        ->assertSessionHasErrors('dm_delay');
+});
+
+it('no se toca la espera de la respuesta pública', function (): void {
+    /*
+     * Zernio nunca publica la respuesta pública antes de mandar el privado: sube sola su espera
+     * hasta la del privado. Un segundo control solo podría retrasarla MÁS, y nadie quiere eso.
+     */
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'dm_delay' => 180, 'comment_reply' => '¡Te escribí!',
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return true;
+        }
+
+        return ! array_key_exists('commentReplyDelaySeconds', $request->data());
+    });
+});
+
+it('la espera que ya tenía se ve en la lista y en el formulario', function (): void {
+    // Sin verla, «lo monté y no contesta» sería un ticket cuando en realidad no le ha tocado.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'dmDelaySeconds' => 180,
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('espera 3 min')
+        ->assertSee('Unos 3 minutos');
+});

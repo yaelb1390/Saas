@@ -1951,31 +1951,67 @@ body {
     }
 }
 
+/* Alineada a la izquierda y con su icono, no centrada.
+   Es el mismo patrón de las tarjetas del Dashboard —icono arriba, cifra, y la
+   etiqueta debajo— y el motivo no es la coherencia: una columna de cifras que
+   empiezan todas en el mismo borde izquierdo se recorre de un vistazo, y
+   centradas obligan a saltar de un centro a otro. */
 .bmos-cifra {
-    padding: 0.7rem 0.5rem;
-    border-radius: 0.75rem;
-    text-align: center;
-    /* El lavado se apaga pronto para que la cifra siga leyéndose sobre blanco,
-       igual que en `.bmos-kpi`. */
-    background: linear-gradient(180deg, var(--tono-suave, #f8fafc) 0%, #fff 78%);
-    border: 1px solid color-mix(in srgb, var(--tono, #cbd5e1) 18%, #fff);
+    position: relative;
+    padding: 0.85rem 0.9rem;
+    border-radius: 0.85rem;
+    background: linear-gradient(180deg, var(--tono-suave, #f8fafc) 0%, #fff 62%);
+    /* Anillo en vez de borde duro: no ocupa sitio en la caja y se lee más ligero. */
+    border: 0;
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--tono, #cbd5e1) 20%, #fff),
+        0 1px 2px rgba(16, 24, 40, 0.04);
+    transition: box-shadow 0.15s ease;
+}
+
+/* La pastilla del icono lleva la clase `.tone-*`, que le pone su fondo y su
+   color de trazo. Va aparte del `data-tono` a propósito: ese solo define las
+   variables, y aplicarlo aquí impondría también el fondo al resto de la ficha. */
+.bmos-cifra-icono {
+    display: grid;
+    place-items: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+
+.bmos-cifra-icono svg {
+    width: 1rem;
+    height: 1rem;
 }
 
 /* El número con su color: esto es literalmente lo que se pidió. */
 .bmos-cifra-valor {
     color: var(--tono-fuerte, #475569);
-    font-size: clamp(1.05rem, 3.6vw, 1.4rem);
+    font-size: clamp(1.25rem, 4vw, 1.6rem);
     font-weight: 700;
-    line-height: 1.1;
+    /* Un poco más apretado: a este cuerpo, el espaciado por omisión se ve suelto. */
+    letter-spacing: -0.02em;
+    line-height: 1.05;
     /* Cifras de ancho fijo: sin esto las cuatro fichas bailan al cambiar de valor. */
     font-variant-numeric: tabular-nums;
 }
 
 .bmos-cifra-etq {
-    margin-top: 0.1rem;
+    margin-top: 0.15rem;
     color: var(--bmos-muted);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 500;
+    line-height: 1.25;
+}
+
+/* Al pasar por encima del bloque entero se enciende el anillo de cada ficha:
+   dice que las cuatro son una sola cosa y que se puede pulsar. */
+.bmos-cifras-enlace:hover .bmos-cifra {
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--tono, #cbd5e1) 42%, #fff),
+        0 8px 18px -12px color-mix(in srgb, var(--tono, #cbd5e1) 70%, transparent);
 }
 
 /* Para la ficha que debe salir pero no lleva señal. */
@@ -1983,6 +2019,12 @@ body {
     --tono: #cbd5e1;
     --tono-suave: #f8fafc;
     --tono-fuerte: #94a3b8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-cifra {
+        transition: none;
+    }
 }
 
 /* Las cifras son la puerta al reporte: son ellas las que levantan la pregunta,

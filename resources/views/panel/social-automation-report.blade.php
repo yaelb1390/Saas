@@ -64,7 +64,14 @@
                 </span>
             </div>
 
-            @include('partials.social-automation-cifras', ['stats' => $s])
+            @include('partials.social-automation-cifras', ['fichas' => [
+                ['tone-sky', 'comentario', $s['triggered'], 'veces'],
+                ['tone-indigo', 'mensaje', $s['sent'], 'mensajes'],
+                ['tone-violet', 'personas', $s['people'], 'personas'],
+                $s['failed'] > 0
+                    ? ['tone-rose', 'fallo', $s['failed'], 'fallaron']
+                    : ['tone-emerald', 'bien', 0, 'sin fallos'],
+            ]])
 
             {{-- Lo que pasó DESPUÉS de mandar el mensaje. Solo lo que la red informa de verdad. --}}
             @if ($mostrarClics || $mostrarEntregados || $s['leidos'] > 0)

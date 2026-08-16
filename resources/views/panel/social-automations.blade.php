@@ -54,25 +54,17 @@
                     // hace una tarjeta recién creada.
                     $huboActividad = $resumen['triggered'] > 0;
                     $sinFallos = $huboActividad && $resumen['failed'] === 0;
-
-                    $tiras = [
-                        ['tone-emerald', $resumen['encendidas'], $resumen['encendidas'] === 1 ? 'encendida' : 'encendidas'],
-                        ['tone-indigo', $resumen['sent'], 'mensajes enviados'],
-                        ['tone-violet', $resumen['people'], 'personas alcanzadas'],
+                @endphp
+                <div class="mb-5">
+                    @include('partials.social-automation-cifras', ['fichas' => [
+                        ['tone-amber', 'encendida', $resumen['encendidas'], $resumen['encendidas'] === 1 ? 'encendida' : 'encendidas'],
+                        ['tone-indigo', 'mensaje', $resumen['sent'], 'mensajes enviados'],
+                        ['tone-violet', 'personas', $resumen['people'], 'personas alcanzadas'],
                         [$resumen['failed'] > 0 ? 'tone-rose' : ($sinFallos ? 'tone-emerald' : 'es-neutra'),
+                         $resumen['failed'] > 0 ? 'fallo' : 'bien',
                          $resumen['failed'],
                          $sinFallos ? 'sin fallos' : 'fallaron'],
-                    ];
-                @endphp
-                <div class="bmos-cifras mb-5">
-                    @foreach ($tiras as [$tono, $valor, $etiqueta])
-                        {{-- `es-neutra` es una clase, no un tono: apaga la ficha sin darle color. --}}
-                        <div class="bmos-cifra {{ $tono === 'es-neutra' ? 'es-neutra' : '' }}"
-                             @if ($tono !== 'es-neutra') data-tono="{{ $tono }}" @endif>
-                            <p class="bmos-cifra-valor">{{ number_format($valor) }}</p>
-                            <p class="bmos-cifra-etq">{{ $etiqueta }}</p>
-                        </div>
-                    @endforeach
+                    ]])
                 </div>
                 @if (count($automatizaciones) > 1)
                     {{-- «Personas» es el único que no se puede sumar de verdad: quien comentó en dos
@@ -175,7 +167,14 @@
                         <a href="{{ route('panel.social.automations.reporte', $a['id'])
                                   .($a['stats']['failed'] > 0 ? '?estado=failed' : '') }}"
                            class="bmos-cifras-enlace group mt-3">
-                            @include('partials.social-automation-cifras', ['stats' => $a['stats']])
+                            @include('partials.social-automation-cifras', ['fichas' => [
+                                ['tone-sky', 'comentario', $a['stats']['triggered'], 'veces'],
+                                ['tone-indigo', 'mensaje', $a['stats']['sent'], 'mensajes'],
+                                ['tone-violet', 'personas', $a['stats']['people'], 'personas'],
+                                $a['stats']['failed'] > 0
+                                    ? ['tone-rose', 'fallo', $a['stats']['failed'], 'fallaron']
+                                    : ['tone-emerald', 'bien', 0, 'sin fallos'],
+                            ]])
                             <p class="mt-1.5 text-right text-xs text-indigo-500 opacity-0 transition group-hover:opacity-100">
                                 ver el reporte →
                             </p>

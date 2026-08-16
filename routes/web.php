@@ -497,7 +497,9 @@ Route::middleware(['auth'])->group(function (): void {
                 // `throttle` porque cada llamada va a Instagram a leer el historial.
                 Route::post('/sincronizar', 'syncPosts')
                     ->middleware('throttle:10,1')->name('.sync');
-                Route::get('/{automation}/registro', 'logs')->name('.logs');
+                // «Reporte» y no «registro»: es la palabra que el dueño busca, y la pantalla ya no
+                // es solo la lista de disparos. Nadie enlazaba la anterior, así que no rompe nada.
+                Route::get('/{automation}/reporte', 'reporte')->name('.reporte');
                 Route::put('/{automation}', 'update')->name('.update');
                 // Apagar tiene su propia puerta: quien ve que está contestando mal necesita un clic,
                 // no abrir un formulario y volver a guardarlo entero.

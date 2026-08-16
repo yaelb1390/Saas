@@ -42,6 +42,47 @@
                 </p>
             </div>
         @else
+            {{-- El resumen de todas.
+
+                 Sale de los contadores que YA vinieron para pintar la lista: no cuesta ni una
+                 llamada más. Un panel aparte necesitaría una por automatización, con su plazo cada
+                 una, y acabaría siendo más lento que aquello sobre lo que informa. --}}
+            @if ($automatizaciones !== [])
+                @php
+                    // «Sin fallos» solo significa algo si algo llegó a ocurrir. Sin un disparo en
+                    // todo el negocio, la ficha sale apagada en vez de felicitar por nada, igual que
+                    // hace una tarjeta recién creada.
+                    $huboActividad = $resumen['triggered'] > 0;
+                    $sinFallos = $huboActividad && $resumen['failed'] === 0;
+
+                    $tiras = [
+                        ['tone-emerald', $resumen['encendidas'], $resumen['encendidas'] === 1 ? 'encendida' : 'encendidas'],
+                        ['tone-indigo', $resumen['sent'], 'mensajes enviados'],
+                        ['tone-violet', $resumen['people'], 'personas alcanzadas'],
+                        [$resumen['failed'] > 0 ? 'tone-rose' : ($sinFallos ? 'tone-emerald' : 'es-neutra'),
+                         $resumen['failed'],
+                         $sinFallos ? 'sin fallos' : 'fallaron'],
+                    ];
+                @endphp
+                <div class="bmos-cifras mb-5">
+                    @foreach ($tiras as [$tono, $valor, $etiqueta])
+                        {{-- `es-neutra` es una clase, no un tono: apaga la ficha sin darle color. --}}
+                        <div class="bmos-cifra {{ $tono === 'es-neutra' ? 'es-neutra' : '' }}"
+                             @if ($tono !== 'es-neutra') data-tono="{{ $tono }}" @endif>
+                            <p class="bmos-cifra-valor">{{ number_format($valor) }}</p>
+                            <p class="bmos-cifra-etq">{{ $etiqueta }}</p>
+                        </div>
+                    @endforeach
+                </div>
+                @if (count($automatizaciones) > 1)
+                    {{-- «Personas» es el único que no se puede sumar de verdad: quien comentó en dos
+                         automatizaciones cuenta dos veces. Se dice en vez de fingir precisión. --}}
+                    <p class="-mt-3 mb-5 text-xs text-slate-400">
+                        Quien haya escrito en varias respuestas automáticas cuenta una vez en cada una.
+                    </p>
+                @endif
+            @endif
+
             {{-- Las que ya existen --}}
             @forelse ($automatizaciones as $a)
                 @php $red = SocialPlatform::tryFrom($a['platform']); @endphp
@@ -51,7 +92,14 @@
                      entonces lo que importa no es de qué red es, sino que no está contestando. --}}
                 <div class="bmos-card bmos-card-pad bmos-marca mb-4 {{ $a['isActive'] ? '' : 'is-apagada' }}"
                      style="--tono: {{ $red?->color() ?? '#94a3b8' }}">
-                    <div class="flex flex-wrap items-start justify-between gap-3">
+                    {{-- REJILLA, no flex-wrap.
+
+                         Con muchas palabras clave, el flex envolvía y tiraba «Encendida / Apagar»
+                         debajo del cuerpo: la retahíla de palabras aportaba un ancho mínimo enorme
+                         y el `min-w-0` no bastaba. Las pistas de una rejilla no envuelven, y el
+                         `minmax(0,1fr)` deja que la columna de texto encoja por debajo de su ancho
+                         mínimo. Apilar en móvil pasa a ser una decisión y no un accidente. --}}
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                         <div class="min-w-0">
                             <p class="font-semibold text-slate-800">
                                 {{ $a['name'] }}
@@ -59,10 +107,22 @@
                             {{-- La red va escrita, no solo en el color de la franja: un color no se
                                  lee en voz alta ni lo distingue quien no ve bien el rojo. --}}
                             <p class="mt-1 text-sm text-slate-600">
-                                En <b>{{ $red?->label() ?? $a['platform'] }}</b>,
-                                contesta a: <b>{{ implode(', ', $a['keywords']) ?: 'cualquier comentario' }}</b>
+                                En <b>{{ $red?->label() ?? $a['platform'] }}</b>, contesta a:
                             </p>
-                            <p class="text-xs text-slate-400">
+
+                            {{-- Las palabras, en fichas. Tope de seis y un «+N»: con quince, la
+                                 tarjeta dejaba de poder leerse de un vistazo. --}}
+                            <div class="mt-1.5 flex flex-wrap items-center gap-1">
+                                @forelse (array_slice($a['keywords'], 0, 6) as $palabra)
+                                    <span class="bmos-clave">{{ $palabra }}</span>
+                                @empty
+                                    <span class="bmos-clave">cualquier comentario</span>
+                                @endforelse
+                                @if (count($a['keywords']) > 6)
+                                    <span class="bmos-clave-mas">+{{ count($a['keywords']) - 6 }}</span>
+                                @endif
+                            </div>
+                            <p class="mt-1.5 text-xs text-slate-400">
                                 {{ $a['postId'] ? 'En una publicación concreta' : 'En cualquier publicación' }}
                                 @if ($a['alsoMatchInDms']) · y a quien escriba por privado @endif
                                 @if ($a['followGate']) · solo a quien te siga @endif
@@ -88,7 +148,7 @@
                             </p>
                         </div>
 
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-start gap-2 sm:justify-self-end">
                             <span class="bmos-badge {{ $a['isActive'] ? 'badge-green' : 'badge-gray' }}">
                                 {{ $a['isActive'] ? 'Encendida' : 'Apagada' }}
                             </span>
@@ -104,16 +164,30 @@
                         </div>
                     </div>
 
-                    {{-- Lo que lleva hecho. Responde a la única pregunta que importa: ¿sirve de algo? --}}
-                    <div class="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 text-center sm:grid-cols-4">
-                        <div><p class="text-lg font-bold text-slate-800">{{ number_format($a['stats']['triggered']) }}</p><p class="text-xs text-slate-500">veces</p></div>
-                        <div><p class="text-lg font-bold text-slate-800">{{ number_format($a['stats']['sent']) }}</p><p class="text-xs text-slate-500">mensajes</p></div>
-                        <div><p class="text-lg font-bold text-slate-800">{{ number_format($a['stats']['people']) }}</p><p class="text-xs text-slate-500">personas</p></div>
-                        <div>
-                            <p class="text-lg font-bold {{ $a['stats']['failed'] > 0 ? 'text-rose-600' : 'text-slate-800' }}">{{ number_format($a['stats']['failed']) }}</p>
-                            <p class="text-xs text-slate-500">fallaron</p>
-                        </div>
-                    </div>
+                    {{-- Lo que lleva hecho. Responde a la única pregunta que importa: ¿sirve de algo?
+
+                         Las cifras son la PUERTA al reporte, no un enlace de texto al fondo: son
+                         ellas las que levantan la pregunta de «¿y por qué falló ese?», así que el
+                         clic tiene que estar donde nace la duda.
+
+                         Va fuera de cualquier <form>: el bloque es hermano del <details>, no hijo. --}}
+                    @if ($a['stats']['triggered'] > 0)
+                        <a href="{{ route('panel.social.automations.reporte', $a['id'])
+                                  .($a['stats']['failed'] > 0 ? '?estado=failed' : '') }}"
+                           class="bmos-cifras-enlace group mt-3">
+                            @include('partials.social-automation-cifras', ['stats' => $a['stats']])
+                            <p class="mt-1.5 text-right text-xs text-indigo-500 opacity-0 transition group-hover:opacity-100">
+                                ver el reporte →
+                            </p>
+                        </a>
+                    @else
+                        {{-- Cuatro ceros no dicen nada, y un «sin fallos» verde sería mentira: no ha
+                             acertado nada todavía porque no ha llegado a intentarlo. --}}
+                        <p class="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+                            Todavía no se ha disparado. Si acabas de crearla, es lo normal: espera a que
+                            alguien comente una de tus palabras.
+                        </p>
+                    @endif
 
                     <details class="mt-3 text-sm">
                         <summary class="cursor-pointer text-slate-500">Ver o cambiar el texto</summary>

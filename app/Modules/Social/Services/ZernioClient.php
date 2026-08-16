@@ -172,11 +172,27 @@ final class ZernioClient
             'isActive' => ($a['isActive'] ?? false) === true,
             // Sin publicación concreta = vale para cualquiera. Es lo normal y conviene decirlo.
             'postId' => $a['platformPostId'] ?? null,
+            /*
+             * Las NUEVE cifras que manda el servidor, no las cuatro que se enseñaban.
+             *
+             * Tres avisos de la especificación que son trampas, y por eso viajan con nombre propio:
+             *
+             *  · `trackedSends` es el DENOMINADOR del porcentaje de clics, no `dmsSent`. Con 100
+             *    enviados, 40 medibles y 10 clics, la verdad es 25 % y no 10 %.
+             *  · `delivered` NO existe en Instagram —«IG emits no delivery receipt»—, así que ahí es
+             *    cero estructural y no un desastre.
+             *  · `read` sí vale en las dos redes.
+             */
             'stats' => [
                 'triggered' => (int) ($a['stats']['triggered'] ?? 0),
                 'sent' => (int) ($a['stats']['dmsSent'] ?? 0),
                 'failed' => (int) ($a['stats']['dmsFailed'] ?? 0),
                 'people' => (int) ($a['stats']['uniqueContacts'] ?? 0),
+                'medibles' => (int) ($a['stats']['trackedSends'] ?? 0),
+                'clics' => (int) ($a['stats']['linkClicks'] ?? 0),
+                'clicaron' => (int) ($a['stats']['uniqueClicks'] ?? 0),
+                'entregados' => (int) ($a['stats']['delivered'] ?? 0),
+                'leidos' => (int) ($a['stats']['read'] ?? 0),
             ],
         ], (array) $respuesta->json('automations', []));
     }
@@ -249,21 +265,54 @@ final class ZernioClient
     }
 
     /**
-     * Los últimos disparos de una automatización.
+     * Los disparos de una automatización, con su paginación y —lo importante— los escapes.
      *
-     * Es la única respuesta a «lo monté y no hace nada»: sin esto, la única salida del cliente es
-     * escribir preguntando. Si falla, se devuelve vacío en vez de reventar la pantalla: el registro es
-     * una ayuda, no el contenido principal.
+     * Es la única respuesta a «lo monté y no hace nada». Y `misses` es la única respuesta a «¿qué
+     * palabra me falta?»: son los comentarios que llegaron y no coincidieron con ninguna palabra
+     * clave. La propia especificación dice que es «the only signal that a keyword is catching
+     * nothing», y hasta ahora se tiraba a la basura junto con la paginación.
      *
-     * @return array<int, array<string, mixed>>
+     * Devuelve SIEMPRE la misma forma, también cuando falla, para que la vista no tenga que
+     * comprobar nulos por su cuenta. El registro es una ayuda, no el contenido principal: si Zernio
+     * no responde, la pantalla se pinta igual con los contadores que ya trae el listado.
+     *
+     * El plazo baja a 10 s a propósito. Esta página hace dos llamadas a Zernio y con los 20 s de
+     * siempre el peor caso serían 40 s, que en producción agota el tiempo de la función.
+     *
+     * @param  string|null  $status  pending|sent|failed|skipped|gated
+     * @return array{logs: array<int, array<string, mixed>>, pagination: array{total: int, hasMore: bool}, misses: array<string, mixed>|null}
      */
-    public function automationLogs(string $id, int $limit = 15): array
+    public function automationLogs(string $id, int $limit = 50, ?string $status = null): array
     {
-        $respuesta = $this->http()->get(self::BASE."/v1/comment-automations/{$id}/logs", ['limit' => $limit]);
+        $vacio = ['logs' => [], 'pagination' => ['total' => 0, 'hasMore' => false], 'misses' => null];
 
-        return $respuesta->successful()
-            ? (array) ($respuesta->json('logs') ?? $respuesta->json('items') ?? [])
-            : [];
+        // 200 es el tope de la API; pedir más devuelve un error en vez de recortar.
+        $consulta = ['limit' => max(1, min($limit, 200))];
+
+        if ($status !== null) {
+            $consulta['status'] = $status;
+        }
+
+        $respuesta = $this->http()->timeout(10)->get(self::BASE."/v1/comment-automations/{$id}/logs", $consulta);
+
+        if (! $respuesta->successful()) {
+            $this->registrar('no se pudo leer el registro', null, $respuesta->status(), $respuesta->body());
+
+            return $vacio;
+        }
+
+        $logs = (array) ($respuesta->json('logs') ?? []);
+
+        return [
+            'logs' => $logs,
+            'pagination' => [
+                // Sin paginación, el total es lo que haya venido: es lo que permite saber si el
+                // registro está completo, y de eso depende que se pueda dibujar una gráfica honesta.
+                'total' => (int) ($respuesta->json('pagination.total') ?? count($logs)),
+                'hasMore' => ($respuesta->json('pagination.hasMore') ?? false) === true,
+            ],
+            'misses' => $respuesta->json('misses'),
+        ];
     }
 
     /**

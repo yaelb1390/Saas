@@ -716,3 +716,125 @@ it('la espera que ya tenía se ve en la lista y en el formulario', function (): 
         ->assertSee('espera 3 min')
         ->assertSee('Unos 3 minutos');
 });
+
+// ------------------------------------------------------ Las cifras de la tarjeta, con su color
+
+it('cada cifra lleva el tono de su métrica', function (): void {
+    // El color codifica el PAPEL de la cifra y su posición no cambia, así que la vista aprende dónde
+    // mirar en dos tarjetas. Cuatro colores sueltos serían un arcoíris.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'stats' => ['triggered' => 12, 'dmsSent' => 11, 'uniqueContacts' => 9, 'dmsFailed' => 0],
+    ]]);
+
+    $html = $this->actingAs($this->owner)->get(route('panel.social.automations'))->assertOk()->getContent();
+
+    expect($html)->toContain('data-tono="tone-sky"')
+        ->and($html)->toContain('data-tono="tone-indigo"')
+        ->and($html)->toContain('data-tono="tone-violet"');
+});
+
+it('el cero de fallos se pinta en verde y dice «sin fallos», no en rojo', function (): void {
+    /*
+     * Un cero rojo en cada tarjeta desensibiliza la vista en un día, y luego un 3 de verdad no se
+     * registra. Gris se leería como «no hay dato». Verde dice lo que significa.
+     */
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'stats' => ['triggered' => 12, 'dmsSent' => 12, 'uniqueContacts' => 9, 'dmsFailed' => 0],
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('sin fallos')
+        ->assertDontSee('data-tono="tone-rose"', false);
+});
+
+it('con fallos se pinta en rojo y lleva directo a verlos', function (): void {
+    // Es el clic más útil de la pantalla: de «fallaron 3» a «estos son los 3».
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'stats' => ['triggered' => 12, 'dmsSent' => 9, 'uniqueContacts' => 9, 'dmsFailed' => 3],
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('data-tono="tone-rose"', false)
+        ->assertSee('fallaron')
+        ->assertSee(route('panel.social.automations.reporte', 'auto_1').'?estado=failed', false);
+});
+
+it('las cifras enlazan al reporte', function (): void {
+    /*
+     * Regresión: la pantalla de registro existía y NADA la enlazaba, así que era inalcanzable. Las
+     * cifras son la puerta porque son ellas las que levantan la pregunta.
+     */
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'stats' => ['triggered' => 5, 'dmsSent' => 5, 'uniqueContacts' => 4, 'dmsFailed' => 0],
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee(route('panel.social.automations.reporte', 'auto_1'), false);
+});
+
+it('una que nunca se ha disparado no enseña cuatro ceros', function (): void {
+    // Ni un «sin fallos» verde: no ha acertado nada porque no ha llegado a intentarlo.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Nueva', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'stats' => ['triggered' => 0, 'dmsSent' => 0, 'uniqueContacts' => 0, 'dmsFailed' => 0],
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('Todavía no se ha disparado')
+        ->assertDontSee('sin fallos');
+});
+
+it('las palabras clave se pintan como fichas', function (): void {
+    // En una retahíla dentro de un <b>, aportaban un ancho mínimo enorme que descolocaba la cabecera
+    // y tiraba «Encendida / Apagar» debajo del cuerpo.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['info', 'precio', 'registro', 'hola', 'buenas', 'noches', 'cuanto'],
+        'dmMessage' => 'Hola', 'isActive' => true,
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('bmos-clave', false)
+        // Siete palabras: seis fichas y un «+1».
+        ->assertSee('+1')
+        // Y la cabecera es rejilla, que no envuelve.
+        ->assertSee('sm:grid-cols-[minmax(0,1fr)_auto]', false);
+});
+
+it('el resumen de arriba suma todas las automatizaciones', function (): void {
+    // Sale de los contadores que ya vinieron: no cuesta ni una llamada más.
+    zernioConAutomatizaciones([
+        [
+            'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+            'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+            'stats' => ['triggered' => 10, 'dmsSent' => 30, 'uniqueContacts' => 20, 'dmsFailed' => 0],
+        ],
+        [
+            'id' => 'auto_2', 'name' => 'Envío', 'platform' => 'facebook', 'accountId' => 'fb_1',
+            'keywords' => ['envio'], 'dmMessage' => 'Sí', 'isActive' => false,
+            'stats' => ['triggered' => 5, 'dmsSent' => 17, 'uniqueContacts' => 18, 'dmsFailed' => 2],
+        ],
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('47')          // 30 + 17 mensajes
+        ->assertSee('38')          // 20 + 18 personas
+        ->assertSee('encendida')   // solo una de las dos
+        // Personas no se puede sumar de verdad: se dice en vez de fingir precisión.
+        ->assertSee('cuenta una vez en cada una');
+});

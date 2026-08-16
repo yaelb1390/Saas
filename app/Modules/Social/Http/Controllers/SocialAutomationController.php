@@ -9,6 +9,7 @@ use App\Modules\Social\Enums\KeywordMatch;
 use App\Modules\Social\Exceptions\SocialException;
 use App\Modules\Social\Http\Requests\StoreAutomationRequest;
 use App\Modules\Social\Services\ZernioClient;
+use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,6 +52,10 @@ final class SocialAutomationController extends Controller
         return view('panel.social-automations', [
             'configurado' => $cliente->isConfigured(),
             'automatizaciones' => $automatizaciones,
+            // El «reporte aquí mismo»: sale de los contadores que YA vinieron para pintar la lista,
+            // así que no cuesta ni una llamada más. Un dashboard aparte necesitaría una por
+            // automatización, con 20 s de plazo cada una, y en producción no hay tiempo para eso.
+            'resumen' => $this->resumen($automatizaciones),
             'cuentas' => $cuentas,
             // Para poder colgar la automatización de una publicación concreta. Si falla, se devuelve
             // vacío: quedarse sin la lista solo quita la opción de afinar, no impide crear nada.
@@ -143,12 +148,142 @@ final class SocialAutomationController extends Controller
         return back()->with('panel_ok', 'Respuesta automática borrada.');
     }
 
-    /** Los últimos disparos, para responder a «lo monté y no hace nada». */
-    public function logs(string $automation, CurrentCompany $currentCompany): View
+    /**
+     * El reporte de una automatización: a quién le contestó, por qué falló y qué se le escapó.
+     *
+     * Responde a las dos preguntas que los contadores del listado no pueden responder, y las dos son
+     * por automatización. De ahí que esto sea una pantalla por automatización y no un panel general:
+     * juntarlas todas costaría una llamada por cada una, con su plazo, y en producción no hay tiempo.
+     *
+     * Cuesta DOS llamadas: el listado —que ya trae los contadores y evita pedir la automatización
+     * suelta— y el registro.
+     */
+    public function reporte(string $automation, CurrentCompany $currentCompany): View|RedirectResponse
     {
-        return view('panel.social-automation-logs', [
-            'logs' => $this->cliente($currentCompany)->automationLogs($automation),
+        $cliente = $this->cliente($currentCompany);
+
+        try {
+            $automatizaciones = $cliente->automations();
+        } catch (SocialException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
+
+        $a = null;
+
+        foreach ($automatizaciones as $candidata) {
+            if ($candidata['id'] === $automation) {
+                $a = $candidata;
+                break;
+            }
+        }
+
+        if ($a === null) {
+            return redirect()->route('panel.social.automations')
+                ->with('panel_error', 'Esa respuesta automática ya no existe.');
+        }
+
+        // El registro nunca revienta la pantalla: devuelve su forma vacía si Zernio no responde.
+        $registro = $cliente->automationLogs($automation, 200, $this->estadoPedido());
+
+        return view('panel.social-automation-report', [
+            'a' => $a,
+            'logs' => $registro['logs'],
+            'total' => $registro['pagination']['total'],
+            'estado' => $this->estadoPedido(),
+            'escapes' => $registro['misses'],
+            /*
+             * El registro que se tiene, ¿es el histórico completo?
+             *
+             * De esto depende que se pueda dibujar la gráfica sin mentir: si hay más disparos que los
+             * 200 que caben, el eje sería «los últimos dos días» y se leería como un desplome que en
+             * realidad es el borde de la ventana.
+             */
+            'completo' => $registro['pagination']['total'] <= 200,
+            'porDia' => $this->agruparPorDia($registro['logs']),
         ]);
+    }
+
+    /** El filtro de estado, solo si es uno de los que la API admite. */
+    private function estadoPedido(): ?string
+    {
+        $estado = (string) request()->query('estado', '');
+
+        return in_array($estado, ['pending', 'sent', 'failed', 'skipped', 'gated'], true) ? $estado : null;
+    }
+
+    /**
+     * Los disparos agrupados por día, EN LA ZONA DEL NEGOCIO.
+     *
+     * Agrupar en UTC partiría una noche dominicana en dos: a UTC-4, un comentario de las 22:00 caería
+     * en el día siguiente y la gráfica repartiría entre dos barras lo que pasó en una sola tarde.
+     *
+     * Se rellenan los días sin disparos con cero: sin eso, el eje comprime los huecos e inventa una
+     * densidad que no hubo.
+     *
+     * @param  array<int, array<string, mixed>>  $logs
+     * @return array<string, int>
+     */
+    private function agruparPorDia(array $logs): array
+    {
+        $cuentas = [];
+
+        foreach ($logs as $log) {
+            if (blank($log['createdAt'] ?? null)) {
+                continue;
+            }
+
+            $dia = rescue(
+                fn (): ?string => Carbon::parse((string) $log['createdAt'])->timezone(config('app.timezone'))->toDateString(),
+                null,
+                report: false,
+            );
+
+            if ($dia !== null) {
+                $cuentas[$dia] = ($cuentas[$dia] ?? 0) + 1;
+            }
+        }
+
+        if ($cuentas === []) {
+            return [];
+        }
+
+        // Como mucho un mes: más atrás las barras se vuelven ilegibles y nadie mira tan lejos.
+        $desde = Carbon::parse(min(array_keys($cuentas)))
+            ->max(Carbon::now(config('app.timezone'))->subDays(29)->startOfDay());
+        $hasta = Carbon::parse(max(array_keys($cuentas)));
+
+        $serie = [];
+
+        for ($d = $desde->copy(); $d->lte($hasta); $d->addDay()) {
+            $serie[$d->toDateString()] = $cuentas[$d->toDateString()] ?? 0;
+        }
+
+        return $serie;
+    }
+
+    /**
+     * Los totales de todas las automatizaciones.
+     *
+     * @param  array<int, array<string, mixed>>  $automatizaciones
+     * @return array<string, int>
+     */
+    private function resumen(array $automatizaciones): array
+    {
+        $resumen = ['encendidas' => 0, 'triggered' => 0, 'sent' => 0, 'people' => 0, 'failed' => 0];
+
+        foreach ($automatizaciones as $a) {
+            $resumen['encendidas'] += $a['isActive'] ? 1 : 0;
+            // Los disparos no se enseñan en la tira, pero deciden si «0 fallos» significa algo:
+            // sin un solo disparo, «sin fallos» es tan vacío como en una tarjeta recién creada.
+            $resumen['triggered'] += $a['stats']['triggered'];
+            $resumen['sent'] += $a['stats']['sent'];
+            // Personas es el único que NO se puede sumar de verdad: quien comentó en dos
+            // automatizaciones cuenta dos veces. Es una cota superior y así se dice en pantalla.
+            $resumen['people'] += $a['stats']['people'];
+            $resumen['failed'] += $a['stats']['failed'];
+        }
+
+        return $resumen;
     }
 
     private function cliente(CurrentCompany $currentCompany): ZernioClient

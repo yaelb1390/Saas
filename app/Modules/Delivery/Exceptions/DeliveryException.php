@@ -41,4 +41,14 @@ final class DeliveryException extends DomainException
     {
         return new self('Asigna primero un repartidor a la entrega.');
     }
+
+    public static function noEsTuya(): self
+    {
+        return new self('Esta entrega no está a tu nombre.');
+    }
+
+    public static function noEresRepartidor(): self
+    {
+        return new self('Tu usuario no está vinculado a ningún empleado. Pídeselo a tu encargado.');
+    }
 }

@@ -28,6 +28,7 @@ use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\Delivery\Http\Controllers\DeliveryController;
+use App\Modules\Delivery\Http\Controllers\DriverPortalController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
 use App\Modules\Help\Http\Controllers\HelpController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
@@ -89,6 +90,23 @@ Route::middleware(['auth'])->group(function (): void {
 
     // Portal del empleado: es su propia ficha, no requiere permisos de módulo.
     Route::get('/portal/perfil', EmployeePortalController::class)->name('portal.employee');
+
+    /*
+     * Portal del repartidor: SUS entregas, en su móvil.
+     *
+     * Va con `delivery.own` y NO con `module:delivery`. El módulo dice si la empresa contrató el
+     * reparto para administrarlo desde el panel; esto es la otra punta: el motorista solo cierra lo
+     * que ya le asignaron. Si el módulo se apagara, quedarían entregas vivas en la calle sin forma
+     * de cerrarlas y el dinero cobrado sin poder anotarse.
+     *
+     * El aislamiento real no lo da el permiso sino el controlador, que filtra por la ficha de
+     * empleado del usuario: `delivery.own` lo tienen también el dueño y el administrador.
+     */
+    Route::middleware('can:delivery.own')->group(function (): void {
+        Route::get('/portal/entregas', [DriverPortalController::class, 'index'])->name('portal.deliveries');
+        Route::post('/portal/entregas/{delivery}/cerrar', [DriverPortalController::class, 'close'])
+            ->name('portal.deliveries.close');
+    });
 
     // Cuenta y suscripción de la empresa. Solo el Propietario (company.manage): la facturación y el
     // plan son asunto del dueño, no del administrador. Sin el middleware de suscripción: debe seguir

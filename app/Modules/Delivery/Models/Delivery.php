@@ -7,6 +7,7 @@ namespace App\Modules\Delivery\Models;
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
 use App\Modules\CRM\Models\Customer;
+use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\HR\Models\Employee;
 use App\Modules\Sales\Models\Sale;
@@ -21,7 +22,13 @@ use OwenIt\Auditing\Contracts\Auditable;
 /**
  * Entrega/reparto. Aislada por company_id.
  *
+ * `delivered_at` significa CUÁNDO SE CERRÓ, no cuándo se entregó: también se sella al marcarla
+ * fallida o cancelada. Se dejó así en vez de añadir una columna que nadie consultaría, pero el
+ * nombre engaña y por eso queda dicho aquí. Para «entregas del día» hay que filtrar además por
+ * estado.
+ *
  * @property DeliveryStatus $status
+ * @property DeliveryOutcomeReason|null $outcome_reason
  * @property Carbon|null $assigned_at
  * @property Carbon|null $delivered_at
  */
@@ -38,6 +45,8 @@ class Delivery extends Model implements Auditable, HasCompany
         'sale_id',
         'code',
         'status',
+        'outcome_reason',
+        'outcome_note',
         'customer_name',
         'phone',
         'address',
@@ -54,6 +63,7 @@ class Delivery extends Model implements Auditable, HasCompany
     {
         return [
             'status' => DeliveryStatus::class,
+            'outcome_reason' => DeliveryOutcomeReason::class,
             'amount_to_collect' => 'decimal:2',
             'assigned_at' => 'datetime',
             'delivered_at' => 'datetime',

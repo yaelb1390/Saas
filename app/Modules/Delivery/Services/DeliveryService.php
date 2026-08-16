@@ -6,6 +6,7 @@ namespace App\Modules\Delivery\Services;
 
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
+use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Events\DeliveryStatusChanged;
 use App\Modules\Delivery\Exceptions\DeliveryException;
@@ -98,7 +99,11 @@ final class DeliveryService
 
         $delivery->status = $to;
 
-        if ($to === DeliveryStatus::Delivered || $to === DeliveryStatus::Failed) {
+        // `delivered_at` es CUÁNDO SE CERRÓ, no cuándo se entregó (ver el modelo). Sellar los tres
+        // finales y no solo dos: sin la fecha, una entrega cancelada no salía en «cerradas hoy» del
+        // portal y desaparecía de la pantalla del repartidor sin dejar rastro, que es exactamente lo
+        // que esa lista existe para evitar cuando se pulsa el botón equivocado.
+        if ($to->isFinal()) {
             $delivery->delivered_at = now();
         }
 
@@ -134,6 +139,57 @@ final class DeliveryService
         $delivery->forceFill(['collected_at' => now()])->save();
 
         return $delivery;
+    }
+
+    /**
+     * Cierra la entrega con lo que pasó de verdad.
+     *
+     * Es el único camino a los tres finales, y existe porque el repartidor no elige un estado: elige
+     * un MOTIVO —«no estaba nadie», «la rechazó en la puerta»— y el estado sale de él. Dejar que la
+     * pantalla mandara el estado por su cuenta abriría la puerta a cerrar como «entregada» algo que
+     * el motivo dice que no se entregó, y ese desacuerdo nadie lo notaría hasta cuadrar la caja.
+     *
+     * `$cobro` solo se atiende si la entrega cobra en la puerta y de verdad se entregó: no se le
+     * puede cobrar a quien no abrió.
+     */
+    public function close(
+        Delivery $delivery,
+        DeliveryOutcomeReason $reason,
+        ?string $note = null,
+        bool $cobro = false,
+    ): Delivery {
+        return DB::transaction(function () use ($delivery, $reason, $note, $cobro): Delivery {
+            // Se relee con bloqueo: esto se pulsa en un móvil, con el pulgar y con prisa, y el doble
+            // toque no es un caso raro sino el normal. Sin el bloqueo, las dos peticiones leen la
+            // entrega abierta y las dos la cierran.
+            $entrega = Delivery::query()->whereKey($delivery->getKey())->lockForUpdate()->firstOrFail();
+
+            // Cerrar es una vez. `admiteIr` deja pasar el mismo estado —hace falta para que reasignar
+            // un repartidor no falle—, así que aquí se corta antes: si no, el segundo toque volvería
+            // a sellar la hora del cobro y a machacar el motivo que ya se había anotado.
+            if ($entrega->status->isFinal()) {
+                throw DeliveryException::yaCerrada($entrega->status->label());
+            }
+
+            $destino = $reason->status();
+
+            if (! $entrega->status->admiteIr($destino)) {
+                throw DeliveryException::transicionInvalida($entrega->status->label(), $destino->label());
+            }
+
+            $entrega->forceFill([
+                'outcome_reason' => $reason,
+                'outcome_note' => $note,
+            ]);
+
+            $this->transition($entrega, $destino);
+
+            if ($cobro && $destino === DeliveryStatus::Delivered && $entrega->cobraEnLaPuerta()) {
+                $entrega->forceFill(['collected_at' => now()])->save();
+            }
+
+            return $entrega;
+        });
     }
 
     /**

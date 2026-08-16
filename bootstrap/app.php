@@ -5,6 +5,7 @@ use App\Modules\Core\Http\Middleware\EnsureModuleActive;
 use App\Modules\Core\Http\Middleware\EnsureSubscriptionActive;
 use App\Modules\Core\Http\Middleware\SetApiCompany;
 use App\Modules\Core\Http\Middleware\SetCurrentCompany;
+use App\Modules\Delivery\Http\Middleware\ForceDriverPortal;
 use App\Modules\POS\Http\Middleware\ForceKioskMode;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,9 +27,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // cajero en el terminal de venta. El orden importa: ForceKioskMode decide según la empresa
         // activa, así que tiene que ir DESPUÉS de resolverla. Para un visitante sin sesión no hace
         // nada, así que puede vivir en todo el grupo web sin afectar al login ni al registro.
+        //
+        // ForceDriverPortal va junto a ForceKioskMode y por el mismo motivo: son los dos roles que
+        // NO navegan por el panel y necesitan que se les lleve a su única pantalla. Se aplica según
+        // el rol del usuario, así que también depende de que el tenant ya esté resuelto.
         $middleware->web(append: [
             SetCurrentCompany::class,
             ForceKioskMode::class,
+            ForceDriverPortal::class,
         ]);
 
         // La API es stateless: el tenant se resuelve desde el token (empresa del usuario).

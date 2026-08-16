@@ -19,6 +19,7 @@ final class RoleCatalog
         'owner' => ['label' => 'Propietario', 'hint' => 'Control total: operación, usuarios, configuración de la empresa y la suscripción/plan.'],
         'admin' => ['label' => 'Administrador', 'hint' => 'Gestiona la operación y los usuarios. No toca la configuración de la empresa ni la suscripción.'],
         'staff' => ['label' => 'Cajero / Personal', 'hint' => 'Solo la caja: opera el punto de venta y abre/cierra su caja. Sin inventario, ventas, compras, finanzas ni reportes.'],
+        'driver' => ['label' => 'Repartidor', 'hint' => 'Solo sus entregas, desde el móvil: las cierra y anota si cobró. No entra al panel ni ve las entregas de sus compañeros. Hay que vincularlo con su ficha de empleado.'],
     ];
 
     /**

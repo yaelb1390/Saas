@@ -360,9 +360,21 @@ final class PanelController extends Controller
             ->orderBy('name')
             ->paginate(20);
 
+        // De quién es cada cuenta. Se carga el mapa de una vez en vez de una consulta por fila.
+        $vinculos = Employee::query()
+            ->whereNotNull('user_id')
+            ->get(['id', 'name', 'user_id'])
+            ->keyBy('user_id');
+
         return view('panel.users', [
             'users' => $users,
             'roles' => RoleCatalog::assignable(),
+            // Los que aún no tienen cuenta: ofrecer uno ya vinculado solo sirve para robarle el
+            // acceso a otro, y la validación lo rechazaría de todos modos.
+            'employees' => Employee::query()
+                ->where('is_active', true)->whereNull('user_id')
+                ->orderBy('name')->get(['id', 'name', 'position']),
+            'vinculos' => $vinculos,
         ]);
     }
 

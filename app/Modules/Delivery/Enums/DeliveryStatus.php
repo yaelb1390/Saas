@@ -5,8 +5,18 @@ declare(strict_types=1);
 namespace App\Modules\Delivery\Enums;
 
 /**
- * Estados por los que pasa una entrega: pendiente → asignada → en camino → entregada, con «fallida»
- * como la otra salida.
+ * Estados por los que pasa una entrega: pendiente → asignada → en camino → entregada, con dos
+ * salidas más.
+ *
+ * «No entregada» y «cancelada» NO son matices del mismo final:
+ *
+ *   · No entregada → el motorista fue y no pudo. La mercancía vuelve y el pedido sigue vivo para
+ *     el negocio: se puede reintentar mañana.
+ *   · Cancelada    → el pedido se anuló, por el cliente o por el negocio. Puede no haber salido
+ *     siquiera del local.
+ *
+ * Contarlas juntas taparía la única pregunta que importa al cerrar el día: ¿cuánto se dejó de
+ * vender por culpa nuestra y cuánto porque el cliente cambió de idea?
  */
 enum DeliveryStatus: string
 {
@@ -15,6 +25,7 @@ enum DeliveryStatus: string
     case InTransit = 'in_transit';
     case Delivered = 'delivered';
     case Failed = 'failed';
+    case Cancelled = 'cancelled';
 
     public function label(): string
     {
@@ -24,6 +35,7 @@ enum DeliveryStatus: string
             self::InTransit => 'En camino',
             self::Delivered => 'Entregada',
             self::Failed => 'No se pudo entregar',
+            self::Cancelled => 'Cancelada',
         };
     }
 
@@ -36,12 +48,14 @@ enum DeliveryStatus: string
             self::InTransit => 'badge-amber',
             self::Delivered => 'badge-green',
             self::Failed => 'badge-red',
+            // Violeta y no rojo: cancelar no es un fallo del reparto, es una decisión.
+            self::Cancelled => 'badge-violet',
         };
     }
 
     public function isFinal(): bool
     {
-        return in_array($this, [self::Delivered, self::Failed], true);
+        return in_array($this, [self::Delivered, self::Failed, self::Cancelled], true);
     }
 
     /** Alias en español, para leer el servicio sin cambiar de idioma a media frase. */
@@ -55,8 +69,9 @@ enum DeliveryStatus: string
      *
      * Sin esto, una entrega ya entregada podía volver a «pendiente» con solo repetir una petición, y
      * el reparto del día dejaba de cuadrar sin que nadie hubiera hecho nada raro. Se admite marcar
-     * «no se pudo entregar» desde cualquier punto abierto, porque el motorista puede encontrarse la
-     * casa cerrada en cualquier momento del camino.
+     * «no se pudo entregar» y «cancelada» desde cualquier punto abierto: el motorista puede
+     * encontrarse la casa cerrada en cualquier momento del camino, y el cliente puede llamar para
+     * anular antes incluso de que el pedido salga del local.
      */
     public function admiteIr(self $destino): bool
     {
@@ -68,7 +83,7 @@ enum DeliveryStatus: string
             return false;
         }
 
-        if ($destino === self::Failed) {
+        if ($destino === self::Failed || $destino === self::Cancelled) {
             return true;
         }
 

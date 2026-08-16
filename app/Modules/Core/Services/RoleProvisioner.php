@@ -80,6 +80,10 @@ final class RoleProvisioner
         // Delivery
         'delivery.view',
         'delivery.manage',
+        // El portal del repartidor: SUS entregas y nada más. Va aparte de `delivery.view`, que abre
+        // el reparto entero de la empresa —incluido cuánto dinero lleva encima cada compañero—.
+        // Quien lleva pedidos en un motor no tiene por qué ver eso.
+        'delivery.own',
         // Finanzas
         'finance.view',
         'finance.manage',
@@ -147,6 +151,7 @@ final class RoleProvisioner
             'ai.sentiment.view',
             'delivery.view',
             'delivery.manage',
+            'delivery.own',
             'finance.view',
             'finance.manage',
             'loans.view',
@@ -172,6 +177,19 @@ final class RoleProvisioner
             'cash.view',
             'cash.open',
             'cash.close',
+        ],
+        // Repartidor: SOLO sus entregas, y en el móvil. Un permiso y ni uno más.
+        //
+        // Deliberadamente SIN `dashboard.view`: a diferencia del cajero, no se le da una pantalla de
+        // aterrizaje en el panel porque no debe entrar al panel. `ForceDriverPortal` lo lleva a su
+        // portal, que es su única pantalla.
+        //
+        // Es el usuario que anda por la calle con el teléfono en la mano y el que más fácil pierde el
+        // aparato. Lo que su sesión puede hacer si acaba en otras manos es exactamente esto: ver
+        // direcciones de pedidos abiertos y cerrarlos. Ni cobrar una venta, ni tocar existencias, ni
+        // ver lo que factura el negocio.
+        'driver' => [
+            'delivery.own',
         ],
     ];
 

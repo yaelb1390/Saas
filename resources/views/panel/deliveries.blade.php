@@ -175,7 +175,22 @@
                                         {{ $d->driver_name ?? '—' }}
                                     @endcan
                                 </td>
-                                <td><span class="bmos-badge {{ $d->status->badge() }}">{{ $d->status->label() }}</span></td>
+                                <td>
+                                    <span class="bmos-badge {{ $d->status->badge() }}">{{ $d->status->label() }}</span>
+                                    {{-- El motivo que dio el repartidor. Es la diferencia entre «falló»
+                                         y saber que tres pedidos se perdieron por direcciones mal
+                                         tomadas, que es lo único que se puede arreglar.
+
+                                         No se repite en las entregadas: ahí el motivo y el estado
+                                         dicen lo mismo, y una fila que pone «Entregada / Entregada»
+                                         hace dudar de si son dos cosas distintas. --}}
+                                    @if ($d->outcome_reason && $d->status !== DeliveryStatus::Delivered)
+                                        <span class="mt-1 block text-xs text-slate-500">{{ $d->outcome_reason->label() }}</span>
+                                    @endif
+                                    @if ($d->outcome_note)
+                                        <span class="block text-xs italic text-slate-400">«{{ $d->outcome_note }}»</span>
+                                    @endif
+                                </td>
                                 <td class="text-right">
                                     @if ($d->cobraEnLaPuerta())
                                         <span class="font-semibold text-slate-700">{{ money($d->amount_to_collect) }}</span>

@@ -12,7 +12,7 @@
         {{-- Leyenda de roles: qué puede hacer cada uno, para elegir con criterio al asignarlo. --}}
         <div class="mb-5 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p class="mb-3 text-sm font-semibold text-slate-700">¿Qué puede hacer cada rol?</p>
-            <div class="grid gap-3 sm:grid-cols-3">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 @foreach ($roles as $role)
                     <div class="rounded-lg bg-white p-3 ring-1 ring-slate-100">
                         <span class="bmos-badge {{ $roleBadge($role) }}">{{ RoleCatalog::label($role) }}</span>
@@ -43,6 +43,25 @@
                         <x-panel.field name="password" label="Contraseña" type="password" required />
                         <x-panel.field name="password_confirmation" label="Repetir contraseña" type="password" required />
                     </div>
+                    {{-- De quién es la cuenta. Para un repartidor NO es opcional: de este vínculo sale
+                         qué entregas ve en su móvil, y sin él su portal aparece vacío. --}}
+                    <div>
+                        <label class="bmos-field-label">¿Es uno de tus empleados?</label>
+                        <select name="employee_id" class="bmos-input">
+                            <option value="">— No, es solo una cuenta —</option>
+                            @foreach ($employees as $employee)
+                                <option value="{{ $employee->id }}" @selected((string) old('employee_id') === (string) $employee->id)>
+                                    {{ $employee->name }}@if ($employee->position) · {{ $employee->position }}@endif
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-slate-400">
+                            Un repartidor necesita esto: es lo que le enseña sus entregas.
+                            @if ($employees->isEmpty())
+                                <span class="text-amber-600">No hay empleados sin cuenta; dalo de alta primero en Equipo.</span>
+                            @endif
+                        </p>
+                    </div>
                 </x-panel.create-modal>
             </div>
 
@@ -59,7 +78,17 @@
                                     </span>
                                     {{ $user->name }}
                                 </td>
-                                <td class="text-slate-500">{{ $user->email }}</td>
+                                <td class="text-slate-500">
+                                    {{ $user->email }}
+                                    @if ($vinculos->has($user->id))
+                                        <span class="block text-xs text-slate-400">ficha de {{ $vinculos[$user->id]->name }}</span>
+                                    @elseif ($role === 'driver')
+                                        {{-- Un repartidor sin ficha entra y no ve nada. Vale la pena
+                                             cantarlo aquí y no esperar a que llame diciendo que su
+                                             pantalla está vacía. --}}
+                                        <span class="block text-xs font-medium text-amber-600">Sin empleado: no verá ninguna entrega</span>
+                                    @endif
+                                </td>
                                 <td><span class="bmos-badge {{ $roleBadge($role) }}">{{ RoleCatalog::label($role) }}</span></td>
                                 <td>
                                     <span class="bmos-badge {{ $user->is_active ? 'badge-green' : 'badge-gray' }}">
@@ -69,7 +98,7 @@
                                 <td>
                                     <div class="flex items-center justify-end gap-1">
                                         <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
-                                                @click="edit({ id: {{ $user->id }}, name: @js($user->name), email: @js($user->email), role: @js($role), is_active: {{ $user->is_active ? 'true' : 'false' }} })">
+                                                @click="edit({ id: {{ $user->id }}, name: @js($user->name), email: @js($user->email), role: @js($role), is_active: {{ $user->is_active ? 'true' : 'false' }}, employee_id: @js((string) ($vinculos[$user->id]->id ?? '')), employee_name: @js($vinculos[$user->id]->name ?? '') })">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                         </button>
                                         {{-- Desactivar no borra: el usuario queda ahí y se puede volver a
@@ -141,6 +170,20 @@
                         <div><label class="bmos-field-label">Nueva contraseña</label><input name="password" type="password" class="bmos-input" placeholder="Dejar vacío para no cambiar"></div>
                         <div><label class="bmos-field-label">Repetir contraseña</label><input name="password_confirmation" type="password" class="bmos-input"></div>
                     </div>
+                    <div>
+                        <label class="bmos-field-label">¿Es uno de tus empleados?</label>
+                        {{-- La lista trae los empleados SIN cuenta; el propio de este usuario se añade
+                             delante, porque si no, abrir y guardar sin tocar nada lo desvincularía. --}}
+                        <select name="employee_id" x-model="row.employee_id" class="bmos-input">
+                            <option value="">— No, es solo una cuenta —</option>
+                            <template x-if="row.employee_id">
+                                <option :value="row.employee_id" x-text="row.employee_name"></option>
+                            </template>
+                            @foreach ($employees as $employee)
+                                <option value="{{ $employee->id }}">{{ $employee->name }}@if ($employee->position) · {{ $employee->position }}@endif</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <label class="flex items-center gap-2 text-sm text-slate-600">
                         <input type="checkbox" name="is_active" value="1" x-model="row.is_active" class="rounded border-slate-300">
                         Usuario activo (puede iniciar sesión)
@@ -158,7 +201,7 @@
         function usersCrud() {
             return {
                 open: false,
-                row: { id: '', name: '', email: '', role: 'staff', is_active: true },
+                row: { id: '', name: '', email: '', role: 'staff', is_active: true, employee_id: '', employee_name: '' },
                 // Pistas de cada rol (fuente: RoleCatalog), para mostrar el alcance al editar.
                 roleHints: @js(collect($roles)->mapWithKeys(fn ($r) => [$r => RoleCatalog::hint($r)])),
                 roleHint(role) { return this.roleHints[role] ?? ''; },
@@ -169,6 +212,7 @@
                         this.row = {
                             id: '{{ old('id') }}', name: @js(old('name')), email: @js(old('email')),
                             role: @js(old('role')), is_active: {{ old('is_active') ? 'true' : 'false' }},
+                            employee_id: @js((string) old('employee_id')), employee_name: '',
                         };
                         this.open = true;
                     @endif

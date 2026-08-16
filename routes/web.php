@@ -19,6 +19,7 @@ use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\PublicPlanController;
 use App\Modules\Core\Http\Controllers\RegisterController;
 use App\Modules\Core\Http\Controllers\SubscriptionCheckoutController;
+use App\Modules\Core\Http\Controllers\SubscriptionStatusController;
 use App\Modules\Core\Http\Controllers\SubscriptionPlanController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
 use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
@@ -118,6 +119,14 @@ Route::middleware(['auth'])->group(function (): void {
     // el middleware de suscripción: hay que poder pagar precisamente cuando está vencida.
     Route::post('/panel/cuenta/contratar/{plan}', SubscriptionCheckoutController::class)
         ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.checkout');
+
+    // Estado de la suscripción, para que la pantalla de cuenta se entere sola de que el pago ya se
+    // confirmó en vez de pedirle al cliente que recargue. Es de LECTURA: no activa nada.
+    //
+    // Sin `subscription`, como el resto de esta zona: hay que poder consultarla precisamente cuando
+    // está vencida, que es cuando alguien acaba de pagar para reactivarla.
+    Route::get('/panel/cuenta/estado', SubscriptionStatusController::class)
+        ->middleware('can:company.manage')->name('panel.account.status');
 
     // Cambiar de plan durante la prueba, sin coste. Mismo permiso y misma ausencia del middleware
     // `subscription`: el propio controlador comprueba que la prueba siga vigente.

@@ -328,6 +328,19 @@ window.confirmarAnularVentas = ({ cantidad, formulario }) => {
 };
 
 /**
+ * Cobro de la suscripción en una ventana sobre el propio panel, en vez de mandar al cliente a
+ * polar.sh. Bajo demanda, como Chart.js y la cámara: solo lo usa la pantalla de cuenta, y no tiene
+ * sentido que el punto de venta arrastre la librería de pagos.
+ *
+ * @param {HTMLFormElement} form  El formulario de pago, que sigue siendo el camino de reserva.
+ */
+window.abrirCobroSuscripcion = async (form, avisos) => {
+    const modulo = await import('./polar-checkout');
+
+    return modulo.abrirCobro(form, avisos);
+};
+
+/**
  * Componente del visor de cámara. Se registra aquí (y no como función suelta en cada vista) porque
  * lo comparten el POS y la entrada de mercancía: definirlo dos veces sería la misma duplicación que
  * evitamos en el backend.

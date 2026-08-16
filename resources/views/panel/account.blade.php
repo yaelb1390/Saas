@@ -186,9 +186,13 @@
                 {{-- El pago es la acción principal, así que va solo y con peso propio. El contacto
                      baja a una línea discreta: sirve para dudas, no para contratar. --}}
                 @if ($canPayOnline)
-                    <form method="POST" action="{{ route('panel.account.checkout', $plan) }}" class="mt-5">
+                    {{-- Sigue siendo un <form> de verdad, y eso NO es de adorno: si el JavaScript no
+                         carga, el cliente tiene que poder pagar igual. El script solo lo intercepta
+                         para abrir el pago sin sacarlo de su panel; si algo falla, se envía. --}}
+                    <form method="POST" action="{{ route('panel.account.checkout', $plan) }}" class="mt-5"
+                          x-data="cobroSuscripcion()" @submit.prevent="pagar($el)">
                         @csrf
-                        <button type="submit"
+                        <button type="submit" x-bind:disabled="ocupado"
                                 class="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 sm:w-auto">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Z"/>
@@ -202,6 +206,38 @@
                         </button>
                         <p class="mt-2 text-xs text-slate-400">
                             Pago seguro con tarjeta. Se cobra {{ mb_strtolower($plan->billing_cycle->label()) }}; puedes cancelar cuando quieras.
+                        </p>
+
+                        {{-- Motivo concreto que devuelve el servidor (plan sin enlazar, pasarela
+                             caída, sin correo). Sin esto, esos casos abrirían una ventana vacía donde
+                             antes había un aviso legible. --}}
+                        <p x-show="error" x-cloak x-text="error"
+                           class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"></p>
+
+                        {{-- El mismo motivo para quien no tiene JavaScript.
+                             Los avisos del sistema los pinta SweetAlert, así que sin JavaScript no se
+                             ve ninguno: en cualquier otra pantalla es una molestia, pero aquí sería
+                             «pulso y no pasa nada» en el único sitio donde el cliente paga.
+                             Va en <noscript> para que quien sí tiene JavaScript no lo vea dos veces. --}}
+                        @if (session('panel_error'))
+                            <noscript>
+                                <p class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                                    {{ session('panel_error') }}
+                                </p>
+                            </noscript>
+                        @endif
+
+                        {{-- El pago entró y estamos esperando a que Polar nos lo confirme. Se dice
+                             «confirmando» y no «ya está»: quien activa es el aviso de pago. --}}
+                        <p x-show="estado === 'confirmando'" x-cloak
+                           class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                            Gracias, recibimos tu pago. Lo estamos confirmando con el banco; esta pantalla
+                            se actualizará sola en cuanto se active.
+                        </p>
+                        <p x-show="estado === 'tarda'" x-cloak
+                           class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                            Tu pago entró, pero la confirmación está tardando más de lo normal. No lo
+                            vuelvas a pagar: recarga en un minuto y, si sigue igual, escríbenos.
                         </p>
                     </form>
                 @endif
@@ -249,4 +285,36 @@
             </div>
         @endif
     </div>
+
+    @if ($canPayOnline)
+        <script>
+            // Dónde preguntar si el plan ya está activo. Va aquí y no dentro del módulo porque la
+            // dirección la genera Laravel y el JavaScript compilado no la conoce.
+            window.rutaEstadoSuscripcion = '{{ route('panel.account.status') }}';
+
+            function cobroSuscripcion() {
+                return {
+                    ocupado: false,
+                    error: '',
+                    estado: '',
+
+                    async pagar(form) {
+                        if (this.ocupado) return;
+
+                        this.ocupado = true;
+                        this.error = '';
+
+                        await window.abrirCobroSuscripcion(form, {
+                            alEstado: (e) => { this.estado = e; },
+                            alFallo: (m) => { this.error = m; this.ocupado = false; },
+                        });
+
+                        // Se suelta el botón: si el cliente cierra la ventana sin pagar, tiene que
+                        // poder volver a intentarlo sin recargar.
+                        this.ocupado = false;
+                    },
+                };
+            }
+        </script>
+    @endif
 </x-layouts.admin>

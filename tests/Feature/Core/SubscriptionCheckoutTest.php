@@ -142,3 +142,152 @@ it('la pantalla muestra el botón con el precio del plan', function (): void {
         ->assertSee('Activar mi plan')
         ->assertSee('1,500.00');
 });
+
+// ------------------------------------------------------------ Cobro sin salir del panel
+
+/*
+ * El pago ocurre ahora en una ventana sobre la propia pantalla en vez de mandar al cliente a
+ * polar.sh. Es la misma ruta y el mismo permiso: solo cambia cómo responde.
+ *
+ * El formulario de siempre SIGUE VIVO debajo. No es un resto del pasado: es una pantalla de pago, y
+ * si el JavaScript no carga, el fallo se mide en dinero.
+ */
+
+it('devuelve la dirección del cobro cuando se le pide en JSON', function (): void {
+    polarAbreCobro();
+
+    $this->actingAs($this->owner)
+        ->postJson(route('panel.account.checkout', $this->plan))
+        ->assertOk()
+        ->assertJson(['url' => 'https://sandbox.polar.sh/checkout/polar_c_abc']);
+});
+
+it('el cobro incrustado sigue adjuntando la empresa', function (): void {
+    // Es la pieza que sostiene la integración entera. Si se perdiera, el pago entraría y no activaría
+    // a nadie: dinero cobrado y cliente sin acceso, sin nada en pantalla que lo explique.
+    polarAbreCobro();
+
+    $this->actingAs($this->owner)->postJson(route('panel.account.checkout', $this->plan));
+
+    Http::assertSent(fn ($request): bool => $request->data()['metadata']['company_id'] === (string) $this->company->id);
+});
+
+it('abrir el cobro en JSON tampoco activa nada', function (): void {
+    polarAbreCobro();
+
+    $this->actingAs($this->owner)->postJson(route('panel.account.checkout', $this->plan));
+
+    expect($this->company->subscription->fresh()->isTrialing())->toBeTrue();
+});
+
+it('los motivos de fallo se dicen igual por JSON', function (string $preparar, string $esperado): void {
+    // Sin esta simetría, un plan sin enlazar daría un aviso legible por el formulario y una ventana
+    // en blanco por el otro camino: el cliente no sabría si es su conexión, su tarjeta o el sistema.
+    match ($preparar) {
+        'sin_producto' => $this->plan->update(['polar_product_id' => null]),
+        'sin_pasarela' => config(['polar.access_token' => null]),
+        'pasarela_caida' => Http::fake(['*/v1/checkouts/' => Http::response(['detail' => 'nope'], 422)]),
+        // `ownerUser()` devuelve el primer usuario ACTIVO, y de ahí sale el correo del comprador. Sin
+        // usuario activo y sin correo en la empresa, no hay a quién facturarle. (`actingAs` no pasa
+        // por el inicio de sesión, así que el permiso sigue en pie: se prueba el guarda, no el login.)
+        'sin_correo' => tap($this->company)->update(['email' => null])
+            ->users()->update(['is_active' => false]),
+    };
+
+    $respuesta = $this->actingAs($this->owner)
+        ->postJson(route('panel.account.checkout', $this->plan))
+        ->assertStatus(422);
+
+    expect($respuesta->json('message'))->toContain($esperado);
+})->with([
+    ['sin_producto', 'no se puede contratar en línea'],
+    ['sin_pasarela', 'no se puede contratar en línea'],
+    ['pasarela_caida', 'No pudimos abrir la pasarela'],
+    ['sin_correo', 'correo de contacto'],
+]);
+
+it('un cajero tampoco puede abrirlo por JSON', function (): void {
+    $cajero = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Cajero',
+        'email' => 'cajero2@heladeria.example.com', 'password' => 'secret-password',
+    ]), 'staff');
+
+    $this->actingAs($cajero)->postJson(route('panel.account.checkout', $this->plan))->assertForbidden();
+});
+
+it('el botón de pago sigue siendo un formulario de verdad', function (): void {
+    // Lo que garantiza que se puede pagar sin JavaScript. Se cuentan aperturas y cierres porque un
+    // <form> dentro de otro es HTML inválido y el navegador desmonta el interior en silencio: ya pasó
+    // una vez en «Mi empresa» y los tests de entonces no lo vieron.
+    $html = $this->actingAs($this->owner)->get(route('panel.account'))->assertOk()->getContent();
+
+    expect(substr_count($html, '<form'))->toBe(substr_count($html, '</form>'))
+        ->and($html)->toContain('action="'.route('panel.account.checkout', $this->plan).'"')
+        ->and($html)->toContain('method="POST"');
+});
+
+// ------------------------------------------------------------ El estado, para enterarse solo
+
+it('el estado dice si el plan da acceso, y no lo cambia', function (): void {
+    // Consultarlo mil veces no acerca ni un paso a tener el plan activo: quien decide es el webhook.
+    $antes = $this->company->subscription->fresh()->status;
+
+    for ($i = 0; $i < 3; $i++) {
+        $this->actingAs($this->owner)->getJson(route('panel.account.status'))
+            ->assertOk()
+            ->assertJson(['activa' => true, 'prueba' => true, 'plan' => 'Pro']);
+    }
+
+    expect($this->company->subscription->fresh()->status)->toBe($antes);
+});
+
+it('el estado dice que no cuando la suscripción ya no da acceso', function (): void {
+    $this->company->subscription->update(['trial_ends_at' => now()->subDay()]);
+
+    $this->actingAs($this->owner)->getJson(route('panel.account.status'))
+        ->assertOk()
+        ->assertJson(['activa' => false]);
+});
+
+it('el estado sigue respondiendo con la suscripción vencida', function (): void {
+    // Es justo cuando hace falta: alguien acaba de pagar para reactivarla. Si el middleware de
+    // suscripción lo cerrara, el sondeo nunca vería la activación.
+    $this->company->subscription->update(['trial_ends_at' => now()->subDays(30)]);
+
+    $this->actingAs($this->owner)->getJson(route('panel.account.status'))->assertOk();
+});
+
+it('un cajero no puede consultar el estado de la suscripción', function (): void {
+    $cajero = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Cajero',
+        'email' => 'cajero3@heladeria.example.com', 'password' => 'secret-password',
+    ]), 'staff');
+
+    $this->actingAs($cajero)->getJson(route('panel.account.status'))->assertForbidden();
+});
+
+it('el estado no se filtra entre empresas', function (): void {
+    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Ajena'));
+    $ajeno = withRole(User::create([
+        'company_id' => $otra->id, 'name' => 'Ajeno',
+        'email' => 'ajeno@ajena.example.com', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($ajeno)->getJson(route('panel.account.status'))
+        ->assertOk()
+        ->assertJsonMissing(['plan' => 'Pro']);
+});
+
+it('sin JavaScript el motivo del fallo también se ve', function (): void {
+    // Los avisos del sistema los pinta SweetAlert, así que sin JavaScript no se ve ninguno. En
+    // cualquier otra pantalla es una molestia; aquí sería «pulso y no pasa nada» en el único sitio
+    // donde el cliente paga, y justo cuando el camino de reserva es lo único que le queda.
+    Http::fake(['*/v1/checkouts/' => Http::response(['detail' => 'nope'], 422)]);
+
+    $this->actingAs($this->owner)->post(route('panel.account.checkout', $this->plan));
+
+    $this->actingAs($this->owner)->get(route('panel.account'))
+        ->assertOk()
+        ->assertSee('<noscript>', false)
+        ->assertSee('No pudimos abrir la pasarela');
+});

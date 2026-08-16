@@ -24,6 +24,21 @@ return [
      */
     'server' => env('POLAR_SERVER', 'production'),
 
+    /*
+     * Idioma de la pantalla de pago. Vacío = no se manda y Polar decide por el navegador.
+     *
+     * APAGADO POR DEFECTO A PROPÓSITO. La localización del checkout es una función en BETA que hay
+     * que habilitar en la organización de Polar; si se manda el idioma sin haberla habilitado y Polar
+     * rechazara el parámetro, dejarían de funcionar TODOS los cobros. Un interruptor propio hace que
+     * eso solo pueda pasar cuando alguien lo enciende a sabiendas, y que se apague en un segundo.
+     *
+     * Para encenderlo: habilitar la localización en Polar y poner POLAR_LOCALE=es.
+     *
+     * Durante la beta, Polar traduce la pantalla de pago pero NO los mensajes de error ni los correos
+     * de recibo, que siguen llegando en inglés.
+     */
+    'locale' => env('POLAR_LOCALE'),
+
     'webhook_secret' => env('POLAR_WEBHOOK_SECRET'),
 
     // Margen del sello de tiempo de la firma, en segundos. Descarta reenvíos antiguos: si alguien

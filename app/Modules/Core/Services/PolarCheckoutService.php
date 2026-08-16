@@ -36,22 +36,31 @@ final class PolarCheckoutService
             return null;
         }
 
+        $payload = [
+            'products' => [$plan->polar_product_id],
+            'success_url' => $successUrl,
+            'customer_email' => $email,
+
+            // La pieza clave de toda la integración: con esto el aviso de pago dirá a QUÉ
+            // empresa activar, sin depender de adivinar por el correo del comprador.
+            'metadata' => [
+                'company_id' => (string) $company->id,
+                'plan_id' => (string) $plan->id,
+            ],
+        ];
+
+        // Idioma de la pantalla de pago. Solo se manda si está configurado: ver el porqué en
+        // config/polar.php —es una función en beta de Polar y mandarla a ciegas pondría en riesgo
+        // todos los cobros—. Sin esto, Polar lo decide por el idioma del navegador.
+        if (filled($locale = config('polar.locale'))) {
+            $payload['locale'] = (string) $locale;
+        }
+
         $response = Http::withToken((string) config('polar.access_token'))
             ->acceptJson()
             ->asJson()
             // La barra final importa: sin ella Polar responde una redirección y la petición se pierde.
-            ->post($this->baseUrl().'/v1/checkouts/', [
-                'products' => [$plan->polar_product_id],
-                'success_url' => $successUrl,
-                'customer_email' => $email,
-
-                // La pieza clave de toda la integración: con esto el aviso de pago dirá a QUÉ
-                // empresa activar, sin depender de adivinar por el correo del comprador.
-                'metadata' => [
-                    'company_id' => (string) $company->id,
-                    'plan_id' => (string) $plan->id,
-                ],
-            ]);
+            ->post($this->baseUrl().'/v1/checkouts/', $payload);
 
         if (! $response->successful()) {
             // Un fallo aquí no debe reventar la pantalla: el cliente verá un aviso y podrá

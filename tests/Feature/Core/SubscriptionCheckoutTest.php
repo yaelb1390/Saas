@@ -291,3 +291,37 @@ it('sin JavaScript el motivo del fallo también se ve', function (): void {
         ->assertSee('<noscript>', false)
         ->assertSee('No pudimos abrir la pasarela');
 });
+
+// ------------------------------------------------------------ Idioma de la pantalla de pago
+
+it('no manda el idioma mientras nadie lo configure', function (): void {
+    // Es una función en BETA de Polar que hay que habilitar en la organización. Mandarla a ciegas
+    // arriesgaría que Polar rechazara la petición y dejaran de funcionar TODOS los cobros, así que
+    // viene apagada y se enciende a sabiendas.
+    config(['polar.locale' => null]);
+    polarAbreCobro();
+
+    $this->actingAs($this->owner)->post(route('panel.account.checkout', $this->plan));
+
+    Http::assertSent(fn ($request): bool => ! array_key_exists('locale', $request->data()));
+});
+
+it('manda el idioma cuando se configura', function (): void {
+    config(['polar.locale' => 'es']);
+    polarAbreCobro();
+
+    $this->actingAs($this->owner)->post(route('panel.account.checkout', $this->plan));
+
+    Http::assertSent(fn ($request): bool => ($request->data()['locale'] ?? null) === 'es');
+});
+
+it('el idioma no desplaza lo que sostiene la integración', function (): void {
+    // El `metadata` es lo que dice a qué empresa activar. Añadir campos al cobro no puede perderlo.
+    config(['polar.locale' => 'es']);
+    polarAbreCobro();
+
+    $this->actingAs($this->owner)->post(route('panel.account.checkout', $this->plan));
+
+    Http::assertSent(fn ($request): bool => $request->data()['metadata']['company_id'] === (string) $this->company->id
+        && $request->data()['products'] === ['ad5bee12-beb1-48ee-b6ec-1eb5c9d1b6fe']);
+});

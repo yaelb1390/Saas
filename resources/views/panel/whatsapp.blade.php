@@ -118,7 +118,13 @@
                             <p class="truncate font-semibold text-slate-800" x-text="activeConversation?.title ?? activePhone"></p>
                             <p class="wa-instance" style="margin-top:0" x-text="activePhone"></p>
                         </div>
-                        <span class="bmos-badge badge-violet ml-auto" x-show="activeConversation?.is_customer">Cliente CRM</span>
+                        {{-- La insignia lleva a su ficha: mientras se le escribe es justo cuando hace
+                             falta saber qué compró y qué debe. La de la lista de la izquierda se queda
+                             como está a propósito: va dentro de un <a>, y un enlace dentro de otro es
+                             HTML inválido que el navegador desmonta. --}}
+                        <a class="bmos-badge badge-violet ml-auto transition hover:brightness-95"
+                           x-show="activeConversation?.customer_url"
+                           :href="activeConversation?.customer_url">Ver su ficha &rarr;</a>
                     </div>
                 </template>
                 <p class="font-semibold text-slate-800" x-show="!activePhone">Nuevo mensaje</p>

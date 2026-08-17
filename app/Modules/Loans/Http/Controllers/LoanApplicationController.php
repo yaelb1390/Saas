@@ -71,7 +71,8 @@ final class LoanApplicationController extends Controller
 
         return view('panel.loan-applications', [
             'applications' => $solicitudes,
-            'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'cedula']),
+            // Igual que al facturar: archivado es archivado en todas partes.
+            'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'cedula']),
             'frequencies' => LoanFrequency::cases(),
             'statuses' => LoanApplicationStatus::cases(),
             'estadoActivo' => request('estado'),

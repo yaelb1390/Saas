@@ -56,7 +56,7 @@
                     $sinFallos = $huboActividad && $resumen['failed'] === 0;
                 @endphp
                 <div class="mb-5">
-                    @include('partials.social-automation-cifras', ['fichas' => [
+                    @include('partials.cifras', ['fichas' => [
                         ['tone-amber', 'encendida', $resumen['encendidas'], $resumen['encendidas'] === 1 ? 'encendida' : 'encendidas'],
                         ['tone-indigo', 'mensaje', $resumen['sent'], 'mensajes enviados'],
                         ['tone-violet', 'personas', $resumen['people'], 'personas alcanzadas'],
@@ -167,7 +167,7 @@
                         <a href="{{ route('panel.social.automations.reporte', $a['id'])
                                   .($a['stats']['failed'] > 0 ? '?estado=failed' : '') }}"
                            class="bmos-cifras-enlace group mt-3">
-                            @include('partials.social-automation-cifras', ['fichas' => [
+                            @include('partials.cifras', ['fichas' => [
                                 ['tone-sky', 'comentario', $a['stats']['triggered'], 'veces'],
                                 ['tone-indigo', 'mensaje', $a['stats']['sent'], 'mensajes'],
                                 ['tone-violet', 'personas', $a['stats']['people'], 'personas'],

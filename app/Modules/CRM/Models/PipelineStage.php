@@ -9,12 +9,15 @@ use App\Modules\Core\Tenancy\HasCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Etapa de un pipeline. is_won / is_lost indican si es terminal.
  */
-class PipelineStage extends Model implements HasCompany
+class PipelineStage extends Model implements Auditable, HasCompany
 {
+    use AuditableTrait;
     use BelongsToCompany;
     use HasFactory;
 

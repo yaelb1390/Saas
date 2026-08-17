@@ -1,13 +1,40 @@
-@use('App\Modules\Loans\Enums\LoanStatus')
+{{--
+    La ficha del cliente: quién es, qué compró, qué debe y qué le falta por recibir.
 
-<x-layouts.admin title="{{ $customer->name }}" heading="{{ $customer->name }}" subheading="Perfil del cliente">
+    Hasta ahora enseñaba dos cosas —sus documentos y sus préstamos— mientras que el PORTAL PÚBLICO le
+    enseñaba al propio cliente sus facturas, sus compras y sus entregas. El dueño del negocio veía
+    menos de su cliente que el cliente mismo. Los datos ya estaban enlazados; solo faltaba pintarlos.
+
+    Cada bloque de otro módulo se omite entero si la empresa no lo tiene contratado: el controlador
+    devuelve una colección vacía y aquí no se pinta la tarjeta, en vez de una tabla vacía que parece
+    un error.
+
+    Tarjetas apiladas y no pestañas: no hay componente de pestañas en la casa, y siete secciones no
+    justifican inventarlo.
+--}}
+<x-layouts.admin title="{{ $customer->name }}" heading="{{ $customer->name }}" subheading="Ficha del cliente">
     <div class="mb-4">
         <a href="{{ route('panel.customers') }}" class="text-sm text-slate-500 hover:text-indigo-600">&larr; Volver al CRM</a>
     </div>
 
+    {{-- Las cuatro cifras que responden a «¿quién es este y qué me debe?», que es la pregunta por la
+         que se abre esta pantalla.
+
+         «Te debe» solo se pinta en rojo cuando hay deuda: en verde con un cero sería felicitar por
+         nada, y en rojo con un cero desensibiliza la vista para cuando sí deba. --}}
+    @php $debiendo = bccomp($debe, '0', 2) > 0; @endphp
+    <div class="mb-5">
+        @include('partials.cifras', ['fichas' => [
+            ['tone-indigo', 'compra', money($comprado), 'te ha comprado'],
+            [$debiendo ? 'tone-rose' : 'es-neutra', 'dinero', money($debe), $debiendo ? 'te debe' : 'no te debe nada'],
+            ['tone-sky', 'factura', $facturas->count(), $facturas->count() === 1 ? 'factura' : 'facturas'],
+            ['tone-violet', 'entrega', $entregas->count(), $entregas->count() === 1 ? 'entrega' : 'entregas'],
+        ]])
+    </div>
+
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {{-- Datos --}}
-        <div class="lg:col-span-1">
+        <div class="space-y-5 lg:col-span-1">
             <div class="bmos-card bmos-card-pad">
                 <div class="flex items-center gap-3">
                     <span class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-base font-bold text-white">
@@ -15,7 +42,9 @@
                     </span>
                     <div class="min-w-0">
                         <p class="truncate text-lg font-semibold text-slate-800">{{ $customer->name }}</p>
-                        <p class="text-xs text-slate-400">{{ $customer->is_active ? 'Activo' : 'Inactivo' }}</p>
+                        <span class="bmos-badge {{ $customer->is_active ? 'badge-green' : 'badge-gray' }}">
+                            {{ $customer->is_active ? 'Activo' : 'Archivado' }}
+                        </span>
                     </div>
                 </div>
                 <dl class="mt-4 space-y-2 text-sm">
@@ -25,11 +54,146 @@
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">RNC</dt><dd class="text-right">{{ $customer->tax_id ?? '—' }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">Dirección</dt><dd class="text-right">{{ $customer->address ?? '—' }}</dd></div>
                 </dl>
+
+                @can('customers.manage')
+                    <form method="POST" action="{{ route('panel.customers.toggle', $customer) }}" class="mt-4 border-t border-slate-100 pt-3">
+                        @csrf
+                        <button type="submit" class="bmos-btn bmos-btn-ghost w-full justify-center text-sm">
+                            {{ $customer->is_active ? 'Archivar cliente' : 'Reactivar cliente' }}
+                        </button>
+                    </form>
+                @endcan
             </div>
+
+            {{-- Las notas llevaban desde el primer día en la base sin forma de escribirlas ni de
+                 leerlas. Es donde va lo que no cabe en un campo: paga los viernes, pide fiado. --}}
+            @if (filled($customer->notes))
+                <div class="bmos-card bmos-card-pad">
+                    <p class="mb-2 font-semibold text-slate-800">Notas</p>
+                    <p class="whitespace-pre-line text-sm leading-relaxed text-slate-600">{{ $customer->notes }}</p>
+                </div>
+            @endif
+
+            @if ($conversacion !== null)
+                <a href="{{ route('panel.whatsapp') }}" class="bmos-card bmos-card-pad block transition hover:border-emerald-300">
+                    <p class="font-semibold text-slate-800">Conversación de WhatsApp</p>
+                    <p class="mt-1 text-sm text-slate-500">Ver lo que se han escrito &rarr;</p>
+                </a>
+            @endif
         </div>
 
-        {{-- Documentos + préstamos --}}
         <div class="space-y-5 lg:col-span-2">
+            {{-- Compras --}}
+            @if ($ventas->isNotEmpty())
+                <div class="bmos-card overflow-hidden">
+                    <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Últimas compras</p></div>
+                    <div class="overflow-x-auto">
+                        <table class="bmos-table">
+                            <thead><tr><th>Fecha</th><th>Total</th><th>Pagó</th><th>Forma</th><th class="text-right">Ver</th></tr></thead>
+                            <tbody>
+                                @foreach ($ventas as $venta)
+                                    @php $pendiente = bccomp((string) $venta->total, (string) $venta->paid, 2) > 0; @endphp
+                                    <tr>
+                                        <td class="text-xs text-slate-500">{{ $venta->completed_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="font-semibold">{{ money($venta->total) }}</td>
+                                        {{-- Lo fiado se marca: es la diferencia entre una compra y una deuda. --}}
+                                        <td class="{{ $pendiente ? 'text-amber-600' : '' }}">
+                                            {{ money($venta->paid) }}
+                                            @if ($pendiente)<span class="bmos-badge badge-amber ml-1">fiado</span>@endif
+                                        </td>
+                                        {{-- `payment_method` es una cadena en la base, sin cast: se
+                                             traduce aquí en vez de suponer que trae un enum. --}}
+                                        <td class="text-xs text-slate-500">
+                                            {{ App\Modules\Sales\Enums\PaymentMethod::tryFrom((string) $venta->payment_method)?->label() ?? '—' }}
+                                        </td>
+                                        <td class="text-right">
+                                            <a href="{{ route('panel.sales') }}" class="text-indigo-600 hover:underline">Ver</a>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
+            {{-- Facturas --}}
+            @if ($facturas->isNotEmpty())
+                <div class="bmos-card overflow-hidden">
+                    <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Facturas</p></div>
+                    <div class="overflow-x-auto">
+                        <table class="bmos-table">
+                            <thead><tr><th>NCF</th><th>Fecha</th><th>Total</th><th class="text-right">Estado</th></tr></thead>
+                            <tbody>
+                                @foreach ($facturas as $factura)
+                                    <tr>
+                                        <td class="font-mono text-xs text-slate-500">{{ $factura->ncf }}</td>
+                                        <td class="text-xs text-slate-500">{{ $factura->issued_at?->format('d/m/Y') }}</td>
+                                        <td class="font-semibold">{{ money($factura->total) }}</td>
+                                        <td class="text-right">
+                                            <span class="bmos-badge {{ $factura->status === 'cancelled' ? 'badge-red' : 'badge-green' }}">
+                                                {{ $factura->status === 'cancelled' ? 'Anulada' : 'Emitida' }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
+            {{-- Entregas --}}
+            @if ($entregas->isNotEmpty())
+                <div class="bmos-card overflow-hidden">
+                    <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Entregas</p></div>
+                    <div class="overflow-x-auto">
+                        <table class="bmos-table">
+                            <thead><tr><th>Código</th><th>Dirección</th><th>Repartidor</th><th class="text-right">Estado</th></tr></thead>
+                            <tbody>
+                                @foreach ($entregas as $entrega)
+                                    <tr>
+                                        <td class="font-mono text-xs text-slate-500">{{ $entrega->code }}</td>
+                                        <td class="text-sm text-slate-600">{{ $entrega->address ?? '—' }}</td>
+                                        <td class="text-sm text-slate-600">{{ $entrega->driver_name ?? '—' }}</td>
+                                        <td class="text-right">
+                                            <span class="bmos-badge {{ $entrega->status->badge() }}">{{ $entrega->status->label() }}</span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
+            {{-- Préstamos. Ya no se esconde cuando no hay: una tarjeta que aparece y desaparece hace
+                 dudar de si el módulo funciona. --}}
+            <div class="bmos-card overflow-hidden">
+                <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Préstamos del cliente</p></div>
+                <div class="overflow-x-auto">
+                    <table class="bmos-table">
+                        <thead><tr><th>Código</th><th>Total</th><th>Saldo</th><th>Estado</th><th class="text-right">Ver</th></tr></thead>
+                        <tbody>
+                            @forelse ($customer->loans as $loan)
+                                <tr>
+                                    <td class="font-mono text-xs text-slate-500">{{ $loan->code }}</td>
+                                    <td>{{ money($loan->total) }}</td>
+                                    <td class="font-semibold">{{ money($loan->balance) }}</td>
+                                    <td><span class="bmos-badge {{ $loan->status->badgeClass() }}">{{ $loan->status->label() }}</span></td>
+                                    <td class="text-right">
+                                        <a href="{{ route('panel.loans.show', $loan) }}" class="text-indigo-600 hover:underline">Ver</a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="bmos-empty">Este cliente no tiene préstamos.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {{-- Documentos --}}
             <div class="bmos-card overflow-hidden">
                 <div class="flex items-center justify-between border-b border-slate-100 p-4">
                     <p class="font-semibold text-slate-800">Documentos</p>
@@ -91,30 +255,6 @@
                     </table>
                 </div>
             </div>
-
-            @if ($customer->loans->isNotEmpty())
-                <div class="bmos-card overflow-hidden">
-                    <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Préstamos del cliente</p></div>
-                    <div class="overflow-x-auto">
-                        <table class="bmos-table">
-                            <thead><tr><th>Código</th><th>Total</th><th>Saldo</th><th>Estado</th><th class="text-right">Ver</th></tr></thead>
-                            <tbody>
-                                @foreach ($customer->loans as $loan)
-                                    <tr>
-                                        <td class="font-mono text-xs text-slate-500">{{ $loan->code }}</td>
-                                        <td>{{ number_format((float) $loan->total, 2) }}</td>
-                                        <td class="font-semibold">{{ number_format((float) $loan->balance, 2) }}</td>
-                                        <td><span class="bmos-badge {{ $loan->status->badgeClass() }}">{{ $loan->status->label() }}</span></td>
-                                        <td class="text-right">
-                                            <a href="{{ route('panel.loans.show', $loan) }}" class="text-indigo-600 hover:underline">Ver</a>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            @endif
         </div>
     </div>
 </x-layouts.admin>

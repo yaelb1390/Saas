@@ -9,12 +9,15 @@ use App\Modules\Core\Tenancy\HasCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Embudo de ventas del CRM. Contiene etapas ordenadas.
  */
-class Pipeline extends Model implements HasCompany
+class Pipeline extends Model implements Auditable, HasCompany
 {
+    use AuditableTrait;
     use BelongsToCompany;
     use HasFactory;
 

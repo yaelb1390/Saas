@@ -10,6 +10,8 @@ use App\Modules\Core\Tenancy\HasCompany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Documento adjunto al perfil de un cliente (foto de cédula, contrato, etc.). El contenido vive en
@@ -20,8 +22,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $size
  * @property string $content
  */
-class CustomerDocument extends Model implements HasCompany
+class CustomerDocument extends Model implements Auditable, HasCompany
 {
+    use AuditableTrait;
     use BelongsToCompany;
     use HasFactory;
 

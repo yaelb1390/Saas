@@ -64,7 +64,7 @@
                 </span>
             </div>
 
-            @include('partials.social-automation-cifras', ['fichas' => [
+            @include('partials.cifras', ['fichas' => [
                 ['tone-sky', 'comentario', $s['triggered'], 'veces'],
                 ['tone-indigo', 'mensaje', $s['sent'], 'mensajes'],
                 ['tone-violet', 'personas', $s['people'], 'personas'],

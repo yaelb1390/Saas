@@ -9,7 +9,13 @@
         <input type="search" name="q" value="{{ request('q') }}" placeholder="{{ $placeholder }}"
                class="bmos-input" style="padding-left:2.1rem;min-width:210px">
     </div>
+
+    {{-- Para los filtros de la pantalla. Este formulario solo mandaba `q`, así que en cualquier
+         pantalla con filtros, buscar los borraba: la lista volvía a «todos» sin avisar. Quien filtre
+         mete aquí sus <input type="hidden">. --}}
+    {{ $slot }}
     @if (request('q'))
-        <a href="{{ url()->current() }}" class="bmos-btn bmos-btn-ghost text-sm">Limpiar</a>
+        {{-- Limpia la BÚSQUEDA, no los filtros: volver a «todos» sin haberlo pedido desconcierta. --}}
+        <a href="{{ request()->fullUrlWithQuery(['q' => null, 'page' => null]) }}" class="bmos-btn bmos-btn-ghost text-sm">Limpiar</a>
     @endif
 </form>

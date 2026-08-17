@@ -7,6 +7,7 @@ namespace App\Modules\CRM\Models;
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
 use App\Modules\Loans\Models\Loan;
+use Database\Factories\CRM\CustomerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -23,6 +24,16 @@ class Customer extends Model implements Auditable, HasCompany
     use BelongsToCompany;
     use HasFactory;
     use SoftDeletes;
+
+    /**
+     * Laravel busca la factory en `Database\Factories\Modules\CRM\Models\` —cambia `App\` por
+     * `Database\Factories\` y conserva el resto—, que obligaría a un árbol de carpetas espejo del de
+     * los módulos. Se dice a mano y la factory vive donde se la encuentra.
+     */
+    protected static function newFactory(): CustomerFactory
+    {
+        return CustomerFactory::new();
+    }
 
     protected $fillable = [
         'company_id',

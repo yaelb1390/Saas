@@ -12,7 +12,6 @@ use App\Modules\CRM\Models\Customer;
 use App\Modules\CRM\Models\CustomerDocument;
 use App\Modules\CRM\Services\CrmService;
 use App\Modules\CRM\Services\CustomerPortalService;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
@@ -30,20 +29,12 @@ final class CustomerController extends Controller
             taxId: $data['tax_id'] ?? null,
             cedula: $data['cedula'] ?? null,
             address: $data['address'] ?? null,
+            // El DTO lo aceptaba desde el primer día y aquí no se pasaba: las notas se perdían al
+            // crear sin que nadie viera un error.
+            notes: $data['notes'] ?? null,
         ));
 
         return back()->with('panel_ok', 'Cliente creado correctamente.');
-    }
-
-    /**
-     * Perfil del cliente: datos, cédula, documentos y sus préstamos. El route model binding lo
-     * resuelve ya aislado por la empresa activa (un id ajeno devuelve 404).
-     */
-    public function show(Customer $customer): View
-    {
-        $customer->load(['documents', 'loans']);
-
-        return view('panel.customer', ['customer' => $customer]);
     }
 
     /**
@@ -93,13 +84,6 @@ final class CustomerController extends Controller
         $customer->update($request->validated());
 
         return back()->with('panel_ok', 'Cliente actualizado.');
-    }
-
-    public function destroy(Customer $customer): RedirectResponse
-    {
-        $customer->delete();
-
-        return back()->with('panel_ok', 'Cliente eliminado.');
     }
 
     /**

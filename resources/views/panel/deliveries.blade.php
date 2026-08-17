@@ -89,9 +89,25 @@
                                     <p class="mt-1 text-xs text-slate-400">Lo único imprescindible: sin dirección no hay reparto.</p>
                                 </div>
                                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                    <div>
+                                    {{-- Elegir al cliente de verdad, no escribir su nombre: así la
+                                         entrega queda enganchada a su ficha y se ve en su historial.
+                                         El texto libre sigue ahí para quien no está fichado, que en
+                                         un reparto puntual es lo normal. --}}
+                                    <div x-data="{ deLaLista: true }">
                                         <label class="bmos-field-label">Cliente</label>
-                                        <input type="text" name="customer_name" value="{{ old('customer_name') }}" class="bmos-input">
+                                        <select name="customer_id" class="bmos-input" x-show="deLaLista">
+                                            <option value="">— Sin cliente fichado —</option>
+                                            @foreach ($customers as $c)
+                                                <option value="{{ $c->id }}" @selected(old('customer_id') == $c->id)>{{ $c->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" name="customer_name" value="{{ old('customer_name') }}"
+                                               class="bmos-input" x-show="! deLaLista" x-cloak
+                                               placeholder="Nombre de quien recibe">
+                                        <label class="mt-1 flex cursor-pointer items-center gap-1.5 text-xs text-slate-500">
+                                            <input type="checkbox" class="rounded border-slate-300" @change="deLaLista = ! deLaLista">
+                                            No está en la lista
+                                        </label>
                                     </div>
                                     <div>
                                         <label class="bmos-field-label">Teléfono</label>

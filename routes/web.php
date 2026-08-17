@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\CustomerPortalController;
+use App\Http\Controllers\CustomerProfileController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PanelController;
 use App\Modules\AI\Http\Controllers\AiAssistantController;
@@ -358,7 +359,9 @@ Route::middleware(['auth'])->group(function (): void {
 
     // Perfil del cliente y ver/descargar sus documentos: basta con poder ver el CRM.
     Route::middleware(['can:customers.view', 'module:crm'])->group(function (): void {
-        Route::get('/panel/crm/{customer}', [CustomerController::class, 'show'])->name('panel.customers.show');
+        // La ficha vive FUERA del módulo: lee ventas, facturas y entregas, y meter eso dentro de CRM
+        // lo obligaría a conocer otros tres dominios. Mismo motivo que CustomerPortalController.
+        Route::get('/panel/crm/{customer}', CustomerProfileController::class)->name('panel.customers.show');
         Route::get('/panel/crm/{customer}/documentos/{document}', [CustomerController::class, 'showDocument'])
             ->name('panel.customers.documents.show');
     });
@@ -366,7 +369,12 @@ Route::middleware(['auth'])->group(function (): void {
     Route::middleware(['can:customers.manage', 'module:crm'])->group(function (): void {
         Route::post('/panel/crm', [CustomerController::class, 'store'])->name('panel.customers.store');
         Route::put('/panel/crm/{customer}', [CustomerController::class, 'update'])->name('panel.customers.update');
-        Route::delete('/panel/crm/{customer}', [CustomerController::class, 'destroy'])->name('panel.customers.destroy');
+        // Archivar y eliminar dejan de ser lo mismo. Archivar es reversible y no rompe nada;
+        // eliminar solo vale para la ficha creada por error, y ambas comprueban cosas de otros
+        // módulos, así que viven en el controlador de nivel aplicación.
+        Route::post('/panel/crm/{customer}/estado', [CustomerProfileController::class, 'toggle'])
+            ->name('panel.customers.toggle');
+        Route::delete('/panel/crm/{customer}', [CustomerProfileController::class, 'destroy'])->name('panel.customers.destroy');
         // Subir/eliminar documentos del perfil.
         Route::post('/panel/crm/{customer}/documentos', [CustomerController::class, 'storeDocument'])
             ->name('panel.customers.documents.store');

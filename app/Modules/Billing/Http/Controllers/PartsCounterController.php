@@ -34,7 +34,9 @@ final class PartsCounterController extends Controller
     {
         return view('panel.parts-counter', [
             'ncfTypes' => NcfType::cases(),
-            'customers' => Customer::query()->orderBy('name')->get(['id', 'name', 'tax_id']),
+            // Un cliente archivado no debe ofrecerse al facturar: archivar significaba justo eso y
+            // esta pantalla lo ignoraba.
+            'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'tax_id']),
             'hasWarehouse' => Warehouse::query()->where('is_default', true)->exists(),
         ]);
     }

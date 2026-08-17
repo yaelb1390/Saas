@@ -17,7 +17,6 @@ use App\Modules\Core\Services\PolarCheckoutService;
 use App\Modules\Core\Support\RoleCatalog;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
-use App\Modules\CRM\Models\Opportunity;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Finance\Models\Account;
@@ -152,13 +151,17 @@ final class PanelController extends Controller
     {
         $company = $currentCompany->model();
 
+        // Por omisión se ven los activos: quien archiva a alguien espera dejar de verlo.
+        $estado = (string) request('estado', 'activos');
+
         return view('panel.customers', [
-            'customers' => Customer::query()->withCount('opportunities')
+            'customers' => Customer::query()
+                ->when($estado === 'activos', fn ($query) => $query->where('is_active', true))
+                ->when($estado === 'archivados', fn ($query) => $query->where('is_active', false))
                 ->when(request('q'), fn ($query, $q) => $query->where(
                     fn ($sub) => $sub->whereLike('name', "%{$q}%")->orWhereLike('phone', "%{$q}%")->orWhereLike('email', "%{$q}%")
                 ))
                 ->orderBy('name')->paginate(15)->withQueryString(),
-            'opportunities' => Opportunity::query()->with(['customer', 'stage'])->latest()->take(10)->get(),
             // El enlace del portal se entrega por WhatsApp: sin ese módulo, no se ofrece el botón.
             'portalEnabled' => $company?->hasModule('whatsapp') ?? false,
         ]);
@@ -297,6 +300,11 @@ final class PanelController extends Controller
 
             // Solo los empleados activos: no tiene sentido ofrecer como repartidor a quien ya no está.
             'drivers' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+
+            // El formulario solo ofrecía un nombre de texto libre, aunque la ruta y el servicio ya
+            // aceptaban `customer_id`. Sin esto, una entrega creada a mano nunca queda enganchada a
+            // su cliente y no aparece en su ficha.
+            'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'phone']),
 
             'porLiquidar' => Delivery::query()
                 ->selectRaw('employee_id, count(*) as entregas, sum(amount_to_collect) as total')

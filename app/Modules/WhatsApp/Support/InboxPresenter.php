@@ -67,6 +67,11 @@ final class InboxPresenter
             'out' => $last !== null && $last->direction === MessageDirection::Outbound,
             'time' => $lastAt?->diffForHumans(short: true),
             'is_customer' => $conversation->customer !== null,
+            // La insignia «Cliente CRM» decía que la persona está fichada y no llevaba a ninguna
+            // parte: había que ir al CRM y buscarla a mano para ver qué le debía.
+            'customer_url' => $conversation->customer !== null
+                ? route('panel.customers.show', $conversation->customer)
+                : null,
         ];
     }
 

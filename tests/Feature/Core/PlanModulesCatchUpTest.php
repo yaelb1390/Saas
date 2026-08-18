@@ -180,3 +180,49 @@ it('en el plan que lo da todo, la empresa también pasa a tenerlo todo', functio
 
     expect(modulosDeLaEmpresa($empresa))->toBeNull();
 });
+
+// ------------------------------------------------------- Las empresas en prueba también cuentan
+
+/** La segunda pasada: la primera se dejó fuera las suscripciones en prueba. */
+function ponerAlDiaLasDePrueba(): void
+{
+    $migracion = require database_path('migrations/2026_08_16_160000_sync_trialing_companies_with_their_plan.php');
+    $migracion->up();
+}
+
+it('una empresa EN PRUEBA también recibe los módulos de su plan', function (): void {
+    /*
+     * Es el fallo que esto corrige. Una suscripción en prueba da acceso igual que una activa
+     * —`isUsable()` acepta `trialing`—, y en producción todas las empresas de clientes estaban en
+     * prueba: se ampliaron los planes y a nadie le llegó nada.
+     */
+    $pro = crearPlan('Pro', ['pos', 'crm', 'delivery', 'hr']);
+    $empresa = crearEmpresa('Motores', ['pos', 'crm']);
+    suscribir($empresa, $pro, 'trialing');
+
+    ponerAlDiaLasDePrueba();
+
+    expect(modulosDeLaEmpresa($empresa))->toContain('delivery')
+        ->and(modulosDeLaEmpresa($empresa))->toContain('hr');
+});
+
+it('una suspendida no recibe nada', function (): void {
+    // Ampliarle el acceso a quien no ha pagado no es lo que nadie quiere de una migración.
+    $pro = crearPlan('Pro', ['pos', 'crm', 'delivery']);
+    $empresa = crearEmpresa('Morosa', ['pos']);
+    suscribir($empresa, $pro, 'suspended');
+
+    ponerAlDiaLasDePrueba();
+
+    expect(modulosDeLaEmpresa($empresa))->toBe(['pos']);
+});
+
+it('tampoco una que venció sin pagar', function (): void {
+    $pro = crearPlan('Pro', ['pos', 'crm', 'delivery']);
+    $empresa = crearEmpresa('Vencida', ['pos']);
+    suscribir($empresa, $pro, 'past_due');
+
+    ponerAlDiaLasDePrueba();
+
+    expect(modulosDeLaEmpresa($empresa))->toBe(['pos']);
+});

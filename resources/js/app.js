@@ -341,6 +341,20 @@ window.abrirCobroSuscripcion = async (form, avisos) => {
 };
 
 /**
+ * El mismo cobro, pero en la página de Polar en vez de en la ventana embebida.
+ *
+ * Existe por Apple Pay y Google Pay: en la ventana embebida vienen apagados hasta que Polar autorice
+ * el dominio, y en su página salen solos.
+ *
+ * @param {HTMLFormElement} form  El mismo formulario de pago.
+ */
+window.abrirCobroEnPolar = async (form, avisos) => {
+    const modulo = await import('./polar-checkout');
+
+    return modulo.abrirCobroEnPolar(form, avisos);
+};
+
+/**
  * Componente del visor de cámara. Se registra aquí (y no como función suelta en cada vista) porque
  * lo comparten el POS y la entrada de mercancía: definirlo dos veces sería la misma duplicación que
  * evitamos en el backend.

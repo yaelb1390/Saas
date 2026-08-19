@@ -325,3 +325,44 @@ it('el idioma no desplaza lo que sostiene la integración', function (): void {
     Http::assertSent(fn ($request): bool => $request->data()['metadata']['company_id'] === (string) $this->company->id
         && $request->data()['products'] === ['ad5bee12-beb1-48ee-b6ec-1eb5c9d1b6fe']);
 });
+
+// ------------------------------------------------------- Apple Pay y Google Pay
+
+/*
+ * Los monederos no se pueden encender desde aquí.
+ *
+ * Polar los trae APAGADOS en el pago embebido —«wallet payment methods are not enabled when you
+ * embed our checkout form into your website»— y hay que pedirle que autorice el dominio, por correo.
+ * En su propia página salen solos, según el dispositivo del cliente.
+ *
+ * De ahí el segundo camino: mismo cobro, misma ruta, pero saliendo a Polar. Lo que se comprueba aquí
+ * es que sea de verdad el MISMO cobro y no un atajo que se salte lo que el otro sí hace.
+ */
+
+it('ofrece pagar con monedero, diciendo que se sale a Polar', function (): void {
+    // Sin decir a dónde lleva, el cliente pulsa creyendo que se queda y acaba en un dominio que no
+    // reconoce, en el único momento en que está poniendo su tarjeta.
+    $this->actingAs($this->owner)->get(route('panel.account'))
+        ->assertOk()
+        ->assertSee('Pagar con Apple Pay o Google Pay')
+        ->assertSee('Se abre la página de Polar');
+});
+
+it('el camino del monedero no es un botón suelto fuera del formulario', function (): void {
+    // Usa el mismo <form> que el pago normal: si quedara fuera, no llevaría el token y el cobro se
+    // rechazaría justo cuando el cliente ya decidió pagar.
+    $html = $this->actingAs($this->owner)->get(route('panel.account'))->assertOk()->getContent();
+
+    $inicio = strpos($html, 'action="'.route('panel.account.checkout', $this->plan).'"');
+    $fin = strpos($html, '</form>', $inicio);
+
+    expect(substr($html, $inicio, $fin - $inicio))->toContain('Pagar con Apple Pay o Google Pay');
+});
+
+it('sin pasarela no se ofrece el monedero, que no llevaría a ninguna parte', function (): void {
+    config(['polar.access_token' => null]);
+
+    $this->actingAs($this->owner)->get(route('panel.account'))
+        ->assertOk()
+        ->assertDontSee('Pagar con Apple Pay o Google Pay');
+});

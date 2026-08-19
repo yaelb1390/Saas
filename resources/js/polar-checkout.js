@@ -15,7 +15,17 @@
  *    y llevar al cliente a la pasarela es peor que quedarse en casa pero infinitamente mejor que un
  *    botón que no hace nada.
  *
- * 3. Terminar de pagar NO activa el plan. Este archivo corre en el navegador del cliente y cualquiera
+ * 3. HAY UN SEGUNDO CAMINO A PROPÓSITO: pagar en la página de Polar.
+ *
+ *    Apple Pay y Google Pay NO se pueden encender desde aquí. En la ventana embebida vienen
+ *    apagados de fábrica —«wallet payment methods are not enabled when you embed our checkout form
+ *    into your website»— y hay que pedirle a Polar que autorice el dominio, uno por uno y por
+ *    correo. En su página salen solos, sin pedir nada, según el dispositivo del cliente.
+ *
+ *    Así que quien quiera pagar con el móvil de un toque tiene por dónde, hoy, sin esperar a nadie;
+ *    y quien no, no nota ningún cambio. Cuando Polar autorice el dominio, este camino sobra.
+ *
+ * 4. Terminar de pagar NO activa el plan. Este archivo corre en el navegador del cliente y cualquiera
  *    puede disparar sus eventos desde la consola. Cuando el pago se confirma, lo único que se hace es
  *    PREGUNTAR al servidor si ya está activo, en bucle, hasta que el aviso de Polar llegue.
  */
@@ -35,37 +45,9 @@ const SONDEO_CADA_MS = 2500;
 export async function abrirCobro(form, avisos = {}) {
     const { alEstado = () => {}, alFallo = () => {} } = avisos;
 
-    let url;
+    const url = await pedirCobro(form, avisos);
 
-    try {
-        const respuesta = await fetch(form.action, {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': form.querySelector('input[name="_token"]')?.value ?? '',
-            },
-        });
-
-        const datos = await respuesta.json().catch(() => ({}));
-
-        // 422: el servidor tiene un motivo concreto y legible (plan sin enlazar, pasarela caída, sin
-        // correo de contacto). Se enseña tal cual en vez de mandarlo a la pasarela a chocarse allí.
-        if (respuesta.status === 422 && datos.message) {
-            alFallo(datos.message);
-
-            return;
-        }
-
-        if (!respuesta.ok || !datos.url) throw new Error('sin url');
-
-        url = datos.url;
-    } catch {
-        // Fallo de red o respuesta inesperada: se paga por el camino de siempre.
-        form.submit();
-
-        return;
-    }
+    if (!url) return;
 
     let checkout;
     let cargo = false;
@@ -107,6 +89,64 @@ export async function abrirCobro(form, avisos = {}) {
         alEstado('confirmando');
         esperarActivacion(alEstado);
     });
+}
+
+/**
+ * Pide el cobro al servidor y devuelve su dirección, o nada si no se puede seguir.
+ *
+ * Es común a los dos caminos —la ventana embebida y la página de Polar— porque el cobro SIEMPRE lo
+ * crea el servidor: es lo que hace que el aviso de pago sepa a qué empresa activar.
+ *
+ * @returns {Promise<string|undefined>}
+ */
+async function pedirCobro(form, { alFallo = () => {} } = {}) {
+    try {
+        const respuesta = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': form.querySelector('input[name="_token"]')?.value ?? '',
+            },
+        });
+
+        const datos = await respuesta.json().catch(() => ({}));
+
+        // 422: el servidor tiene un motivo concreto y legible (plan sin enlazar, pasarela caída, sin
+        // correo de contacto). Se enseña tal cual en vez de mandarlo a la pasarela a chocarse allí.
+        if (respuesta.status === 422 && datos.message) {
+            alFallo(datos.message);
+
+            return undefined;
+        }
+
+        if (!respuesta.ok || !datos.url) throw new Error('sin url');
+
+        return datos.url;
+    } catch {
+        // Fallo de red o respuesta inesperada: se paga por el camino de siempre.
+        form.submit();
+
+        return undefined;
+    }
+}
+
+/**
+ * Pagar en la página de Polar, fuera del panel.
+ *
+ * Es el único sitio donde hoy salen Apple Pay y Google Pay: en la ventana embebida vienen apagados
+ * hasta que Polar autorice el dominio, y en su página aparecen solos según el dispositivo.
+ *
+ * No hay vuelta programada: al terminar, Polar devuelve al cliente por su cuenta y el plan lo activa
+ * el aviso de pago, igual que por el otro camino. Aquí no se sondea nada porque la pestaña ya no es
+ * esta.
+ */
+export async function abrirCobroEnPolar(form, avisos = {}) {
+    const url = await pedirCobro(form, avisos);
+
+    if (!url) return;
+
+    window.location.href = url;
 }
 
 /**

@@ -208,6 +208,33 @@
                             Pago seguro con tarjeta. Se cobra {{ mb_strtolower($plan->billing_cycle->label()) }}; puedes cancelar cuando quieras.
                         </p>
 
+                        {{-- Apple Pay y Google Pay.
+
+                             NO se pueden encender en la ventana de aquí dentro: Polar los trae
+                             apagados en el pago embebido y hay que pedirle que autorice el dominio,
+                             por correo y uno por uno. En SU página salen solos, sin pedir nada.
+
+                             Por eso esto es un segundo camino y no el principal: quien pague con
+                             tarjeta se queda en el panel, como hasta ahora, y quien quiera pagar de
+                             un toque con el móvil tiene por dónde hoy mismo. Cuando Polar autorice
+                             el dominio, este enlace sobra.
+
+                             Va como <button> y no como <a>: el cobro lo crea el servidor y su
+                             dirección no existe hasta que se pide, así que un enlace tendría que
+                             apuntar a algún sitio antes de tenerlo. --}}
+                        <button type="button" :disabled="ocupado"
+                                @click="pagarEnPolar($el.closest('form'))"
+                                class="mt-2 inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" class="h-3.5 w-3.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5M14 4h6v6M20 4l-8.5 8.5"/>
+                            </svg>
+                            Pagar con Apple Pay o Google Pay
+                        </button>
+                        <p class="mt-1 text-xs text-slate-400">
+                            Se abre la página de Polar, que es quien cobra. Aparecen según tu
+                            teléfono o navegador: Apple Pay en Safari, Google Pay en Chrome.
+                        </p>
+
                         {{-- Motivo concreto que devuelve el servidor (plan sin enlazar, pasarela
                              caída, sin correo). Sin esto, esos casos abrirían una ventana vacía donde
                              antes había un aviso legible. --}}
@@ -312,6 +339,25 @@
                         // Se suelta el botón: si el cliente cierra la ventana sin pagar, tiene que
                         // poder volver a intentarlo sin recargar.
                         this.ocupado = false;
+                    },
+
+                    /*
+                     * Lo mismo, pero saliendo a la página de Polar, que es donde salen los monederos.
+                     *
+                     * Aquí NO se suelta el botón al terminar: si todo va bien, esta pestaña ya se
+                     * fue a Polar y soltarlo solo serviría para dejar la pantalla de la que nos
+                     * vamos con el botón otra vez activo durante el parpadeo. Solo se suelta cuando
+                     * el servidor da un motivo y nos quedamos.
+                     */
+                    async pagarEnPolar(form) {
+                        if (this.ocupado) return;
+
+                        this.ocupado = true;
+                        this.error = '';
+
+                        await window.abrirCobroEnPolar(form, {
+                            alFallo: (m) => { this.error = m; this.ocupado = false; },
+                        });
                     },
                 };
             }

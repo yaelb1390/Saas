@@ -22,6 +22,8 @@ class AiDocumentChunk extends Model implements HasCompany
         'company_id',
         'ai_document_id',
         'position',
+        'provider',
+        'dimensions',
         'content',
         'embedding',
     ];
@@ -30,6 +32,7 @@ class AiDocumentChunk extends Model implements HasCompany
     {
         return [
             'position' => 'integer',
+            'dimensions' => 'integer',
             'embedding' => 'array',
         ];
     }

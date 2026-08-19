@@ -23,6 +23,21 @@
         </div>
 
         <div class="p-5">
+            @unless ($configurado)
+                {{-- Sin clave, el asistente no redacta nada: el proveedor local devuelve una
+                     plantilla fija. Enseñarla como respuesta hacía parecer que el sistema
+                     funcionaba y contestaba mal, que es peor que decir que está apagado. --}}
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p class="font-semibold text-amber-900">El asistente todavía no está activo</p>
+                    <p class="mt-1 text-sm text-amber-800">
+                        Falta configurar la clave del proveedor de IA. Habla con quien administra la
+                        plataforma; es un ajuste que se hace una vez y sirve para todas las empresas.
+                    </p>
+                    @can('platform.manage')
+                        <a href="{{ route('platform.ai') }}" class="bmos-btn bmos-btn-primary mt-3">Configurar la IA</a>
+                    @endcan
+                </div>
+            @else
             <form method="POST" action="{{ route('panel.ai.ask') }}" class="flex flex-col gap-2 sm:flex-row">
                 @csrf
                 <input type="text" name="query" value="{{ old('query', $aiQuery) }}" required minlength="3"
@@ -63,15 +78,32 @@
                     @endif
                 </div>
             @endif
+            @endunless
         </div>
     </div>
+
+    {{-- Los documentos indexados con OTRO proveedor no se usan. Decirlo aquí evita que el asistente
+         conteste «no encontré nada» sin que nadie pueda saber por qué. --}}
+    @if ($desfasados > 0)
+        <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Hay <b>{{ number_format($desfasados) }}</b> fragmentos indexados con otro proveedor de IA.
+            Hasta que se reindexen, el asistente no los usa.
+            @can('platform.manage')
+                <a href="{{ route('platform.ai') }}" class="underline">Reindexar</a>.
+            @endcan
+        </p>
+    @endif
 
     <div class="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
         {{-- Base de conocimiento --}}
         <div class="bmos-card overflow-hidden">
             <div class="flex items-center justify-between border-b border-slate-100 p-4">
                 <p class="font-semibold text-slate-800">Base de conocimiento (RAG)</p>
-                @can('ai.documents.manage')
+                {{-- Con un proveedor que solo redacta —Claude no genera embeddings— el botón de
+                     indexar sería un botón que revienta al pulsarlo. Se dice en su lugar. --}}
+                @if ($configurado && ! $puedeIndexar)
+                    <span class="bmos-badge badge-amber">Este proveedor no indexa documentos</span>
+                @elsecan('ai.documents.manage')
                 <x-panel.create-modal title="Indexar documento" label="Documento" form="ai_document" :action="route('panel.ai.documents.store')">
                     <x-panel.field name="title" label="Título" required placeholder="Política de devoluciones" />
                     <x-panel.field name="source" label="Fuente (opcional)" placeholder="Manual interno, URL..." />

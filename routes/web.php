@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerProfileController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PanelController;
 use App\Modules\AI\Http\Controllers\AiAssistantController;
+use App\Modules\AI\Http\Controllers\AiSettingsController;
 use App\Modules\Billing\Http\Controllers\DgiiReportController;
 use App\Modules\Billing\Http\Controllers\InvoiceController;
 use App\Modules\Billing\Http\Controllers\PartsCounterController;
@@ -238,6 +239,14 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/plataforma/planes', [PlanController::class, 'store'])->name('platform.plans.store');
         Route::put('/plataforma/planes/{plan}', [PlanController::class, 'update'])->name('platform.plans.update');
         Route::delete('/plataforma/planes/{plan}', [PlanController::class, 'destroy'])->name('platform.plans.destroy');
+
+        // Ajustes de IA de la PLATAFORMA: qué proveedor y con qué clave. Una sola para todas las
+        // empresas — un dueño de colmado no va a sacar una clave en Google AI Studio, y exigírselo
+        // dejaría el módulo apagado para todo el mundo.
+        Route::get('/plataforma/ia', [AiSettingsController::class, 'index'])->name('platform.ai');
+        Route::put('/plataforma/ia', [AiSettingsController::class, 'update'])->name('platform.ai.update');
+        Route::post('/plataforma/ia/probar', [AiSettingsController::class, 'probar'])->name('platform.ai.test');
+        Route::post('/plataforma/ia/reindexar', [AiSettingsController::class, 'reindexar'])->name('platform.ai.reindex');
     });
 
     // Recibo imprimible de una venta. Lo abre quien puede ver las ventas… o quien las cobra: el

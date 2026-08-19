@@ -7,6 +7,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Modules\AI\Models\AiDocument;
 use App\Modules\AI\Models\AiSentimentAnalysis;
+use App\Modules\AI\Models\AiSetting;
+use App\Modules\AI\Services\RagService;
 use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
 use App\Modules\Billing\Models\FiscalSequence;
@@ -328,11 +330,22 @@ final class PanelController extends Controller
         ]);
     }
 
-    public function ai(): View
+    public function ai(RagService $rag): View
     {
+        $ajustes = AiSetting::actual();
+
         return view('panel.ai', [
             'documents' => AiDocument::query()->withCount('chunks')->latest()->get(),
             'sentiments' => AiSentimentAnalysis::query()->latest()->take(15)->get(),
+            /*
+             * La pantalla tiene que saber si hay IA de verdad. Sin esto pintaba la plantilla enlatada
+             * del proveedor local —con el prompt del sistema pegado dentro— como si fuera la
+             * respuesta, y no habia forma de distinguirla de una buena.
+             */
+            'configurado' => $ajustes->configurado(),
+            'puedeIndexar' => $ajustes->puedeIndexar(),
+            // Los fragmentos que quedaron de otro proveedor no se usan, y hay que decir cuantos son.
+            'desfasados' => $rag->desfasados(),
         ]);
     }
 

@@ -76,6 +76,7 @@
             ['panel.account', 'Suscripción', 'tag', 'company.manage', null],
             ['platform.companies', 'Empresas', 'building', 'platform.manage', null],
             ['platform.plans', 'Planes', 'tag', 'platform.manage', null],
+            ['platform.ai', 'IA de la plataforma', 'spark', 'platform.manage', null],
         ],
     ];
 

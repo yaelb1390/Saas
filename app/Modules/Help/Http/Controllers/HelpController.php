@@ -33,7 +33,7 @@ final class HelpController extends Controller
             // El índice solo cuando no se ha preguntado nada: con una respuesta delante, una lista de
             // treinta artículos debajo estorba más que ayuda.
             'indice' => $respuesta === null ? $search->index($usuario) : collect(),
-            'sugerencias' => self::SUGERENCIAS,
+            'sugerencias' => HelpLibrary::SUGERENCIAS,
         ]);
     }
 
@@ -60,21 +60,4 @@ final class HelpController extends Controller
                 ->values(),
         ]);
     }
-
-    /**
-     * Preguntas de arranque.
-     *
-     * No son un adorno: delante de una caja de búsqueda vacía la gente no sabe qué escribir, y si la
-     * primera pregunta no encuentra nada, no hay segunda.
-     *
-     * @var list<string>
-     */
-    private const SUGERENCIAS = [
-        '¿Cómo anulo una venta?',
-        '¿Dónde apunto la factura de la luz?',
-        '¿Qué pasa si apruebo una solicitud de préstamo?',
-        '¿Cómo cierro la caja al final del día?',
-        '¿Cómo doy entrada a mercancía nueva?',
-        '¿Cómo le doy acceso a un empleado?',
-    ];
 }

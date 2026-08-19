@@ -30,7 +30,7 @@
         window.addEventListener('beforeinstallprompt', function (e) {
             e.preventDefault();          // evita el mini-infobar por defecto; usamos nuestro botón
             deferred = e;
-            if (banner && !dismissed) { banner.style.display = 'block'; }
+            if (banner && !dismissed) { banner.style.display = 'block'; document.body.classList.add('con-banner'); }
         });
 
         if (btn) {
@@ -39,21 +39,21 @@
                 deferred.prompt();
                 deferred.userChoice.finally(function () {
                     deferred = null;
-                    if (banner) { banner.style.display = 'none'; }
+                    if (banner) { banner.style.display = 'none'; document.body.classList.remove('con-banner'); }
                 });
             });
         }
 
         // Si ya se instaló, no volver a ofrecerlo.
         window.addEventListener('appinstalled', function () {
-            if (banner) { banner.style.display = 'none'; }
+            if (banner) { banner.style.display = 'none'; document.body.classList.remove('con-banner'); }
             try { localStorage.setItem('pwa_install_banner', '1'); } catch (e) {}
         });
     })();
 
     function dismissPwaBanner() {
         var b = document.getElementById('pwa-install-banner');
-        if (b) { b.style.display = 'none'; }
+        if (b) { b.style.display = 'none'; document.body.classList.remove('con-banner'); }
         try { localStorage.setItem('pwa_install_banner', '1'); } catch (e) {}
     }
 </script>

@@ -104,14 +104,45 @@ final class HelpSearch
     }
 
     /**
+     * El mejor artículo que responde la pregunta pero que este usuario NO puede ver, y por qué.
+     *
+     * Sin esto, preguntar por algo que no está en tu plan devuelve «no lo encuentro», que es falso y
+     * además deja al cliente buscando en el menú una pantalla que no existe. El artículo SÍ contesta
+     * su pregunta; lo que pasa es otra cosa, y esa otra cosa se puede decir.
+     *
+     * Se devuelve el motivo y no solo el artículo porque los dos motivos piden respuestas opuestas:
+     * al que le falta el módulo se le ofrece verlo; al que le falta el permiso, JAMÁS —el plan ya lo
+     * incluye y cambiarlo no es su decisión—, se le manda al dueño.
+     *
+     * @return array{article: HelpArticle, motivo: string, score: int}|null
+     */
+    public function fueraDeAlcance(string $pregunta, ?User $usuario): ?array
+    {
+        if ($usuario === null) {
+            return null;
+        }
+
+        $palabras = $this->palabras($pregunta);
+
+        if ($palabras === []) {
+            return null;
+        }
+
+        $normalizada = $this->normalizar($pregunta);
+
+        return $this->library->all()
+            ->map(fn (HelpArticle $articulo): array => [
+                'article' => $articulo,
+                'motivo' => $this->motivoDeExclusion($articulo, $usuario),
+                'score' => $this->puntuar($articulo, $palabras, $normalizada),
+            ])
+            ->filter(static fn (array $fila): bool => $fila['motivo'] !== null && $fila['score'] >= self::UMBRAL)
+            ->sortByDesc('score')
+            ->first();
+    }
+
+    /**
      * El manual recortado a lo que este usuario tiene delante.
-     *
-     * Dos filtros, y los dos importan:
-     *
-     *  - El MÓDULO: explicarle los préstamos a quien no los contrató es vender, no ayudar, y encima
-     *    le hace buscar en el menú una pantalla que no existe.
-     *  - El PERMISO: contarle a un cajero cómo anular ventas —que no puede— es peor que no contestar,
-     *    porque le hace pedirle al dueño algo que creerá que está haciendo mal.
      *
      * Sin usuario (o sin empresa activa) se devuelve el manual entero: es lo que necesitan los tests
      * y la pantalla pública si algún día la hay.
@@ -124,16 +155,38 @@ final class HelpSearch
             return $this->library->all();
         }
 
-        $empresa = $usuario->company;
+        return $this->library->all()->filter(
+            fn (HelpArticle $articulo): bool => $this->motivoDeExclusion($articulo, $usuario) === null,
+        );
+    }
 
-        return $this->library->all()->filter(function (HelpArticle $articulo) use ($usuario, $empresa): bool {
-            if ($articulo->module !== null && ! $this->tieneModulo($empresa, $articulo->module)) {
-                return false;
-            }
+    /**
+     * Por qué este usuario no puede ver este artículo, o null si sí puede.
+     *
+     * Los dos filtros importan, y por motivos distintos:
+     *
+     *  - El MÓDULO: explicarle los préstamos a quien no los contrató es vender, no ayudar, y encima
+     *    le hace buscar en el menú una pantalla que no existe.
+     *  - El PERMISO: contarle a un cajero cómo anular ventas —que no puede— es peor que no contestar,
+     *    porque le hace pedirle al dueño algo que creerá que está haciendo mal.
+     *
+     * El orden importa: se mira primero el módulo. Si a la empresa le falta el módulo, al usuario le
+     * faltará también el permiso, y decirle «pídeselo al dueño» sería mandarlo a pedir algo que el
+     * dueño tampoco tiene.
+     *
+     * @return string|null 'modulo' | 'permiso' | null
+     */
+    private function motivoDeExclusion(HelpArticle $articulo, User $usuario): ?string
+    {
+        if ($articulo->module !== null && ! $this->tieneModulo($usuario->company, $articulo->module)) {
+            return 'modulo';
+        }
 
-            return $articulo->permission === null
-                || Gate::forUser($usuario)->allows($articulo->permission);
-        });
+        if ($articulo->permission !== null && ! Gate::forUser($usuario)->allows($articulo->permission)) {
+            return 'permiso';
+        }
+
+        return null;
     }
 
     private function tieneModulo(?Company $empresa, string $module): bool

@@ -1,0 +1,288 @@
+/*
+ * El asistente de ayuda, en una burbuja sobre el panel.
+ *
+ * Prefijo propio `.asis-*` y fichero aparte, como hizo WhatsApp con `.wa-*`: son bastantes reglas
+ * juntas y sólo las usa una pantalla, así que meterlas en `app.css` sería engordar lo que lee todo
+ * el mundo para servir a un sitio.
+ *
+ * La regla que manda en todo el diseño: esto FLOTA SOBRE la pantalla en la que el usuario estaba
+ * trabajando. No puede tapar lo que se está haciendo ni robar el foco, porque la duda aparece a
+ * mitad de una tarea y la tarea sigue ahí debajo.
+ */
+
+/* El botón. Abajo a la derecha, que es donde se busca por costumbre. */
+.asis-boton {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 10px 25px -8px rgba(79, 70, 229, 0.55);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.asis-boton:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px -8px rgba(79, 70, 229, 0.65);
+}
+
+/*
+ * En móvil se queda sólo el icono.
+ *
+ * El texto ocuparía media pantalla justo encima del botón de cobrar del punto de venta, que es la
+ * pantalla donde más se usa el sistema y la última que se puede estorbar.
+ */
+@media (max-width: 640px) {
+    .asis-boton {
+        right: 1rem;
+        bottom: 1rem;
+        padding: 0.8rem;
+    }
+
+    .asis-boton-texto {
+        display: none;
+    }
+}
+
+/*
+ * El banner de «instala la app» también vive abajo y ocupa todo el ancho en móvil.
+ *
+ * No es una precaución teórica: medido con `elementFromPoint` a 390px, quien recibía el clic en el
+ * centro del botón del asistente era el banner. Mientras esté visible, el asistente se aparta hacia
+ * arriba; en cuanto se instala o se descarta, vuelve a su sitio.
+ *
+ * La marca la pone el propio banner en el <body>, y no se adivina su altura: un valor a ojo se rompe
+ * en cuanto le cambien el texto.
+ */
+body.con-banner .asis-boton,
+body.con-banner .asis-panel {
+    bottom: 7.5rem;
+}
+
+/* La ventana. */
+.asis-panel {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    width: min(24rem, calc(100vw - 2rem));
+    /*
+     * `dvh` y no `vh`: en el móvil la barra del navegador se traga los últimos 60px de `vh`, que es
+     * justo donde está la caja de escribir.
+     *
+     * Y hay ALTO MÍNIMO además del máximo: sin él, la ventana nacía de 312px —medido— y al escribir
+     * la primera pregunta pegaba un salto. Que crezca está bien; que arranque encogida, no.
+     */
+    height: min(34rem, calc(100dvh - 2.5rem));
+    max-height: calc(100dvh - 2.5rem);
+    overflow: hidden;
+    border-radius: 1.1rem;
+    border: 1px solid var(--bmos-border);
+    background: var(--bmos-surface);
+    box-shadow: 0 24px 48px -12px rgba(16, 24, 40, 0.28);
+}
+
+@media (max-width: 640px) {
+    .asis-panel {
+        right: 0.75rem;
+        left: 0.75rem;
+        bottom: 0.75rem;
+        width: auto;
+    }
+}
+
+.asis-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--bmos-border);
+    background: linear-gradient(135deg, #eef2ff, #fff);
+}
+
+.asis-titulo {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--bmos-text);
+}
+
+.asis-sub {
+    font-size: 0.72rem;
+    color: var(--bmos-muted);
+}
+
+/* El hilo. */
+.asis-hilo {
+    flex: 1;
+    min-height: 8rem;
+    overflow-y: auto;
+    padding: 0.9rem;
+    background: #f8f9fc;
+}
+
+.asis-fila {
+    display: flex;
+    margin-bottom: 0.6rem;
+}
+
+.asis-fila--mia {
+    justify-content: flex-end;
+}
+
+/*
+ * Las burbujas. Mismas formas que la previa de redes sociales (`.bmos-previa-burbuja`), para que el
+ * sistema no tenga dos ideas distintas de qué es un mensaje.
+ */
+.asis-burbuja {
+    max-width: 85%;
+    padding: 0.55rem 0.8rem;
+    border-radius: 1rem 1rem 1rem 0.3rem;
+    background: #fff;
+    border: 1px solid var(--bmos-border);
+    font-size: 0.83rem;
+    line-height: 1.5;
+    color: var(--bmos-text);
+    /* `pre-line` y no `pre-wrap`: la respuesta viene con saltos de línea que hay que respetar, pero
+       la sangría del prompt no debe convertirse en huecos raros. */
+    white-space: pre-line;
+    word-break: break-word;
+}
+
+.asis-fila--mia .asis-burbuja {
+    border-radius: 1rem 1rem 0.3rem 1rem;
+    background: var(--bmos-primary);
+    border-color: var(--bmos-primary);
+    color: #fff;
+}
+
+/* El enlace al artículo completo, debajo de la respuesta. */
+.asis-fuente {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--bmos-primary);
+}
+
+.asis-fuente:hover {
+    text-decoration: underline;
+}
+
+/* Los tres puntos mientras piensa. Sin esto, la espera parece que se colgó. */
+.asis-pensando {
+    display: inline-flex;
+    gap: 0.22rem;
+    padding: 0.7rem 0.85rem;
+}
+
+.asis-pensando span {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: #c7cbd8;
+    animation: asis-latido 1.2s infinite ease-in-out;
+}
+
+.asis-pensando span:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.asis-pensando span:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes asis-latido {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-0.25rem); opacity: 1; }
+}
+
+/* Las sugerencias de arranque: delante de una caja vacía, la gente no sabe qué escribir. */
+.asis-sugerencia {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.35rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 0.7rem;
+    border: 1px solid var(--bmos-border);
+    background: #fff;
+    text-align: left;
+    font-size: 0.78rem;
+    color: var(--bmos-text);
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.asis-sugerencia:hover {
+    border-color: #a5b4fc;
+    color: var(--bmos-primary);
+}
+
+/* Escribir. */
+.asis-pie {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.7rem;
+    border-top: 1px solid var(--bmos-border);
+    background: var(--bmos-surface);
+}
+
+.asis-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.7rem;
+    border: 1px solid var(--bmos-border);
+    background: #f8f9fc;
+    font-size: 0.83rem;
+    color: var(--bmos-text);
+}
+
+.asis-input:focus {
+    outline: none;
+    border-color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.asis-enviar {
+    display: grid;
+    place-items: center;
+    width: 2.35rem;
+    height: 2.35rem;
+    flex-shrink: 0;
+    border-radius: 0.7rem;
+    background: var(--bmos-primary);
+    color: #fff;
+    transition: background 0.15s ease;
+}
+
+.asis-enviar:disabled {
+    background: #c7cbd8;
+    cursor: not-allowed;
+}
+
+/* Cuántas preguntas quedan hoy. Sólo aparece cuando quedan pocas: antes es ruido. */
+.asis-cuota {
+    padding: 0 0.7rem 0.6rem;
+    font-size: 0.7rem;
+    color: #b45309;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .asis-boton,
+    .asis-pensando span {
+        transition: none;
+        animation: none;
+    }
+}

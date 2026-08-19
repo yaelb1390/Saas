@@ -39,12 +39,15 @@ class Company extends Model implements Auditable
         'settings',
         'modules',
         'social_api_key',
+        'ai_assistant',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            // Interruptor del asistente de ayuda. Lo maneja el operador de la plataforma.
+            'ai_assistant' => 'boolean',
             'settings' => 'array',
             'modules' => 'array',
             // Credencial de Zernio: cifrada en reposo. Quien la tenga puede publicar en el Instagram
@@ -57,6 +60,31 @@ class Company extends Model implements Auditable
     public function publicaEnRedes(): bool
     {
         return filled($this->social_api_key);
+    }
+
+    /**
+     * ¿Le sale a esta empresa el asistente de ayuda?
+     *
+     * Dos condiciones, y hacen falta las dos:
+     *
+     *  1. Que el operador de la plataforma lo haya encendido para ella. Cada pregunta se paga en el
+     *     proveedor de IA y la paga él, así que la decisión es suya y no del cliente.
+     *  2. Que la suscripción esté al día. Mismo criterio que `hasModule()` y no uno propio: si una
+     *     empresa suspendida conservara el asistente, seguiría costando dinero mientras no paga.
+     *
+     * NO es un módulo del plan a propósito. La ayuda de uso no se vende: quien más la necesita es el
+     * cliente del plan más barato, que es justo el que se quedaría fuera de cualquier puerta. Ver el
+     * mismo razonamiento en la ruta de la ayuda, en `routes/web.php`.
+     */
+    public function usaAsistente(): bool
+    {
+        if ($this->ai_assistant !== true) {
+            return false;
+        }
+
+        $subscription = $this->loadedSubscription();
+
+        return $subscription === null || $subscription->isUsable();
     }
 
     /**

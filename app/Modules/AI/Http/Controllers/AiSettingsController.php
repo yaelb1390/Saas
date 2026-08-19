@@ -47,6 +47,10 @@ final class AiSettingsController extends Controller
             'chat_model' => ['nullable', 'string', 'max:100'],
             'embedding_model' => ['nullable', 'string', 'max:100'],
             'embedding_dimensions' => ['nullable', 'integer', 'min:64', 'max:3072'],
+            // Cuántas preguntas al día puede hacer cada empresa al asistente. El cero lo apaga de
+            // hecho para todas, que es una forma legítima de cerrar el grifo sin ir empresa por
+            // empresa; el tope de arriba evita que un dedazo abra la mano del todo.
+            'daily_limit' => ['nullable', 'integer', 'min:0', 'max:1000'],
         ]);
 
         $ajustes = AiSetting::actual();
@@ -58,6 +62,9 @@ final class AiSettingsController extends Controller
             'chat_model' => ($datos['chat_model'] ?? null) ?: $this->modeloPorOmision($datos['provider'], 'chat'),
             'embedding_model' => ($datos['embedding_model'] ?? null) ?: $this->modeloPorOmision($datos['provider'], 'embedding'),
             'embedding_dimensions' => ($datos['embedding_dimensions'] ?? null) ?: 768,
+            // El cero es un valor válido y querido, así que NO se puede usar «?:» aquí: convertiría
+            // «ninguna pregunta» en «cincuenta».
+            'daily_limit' => $datos['daily_limit'] ?? 50,
         ]);
 
         // Vacío = borrar la clave y apagar la IA. Si no se manda nada, se conserva la que había: el

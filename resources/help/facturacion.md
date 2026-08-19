@@ -2,7 +2,7 @@
 title: Facturación con NCF
 module: billing
 permission: invoices.view
-keywords: factura, ncf, comprobante, fiscal, dgii, secuencia, credito fiscal, consumidor final, anular ncf
+keywords: factura, facturar, facturo, facturacion, hacer una factura, emitir factura, ncf, comprobante, fiscal, dgii, secuencia, credito fiscal, consumidor final, anular ncf
 related: compras-606, ventas, anular-una-venta
 route: panel.invoices
 ---

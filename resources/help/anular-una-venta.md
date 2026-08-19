@@ -2,7 +2,7 @@
 title: Anular una venta
 module: sales
 permission: sales.void
-keywords: anular, anular venta, devolver, devolucion, quiere devolver, devolver lo que compro, cancelar venta, revertir, equivoque, equivoco, equivocada, me equivoque, deshacer, deshago, deshacer venta, borrar venta, cobre mal, cobro mal
+keywords: anular, anular venta, devolver, devuelvo, devolucion, quiere devolver, devolver lo que compro, me compraron, cancelar venta, revertir, equivoque, equivoco, equivocada, me equivoque, deshacer, deshago, deshacer venta, borrar venta, cobre mal, cobro mal
 related: ventas, turnos-de-caja, finanzas
 route: panel.sales
 ---

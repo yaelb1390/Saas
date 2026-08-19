@@ -36,6 +36,15 @@ final class TenantDataPurger
      */
     public const TABLES = [
         // IA
+        // Las preguntas al asistente SÍ se purgan, al revés que la auditoría.
+        //
+        // La auditoría es rastro nuestro —qué hizo el sistema— y por eso se conserva. Esto es texto
+        // que escribió su gente, y una pregunta puede llevar dentro el nombre de un cliente o de un
+        // producto. Cuando alguien pide que se vacíen sus datos, eso son sus datos.
+        //
+        // Lo que se pierde —saber qué le falta al manual— es agregado entre todas las empresas y
+        // sobrevive en las demás.
+        'assistant_questions',
         'ai_sentiment_analyses',
         'ai_document_chunks',
         'ai_documents',

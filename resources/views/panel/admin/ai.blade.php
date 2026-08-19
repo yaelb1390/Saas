@@ -108,6 +108,21 @@
                     Cambiar las dimensiones o el proveedor obliga a reindexar todos los documentos.
                 </p>
 
+                {{-- El tope del asistente de ayuda.
+
+                     Va aquí, con los ajustes de IA, porque es lo mismo: cuánto estás dispuesto a
+                     gastar. Y es un solo número para toda la plataforma a propósito: un tope por
+                     empresa serían quince sitios donde mirar cuando alguien diga «se me acabó». --}}
+                <div class="border-t border-slate-100 pt-4">
+                    <label class="bmos-field-label">Preguntas al día por empresa</label>
+                    <input type="number" name="daily_limit" class="bmos-input" style="max-width:10rem"
+                           value="{{ $ajustes->daily_limit }}" min="0" max="1000">
+                    <p class="mt-1 text-xs text-slate-400">
+                        Cuántas veces al día puede preguntarle cada empresa al asistente de ayuda.
+                        Cada pregunta la pagas tú en el proveedor. <b>Cero lo apaga para todas.</b>
+                    </p>
+                </div>
+
                 <div class="border-t border-slate-100 pt-4">
                     <button type="submit" class="bmos-btn bmos-btn-primary">Guardar</button>
                 </div>

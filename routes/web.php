@@ -34,6 +34,7 @@ use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\Delivery\Http\Controllers\DeliveryController;
 use App\Modules\Delivery\Http\Controllers\DriverPortalController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
+use App\Modules\Help\Http\Controllers\AssistantController;
 use App\Modules\Help\Http\Controllers\HelpController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
 use App\Modules\HR\Http\Controllers\EmployeePortalController;
@@ -208,6 +209,20 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('/panel/ayuda', [HelpController::class, 'index'])->name('panel.help');
     Route::get('/panel/ayuda/{slug}', [HelpController::class, 'show'])->name('panel.help.article');
 
+    /*
+     * El asistente de la burbuja. Misma ayuda, pero sin salir de la pantalla y con hilo.
+     *
+     * `throttle:20,1` porque cada pregunta sale a la red a un proveedor que se paga por uso: es la
+     * misma regla que ya se aplica a la sincronización de redes sociales. El tope DIARIO por empresa
+     * es otra cosa y vive en `AssistantQuota`; este de aquí es contra la ráfaga, no contra el gasto.
+     *
+     * Sin `can:` ni `module:`, igual que la ayuda: quien decide quién lo tiene es el interruptor por
+     * empresa, y lo comprueba el propio controlador.
+     */
+    Route::post('/panel/asistente', [AssistantController::class, 'ask'])
+        ->middleware('throttle:20,1')->name('panel.assistant.ask');
+    Route::delete('/panel/asistente', [AssistantController::class, 'reset'])->name('panel.assistant.reset');
+
     // Administración de usuarios y sus roles (dentro de la empresa activa).
     Route::middleware(['can:users.manage', 'subscription'])->group(function (): void {
         Route::post('/panel/usuarios', [UserController::class, 'store'])->name('panel.users.store');
@@ -223,6 +238,8 @@ Route::middleware(['auth'])->group(function (): void {
         Route::put('/plataforma/empresas/{company}/modulos', [CompanyAdminController::class, 'updateModules'])->name('platform.companies.modules');
         Route::put('/plataforma/empresas/{company}/pos', [CompanyAdminController::class, 'updatePosProfile'])->name('platform.companies.pos');
         Route::post('/plataforma/empresas/{company}/estado', [CompanyAdminController::class, 'toggleActive'])->name('platform.companies.toggle');
+        // El asistente de ayuda de esa empresa. Lo enciende el operador porque él paga cada pregunta.
+        Route::post('/plataforma/empresas/{company}/asistente', [CompanyAdminController::class, 'toggleAssistant'])->name('platform.companies.assistant');
 
         // Suscripción de cada empresa (cobro manual).
         Route::post('/plataforma/empresas/{company}/suscribir', [CompanyAdminController::class, 'subscribe'])->name('platform.companies.subscribe');

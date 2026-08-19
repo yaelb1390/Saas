@@ -4,6 +4,7 @@
    la app a un servicio de terceros. Ahora se sirve desde el mismo dominio y la cachea el service worker. */
 @import '@fontsource-variable/inter/standard.css';
 @import './whatsapp.css';
+@import './asistente.css';
 @import './suspended.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';

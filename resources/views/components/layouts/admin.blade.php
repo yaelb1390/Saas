@@ -308,6 +308,15 @@
     @include('partials.ios-install-hint')
     @include('partials.pwa-install-banner')
 
+    {{-- El asistente de ayuda, flotando sobre cualquier pantalla.
+
+         Sólo si el operador de la plataforma lo encendió para esta empresa: cada pregunta se paga en
+         el proveedor de IA y la paga él. Que no se pinte NO es la seguridad —el endpoint lo vuelve a
+         comprobar—, es sólo no enseñar un botón que no va a funcionar. --}}
+    @if ($activeCompany?->usaAsistente())
+        @include('partials.asistente')
+    @endif
+
             {{ $slot }}
         </main>
     </div>

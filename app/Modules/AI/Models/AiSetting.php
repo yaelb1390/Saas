@@ -29,6 +29,7 @@ final class AiSetting extends Model
         'chat_model',
         'embedding_model',
         'embedding_dimensions',
+        'daily_limit',
     ];
 
     protected function casts(): array
@@ -38,6 +39,7 @@ final class AiSetting extends Model
             // para nadie que abra la tabla.
             'api_key' => 'encrypted',
             'embedding_dimensions' => 'integer',
+            'daily_limit' => 'integer',
         ];
     }
 
@@ -53,6 +55,7 @@ final class AiSetting extends Model
         return self::query()->firstOrCreate([], [
             'provider' => 'local',
             'embedding_dimensions' => 768,
+            'daily_limit' => 50,
         ]);
     }
 

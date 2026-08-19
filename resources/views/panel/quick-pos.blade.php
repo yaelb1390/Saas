@@ -159,7 +159,9 @@
             {{-- ── Ticket ───────────────────────────────────────────────────────────────── --}}
             {{-- Ya no hace falta `sticky` ni un alto máximo inventado: el tablero mide lo que hay y
                  esta columna se limita a ocuparlo entero. --}}
-            <div class="bmos-card flex min-w-0 flex-col overflow-hidden lg:min-h-0">
+            {{-- `data-asis-evitar`: el asistente flotante se aparta de esta columna en vez de
+                 taparla. Aquí van el total, el tipo de pedido y el cobro. --}}
+            <div data-asis-evitar class="bmos-card flex min-w-0 flex-col overflow-hidden lg:min-h-0">
                 <div class="flex items-center justify-between gap-2 border-b border-slate-100 p-3">
                     <p class="font-semibold text-slate-800">
                         Pedido

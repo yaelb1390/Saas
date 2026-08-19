@@ -70,6 +70,23 @@
                     </div>
 
                     <div class="flex items-center gap-2">
+                        {{-- El asistente de ayuda de esta empresa.
+
+                             Va aquí, junto a los módulos y a suspender, porque es lo mismo: qué tiene
+                             esta empresa. Y lo decides tú y no el cliente porque cada pregunta se paga
+                             en el proveedor de IA y la pagas tú. --}}
+                        <x-panel.confirm-action
+                            :action="route('platform.companies.assistant', $company)"
+                            method="POST"
+                            tone="neutral"
+                            title="{{ $company->ai_assistant ? '¿Apagar' : '¿Encender' }} el asistente de «{{ $company->name }}»?"
+                            :message="$company->ai_assistant
+                                ? 'Sus usuarios dejarán de ver la burbuja de ayuda. No se pierde nada y puedes volver a encenderla cuando quieras.'
+                                : 'Sus usuarios verán una burbuja para preguntar cómo se usa el sistema. Cada pregunta la pagas tú en el proveedor de IA, con el tope diario que tengas puesto.'"
+                            confirm="{{ $company->ai_assistant ? 'Apagar' : 'Encender' }}"
+                            class="bmos-btn bmos-btn-ghost {{ $company->ai_assistant ? 'text-indigo-600' : 'text-slate-400' }}">
+                            {{ $company->ai_assistant ? 'Asistente ✓' : 'Asistente' }}
+                        </x-panel.confirm-action>
                         <button type="button" @click="open = !open" class="bmos-btn bmos-btn-ghost" x-text="open ? 'Cerrar' : 'Editar plan'"></button>
                         <x-panel.confirm-action
                             :action="route('platform.companies.toggle', $company)"

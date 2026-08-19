@@ -2,7 +2,7 @@
 title: Punto de Venta (mostrador)
 module: pos
 permission: pos.operate
-keywords: pos, caja, cobrar, vender, mostrador, lector, codigo de barras, escanear, ticket
+keywords: pos, caja, cobrar, cobro, vender, mostrador, lector, codigo de barras, escanear, ticket, tarjeta, forma de pago, cobrar con tarjeta, cobro con tarjeta, pagar con tarjeta
 related: turnos-de-caja, ventas, venta-rapida
 route: panel.pos
 ---

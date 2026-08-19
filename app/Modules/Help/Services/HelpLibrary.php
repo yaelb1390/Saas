@@ -17,6 +17,27 @@ use Illuminate\Support\Collection;
  */
 final class HelpLibrary
 {
+    /**
+     * Preguntas de arranque.
+     *
+     * No son un adorno: delante de una caja de búsqueda vacía la gente no sabe qué escribir, y si la
+     * primera pregunta no encuentra nada, no hay segunda.
+     *
+     * Viven aquí y no en la pantalla porque las usan DOS —la página de ayuda y la burbuja— y dos
+     * copias acabarían proponiendo cosas distintas. La burbuja se queda con las primeras: tiene
+     * 23rem de ancho, no una página.
+     *
+     * @var list<string>
+     */
+    public const SUGERENCIAS = [
+        '¿Cómo anulo una venta?',
+        '¿Dónde apunto la factura de la luz?',
+        '¿Cómo cierro la caja al final del día?',
+        '¿Qué pasa si apruebo una solicitud de préstamo?',
+        '¿Cómo doy entrada a mercancía nueva?',
+        '¿Cómo le doy acceso a un empleado?',
+    ];
+
     /** @var Collection<string, HelpArticle>|null */
     private ?Collection $articulos = null;
 

@@ -132,8 +132,9 @@
                     </p>
                 </div>
 
-                {{-- Ticket --}}
-                <div>
+                {{-- Ticket. `data-asis-evitar`: el asistente flotante se aparta de esta columna en
+                     vez de taparla. Aquí están el total y el botón de cobrar. --}}
+                <div data-asis-evitar>
                     <form method="POST" action="{{ route('panel.pos.checkout') }}" x-ref="form"
                           @submit="prepare()"
                           class="bmos-card bmos-card-pad">

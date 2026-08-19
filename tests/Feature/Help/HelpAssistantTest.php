@@ -60,6 +60,19 @@ dataset('preguntas reales', [
     'sabores del helado' => ['cómo configuro los sabores del helado', 'tamanos-y-sabores'],
     'ncf' => ['me estoy quedando sin comprobantes fiscales', 'facturacion'],
     'el 606' => ['cómo saco el reporte 606', 'compras-606'],
+
+    /*
+     * Estas tres salieron probando el asistente en el navegador, escribiendo como escribe un cliente.
+     * Las dos primeras no encontraban NADA y la tercera acertaba mal, que es peor:
+     *
+     *  · «devuelvo» no estaba: el manual tenía «devolver» y «devolución», pero no la primera persona,
+     *    que es justo como se pregunta.
+     *  · «cobro con tarjeta» se iba a PRÉSTAMOS, porque «cobro» es su palabra clave y ganaba por
+     *    título. Un cajero preguntando cómo cobrar acababa leyendo sobre cuotas y mora.
+     */
+    'devolver en primera persona' => ['cómo devuelvo algo que me compraron', 'anular-una-venta'],
+    'cobrar con tarjeta' => ['cómo cobro con tarjeta', 'punto-de-venta'],
+    'pagar con tarjeta' => ['cómo pago con tarjeta', 'punto-de-venta'],
 ]);
 
 it('una pregunta real encuentra su artículo', function (string $pregunta, string $esperado): void {

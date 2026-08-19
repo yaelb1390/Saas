@@ -60,8 +60,9 @@
             </div>
         </div>
 
-        {{-- Ticket + facturación --}}
-        <div>
+        {{-- Ticket + facturación. `data-asis-evitar`: el asistente flotante se aparta en vez de
+             taparlo; aquí están el total y el botón de facturar. --}}
+        <div data-asis-evitar>
             <form method="POST" action="{{ route('panel.parts.invoice') }}" x-ref="form"
                   @submit="$refs.cartInput.value = JSON.stringify(cart.map(i => ({ id: i.id, qty: i.qty })))"
                   class="bmos-card bmos-card-pad">

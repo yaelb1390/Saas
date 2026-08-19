@@ -128,6 +128,21 @@ final class CompanyAdminController extends Controller
     }
 
     /**
+     * Enciende o apaga el asistente de ayuda de esta empresa.
+     *
+     * Lo decide el operador de la plataforma y no el cliente porque cada pregunta se paga en el
+     * proveedor de IA y la paga él. Quien no paga no puede abrir el grifo.
+     */
+    public function toggleAssistant(Company $company): RedirectResponse
+    {
+        $company->update(['ai_assistant' => ! $company->ai_assistant]);
+
+        return back()->with('panel_ok', $company->ai_assistant
+            ? "Asistente encendido para «{$company->name}»."
+            : "Asistente apagado para «{$company->name}».");
+    }
+
+    /**
      * Suscribe o cambia de plan a una empresa.
      *
      * - Si se pide «con prueba» y el plan la ofrece, se (re)inicia el período de prueba —también en

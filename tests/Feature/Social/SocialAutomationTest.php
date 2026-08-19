@@ -113,9 +113,9 @@ it('busca la palabra suelta por omisión, no dentro de otra palabra', function (
 
     $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto());
 
-    Http::assertSent(fn ($request): bool => ! str_ends_with($request->url(), '/v1/comment-automations')
-        || $request->method() !== 'POST'
-        || $request->data()['matchMode'] === KeywordMatch::Word->value);
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && $request->data()['matchMode'] === KeywordMatch::Word->value);
 });
 
 it('«responder también por privado» exige palabras clave', function (): void {
@@ -169,9 +169,9 @@ it('manda el perfil, que la API exige', function (): void {
 
     $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto());
 
-    Http::assertSent(fn ($request): bool => ! str_ends_with($request->url(), '/v1/comment-automations')
-        || $request->method() !== 'POST'
-        || ($request->data()['profileId'] ?? null) === 'prof_1');
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && ($request->data()['profileId'] ?? null) === 'prof_1');
 });
 
 it('parte las palabras por comas y les quita los huecos', function (): void {
@@ -181,9 +181,9 @@ it('parte las palabras por comas y les quita los huecos', function (): void {
         'keywords' => ' precio ,  cuánto,,info ',
     ]));
 
-    Http::assertSent(fn ($request): bool => ! str_ends_with($request->url(), '/v1/comment-automations')
-        || $request->method() !== 'POST'
-        || $request->data()['keywords'] === ['precio', 'cuánto', 'info']);
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && $request->data()['keywords'] === ['precio', 'cuánto', 'info']);
 });
 
 it('el botón viaja con su forma completa', function (): void {
@@ -193,9 +193,9 @@ it('el botón viaja con su forma completa', function (): void {
         'button_title' => 'Pedir ahora', 'button_url' => 'https://wa.me/18095551234',
     ]));
 
-    Http::assertSent(fn ($request): bool => ! str_ends_with($request->url(), '/v1/comment-automations')
-        || $request->method() !== 'POST'
-        || $request->data()['buttons'] === [[
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && $request->data()['buttons'] === [[
             'type' => 'url', 'title' => 'Pedir ahora', 'url' => 'https://wa.me/18095551234',
         ]]);
 });
@@ -209,7 +209,7 @@ it('lo que no se ofrece en el formulario no se manda', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         $enviado = array_keys($request->data());
@@ -228,9 +228,9 @@ it('apagar no borra ni toca nada más', function (): void {
         ->post(route('panel.social.automations.toggle', 'auto_1'), ['is_active' => '0'])
         ->assertSessionHasNoErrors();
 
-    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), '/comment-automations/auto_1')
-        || $request->method() !== 'PATCH'
-        || $request->data() === ['isActive' => false]);
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), '/comment-automations/auto_1')
+        && $request->method() === 'PATCH'
+        && $request->data() === ['isActive' => false]);
 });
 
 it('si Zernio rechaza el guardado, se dice su motivo', function (): void {
@@ -352,7 +352,7 @@ it('por omisión vale para todas las publicaciones, también las futuras', funct
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return array_intersect(array_keys($request->data()), ['postId', 'platformPostId']) === [];
@@ -368,9 +368,9 @@ it('al elegir una publicación manda los DOS identificadores', function (): void
         'post' => 'post_z1|17900000000000000',
     ]));
 
-    Http::assertSent(fn ($request): bool => ! str_ends_with($request->url(), '/v1/comment-automations')
-        || $request->method() !== 'POST'
-        || ($request->data()['postId'] === 'post_z1' && $request->data()['platformPostId'] === '17900000000000000'));
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && ($request->data()['postId'] === 'post_z1' && $request->data()['platformPostId'] === '17900000000000000'));
 });
 
 it('una publicación a medias no acota nada', function (): void {
@@ -384,7 +384,7 @@ it('una publicación a medias no acota nada', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return array_intersect(array_keys($request->data()), ['postId', 'platformPostId']) === [];
@@ -453,8 +453,8 @@ it('buscar publicaciones las trae de la red, sin publicar nada', function (): vo
 
     // Solo la cuenta que admite automatizaciones: pedirle publicaciones a TikTok es una llamada que
     // no puede servir para nada.
-    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), 'sync-external')
-        || $request->data()['accountId'] === 'ig_1');
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sync-external')
+        && $request->data()['accountId'] === 'ig_1');
 });
 
 it('si la cuenta no tiene publicaciones, lo dice en vez de callar', function (): void {
@@ -530,7 +530,7 @@ it('manda las versiones alternativas con los nombres que la API usa', function (
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return $request->data()['dmMessageVariations'] === ['Va a RD$150.', 'Cuesta RD$150 y te la llevamos.']
@@ -549,7 +549,7 @@ it('las casillas que quedaron en blanco no viajan', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return $request->data()['dmMessageVariations'] === ['Va a RD$150.'];
@@ -566,7 +566,7 @@ it('sin ninguna versión no se manda el campo', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return ! array_key_exists('dmMessageVariations', $request->data());
@@ -650,7 +650,7 @@ it('manda la espera con el nombre que la API usa', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return ($request->data()['dmDelaySeconds'] ?? null) === 180;
@@ -667,7 +667,7 @@ it('«al instante» no manda el campo', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return ! array_key_exists('dmDelaySeconds', $request->data());
@@ -696,7 +696,7 @@ it('no se toca la espera de la respuesta pública', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
-            return true;
+            return false;
         }
 
         return ! array_key_exists('commentReplyDelaySeconds', $request->data());
@@ -837,4 +837,129 @@ it('el resumen de arriba suma todas las automatizaciones', function (): void {
         ->assertSee('encendida')   // solo una de las dos
         // Personas no se puede sumar de verdad: se dice en vez de fingir precisión.
         ->assertSee('cuenta una vez en cada una');
+});
+
+// ------------------------------------------------- Aceptar la palabra aunque la escriban mal
+
+it('manda la tolerancia a erratas con el nombre que la API usa', function (): void {
+    // No es un adorno: en el registro de una automatización real, tres de los comentarios que no
+    // cazaron ninguna palabra eran «Infomacion» y «imformacion», y se quedaron sin respuesta.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'match_mode' => KeywordMatch::Word->value,
+        'typo_tolerance' => '1',
+    ]));
+
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && $request->data()['typoTolerance'] === true);
+});
+
+it('sin marcarla viaja apagada y no ausente', function (): void {
+    // Ausente y `false` no son lo mismo al EDITAR: si se omitiera, quitar la casilla de una que ya la
+    // tenía puesta no la quitaría, porque el servidor conserva lo que no le mandan.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'match_mode' => KeywordMatch::Word->value,
+    ]));
+
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && $request->data()['typoTolerance'] === false);
+});
+
+it('con los otros modos de búsqueda no se manda, porque la API la ignora', function (): void {
+    // «Only with matchMode=word», dice su especificación. Mandarla igual haría que el cuerpo
+    // prometiera algo que no va a pasar.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'match_mode' => KeywordMatch::Contains->value,
+        'typo_tolerance' => '1',
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return false;
+        }
+
+        return ! array_key_exists('typoTolerance', $request->data());
+    });
+});
+
+it('al editar, la tolerancia que ya tenía sale marcada', function (): void {
+    // Si no viajara de vuelta, abrir una automatización que la tuviera puesta y guardarla sin tocar
+    // nada se la quitaría en silencio.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['informacion'], 'matchMode' => 'word', 'dmMessage' => 'Hola',
+        'isActive' => true, 'typoTolerance' => true,
+    ]]);
+
+    $contenido = $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()->getContent();
+
+    // Se mira que esté MARCADA, no el orden de los atributos: eso lo decide Blade y cambiarlo no
+    // rompería nada de verdad.
+    preg_match_all('/<input[^>]*name="typo_tolerance"[^>]*>/', $contenido, $casillas);
+
+    // Dos formularios en la pantalla: el de editar, con la casilla puesta, y el de crear, sin ella.
+    expect($casillas[0])->toHaveCount(2)
+        ->and($casillas[0][0])->toContain('checked')
+        ->and($casillas[0][1])->not->toContain('checked');
+});
+
+// ------------------------------------ Lo que NO se puede cambiar después de crearla
+
+it('al editar no se ofrece cambiar la publicación, porque la API no lo admite', function (): void {
+    /*
+     * El endpoint de modificación acepta el nombre, las palabras, los textos y los interruptores,
+     * pero NO `postId` ni `platformPostId`. El desplegable se enseñaba igual al editar: quien
+     * cambiaba la publicación guardaba tan tranquilo y no cambiaba absolutamente nada.
+     */
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+    ]]);
+
+    $respuesta = $this->actingAs($this->owner)->get(route('panel.social.automations'))->assertOk();
+
+    // Un solo desplegable de publicación en toda la pantalla: el de crear.
+    expect(substr_count($respuesta->getContent(), 'name="post"'))->toBe(1);
+
+    $respuesta->assertSee('todas', false)
+        ->assertSee('Esto no se puede cambiar después de crearla', false);
+});
+
+it('al editar tampoco se cambia de cuenta, pero no se pierde al guardar', function (): void {
+    // `accountId` tampoco está en el cuerpo que admite la modificación. Va oculta para que el
+    // formulario siga siendo válido y se enseña en texto.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Precio', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('<input type="hidden" name="account_id" value="ig_1">', false)
+        ->assertSee('No se puede mover a otra cuenta');
+});
+
+it('editar sigue guardando lo que sí se puede cambiar', function (): void {
+    // La red de seguridad de los dos cambios de arriba: que quitar controles no haya roto el guardado.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)
+        ->put(route('panel.social.automations.update', 'auto_1'), formularioAuto([
+            'name' => 'Precio nuevo',
+            'match_mode' => KeywordMatch::Word->value,
+            'typo_tolerance' => '1',
+        ]))
+        ->assertRedirect();
+
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), '/v1/comment-automations/auto_1')
+        && $request->method() === 'PATCH'
+        && ($request->data()['name'] === 'Precio nuevo' && $request->data()['typoTolerance'] === true));
 });

@@ -172,9 +172,9 @@ it('al programar viaja la zona horaria', function (): void {
         'scheduled_for' => $cuando,
     ])->assertSessionHasNoErrors();
 
-    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), '/v1/posts')
-        || $request->method() !== 'POST'
-        || (filled($request->data()['timezone'] ?? null) && ! isset($request->data()['publishNow'])));
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), '/v1/posts')
+        && $request->method() === 'POST'
+        && (filled($request->data()['timezone'] ?? null) && ! isset($request->data()['publishNow'])));
 });
 
 it('no deja programar en el pasado', function (): void {
@@ -210,9 +210,9 @@ it('una plataforma que no reconocemos se descarta sin tumbar el resto', function
         'media_url' => 'https://cdn.zernio.com/foto.jpg', 'media_type' => 'image',
     ])->assertSessionHasNoErrors();
 
-    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), '/v1/posts')
-        || $request->method() !== 'POST'
-        || $request->data()['platforms'] === [['platform' => 'instagram', 'accountId' => 'acc_1']]);
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), '/v1/posts')
+        && $request->method() === 'POST'
+        && $request->data()['platforms'] === [['platform' => 'instagram', 'accountId' => 'acc_1']]);
 });
 
 it('si el servicio rechaza la publicación, se dice su motivo', function (): void {
@@ -314,8 +314,8 @@ it('conectar una red manda el perfil, que la API exige', function (): void {
 
     $this->actingAs($this->owner)->post(route('panel.social.connect'), ['platform' => 'instagram']);
 
-    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), '/v1/connect/')
-        || str_contains($request->url(), 'profileId=prof_1'));
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), '/v1/connect/')
+        && str_contains($request->url(), 'profileId=prof_1'));
 });
 
 it('avisa de una cuenta caducada en vez de dejar que se publique al vacío', function (): void {

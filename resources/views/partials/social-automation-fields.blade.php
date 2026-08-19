@@ -24,6 +24,7 @@
         publica: @js($a['commentReply'] ?? old('comment_reply', '')),
         etiqueta: @js($a['buttons'][0]['title'] ?? old('button_title', '')),
         cuenta: @js($a['accountId'] ?? old('account_id', $cuentas[0]['id'] ?? '')),
+        modo: @js($a['matchMode'] ?? old('match_mode', KeywordMatch::POR_OMISION->value)),
 
         /* Versiones alternativas. Zernio admite 5 además de la principal —o sea 6 textos— y
            manda una al azar cada vez. El tope es suyo: una sexta le hace rechazar todo. */
@@ -58,15 +59,30 @@
                        value="{{ $a['name'] ?? old('name') }}" placeholder="Precio de las batidas">
                 <p class="mt-1 text-xs text-slate-400">Solo para que tú la reconozcas.</p>
             </div>
+            {{-- La cuenta, como la publicación, SOLO SE ELIGE AL CREAR: el endpoint de modificación
+                 tampoco acepta `accountId`. Se manda oculta para no perderla al guardar y se enseña
+                 en texto, en vez de un desplegable que se deja cambiar y no cambia nada. --}}
             <div>
                 <label class="bmos-field-label">Cuenta <span class="text-rose-500">*</span></label>
-                <select name="account_id" class="bmos-input" required x-model="cuenta">
-                    @foreach ($cuentas as $cuenta)
-                        <option value="{{ $cuenta['id'] }}">
-                            {{ $cuenta['name'] }} · {{ SocialPlatform::tryFrom($cuenta['platform'])?->label() ?? $cuenta['platform'] }}
-                        </option>
-                    @endforeach
-                </select>
+                @if ($a === null)
+                    <select name="account_id" class="bmos-input" required x-model="cuenta">
+                        @foreach ($cuentas as $cuenta)
+                            <option value="{{ $cuenta['id'] }}">
+                                {{ $cuenta['name'] }} · {{ SocialPlatform::tryFrom($cuenta['platform'])?->label() ?? $cuenta['platform'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                @else
+                    @php $suya = collect($cuentas)->firstWhere('id', $a['accountId']); @endphp
+                    <input type="hidden" name="account_id" value="{{ $a['accountId'] }}">
+                    <p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                        {{ $suya['name'] ?? 'La cuenta con la que se creó' }}
+                        @if ($suya)
+                            · {{ SocialPlatform::tryFrom($suya['platform'])?->label() ?? $suya['platform'] }}
+                        @endif
+                    </p>
+                    <p class="mt-1 text-xs text-slate-400">No se puede mover a otra cuenta.</p>
+                @endif
             </div>
         </div>
 
@@ -75,27 +91,54 @@
              «En todas» es lo que quiere la mayoría y por eso va primero y es lo de por omisión: la
              automatización sigue funcionando en las fotos que se suban mañana. Elegir una concreta
              sirve para una promoción puntual —«comenta SORTEO en esta foto»— y ahí sí importa que no
-             conteste en las demás. --}}
-        <div class="mt-3">
-            <label class="bmos-field-label">¿En qué publicación?</label>
-            <select name="post" class="bmos-input">
-                <option value="">En todas mis publicaciones (también las futuras)</option>
-                <template x-for="p in publicacionesDeLaCuenta" :key="p.platformPostId">
-                    <option :value="p.postId + '|' + p.platformPostId"
-                            :selected="p.platformPostId === @js($a['postId'] ?? '')"
-                            x-text="'Solo en: ' + p.title"></option>
-                </template>
-            </select>
+             conteste en las demás.
 
-            <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <p class="text-xs text-slate-400" x-show="publicacionesDeLaCuenta.length === 0" x-cloak>
-                    No tenemos ninguna publicación de esta cuenta todavía.
+             SOLO SE ELIGE AL CREAR. La API no admite cambiar la publicación después: su endpoint de
+             modificación acepta el nombre, las palabras, los textos y los interruptores, pero no
+             `postId` ni `platformPostId`. El selector se enseñaba también al editar, así que quien
+             cambiaba la publicación guardaba tan contento y no cambiaba nada. Al editar se dice a
+             qué está atada y cómo cambiarlo de verdad. --}}
+        @if ($a === null)
+            <div class="mt-3">
+                <label class="bmos-field-label">¿En qué publicación?</label>
+                <select name="post" class="bmos-input">
+                    <option value="">En todas mis publicaciones (también las futuras)</option>
+                    <template x-for="p in publicacionesDeLaCuenta" :key="p.platformPostId">
+                        <option :value="p.postId + '|' + p.platformPostId" x-text="'Solo en: ' + p.title"></option>
+                    </template>
+                </select>
+
+                <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <p class="text-xs text-slate-400" x-show="publicacionesDeLaCuenta.length === 0" x-cloak>
+                        No tenemos ninguna publicación de esta cuenta todavía.
+                    </p>
+                    <p class="text-xs text-slate-400" x-show="publicacionesDeLaCuenta.length > 0" x-cloak>
+                        <span x-text="publicacionesDeLaCuenta.length"></span> publicaciones disponibles.
+                        Esto se elige ahora y luego no se puede cambiar.
+                    </p>
+                </div>
+            </div>
+        @else
+            @php
+                // El título de la publicación atada, si todavía la tenemos a mano. Si no, se dice
+                // «una publicación concreta» en vez de enseñar un identificador que no dice nada.
+                $atada = collect($publicaciones)->firstWhere('platformPostId', $a['postId'] ?? null);
+            @endphp
+            <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p class="bmos-field-label mb-0.5">¿En qué publicación?</p>
+                <p class="text-sm text-slate-700">
+                    @if (blank($a['postId'] ?? null))
+                        En <b>todas</b> tus publicaciones, también las futuras.
+                    @else
+                        Solo en <b>{{ $atada['title'] ?? 'una publicación concreta' }}</b>.
+                    @endif
                 </p>
-                <p class="text-xs text-slate-400" x-show="publicacionesDeLaCuenta.length > 0" x-cloak>
-                    <span x-text="publicacionesDeLaCuenta.length"></span> publicaciones disponibles.
+                <p class="mt-1 text-xs text-slate-400">
+                    Esto no se puede cambiar después de crearla. Si la quieres en otra publicación,
+                    crea una nueva abajo y borra esta.
                 </p>
             </div>
-        </div>
+        @endif
 
         <div class="mt-3">
             <label class="bmos-field-label">Palabras que la disparan <span class="text-rose-500">*</span></label>
@@ -107,13 +150,34 @@
 
         <div class="mt-3">
             <label class="bmos-field-label">¿Cómo se busca la palabra?</label>
-            <select name="match_mode" class="bmos-input">
+            <select name="match_mode" class="bmos-input" x-model="modo">
                 @foreach ($coincidencias as $modo)
                     <option value="{{ $modo->value }}" @selected(($a['matchMode'] ?? null) === $modo->value || ($a === null && $modo === KeywordMatch::POR_OMISION))>
                         {{ $modo->label() }} — {{ $modo->hint() }}
                     </option>
                 @endforeach
             </select>
+
+            {{-- Aceptar la palabra aunque venga con un dedazo.
+
+                 No es un adorno: en el registro de una automatización real, de catorce días, tres de
+                 los comentarios que NO cazaron ninguna palabra eran «Infomacion» y «imformacion».
+                 Gente escribiendo con prisa desde el móvil que se quedó sin respuesta.
+
+                 Solo aparece con «la palabra suelta» porque es el único modo donde la API la aplica:
+                 enseñarla en los otros sería ofrecer un interruptor que no hace nada. --}}
+            <label x-show="modo === @js(KeywordMatch::Word->value)" x-cloak
+                   class="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm text-slate-600 transition hover:border-slate-300">
+                <input type="checkbox" name="typo_tolerance" value="1" class="mt-0.5 rounded border-slate-300"
+                       @checked($a['typoTolerance'] ?? old('typo_tolerance'))>
+                <span>
+                    Aceptarla <b>aunque la escriban mal</b>
+                    <span class="block text-xs text-slate-400">
+                        «Infomacion» o «imformacion» también responden. Admite una letra de diferencia
+                        en palabras cortas y dos a partir de ocho letras.
+                    </span>
+                </span>
+            </label>
         </div>
     </div>
 

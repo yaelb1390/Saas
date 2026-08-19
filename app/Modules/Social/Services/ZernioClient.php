@@ -165,6 +165,9 @@ final class ZernioClient
             'dmDelaySeconds' => (int) ($a['dmDelaySeconds'] ?? 0),
             'buttons' => (array) ($a['buttons'] ?? []),
             'alsoMatchInDms' => ($a['alsoMatchInDms'] ?? false) === true,
+            // Se lee para poder editarla: si no viajara de vuelta, abrir una automatización que la
+            // tuviera puesta y guardarla sin tocar nada se la quitaría en silencio.
+            'typoTolerance' => ($a['typoTolerance'] ?? false) === true,
             // Comparación estricta y NO `filled()`: `filled(false)` vale true —solo el nulo y la
             // cadena vacía son «vacíos»—, así que la pantalla anunciaba «solo a quien te siga» en
             // automatizaciones que respondían a cualquiera.

@@ -83,8 +83,8 @@ it('pide el número de dimensiones que tiene guardado', function (): void {
 
     app(AiProvider::class)->embed('hola');
 
-    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), 'embedContent')
-        || ($request->data()['outputDimensionality'] ?? null) === 8);
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), 'embedContent')
+        && ($request->data()['outputDimensionality'] ?? null) === 8);
 });
 
 it('lee la respuesta del sitio donde Gemini la pone', function (): void {
@@ -105,7 +105,7 @@ it('traduce el rol del sistema al formato de Gemini', function (): void {
 
     Http::assertSent(function ($request): bool {
         if (! str_contains($request->url(), 'generateContent')) {
-            return true;
+            return false;
         }
 
         return ($request->data()['system_instruction']['parts'][0]['text'] ?? null) === 'Eres breve'

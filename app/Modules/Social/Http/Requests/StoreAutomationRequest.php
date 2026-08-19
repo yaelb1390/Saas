@@ -68,6 +68,9 @@ final class StoreAutomationRequest extends FormRequest
             'button_url' => ['nullable', 'required_with:button_title', 'url', 'max:2000'],
             // Cuánto espera antes de contestar. El tope de 86400 (24 h) es de la API.
             'dm_delay' => ['nullable', 'integer', 'min:0', 'max:86400'],
+            // Tolerancia a erratas. Solo la admite el modo «palabra suelta»; con los otros, la API
+            // la ignora.
+            'typo_tolerance' => ['sometimes', 'boolean'],
             'also_in_dms' => ['sometimes', 'boolean'],
             'follow_gate' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
@@ -168,6 +171,20 @@ final class StoreAutomationRequest extends FormRequest
 
         if (filled($this->input('comment_reply'))) {
             $cuerpo['commentReply'] = (string) $this->input('comment_reply');
+        }
+
+        /*
+         * Aceptar la palabra aunque venga con un dedazo.
+         *
+         * No es un adorno: en el registro de una automatización real, tres de los comentarios que
+         * NO cazaron ninguna palabra eran «Infomacion» y «imformacion» —clientes escribiendo con
+         * prisa desde el móvil— y se quedaron sin respuesta.
+         *
+         * La API solo lo aplica con «palabra suelta»; mandarlo con los otros modos no hace nada,
+         * así que se manda solo cuando sirve para que el cuerpo diga la verdad.
+         */
+        if ($cuerpo['matchMode'] === KeywordMatch::Word->value) {
+            $cuerpo['typoTolerance'] = $this->boolean('typo_tolerance');
         }
 
         /*

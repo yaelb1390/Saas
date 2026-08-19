@@ -25,6 +25,9 @@ final class CompanyEraser
      * @var list<string>
      */
     private const SHELL = [
+        // OJO: la auditoría NO va aquí aunque también se borre. Se vacía al final de erase(),
+        // porque este mismo borrado la sigue escribiendo mientras se ejecuta.
+
         // Roles y permisos por empresa: los vínculos antes que los roles.
         'model_has_permissions',
         'model_has_roles',
@@ -65,6 +68,20 @@ final class CompanyEraser
             // 3. La empresa. Forzado: el modelo usa borrado lógico y un delete normal dejaría la
             // fila viva, con la empresa medio borrada y sus datos ya destruidos.
             $company->forceDelete();
+
+            /*
+             * 4. El rastro, AL FINAL y no antes.
+             *
+             * Todo lo de arriba está auditado —la empresa la primera— así que cada borrado escribe
+             * filas NUEVAS en la auditoría mientras se ejecuta. Vaciarla antes solo la vaciaba a
+             * medias y dejaba huérfano justo el rastro del propio borrado.
+             *
+             * Se va con la empresa a propósito, al revés que en la purga (ver
+             * TenantDataPurger::KEPT): allí la cuenta sigue viva y el rastro sirve; aquí no queda ni
+             * la empresa ni sus usuarios, y unas filas apuntando a nada no se pueden ni atribuir.
+             */
+            DB::table('audits')->where('company_id', $companyId)->delete();
+            DB::table('error_events')->where('company_id', $companyId)->delete();
         });
 
         // Queda constancia fuera de la base: los registros de auditoría de esta empresa acaban de

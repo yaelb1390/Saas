@@ -1,6 +1,8 @@
 <?php
 
-use OwenIt\Auditing\Models\Audit;
+// El modelo propio añade `company_id`: la tabla de la librería no guarda de qué empresa es cada
+// fila, y sin eso la pantalla de monitoreo no puede responder «¿qué pasó en la empresa X?».
+use App\Modules\Core\Models\Audit;
 use OwenIt\Auditing\Resolvers\IpAddressResolver;
 use OwenIt\Auditing\Resolvers\UrlResolver;
 use OwenIt\Auditing\Resolvers\UserAgentResolver;

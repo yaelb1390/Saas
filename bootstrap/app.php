@@ -5,6 +5,8 @@ use App\Modules\Core\Http\Middleware\EnsureModuleActive;
 use App\Modules\Core\Http\Middleware\EnsureSubscriptionActive;
 use App\Modules\Core\Http\Middleware\SetApiCompany;
 use App\Modules\Core\Http\Middleware\SetCurrentCompany;
+use App\Modules\Core\Models\ErrorEvent;
+use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Delivery\Http\Middleware\ForceDriverPortal;
 use App\Modules\POS\Http\Middleware\ForceKioskMode;
 use Illuminate\Foundation\Application;
@@ -101,6 +103,29 @@ return Application::configure(basePath: dirname(__DIR__))
                 'origen' => basename($e->getFile()).':'.$e->getLine(),
                 'app' => implode(' <- ', $marcos),
             ]);
+
+            /*
+             * Y ADEMÁS se guarda, agrupado por huella, para que el operador pueda mirarlo.
+             *
+             * Este es el único punto por el que pasan TODAS las excepciones de la aplicación, así
+             * que enganchar aquí las captura todas sin tocar doce sitios.
+             *
+             * El try/catch se traga lo suyo A PROPÓSITO: si la base está caída, el error original
+             * ya no se puede guardar, y sustituirlo por un segundo error —el de no poder guardarlo—
+             * sería cambiar un fallo que el usuario podría entender por otro que no dice nada.
+             * Perder el registro es peor que romper la petición, pero solo un poco.
+             */
+            try {
+                ErrorEvent::anotar(
+                    $e,
+                    $marcos,
+                    request()->fullUrl(),
+                    app(CurrentCompany::class)->id(),
+                    auth()->id(),
+                );
+            } catch (Throwable) {
+                // Sin ruido: ya quedó en el log de arriba.
+            }
 
             return false; // corta la propagación al log por defecto (el rastro que se trunca)
         });

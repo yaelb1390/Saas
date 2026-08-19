@@ -16,6 +16,7 @@ use App\Modules\Core\Http\Controllers\CompanyDeletionController;
 use App\Modules\Core\Http\Controllers\CompanyProfileController;
 use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
+use App\Modules\Core\Http\Controllers\MonitoringController;
 use App\Modules\Core\Http\Controllers\PlanController;
 use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\PublicPlanController;
@@ -247,6 +248,12 @@ Route::middleware(['auth'])->group(function (): void {
         Route::put('/plataforma/ia', [AiSettingsController::class, 'update'])->name('platform.ai.update');
         Route::post('/plataforma/ia/probar', [AiSettingsController::class, 'probar'])->name('platform.ai.test');
         Route::post('/plataforma/ia/reindexar', [AiSettingsController::class, 'reindexar'])->name('platform.ai.reindex');
+
+        // Monitoreo de la plataforma: salud, actividad y errores. Mira TODAS las empresas, no la
+        // que el operador tenga abierta.
+        Route::get('/plataforma/monitoreo', MonitoringController::class)->name('platform.monitoring');
+        Route::post('/plataforma/monitoreo/limpiar', [MonitoringController::class, 'limpiar'])
+            ->name('platform.monitoring.clean');
     });
 
     // Recibo imprimible de una venta. Lo abre quien puede ver las ventas… o quien las cobra: el

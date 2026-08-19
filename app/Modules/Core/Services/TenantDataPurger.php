@@ -106,6 +106,15 @@ final class TenantDataPurger
      * @var list<string>
      */
     public const KEPT = [
+        // El rastro SOBREVIVE a la purga, y es deliberado: la cuenta sigue viva y sus datos se
+        // vaciaron, que es justo cuando hace falta poder mirar qué pasó y quién lo hizo. Borrarlo
+        // aquí sería destruir la única prueba del propio vaciado.
+        //
+        // Al BORRAR la empresa del todo sí se van (al final de CompanyEraser::erase): entonces no
+        // queda ni la empresa ni sus usuarios, y unas filas huérfanas no se pueden ni atribuir.
+        'audits',
+        'error_events',
+
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',
         'users',

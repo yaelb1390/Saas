@@ -136,6 +136,17 @@ body.con-banner .asis-panel {
     margin-bottom: 0.6rem;
 }
 
+/*
+ * El envoltorio de cada mensaje: aquí va el ancho máximo, no en la burbuja.
+ *
+ * Así el enlace «Leer:» que va debajo queda alineado con ella, y la burbuja puede medir lo que mida
+ * su texto en vez de estirarse hasta el tope.
+ */
+.asis-fila > div {
+    max-width: 85%;
+    min-width: 0;
+}
+
 .asis-fila--mia {
     justify-content: flex-end;
 }
@@ -145,7 +156,6 @@ body.con-banner .asis-panel {
  * sistema no tenga dos ideas distintas de qué es un mensaje.
  */
 .asis-burbuja {
-    max-width: 85%;
     padding: 0.55rem 0.8rem;
     border-radius: 1rem 1rem 1rem 0.3rem;
     background: #fff;
@@ -156,7 +166,15 @@ body.con-banner .asis-panel {
     /* `pre-line` y no `pre-wrap`: la respuesta viene con saltos de línea que hay que respetar, pero
        la sangría del prompt no debe convertirse en huecos raros. */
     white-space: pre-line;
-    word-break: break-word;
+    /*
+     * `overflow-wrap` y NO `word-break: break-word`, que es lo que había y partía las palabras.
+     *
+     * La diferencia no es de estilo: `word-break` hace que el ancho MÍNIMO del texto sea una letra,
+     * así que la burbuja se encogía hasta eso y «hola» salía como «ho / la». Con `overflow-wrap` el
+     * mínimo sigue siendo la palabra más larga —la burbuja mide lo que mide el texto— y solo se parte
+     * lo que de verdad no cabe, como un enlace larguísimo.
+     */
+    overflow-wrap: break-word;
 }
 
 .asis-fila--mia .asis-burbuja {

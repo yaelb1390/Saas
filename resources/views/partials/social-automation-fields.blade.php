@@ -1,5 +1,6 @@
 @use('App\Modules\Social\Enums\SocialPlatform')
 @use('App\Modules\Social\Enums\KeywordMatch')
+@use('App\Modules\Social\Enums\AutomationTrigger')
 
 {{--
     Los campos de una respuesta automática, compartidos por el alta y la edición.
@@ -25,6 +26,9 @@
         etiqueta: @js($a['buttons'][0]['title'] ?? old('button_title', '')),
         cuenta: @js($a['accountId'] ?? old('account_id', $cuentas[0]['id'] ?? '')),
         modo: @js($a['matchMode'] ?? old('match_mode', KeywordMatch::POR_OMISION->value)),
+        disparador: @js($a['trigger'] ?? old('trigger', AutomationTrigger::POR_OMISION->value)),
+
+        get enHistoria() { return this.disparador === @js(AutomationTrigger::StoryReply->value); },
 
         /* Versiones alternativas. Zernio admite 5 además de la principal —o sea 6 textos— y
            manda una al azar cada vez. El tope es suyo: una sexta le hace rechazar todo. */
@@ -86,6 +90,32 @@
             </div>
         </div>
 
+        {{-- Qué la dispara.
+
+             Va antes que la publicación porque MANDA sobre ella: una historia no cuelga de ninguna.
+
+             Solo se elige al crear. Cambiarlo después desata la automatización de su publicación
+             —lo dice la especificación de la API—, así que al editar se enseña en texto, igual que
+             la cuenta. --}}
+        <div class="mt-3">
+            <label class="bmos-field-label">¿Cuándo salta?</label>
+            @if ($a === null)
+                <select name="trigger" class="bmos-input" x-model="disparador">
+                    @foreach ($disparadores as $d)
+                        <option value="{{ $d->value }}" @selected($d === AutomationTrigger::POR_OMISION)>
+                            {{ $d->label() }} — {{ $d->hint() }}
+                        </option>
+                    @endforeach
+                </select>
+            @else
+                @php $suyo = AutomationTrigger::tryFrom($a['trigger'] ?? '') ?? AutomationTrigger::POR_OMISION; @endphp
+                <p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                    {{ $suyo->label() }}
+                </p>
+                <p class="mt-1 text-xs text-slate-400">Esto no se puede cambiar después de crearla.</p>
+            @endif
+        </div>
+
         {{-- En qué publicación.
 
              «En todas» es lo que quiere la mayoría y por eso va primero y es lo de por omisión: la
@@ -99,7 +129,9 @@
              cambiaba la publicación guardaba tan contento y no cambiaba nada. Al editar se dice a
              qué está atada y cómo cambiarlo de verdad. --}}
         @if ($a === null)
-            <div class="mt-3">
+            {{-- Oculto en las historias: ahí la automatización vale para todas, y la API entendería
+                 este identificador como el de una HISTORIA, no el de una foto. --}}
+            <div class="mt-3" x-show="! enHistoria" x-cloak>
                 <label class="bmos-field-label">¿En qué publicación?</label>
                 <select name="post" class="bmos-input">
                     <option value="">En todas mis publicaciones (también las futuras)</option>
@@ -363,7 +395,12 @@
         </div>
 
         <div class="space-y-2">
-            <label class="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm text-slate-600 transition hover:border-slate-300">
+            {{-- En las historias esto NO se ofrece, y no por capricho: la API lo rechaza con un 400
+                 —«alsoMatchInDms is not available on story_reply automations (they already trigger on
+                 DMs)»—. O sea que no falta: es que ahí ya contesta a los privados siempre. Se dice,
+                 para que no parezca que se perdió una función. --}}
+            <label x-show="! enHistoria" x-cloak
+                   class="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm text-slate-600 transition hover:border-slate-300">
                 <input type="checkbox" name="also_in_dms" value="1" class="mt-0.5 rounded border-slate-300"
                        @checked($a['alsoMatchInDms'] ?? old('also_in_dms'))>
                 <span>
@@ -371,6 +408,12 @@
                     <span class="block text-xs text-slate-400">Mucha gente manda «precio» por mensaje en vez de comentar.</span>
                 </span>
             </label>
+
+            <p x-show="enHistoria" x-cloak
+               class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-xs text-indigo-800">
+                En las historias ya contesta sola a quien te escriba esa palabra por privado: no hace
+                falta encender nada.
+            </p>
 
             <label class="flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm text-slate-600 transition hover:border-slate-300">
                 <input type="checkbox" name="follow_gate" value="1" class="mt-0.5 rounded border-slate-300"

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Social\Http\Controllers;
 
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Social\Enums\AutomationTrigger;
 use App\Modules\Social\Enums\KeywordMatch;
 use App\Modules\Social\Exceptions\SocialException;
 use App\Modules\Social\Http\Requests\StoreAutomationRequest;
@@ -62,6 +63,7 @@ final class SocialAutomationController extends Controller
             'publicaciones' => $cliente->isConfigured() && $aviso === null ? $cliente->publishedPosts() : [],
             'aviso' => $aviso,
             'coincidencias' => KeywordMatch::cases(),
+            'disparadores' => AutomationTrigger::cases(),
         ]);
     }
 

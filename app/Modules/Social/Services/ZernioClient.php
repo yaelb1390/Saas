@@ -155,6 +155,11 @@ final class ZernioClient
             'accountId' => (string) ($a['accountId'] ?? ''),
             'keywords' => (array) ($a['keywords'] ?? []),
             'matchMode' => (string) ($a['matchMode'] ?? 'contains'),
+            // Qué la dispara. Se lee de vuelta porque, sin esto, abrir una automatización de
+            // HISTORIA y guardarla sin tocar nada la convertiría en una de comentarios: el
+            // formulario mandaría el valor por omisión. Mismo fallo que ya tuvimos con las
+            // variaciones y con la tolerancia a erratas.
+            'trigger' => (string) ($a['trigger'] ?? 'comment'),
             'commentReply' => $a['commentReply'] ?? null,
             'dmMessage' => (string) ($a['dmMessage'] ?? ''),
             // Las versiones alternativas, para poder editarlas. Sin esto, abrir una automatización
@@ -486,6 +491,90 @@ final class ZernioClient
         }
 
         return ['uploadUrl' => $subida, 'publicUrl' => $publica];
+    }
+
+    /**
+     * Manda un privado dentro de una conversación que YA existe.
+     *
+     * Solo se puede contestar, nunca escribir el primero: Instagram exige que la ventana la haya
+     * abierto la persona. Por eso el parámetro es una conversación y no un usuario — la API no
+     * ofrece otra cosa, y no es un descuido suyo.
+     *
+     * La `Idempotency-Key` es la segunda red: la primera es nuestra tabla `social_welcomes`, pero si
+     * dos avisos llegaran a la vez y las dos peticiones cruzaran la comprobación, esto evita que
+     * salgan dos mensajes. Zernio las retiene 24 h.
+     */
+    public function enviarMensaje(string $conversationId, string $accountId, string $texto, ?string $idempotencia = null): void
+    {
+        $peticion = $this->http();
+
+        if ($idempotencia !== null) {
+            $peticion = $peticion->withHeaders(['Idempotency-Key' => $idempotencia]);
+        }
+
+        $respuesta = $peticion->post(
+            self::BASE.'/v1/inbox/conversations/'.rawurlencode($conversationId).'/messages',
+            ['accountId' => $accountId, 'message' => $texto],
+        );
+
+        if (! $respuesta->successful()) {
+            $this->registrar('no se pudo enviar el mensaje', null, $respuesta->status(), $respuesta->body());
+
+            throw SocialException::noRespondio();
+        }
+    }
+
+    /**
+     * Da de alta el webhook por el que Zernio nos avisa de los mensajes entrantes.
+     *
+     * Devuelve su identificador para poder darlo de baja después: sin guardarlo, apagar la
+     * bienvenida dejaría el webhook vivo en Zernio disparando contra una URL que ya rechaza todo, y
+     * cada mensaje del cliente generaría un error en su panel.
+     */
+    public function registrarWebhook(string $url, string $secreto): ?string
+    {
+        $respuesta = $this->http()->post(self::BASE.'/v1/webhooks/settings', [
+            'name' => 'BM Business — bienvenida',
+            'url' => $url,
+            'secret' => $secreto,
+            // Solo este. `conversation.started` NO sirve: se dispara «in either direction» y su
+            // aviso no dice quién empezó, así que las conversaciones que abren nuestras propias
+            // respuestas automáticas también lo dispararían y el cliente recibiría dos mensajes.
+            'events' => ['message.received'],
+        ]);
+
+        if (! $respuesta->successful()) {
+            $this->registrar('no se pudo registrar el webhook', null, $respuesta->status(), $respuesta->body());
+
+            throw SocialException::noRespondio();
+        }
+
+        $id = $respuesta->json('webhook._id') ?? $respuesta->json('_id') ?? $respuesta->json('id');
+
+        return is_string($id) ? $id : null;
+    }
+
+    /**
+     * Da de baja el webhook.
+     *
+     * No lanza: apagar la bienvenida tiene que funcionar aunque Zernio no conteste. Quedarse con un
+     * webhook huérfano es molesto; no poder apagar los mensajes que salen en tu nombre, no.
+     */
+    public function borrarWebhook(string $webhookId): bool
+    {
+        try {
+            $respuesta = $this->http()->delete(self::BASE.'/v1/webhooks/settings', ['id' => $webhookId]);
+        } catch (\Throwable $e) {
+            $this->registrar('no se pudo borrar el webhook: '.$e->getMessage(), null, 0, '');
+
+            return false;
+        }
+
+        if (! $respuesta->successful()) {
+            $this->registrar('no se pudo borrar el webhook', null, $respuesta->status(), $respuesta->body());
+        }
+
+        return $respuesta->successful();
     }
 
     private function http(): PendingRequest

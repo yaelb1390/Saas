@@ -140,6 +140,85 @@
                     <span class="shrink-0 text-sm font-semibold text-indigo-600">Configurar →</span>
                 </a>
 
+                {{-- Bienvenida a quien escribe.
+
+                     OJO CON LO QUE ESTO NO ES, porque es lo primero que se pregunta todo el mundo:
+                     no saluda a quien te sigue. Instagram no lo permite —seguir no abre la ventana
+                     de mensajería, la abre la persona al escribir— y la API ni siquiera avisa de los
+                     seguidores nuevos. Se dice aquí, en la pantalla, para no prometerlo. --}}
+                @can('social.publish')
+                    <div class="bmos-card mt-5 overflow-hidden"
+                         x-data="{ encendida: {{ $bienvenida->is_active ? 'true' : 'false' }}, variantes: @js(array_values($bienvenida->variations ?? [])) }">
+                        <form method="POST" action="{{ route('panel.social.welcome') }}">
+                            @csrf
+                            @method('PUT')
+
+                            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 p-5">
+                                <div class="min-w-0">
+                                    <p class="font-semibold text-slate-800">Bienvenida automática</p>
+                                    <p class="mt-0.5 text-sm text-slate-500">
+                                        Cuando alguien te escriba por primera vez por Instagram o Facebook,
+                                        recibe tu mensaje al momento, aunque sea de madrugada.
+                                    </p>
+                                </div>
+                                <label class="flex shrink-0 cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+                                    <input type="checkbox" name="is_active" value="1" class="rounded border-slate-300"
+                                           x-model="encendida">
+                                    Encendida
+                                </label>
+                            </div>
+
+                            <div class="p-5">
+                                <label class="bmos-field-label">El mensaje</label>
+                                <textarea name="message" rows="3" class="bmos-input" maxlength="900"
+                                          placeholder="¡Gracias por escribirnos! Somos La Batidera. Dinos qué necesitas y te ayudamos.">{{ old('message', $bienvenida->message) }}</textarea>
+                                @error('message')
+                                    <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                                @enderror
+
+                                {{-- Variaciones. Una bienvenida es, por definición, el mensaje que más
+                                     se repite de todos: si sale siempre igual, es el primero que
+                                     Instagram marca. --}}
+                                <template x-for="(v, i) in variantes" :key="i">
+                                    <div class="mt-2 flex items-start gap-2">
+                                        <span class="mt-2.5 text-xs font-semibold text-slate-400">o</span>
+                                        <textarea :name="`variations[${i}]`" rows="2" class="bmos-input"
+                                                  maxlength="900" x-model="variantes[i]"></textarea>
+                                        <button type="button" class="bmos-btn bmos-btn-ghost mt-1 px-2 text-rose-500"
+                                                @click="variantes.splice(i, 1)" title="Quitar">✕</button>
+                                    </div>
+                                </template>
+
+                                <button type="button" class="bmos-btn bmos-btn-ghost mt-2 text-xs"
+                                        x-show="variantes.length < {{ $maxVariaciones }}"
+                                        @click="variantes.push('')">
+                                    + Otra forma de decirlo
+                                </button>
+
+                                <p class="mt-2 text-xs text-slate-400">
+                                    @if ($bienvenida->sent_count > 0)
+                                        Enviada {{ number_format($bienvenida->sent_count) }}
+                                        {{ $bienvenida->sent_count === 1 ? 'vez' : 'veces' }}@if ($bienvenida->last_sent_at), la última {{ $bienvenida->last_sent_at->diffForHumans() }}@endif.
+                                    @else
+                                        Cada persona la recibe una sola vez, por mucho que te escriba.
+                                    @endif
+                                </p>
+
+                                <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+                                    <b class="text-slate-700">No se le manda a quien te sigue.</b>
+                                    Instagram solo deja escribirle a alguien que te escribió, comentó o
+                                    respondió una historia. Para llegar a quien te acaba de seguir, lo que
+                                    funciona es una
+                                    <a href="{{ route('panel.social.automations') }}" class="font-semibold text-indigo-600 hover:underline">respuesta automática</a>
+                                    en tus publicaciones o historias.
+                                </div>
+
+                                <button type="submit" class="bmos-btn bmos-btn-primary mt-4">Guardar</button>
+                            </div>
+                        </form>
+                    </div>
+                @endcan
+
                 {{-- Redactar --}}
                 <div class="bmos-card mt-5 overflow-hidden" x-data="redactor()">
                     <div class="border-b border-slate-100 p-5">

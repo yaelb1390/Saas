@@ -35,6 +35,10 @@ final class TenantDataPurger
      * @var list<string>
      */
     public const TABLES = [
+        // Redes sociales. A quién se le dio la bienvenida SÍ se purga: es una lista de personas con
+        // las que habló su negocio, y eso son sus datos. Que alguien vuelva a recibir el saludo si
+        // escribe otra vez es inofensivo; conservar con quién habló después de un vaciado, no.
+        'social_welcomes',
         // IA
         // Las preguntas al asistente SÍ se purgan, al revés que la auditoría.
         //
@@ -123,6 +127,19 @@ final class TenantDataPurger
         // queda ni la empresa ni sus usuarios, y unas filas huérfanas no se pueden ni atribuir.
         'audits',
         'error_events',
+
+        /*
+         * La configuración de la bienvenida se CONSERVA, y no por comodidad.
+         *
+         * Guarda el token y el secreto con los que Zernio nos avisa. Si se borraran, el webhook ya
+         * registrado allí seguiría existiendo y disparando contra una dirección que ya no reconoce
+         * a nadie: cada mensaje que recibiera el cliente le generaría un error en su panel de
+         * Zernio, y nadie sabría por qué.
+         *
+         * Además es coherente con lo que ya pasa: la clave de Zernio vive en `companies`, que también
+         * se conserva. La configuración de redes sobrevive a una purga; los datos, no.
+         */
+        'social_welcome_settings',
 
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',

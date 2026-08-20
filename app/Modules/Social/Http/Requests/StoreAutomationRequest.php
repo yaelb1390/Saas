@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Social\Http\Requests;
 
+use App\Modules\Social\Enums\AutomationTrigger;
 use App\Modules\Social\Enums\KeywordMatch;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -52,6 +53,10 @@ final class StoreAutomationRequest extends FormRequest
             // Vacío = en todas las publicaciones. Si viene, trae los DOS identificadores unidos por
             // «|»: el de Zernio y el de la red, que es lo que la API exige para apuntar a una sola.
             'post' => ['nullable', 'string', 'max:200'],
+            // Qué la dispara: un comentario o la respuesta a una historia. Solo se elige al CREAR;
+            // cambiarlo después desata la automatización de su publicación (lo dice su
+            // especificación), así que al editar no se ofrece.
+            'trigger' => ['nullable', Rule::enum(AutomationTrigger::class)],
             'keywords' => ['required', 'string', 'max:500'],
             'match_mode' => ['nullable', Rule::enum(KeywordMatch::class)],
             'comment_reply' => ['nullable', 'string', 'max:500'],
@@ -84,6 +89,18 @@ final class StoreAutomationRequest extends FormRequest
             // entre. La API lo rechaza; se corta aquí para que el motivo se lea en el formulario.
             if ($this->boolean('also_in_dms') && $this->palabras() === []) {
                 $v->errors()->add('keywords', 'Para responder también por privado hace falta al menos una palabra clave: sin ninguna contestaría a todos los mensajes.');
+            }
+
+            /*
+             * En las historias, «responder también por privado» lo rechaza la API con un 400:
+             * «alsoMatchInDms is not available on story_reply automations (they already trigger on
+             * DMs)». Comprobado contra su servidor.
+             *
+             * Se corta aquí para que el motivo se lea donde está la casilla, y porque el motivo no
+             * es una carencia: es que en las historias ya contesta a los privados siempre.
+             */
+            if ($this->boolean('also_in_dms') && ! $this->disparador()->admiteRespuestaEnPrivados()) {
+                $v->errors()->add('also_in_dms', 'En las historias esto ya funciona solo: si alguien te escribe esa palabra por privado, también le contesta.');
             }
 
             // Las versiones de la respuesta pública rotan JUNTO a la principal, no en su lugar. Sin
@@ -126,6 +143,13 @@ final class StoreAutomationRequest extends FormRequest
         ), static fn (string $p): bool => $p !== ''));
     }
 
+    /** El disparador elegido, o el de por omisión. */
+    public function disparador(): AutomationTrigger
+    {
+        return AutomationTrigger::tryFrom((string) $this->input('trigger', ''))
+            ?? AutomationTrigger::POR_OMISION;
+    }
+
     public function llevaBoton(): bool
     {
         return filled($this->input('button_title'));
@@ -161,6 +185,7 @@ final class StoreAutomationRequest extends FormRequest
         $cuerpo = [
             'name' => (string) $this->input('name'),
             'accountId' => (string) $this->input('account_id'),
+            'trigger' => $this->disparador()->value,
             'keywords' => $this->palabras(),
             // Por omisión la palabra suelta, NO la de la API: ver KeywordMatch.
             'matchMode' => (string) ($this->input('match_mode') ?: KeywordMatch::POR_OMISION->value),
@@ -238,7 +263,9 @@ final class StoreAutomationRequest extends FormRequest
          */
         [$postId, $platformPostId] = array_pad(explode('|', (string) $this->input('post', ''), 2), 2, null);
 
-        if (filled($postId) && filled($platformPostId)) {
+        // En una historia, `platformPostId` sería el id de la HISTORIA, no el de una publicación:
+        // mandar ahí el de una foto la ataría a algo que no existe como historia.
+        if ($this->disparador()->admitePublicacion() && filled($postId) && filled($platformPostId)) {
             $cuerpo['postId'] = (string) $postId;
             $cuerpo['platformPostId'] = (string) $platformPostId;
         }

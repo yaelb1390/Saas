@@ -52,6 +52,7 @@ use App\Modules\Purchasing\Http\Controllers\SupplierController;
 use App\Modules\Sales\Http\Controllers\SaleController;
 use App\Modules\Social\Http\Controllers\SocialAutomationController;
 use App\Modules\Social\Http\Controllers\SocialController;
+use App\Modules\Social\Http\Controllers\ZernioWebhookController;
 use App\Modules\WhatsApp\Http\Controllers\EvolutionWebhookController;
 use App\Modules\WhatsApp\Http\Controllers\WhatsAppController;
 use Illuminate\Support\Facades\Route;
@@ -553,6 +554,11 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:social.connect')->name('panel.social.key');
         Route::post('/panel/redes/conectar', [SocialController::class, 'connect'])
             ->middleware('can:social.connect')->name('panel.social.connect');
+
+        // La bienvenida manda mensajes en nombre de la empresa, así que va con el permiso de
+        // publicar y no con el de mirar.
+        Route::put('/panel/redes/bienvenida', [SocialController::class, 'saveWelcome'])
+            ->middleware('can:social.publish')->name('panel.social.welcome');
     });
 
     /*
@@ -650,6 +656,14 @@ Route::post('/webhooks/evolution', EvolutionWebhookController::class)->name('web
 // Webhook entrante de Polar: pagos, altas y bajas de suscripción (sin sesión; protegido por firma
 // HMAC sobre el cuerpo, que es lo único que impide que alguien se active un plan con un POST).
 Route::post('/webhooks/polar', PolarWebhookController::class)->name('webhooks.polar');
+
+/*
+ * Avisos de Zernio: mensajes entrantes de Instagram y Facebook, para la bienvenida automática.
+ *
+ * El token de la dirección es lo único que dice de qué empresa es el aviso; el cuerpo no se cree
+ * para eso. La exención de CSRF ya la cubre el patrón `webhooks/*` de bootstrap/app.php.
+ */
+Route::post('/webhooks/redes/{token}', ZernioWebhookController::class)->name('webhooks.social');
 
 // Mantenimiento disparado por el cron de Vercel (sin sesión; protegido por CRON_SECRET en el header).
 // Purga los datos de las pruebas self-service vencidas hace más de 24 h.

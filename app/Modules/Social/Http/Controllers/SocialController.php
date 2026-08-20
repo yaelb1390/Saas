@@ -8,6 +8,8 @@ use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Social\Enums\SocialPlatform;
 use App\Modules\Social\Exceptions\SocialException;
 use App\Modules\Social\Http\Requests\PublishPostRequest;
+use App\Modules\Social\Http\Requests\StoreWelcomeRequest;
+use App\Modules\Social\Models\SocialWelcomeSetting;
 use App\Modules\Social\Services\ZernioClient;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -51,6 +53,13 @@ final class SocialController extends Controller
 
         return view('panel.social', [
             'configurado' => $cliente->isConfigured(),
+            // Se crea apagada la primera vez que alguien abre la pantalla. Generar aquí el token y
+            // el secreto —y no al encenderla— hace que existan antes de hacer falta, que es lo que
+            // permite registrar el webhook en una sola llamada.
+            'bienvenida' => SocialWelcomeSetting::paraEmpresa((int) $company->id),
+            // El tope lo decide el modelo y viaja desde aquí: la vista no tiene por qué conocer la
+            // clase, y el mismo número lo comprueba el servidor al guardar.
+            'maxVariaciones' => SocialWelcomeSetting::MAX_VARIACIONES,
             'cuentas' => $cuentas,
             'publicaciones' => $publicaciones,
             'aviso' => $aviso,
@@ -84,6 +93,54 @@ final class SocialController extends Controller
         return back()->with('panel_ok', filled($datos['api_key'] ?? null)
             ? 'Clave guardada. Ya puedes conectar tus redes.'
             : 'Clave borrada. Tus redes dejan de estar conectadas al sistema.');
+    }
+
+    /**
+     * Guarda la bienvenida y, si se enciende, da de alta el webhook en Zernio.
+     *
+     * El alta va aquí y no al guardar la clave a propósito: quien no use la bienvenida no debe tener
+     * un webhook registrado apuntando a su cuenta, disparando en cada mensaje que reciba.
+     */
+    public function saveWelcome(StoreWelcomeRequest $request, CurrentCompany $currentCompany): RedirectResponse
+    {
+        $company = $currentCompany->model();
+        abort_if($company === null, 403);
+
+        $ajustes = SocialWelcomeSetting::paraEmpresa((int) $company->id);
+        $encender = $request->boolean('is_active');
+
+        $ajustes->fill([
+            'message' => (string) $request->validated('message'),
+            'variations' => $request->variaciones(),
+        ]);
+
+        $cliente = new ZernioClient($company);
+
+        try {
+            // Solo se toca el webhook cuando CAMBIA el interruptor. Sin esta comprobación, cada
+            // guardado de un cambio de texto daría de alta otro webhook: Zernio admite cincuenta por
+            // cuenta, y llegaríamos ahí sin enterarnos, con el cliente recibiendo cincuenta copias.
+            if ($encender && $ajustes->zernio_webhook_id === null) {
+                $ajustes->zernio_webhook_id = $cliente->registrarWebhook(
+                    route('webhooks.social', $ajustes->token),
+                    (string) $ajustes->secret,
+                );
+            }
+
+            if (! $encender && $ajustes->zernio_webhook_id !== null) {
+                $cliente->borrarWebhook((string) $ajustes->zernio_webhook_id);
+                $ajustes->zernio_webhook_id = null;
+            }
+        } catch (SocialException $e) {
+            return back()->withInput()->with('panel_error', $e->getMessage());
+        }
+
+        $ajustes->is_active = $encender;
+        $ajustes->save();
+
+        return back()->with('panel_ok', $encender
+            ? 'Bienvenida encendida. Quien te escriba por primera vez la recibirá.'
+            : 'Bienvenida apagada.');
     }
 
     /** Manda al cliente a autorizar una red en la propia red. */

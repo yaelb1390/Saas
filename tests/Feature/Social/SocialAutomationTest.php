@@ -963,3 +963,84 @@ it('editar sigue guardando lo que sí se puede cambiar', function (): void {
         && $request->method() === 'PATCH'
         && ($request->data()['name'] === 'Precio nuevo' && $request->data()['typoTolerance'] === true));
 });
+
+// ------------------------------------------------- Respuestas en las historias
+
+/*
+ * Las historias son la otra vía legítima por la que un seguidor nuevo abre conversación: responder
+ * una historia abre la ventana de 24 h de Instagram, igual que comentar o escribir.
+ *
+ * La API lo admitía desde siempre y el formulario no lo ofrecía: `paraZernio()` nunca mandaba
+ * `trigger`, así que TODO lo creado hasta ahora era de comentarios.
+ *
+ * Comprobado contra el servidor de verdad antes de construir esto: crear con `trigger: story_reply`
+ * devuelve 200 y el GET lo devuelve tal cual, sin publicación atada.
+ */
+
+it('manda el disparador con el nombre que la API usa', function (): void {
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'trigger' => 'story_reply',
+    ]));
+
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && $request->data()['trigger'] === 'story_reply');
+});
+
+it('por omisión sigue siendo de comentarios, que es lo normal', function (): void {
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto());
+
+    Http::assertSent(fn ($request): bool => str_ends_with($request->url(), '/v1/comment-automations')
+        && $request->method() === 'POST'
+        && $request->data()['trigger'] === 'comment');
+});
+
+it('una automatización de historia no se cuelga de una publicación', function (): void {
+    // En una historia, `platformPostId` sería el id de la HISTORIA. Mandar ahí el de una foto la
+    // ataría a algo que no existe como historia.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)->post(route('panel.social.automations.store'), formularioAuto([
+        'trigger' => 'story_reply',
+        'post' => 'post_z1|17900000000000000',
+    ]));
+
+    Http::assertSent(function ($request): bool {
+        if (! str_ends_with($request->url(), '/v1/comment-automations') || $request->method() !== 'POST') {
+            return false;
+        }
+
+        return array_intersect(array_keys($request->data()), ['postId', 'platformPostId']) === [];
+    });
+});
+
+it('«responder también por privado» se rechaza en las historias, con su motivo', function (): void {
+    // Lo rechaza la API con un 400: «alsoMatchInDms is not available on story_reply automations
+    // (they already trigger on DMs)». Se corta aquí para que el motivo se lea junto a la casilla.
+    zernioConAutomatizaciones();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.social.automations.store'), formularioAuto([
+            'trigger' => 'story_reply',
+            'also_in_dms' => '1',
+        ]))
+        ->assertSessionHasErrors('also_in_dms');
+});
+
+it('al editar, una de historia sigue siendo de historia', function (): void {
+    // Sin leer `trigger` de vuelta, abrirla y guardarla sin tocar nada la convertiría en una de
+    // comentarios: el formulario mandaría el valor por omisión.
+    zernioConAutomatizaciones([[
+        'id' => 'auto_1', 'name' => 'Historia', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'trigger' => 'story_reply',
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('Cuando respondan una historia');
+});

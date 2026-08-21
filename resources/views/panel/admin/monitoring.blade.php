@@ -208,6 +208,89 @@
             <div class="border-t border-slate-100 p-4">{{ $actividad->links() }}</div>
         </div>
 
+        {{-- El registro del sistema.
+
+             Va DESPUÉS de la actividad y no antes: la actividad contesta «¿qué hizo la gente?», que
+             es lo que se mira a diario. Esto contesta «¿qué pasó por debajo?», que es lo que se mira
+             cuando algo va mal — y entonces se busca, no se hojea.
+
+             Es lo único que sabe quién entró: hasta que existió, no quedaba rastro de ningún acceso. --}}
+        <div class="bmos-card overflow-hidden">
+            <div class="border-b border-slate-100 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Registro del sistema</p>
+                <p class="mt-0.5 text-xs text-slate-400">
+                    Accesos, intentos fallidos, servicios externos y acciones de plataforma.
+                </p>
+                <form method="GET" class="mt-3 flex flex-wrap items-center gap-2">
+                    {{-- Los filtros de la actividad viajan escondidos: sin esto, filtrar aquí
+                         reiniciaría el de arriba y parecería que se perdieron sus datos. --}}
+                    @foreach (['empresa' => $filtros['empresa'], 'accion' => $filtros['accion']] as $k => $v)
+                        @if (filled($v)) <input type="hidden" name="{{ $k }}" value="{{ $v }}"> @endif
+                    @endforeach
+                    <input type="search" name="busca" value="{{ $filtros['busca'] }}" class="bmos-input"
+                           style="width:13rem" placeholder="Buscar (correo, nombre…)">
+                    <select name="familia" class="bmos-input" style="width:11rem" onchange="this.form.submit()">
+                        <option value="">Todo</option>
+                        @foreach ($familias as $clave => $etiqueta)
+                            <option value="{{ $clave }}" @selected($filtros['familia'] === $clave)>{{ $etiqueta }}</option>
+                        @endforeach
+                    </select>
+                    <select name="nivel" class="bmos-input" style="width:9rem" onchange="this.form.submit()">
+                        <option value="">Cualquiera</option>
+                        <option value="critical" @selected($filtros['nivel'] === 'critical')>Grave</option>
+                        <option value="warning" @selected($filtros['nivel'] === 'warning')>Aviso</option>
+                        <option value="info" @selected($filtros['nivel'] === 'info')>Normal</option>
+                    </select>
+                </form>
+            </div>
+
+            @if ($registro->items() === [])
+                <p class="bmos-empty">
+                    @if (filled($filtros['busca']) || filled($filtros['familia']) || filled($filtros['nivel']))
+                        No hay nada con esos filtros.
+                    @else
+                        Todavía no hay nada registrado. Aparecerá en cuanto alguien entre al sistema.
+                    @endif
+                </p>
+            @else
+                <div class="divide-y divide-slate-50">
+                    @foreach ($registro as $s)
+                        @php
+                            // El color codifica la urgencia, que es lo único que se lee de un vistazo
+                            // cuando hay trescientas líneas.
+                            $tono = match ($s->level) {
+                                'critical' => 'badge-red',
+                                'warning' => 'badge-amber',
+                                default => 'badge-gray',
+                            };
+                        @endphp
+                        <div class="flex flex-wrap items-start justify-between gap-3 p-4">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-slate-700">{{ $s->message }}</p>
+                                <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                    <span class="bmos-mono">{{ $s->type }}</span>
+                                    <span class="text-slate-400">{{ $s->created_at?->format('d/m/Y H:i:s') }}</span>
+                                    {{-- Sin empresa NO es un fallo: un intento de acceso fallido pasa
+                                         antes de saber de quién es, a veces con un correo inventado. --}}
+                                    @if ($s->company)
+                                        <span class="text-slate-400">{{ $s->company->name }}</span>
+                                    @endif
+                                    @if ($s->ip)
+                                        <span class="bmos-mono text-slate-400">{{ $s->ip }}</span>
+                                    @endif
+                                </p>
+                            </div>
+                            <span class="bmos-badge {{ $tono }} shrink-0">
+                                {{ ['critical' => 'Grave', 'warning' => 'Aviso'][$s->level] ?? 'Normal' }}
+                            </span>
+                        </div>
+                    @endforeach
+                </div>
+
+                <div class="border-t border-slate-100 p-4">{{ $registro->links() }}</div>
+            @endif
+        </div>
+
         <form method="POST" action="{{ route('platform.monitoring.clean') }}" class="text-right">
             @csrf
             <button type="submit" class="bmos-btn bmos-btn-ghost text-xs">Borrar la actividad de más de un año</button>

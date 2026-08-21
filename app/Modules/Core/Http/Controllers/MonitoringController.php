@@ -7,6 +7,7 @@ namespace App\Modules\Core\Http\Controllers;
 use App\Modules\Core\Models\Audit;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\ErrorEvent;
+use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Services\PlatformHealthService;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\View\View;
@@ -31,9 +32,25 @@ final class MonitoringController extends Controller
         'restored' => 'restauró',
     ];
 
+    /**
+     * Familias del registro del sistema, para el filtro.
+     *
+     * Se agrupa por PREFIJO y no se listan los cuarenta tipos: al operador le interesa «los accesos»
+     * o «lo que se rompió por fuera», no distinguir `auth.login` de `auth.logout` en un desplegable.
+     */
+    private const FAMILIAS = [
+        'auth' => 'Accesos',
+        'integration' => 'Servicios externos',
+        'platform' => 'Acciones de plataforma',
+        'task' => 'Tareas programadas',
+        'webhook' => 'Webhooks',
+    ];
+
     public function __invoke(PlatformHealthService $salud): View
     {
         return view('panel.admin.monitoring', [
+            'registro' => $this->registro(),
+            'familias' => self::FAMILIAS,
             'salud' => $salud->resumen(),
             'webhooks' => $salud->webhooksSinResolver(),
             'actividad' => $this->actividad(),
@@ -43,6 +60,9 @@ final class MonitoringController extends Controller
             'filtros' => [
                 'empresa' => request('empresa'),
                 'accion' => request('accion'),
+                'familia' => request('familia'),
+                'nivel' => request('nivel'),
+                'busca' => request('busca'),
             ],
         ]);
     }
@@ -68,6 +88,39 @@ final class MonitoringController extends Controller
     }
 
     /**
+     * El registro del sistema, filtrable.
+     *
+     * Es lo que NO se ve en ningún otro sitio: quién entró, quién lo intentó sin conseguirlo, qué
+     * servicio externo falló y qué tocó el operador. La auditoría de al lado cuenta quién cambió una
+     * fila; esto cuenta todo lo demás.
+     *
+     * Paginación por cursor, igual que la actividad y por el mismo motivo: la tabla crece cada día y
+     * `paginate()` haría un `count(*)` entero en cada carga.
+     */
+    private function registro(): CursorPaginator
+    {
+        return SystemEvent::query()
+            ->with(['company', 'user'])
+            ->when(request('empresa'), fn ($q, $id) => $q->where('company_id', $id))
+            ->when(
+                request('familia') && array_key_exists((string) request('familia'), self::FAMILIAS),
+                // Por prefijo: `auth` trae `auth.login`, `auth.failed` y los que se añadan mañana sin
+                // tener que tocar el filtro.
+                fn ($q) => $q->where('type', 'like', request('familia').'.%'),
+            )
+            ->when(
+                in_array(request('nivel'), [SystemEvent::INFO, SystemEvent::AVISO, SystemEvent::GRAVE], true),
+                fn ($q) => $q->where('level', request('nivel')),
+            )
+            // Buscar por texto: sirve para «¿quién intentó entrar con este correo?», que es la
+            // pregunta que se hace cuando algo huele mal.
+            ->when(request('busca'), fn ($q, $texto) => $q->where('message', 'like', '%'.$texto.'%'))
+            ->latest('created_at')
+            ->cursorPaginate(30, ['*'], 'reg')
+            ->withQueryString();
+    }
+
+    /**
      * Borra el rastro de más de un año.
      *
      * Va aquí y no en una tarea programada del sistema porque en producción no hay cron propio: se
@@ -75,7 +128,10 @@ final class MonitoringController extends Controller
      */
     public function limpiar(): RedirectResponse
     {
-        $borradas = Audit::query()->where('created_at', '<', now()->subYear())->delete();
+        $limite = now()->subYear();
+
+        $borradas = Audit::query()->where('created_at', '<', $limite)->delete()
+            + SystemEvent::query()->where('created_at', '<', $limite)->delete();
 
         return back()->with('panel_ok', $borradas > 0
             ? "Se borraron {$borradas} registros de más de un año."

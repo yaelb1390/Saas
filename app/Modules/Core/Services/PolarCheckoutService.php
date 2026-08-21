@@ -6,6 +6,7 @@ namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Plan;
+use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -66,6 +67,20 @@ final class PolarCheckoutService
             // Un fallo aquí no debe reventar la pantalla: el cliente verá un aviso y podrá
             // escribirnos. Se registra el motivo porque suele ser algo concreto y arreglable
             // (correo con dominio no admitido, producto archivado, token caducado).
+            SystemEvent::registrar(
+                type: 'integration.failed',
+                message: 'Polar: no se pudo abrir el cobro',
+                contexto: [
+                    'plan' => $plan->slug,
+                    'estado' => $response->status(),
+                    'respuesta' => mb_substr($response->body(), 0, 300),
+                ],
+                // Grave: el cliente está delante del botón de pagar y no pasa nada. Es dinero que no
+                // entra y un ticket seguro.
+                level: SystemEvent::GRAVE,
+                companyId: (int) $company->id,
+            );
+
             Log::error('Polar: no se pudo abrir el cobro', [
                 'empresa' => $company->id,
                 'plan' => $plan->slug,

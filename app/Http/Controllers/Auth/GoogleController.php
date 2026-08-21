@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Auth;
 
 use App\Models\User;
+use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -91,6 +92,12 @@ final class GoogleController extends Controller
      */
     private function rechazar(Throwable $e, string $aviso): RedirectResponse
     {
+        SystemEvent::registrar(
+            type: 'auth.failed',
+            message: 'Falló el acceso con Google',
+            level: SystemEvent::AVISO,
+        );
+
         Log::warning('Fallo el acceso con Google.', [
             'exception' => $e::class,
             'message' => mb_substr($e->getMessage(), 0, 300),

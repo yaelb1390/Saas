@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Social\Services;
 
 use App\Modules\Core\Models\Company;
+use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Social\Enums\SocialPlatform;
 use App\Modules\Social\Exceptions\SocialException;
 use Illuminate\Http\Client\PendingRequest;
@@ -598,11 +599,30 @@ final class ZernioClient
      */
     private function registrar(string $que, ?string $plataforma, int $estado, string $cuerpo): void
     {
-        Log::warning("Zernio: {$que}", [
+        $detalle = [
             'empresa' => $this->company->id,
             'plataforma' => $plataforma,
             'estado' => $estado,
             'respuesta' => mb_substr($cuerpo, 0, 300),
-        ]);
+        ];
+
+        Log::warning("Zernio: {$que}", $detalle);
+
+        /*
+         * Y además a la tabla, que es lo único que sobrevive.
+         *
+         * En Vercel el log va a stderr con la retención que tenga Vercel y sin forma de buscar: para
+         * cuando un cliente dice «no me publicó», ya no hay nada que mirar. Se conservan los dos
+         * porque en el despliegue con Docker el log sí sirve, y son dos líneas.
+         */
+        SystemEvent::registrar(
+            type: 'integration.failed',
+            message: "Zernio: {$que}",
+            contexto: $detalle,
+            // Grave solo cuando la culpa es de la credencial o del permiso: eso no se arregla
+            // reintentando y alguien tiene que entrar a mirarlo hoy.
+            level: in_array($estado, [401, 403], true) ? SystemEvent::GRAVE : SystemEvent::AVISO,
+            companyId: (int) $this->company->id,
+        );
     }
 }

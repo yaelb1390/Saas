@@ -7,6 +7,7 @@ namespace App\Modules\Core\Providers;
 use App\Models\User;
 use App\Modules\Core\Events\CompanyCreated;
 use App\Modules\Core\Listeners\ProvisionCompanyRoles;
+use App\Modules\Core\Listeners\RecordAuthEvents;
 use App\Modules\Core\Repositories\Contracts\CompanyRepositoryInterface;
 use App\Modules\Core\Repositories\EloquentCompanyRepository;
 use App\Modules\Core\Support\SubscriptionNotice;
@@ -41,6 +42,15 @@ final class CoreServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Event::listen(CompanyCreated::class, ProvisionCompanyRoles::class);
+
+        /*
+         * Quién entra, quién sale y quién lo intenta sin conseguirlo.
+         *
+         * Se suscribe a los eventos que Laravel ya dispara en vez de tocar el controlador de acceso:
+         * así queda cubierto TODO —el formulario, Google, las passkeys, el segundo factor— sin tener
+         * que acordarse de cada puerta cada vez que se añade una.
+         */
+        Event::subscribe(RecordAuthEvents::class);
 
         // El super administrador opera por encima de los roles de empresa: pasa toda comprobación
         // de permisos. Devolver null (y no false) deja que el resto de reglas decidan al usuario

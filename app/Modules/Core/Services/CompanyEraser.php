@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Models\Company;
+use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -86,6 +87,29 @@ final class CompanyEraser
 
         // Queda constancia fuera de la base: los registros de auditoría de esta empresa acaban de
         // desaparecer con ella, así que el rastro del propio borrado tiene que vivir en otro sitio.
+        SystemEvent::registrar(
+            type: 'platform.company_erased',
+            message: "Empresa «{$nombre}» eliminada por completo",
+            contexto: ['empresa_id' => $companyId, 'operador' => auth()->user()?->email],
+            level: SystemEvent::GRAVE,
+        );
+
+        /*
+         * El registro del sistema NO se borra: se le quita la empresa.
+         *
+         * Es distinto de la auditoría y los errores, y la diferencia importa. Una fila de auditoría
+         * dice «modificó Venta #418»: sin la venta ni la empresa no se puede ni leer. Una del
+         * registro dice «Intento de acceso fallido con ana@x.com», y eso se entiende solo. Y sobre
+         * todo, el borrado de esta empresa SE ANOTA AHÍ: destruirlo sería quedarse sin la única
+         * prueba de que existió y de quién la eliminó.
+         *
+         * Va DESPUÉS de anotar el borrado y no dentro de la transacción, y el orden no es cosmético:
+         * el propio suceso hereda la empresa activa —que es esta, recién borrada— si no se le pasa
+         * otra, así que anonimizar antes lo dejaba fuera y quedaba una fila apuntando a una empresa
+         * que ya no existe. Salió en el test que recorre todas las tablas.
+         */
+        DB::table('system_events')->where('company_id', $companyId)->update(['company_id' => null]);
+
         Log::warning('Empresa eliminada por completo', [
             'empresa_id' => $companyId,
             'empresa' => $nombre,

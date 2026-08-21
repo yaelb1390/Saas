@@ -11,6 +11,7 @@ use App\Modules\Core\Http\Requests\UpdateCompanyModulesRequest;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Plan;
+use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Services\CompanyOnboardingService;
 use App\Modules\Core\Services\SubscriptionService;
 use App\Modules\Core\Support\ModuleRegistry;
@@ -67,6 +68,13 @@ final class CompanyAdminController extends Controller
             modules: $data['modules'] ?? null,
         );
 
+        SystemEvent::registrar(
+            type: 'platform.company_created',
+            message: "Empresa «{$company->name}» creada",
+            contexto: ['dueno' => $data['owner_email']],
+            companyId: (int) $company->id,
+        );
+
         return back()->with('panel_ok', "Empresa «{$company->name}» creada con su propietario.");
     }
 
@@ -76,6 +84,12 @@ final class CompanyAdminController extends Controller
         // (o el plan completo si no está suscrita).
         if ($request->boolean('follow_plan')) {
             $company->update(['modules' => null]);
+
+            SystemEvent::registrar(
+                type: 'platform.modules_changed',
+                message: "«{$company->name}» vuelve a los módulos de su plan",
+                companyId: (int) $company->id,
+            );
 
             return back()->with('panel_ok', "«{$company->name}» vuelve a los módulos de su plan.");
         }
@@ -89,6 +103,14 @@ final class CompanyAdminController extends Controller
         $matchesReference = count($selected) === count($reference) && array_diff($reference, $selected) === [];
 
         $company->update(['modules' => $matchesReference ? null : $selected]);
+
+        // Es lo que contesta «¿por qué me desapareció Entregas?» tres semanas después.
+        SystemEvent::registrar(
+            type: 'platform.modules_changed',
+            message: "Módulos de «{$company->name}» cambiados a mano",
+            contexto: ['modulos' => $matchesReference ? 'los del plan' : $selected],
+            companyId: (int) $company->id,
+        );
 
         return back()->with('panel_ok', "Módulos de «{$company->name}» actualizados.");
     }
@@ -122,6 +144,15 @@ final class CompanyAdminController extends Controller
     {
         $company->update(['is_active' => ! $company->is_active]);
 
+        SystemEvent::registrar(
+            type: $company->is_active ? 'platform.company_resumed' : 'platform.company_suspended',
+            message: $company->is_active
+                ? "«{$company->name}» reactivada"
+                : "«{$company->name}» suspendida: sus usuarios ya no pueden entrar",
+            level: SystemEvent::GRAVE,
+            companyId: (int) $company->id,
+        );
+
         return back()->with('panel_ok', $company->is_active
             ? "«{$company->name}» reactivada."
             : "«{$company->name}» suspendida.");
@@ -136,6 +167,12 @@ final class CompanyAdminController extends Controller
     public function toggleAssistant(Company $company): RedirectResponse
     {
         $company->update(['ai_assistant' => ! $company->ai_assistant]);
+
+        SystemEvent::registrar(
+            type: 'platform.assistant_toggled',
+            message: ($company->ai_assistant ? 'Asistente encendido para ' : 'Asistente apagado para ')."«{$company->name}»",
+            companyId: (int) $company->id,
+        );
 
         return back()->with('panel_ok', $company->ai_assistant
             ? "Asistente encendido para «{$company->name}»."

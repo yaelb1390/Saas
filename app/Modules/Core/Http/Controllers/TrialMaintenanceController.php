@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Http\Controllers;
 
+use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Artisan;
+use Throwable;
 
 /**
  * Endpoint de mantenimiento disparado por el cron de Vercel (no hay scheduler en serverless). Ejecuta
@@ -21,24 +23,45 @@ final class TrialMaintenanceController extends Controller
     {
         $this->assertCron($request);
 
-        Artisan::call('trials:purge');
-
-        return response()->json([
-            'ok' => true,
-            'output' => trim(Artisan::output()),
-        ]);
+        return $this->ejecutar('trials:purge', 'Purga de pruebas caducadas');
     }
 
     public function remindExpiring(Request $request): JsonResponse
     {
         $this->assertCron($request);
 
-        Artisan::call('subscriptions:remind-expiring');
+        return $this->ejecutar('subscriptions:remind-expiring', 'Aviso de suscripciones por vencer');
+    }
 
-        return response()->json([
-            'ok' => true,
-            'output' => trim(Artisan::output()),
-        ]);
+    /**
+     * Corre la tarea y deja constancia de que corrió.
+     *
+     * El fallo se registra pero NO se propaga como 500: quien llama es un cron, y un 500 solo
+     * consigue que lo reintente en bucle. Lo que hace falta es que quede escrito.
+     */
+    private function ejecutar(string $comando, string $titulo): JsonResponse
+    {
+        try {
+            Artisan::call($comando);
+            $salida = trim(Artisan::output());
+        } catch (Throwable $e) {
+            SystemEvent::registrar(
+                type: 'task.failed',
+                message: "{$titulo}: falló",
+                contexto: ['comando' => $comando, 'motivo' => $e->getMessage()],
+                level: SystemEvent::GRAVE,
+            );
+
+            return response()->json(['ok' => false], 200);
+        }
+
+        SystemEvent::registrar(
+            type: 'task.run',
+            message: "{$titulo}: ejecutada",
+            contexto: ['comando' => $comando, 'salida' => mb_substr($salida, 0, 300)],
+        );
+
+        return response()->json(['ok' => true, 'output' => $salida]);
     }
 
     /**
@@ -51,6 +74,13 @@ final class TrialMaintenanceController extends Controller
         $provided = (string) $request->bearerToken();
 
         if ($secret === '' || ! hash_equals($secret, $provided)) {
+            SystemEvent::registrar(
+                type: 'task.rejected',
+                message: 'Llamada a una tarea programada sin el secreto correcto',
+                contexto: ['ruta' => $request->path()],
+                level: SystemEvent::AVISO,
+            );
+
             abort(403);
         }
     }

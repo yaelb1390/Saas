@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Http\Controllers;
 
+use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Services\PolarWebhookHandler;
 use App\Modules\Core\Support\PolarSignature;
 use Illuminate\Http\JsonResponse;
@@ -42,6 +43,16 @@ final class PolarWebhookController extends Controller
             signatureHeader: (string) $request->header('webhook-signature', ''),
             payload: $payload,
         );
+
+        if (! $verified) {
+            // Un aviso de cobro falsificado activaría suscripciones que nadie pagó, así que un
+            // rechazo aquí es de las señales más serias que hay.
+            SystemEvent::registrar(
+                type: 'webhook.rejected',
+                message: 'Webhook de Polar rechazado: firma no válida',
+                level: SystemEvent::GRAVE,
+            );
+        }
 
         abort_unless($verified, 401, 'Firma del webhook no válida.');
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\WhatsApp\Http\Controllers;
 
 use App\Modules\Core\Models\Company;
+use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\WhatsApp\Services\WhatsAppService;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,13 @@ final class EvolutionWebhookController extends Controller
         $provided = (string) ($request->header('apikey') ?? $request->query('secret', ''));
 
         if ($secret === '' || ! hash_equals($secret, $provided)) {
+            SystemEvent::registrar(
+                type: 'webhook.rejected',
+                message: 'Webhook de WhatsApp rechazado: secreto incorrecto',
+                contexto: ['instancia' => (string) $request->input('instance', '')],
+                level: SystemEvent::AVISO,
+            );
+
             abort(401, 'Webhook no autorizado.');
         }
 

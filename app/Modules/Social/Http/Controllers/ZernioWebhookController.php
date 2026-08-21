@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Social\Http\Controllers;
 
+use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Social\Models\SocialWelcomeSetting;
 use App\Modules\Social\Services\WelcomeMessenger;
@@ -34,7 +35,15 @@ final class ZernioWebhookController extends Controller
 
         // Mismo 401 que con la firma mala, y a propósito: distinguir «token que no existe» de
         // «firma incorrecta» le diría a quien prueba direcciones cuándo ha acertado con una.
-        abort_if($ajustes === null || $ajustes->company === null, 401, 'Aviso no autorizado.');
+        if ($ajustes === null || $ajustes->company === null) {
+            SystemEvent::registrar(
+                type: 'webhook.rejected',
+                message: 'Aviso de redes rechazado: la dirección no corresponde a ninguna empresa',
+                level: SystemEvent::AVISO,
+            );
+
+            abort(401, 'Aviso no autorizado.');
+        }
 
         $this->comprobarFirma($request, (string) $ajustes->secret);
 

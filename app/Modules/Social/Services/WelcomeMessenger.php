@@ -108,6 +108,14 @@ final class WelcomeMessenger
                 ->where('conversation_id', $conversacion)
                 ->delete();
 
+            SystemEvent::registrar(
+                type: 'integration.failed',
+                message: 'La bienvenida no se pudo enviar',
+                contexto: ['motivo' => $e->getMessage()],
+                level: SystemEvent::AVISO,
+                companyId: (int) $empresa->id,
+            );
+
             Log::warning('bienvenida: no se pudo enviar', [
                 'company_id' => $empresa->id,
                 'motivo' => $e->getMessage(),

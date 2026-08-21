@@ -127,6 +127,10 @@ final class TenantDataPurger
         // queda ni la empresa ni sus usuarios, y unas filas huérfanas no se pueden ni atribuir.
         'audits',
         'error_events',
+        // El registro del sistema, por lo mismo: es lo que dice quién entró y qué se rompió, y la
+        // cuenta sigue viva. Además contiene los intentos de acceso fallidos contra ella, que es
+        // justo lo que hay que poder mirar después de un vaciado.
+        'system_events',
 
         /*
          * La configuración de la bienvenida se CONSERVA, y no por comodidad.

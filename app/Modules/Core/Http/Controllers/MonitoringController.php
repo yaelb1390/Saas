@@ -9,9 +9,11 @@ use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\ErrorEvent;
 use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Services\PlatformHealthService;
+use App\Modules\Core\Support\DbTable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\CursorPaginator as PaginadorVacio;
 use Illuminate\Routing\Controller;
 
 /**
@@ -52,6 +54,10 @@ final class MonitoringController extends Controller
             'registro' => $this->registro(),
             'familias' => self::FAMILIAS,
             'salud' => $salud->resumen(),
+            // El pulso de 24 h y la serie de catorce días. Es lo que hace que un número signifique
+            // algo: «cuarenta sucesos» no dice nada; cuarenta al lado de los trece días anteriores,
+            // sí.
+            'pulso' => $salud->pulso(),
             'webhooks' => $salud->webhooksSinResolver(),
             'actividad' => $this->actividad(),
             'errores' => ErrorEvent::query()->with('company')->latest('last_seen_at')->limit(15)->get(),
@@ -99,6 +105,18 @@ final class MonitoringController extends Controller
      */
     private function registro(): CursorPaginator
     {
+        /*
+         * Sin la tabla se devuelve un listado vacío y la pantalla se pinta. El monitoreo es a donde
+         * se va cuando algo va mal: es la última que puede caerse por una migración pendiente.
+         *
+         * Se construye a mano y NO con `->whereRaw('1 = 0')->cursorPaginate()`: eso también consulta
+         * —lo intenté y seguía dando 500—, porque la consulta se ejecuta aunque no pueda devolver
+         * nada. Aquí no se toca la base en absoluto.
+         */
+        if (! DbTable::existe('system_events')) {
+            return new PaginadorVacio(collect(), 30, null, ['cursorName' => 'reg']);
+        }
+
         return SystemEvent::query()
             ->with(['company', 'user'])
             ->when(request('empresa'), fn ($q, $id) => $q->where('company_id', $id))
@@ -131,7 +149,9 @@ final class MonitoringController extends Controller
         $limite = now()->subYear();
 
         $borradas = Audit::query()->where('created_at', '<', $limite)->delete()
-            + SystemEvent::query()->where('created_at', '<', $limite)->delete();
+            + (DbTable::existe('system_events')
+                ? SystemEvent::query()->where('created_at', '<', $limite)->delete()
+                : 0);
 
         return back()->with('panel_ok', $borradas > 0
             ? "Se borraron {$borradas} registros de más de un año."

@@ -7,8 +7,11 @@ namespace App\Modules\Core\Services;
 use App\Models\User;
 use App\Modules\AI\Models\AiSetting;
 use App\Modules\Core\Models\Company;
+use App\Modules\Core\Models\ErrorEvent;
 use App\Modules\Core\Models\PolarWebhookEvent;
 use App\Modules\Core\Models\Subscription;
+use App\Modules\Core\Models\SystemEvent;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Support\PolarSignature;
 use App\Modules\Core\Support\SubscriptionNotice;
 use App\Modules\WhatsApp\Enums\MessageStatus;
@@ -72,6 +75,69 @@ final class PlatformHealthService
             'por_vencer' => $porVencer,
             'integraciones' => $this->integraciones(),
         ];
+    }
+
+    /**
+     * El pulso de las últimas 24 horas y la serie de los últimos catorce días.
+     *
+     * Es lo que convierte una lista en un monitoreo: un número suelto no dice nada —¿cuarenta
+     * sucesos es mucho?—, pero al lado de los catorce días anteriores se ve solo. Un pico de accesos
+     * fallidos el martes salta a la vista sin leer una sola fila.
+     *
+     * Sin caché, a diferencia del resumen: son cuatro conteos por índice y esta pantalla se abre
+     * cuando algo va mal, que es justo cuando no se quiere un número de hace un minuto.
+     *
+     * @return array{dia: array<string, int>, etiquetas: list<string>, normales: list<int>, problemas: list<int>}
+     */
+    public function pulso(): array
+    {
+        // Sin la tabla, el pulso sale en ceros y la pantalla se pinta igual. La alternativa era que
+        // el monitoreo —la pantalla a la que se va cuando algo va mal— fuera lo primero en caerse.
+        if (! DbTable::existe('system_events')) {
+            return [
+                'dia' => ['sucesos' => 0, 'problemas' => 0, 'accesos' => 0, 'fallidos' => 0, 'errores' => 0],
+                'etiquetas' => [], 'normales' => [], 'problemas' => [],
+            ];
+        }
+
+        $desde = now()->subDay();
+
+        $dia = [
+            'sucesos' => SystemEvent::query()->where('created_at', '>=', $desde)->count(),
+            'problemas' => SystemEvent::query()->where('created_at', '>=', $desde)
+                ->whereIn('level', [SystemEvent::AVISO, SystemEvent::GRAVE])->count(),
+            'accesos' => SystemEvent::query()->where('created_at', '>=', $desde)
+                ->where('type', 'auth.login')->count(),
+            'fallidos' => SystemEvent::query()->where('created_at', '>=', $desde)
+                ->where('type', 'auth.failed')->count(),
+            'errores' => ErrorEvent::query()->where('last_seen_at', '>=', $desde)->count(),
+        ];
+
+        /*
+         * La serie se arma en PHP a partir de UNA consulta agrupada, y no con catorce.
+         *
+         * Y se rellenan los días vacíos: sin eso, una semana tranquila dibujaría una gráfica con
+         * menos barras y las fechas se leerían corridas, que es peor que no tener gráfica.
+         */
+        $filas = SystemEvent::query()
+            ->where('created_at', '>=', now()->subDays(13)->startOfDay())
+            ->get(['created_at', 'level'])
+            ->groupBy(fn (SystemEvent $e): string => $e->created_at->toDateString());
+
+        $etiquetas = [];
+        $normales = [];
+        $problemas = [];
+
+        foreach (range(13, 0) as $atras) {
+            $fecha = now()->subDays($atras)->toDateString();
+            $delDia = $filas->get($fecha, collect());
+
+            $etiquetas[] = $fecha;
+            $problemas[] = $delDia->whereIn('level', [SystemEvent::AVISO, SystemEvent::GRAVE])->count();
+            $normales[] = $delDia->where('level', SystemEvent::INFO)->count();
+        }
+
+        return compact('dia', 'etiquetas', 'normales', 'problemas');
     }
 
     /**

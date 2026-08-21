@@ -146,6 +146,9 @@
                      no saluda a quien te sigue. Instagram no lo permite —seguir no abre la ventana
                      de mensajería, la abre la persona al escribir— y la API ni siquiera avisa de los
                      seguidores nuevos. Se dice aquí, en la pantalla, para no prometerlo. --}}
+                {{-- `$bienvenida` es null mientras falte aplicar la migración: no se pinta el bloque y el
+                     resto de la pantalla —conectar cuentas, publicar— sigue funcionando. --}}
+                @if ($bienvenida)
                 @can('social.publish')
                     <div class="bmos-card mt-5 overflow-hidden"
                          x-data="{ encendida: {{ $bienvenida->is_active ? 'true' : 'false' }}, variantes: @js(array_values($bienvenida->variations ?? [])) }">
@@ -218,6 +221,7 @@
                         </form>
                     </div>
                 @endcan
+                @endif
 
                 {{-- Redactar --}}
                 <div class="bmos-card mt-5 overflow-hidden" x-data="redactor()">

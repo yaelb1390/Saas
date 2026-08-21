@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Social\Http\Controllers;
 
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Social\Enums\SocialPlatform;
 use App\Modules\Social\Exceptions\SocialException;
@@ -56,7 +57,17 @@ final class SocialController extends Controller
             // Se crea apagada la primera vez que alguien abre la pantalla. Generar aquí el token y
             // el secreto —y no al encenderla— hace que existan antes de hacer falta, que es lo que
             // permite registrar el webhook en una sola llamada.
-            'bienvenida' => SocialWelcomeSetting::paraEmpresa((int) $company->id),
+            /*
+             * `null` si la tabla todavía no existe, y la vista oculta el bloque.
+             *
+             * Aquí las migraciones se aplican a mano y el despliegue no las corre: entre que sale el
+             * código y alguien migra, esta consulta se encuentra una base vieja. Sin esta guarda, la
+             * pantalla ENTERA devolvía 500 —pasó en producción— y con ella se caía también publicar,
+             * que no tiene nada que ver con la bienvenida.
+             */
+            'bienvenida' => DbTable::existe('social_welcome_settings')
+                ? SocialWelcomeSetting::paraEmpresa((int) $company->id)
+                : null,
             // El tope lo decide el modelo y viaja desde aquí: la vista no tiene por qué conocer la
             // clase, y el mismo número lo comprueba el servidor al guardar.
             'maxVariaciones' => SocialWelcomeSetting::MAX_VARIACIONES,
@@ -105,6 +116,10 @@ final class SocialController extends Controller
     {
         $company = $currentCompany->model();
         abort_if($company === null, 403);
+
+        if (! DbTable::existe('social_welcome_settings')) {
+            return back()->with('panel_error', 'La bienvenida todavía no está disponible: falta aplicar una actualización de la base de datos.');
+        }
 
         $ajustes = SocialWelcomeSetting::paraEmpresa((int) $company->id);
         $encender = $request->boolean('is_active');

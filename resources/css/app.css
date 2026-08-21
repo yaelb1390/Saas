@@ -2277,3 +2277,176 @@ body {
         transition: none;
     }
 }
+
+/* =============================================================================================
+   MONITOREO — la capa que lo hace parecer una consola y no un volcado
+   =============================================================================================
+
+   Tres decisiones mandan sobre todo lo demás:
+
+   1. LA GRAVEDAD SE LEE EN VERTICAL. En una consola se recorre la columna izquierda con la vista,
+      no se lee fila por fila hasta el badge del final. Por eso cada suceso lleva un carril de color
+      pegado al borde.
+
+   2. LO TÉCNICO VA EN MONOESPACIADA. Una IP, una hora con segundos o un `auth.failed` se comparan
+      entre líneas, y con tipografía proporcional los dígitos bailan y no se pueden comparar.
+
+   3. UNA COSA A LA VEZ. Antes había tres listas infinitas apiladas —3.535 px— y ninguna decía dónde
+      mirar. Con pestañas, la pantalla cabe y la elección es del que mira. */
+
+/* Las cifras del pulso. Densas y en monoespaciada: se comparan entre sí. */
+.bmos-pulso-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+@media (min-width: 640px) {
+    .bmos-pulso-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.bmos-metrica {
+    position: relative;
+    padding: 0.85rem 0.9rem;
+    border-radius: 0.85rem;
+    border: 1px solid var(--bmos-border);
+    background: var(--bmos-surface);
+}
+
+/* El acento a la izquierda, no un fondo de color: el fondo teñido compite con los datos. */
+.bmos-metrica::before {
+    content: '';
+    position: absolute;
+    inset: 0.55rem auto 0.55rem 0;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--tono, #cbd5e1);
+}
+
+.bmos-metrica-valor {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--bmos-text);
+}
+
+.bmos-metrica-etq {
+    margin-top: 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--bmos-muted);
+}
+
+/* Pestañas. */
+.bmos-pestanas {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    /* Sin barra visible: son cuatro pestañas, no una lista. */
+    scrollbar-width: none;
+}
+
+.bmos-pestanas::-webkit-scrollbar { display: none; }
+
+.bmos-pestana {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 0.6rem;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.bmos-pestana:hover { background: #f1f3f9; color: var(--bmos-text); }
+
+.bmos-pestana.is-activa {
+    background: #eef2ff;
+    color: var(--bmos-primary);
+}
+
+/* El contador de cada pestaña: dice dónde hay algo antes de entrar. */
+.bmos-pestana-num {
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: #e7eaf3;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--bmos-muted);
+}
+
+.bmos-pestana.is-activa .bmos-pestana-num {
+    background: #c7d2fe;
+    color: var(--bmos-primary-600);
+}
+
+/* Una fila del registro. */
+.bmos-suceso {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.6rem 0.9rem 0.6rem 1.1rem;
+    border-bottom: 1px solid #f4f6fa;
+}
+
+.bmos-suceso:last-child { border-bottom: 0; }
+.bmos-suceso:hover { background: #fafbfe; }
+
+/* El carril de gravedad. Es lo que se recorre con la vista. */
+.bmos-suceso::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--tono, transparent);
+}
+
+.bmos-suceso-hora {
+    flex-shrink: 0;
+    width: 8.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    line-height: 1.5rem;
+    color: #94a3b8;
+}
+
+.bmos-suceso-texto {
+    min-width: 0;
+    flex: 1;
+    font-size: 0.85rem;
+    line-height: 1.5rem;
+    color: var(--bmos-text);
+    /* `break-word` NO: encogería la columna hasta partir palabras cortas, como ya pasó en el
+       asistente. */
+    overflow-wrap: break-word;
+}
+
+.bmos-suceso-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.7rem;
+    margin-top: 0.1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+/* En móvil la hora pasa arriba: 8.5rem de reloj dejarían el mensaje en dos palabras por línea. */
+@media (max-width: 640px) {
+    .bmos-suceso { flex-direction: column; gap: 0.15rem; }
+    .bmos-suceso-hora { width: auto; line-height: 1.2; }
+}
+
+/* La gráfica de catorce días. Alto fijo: sin él, Chart.js crece sin parar al redibujar. */
+.bmos-serie {
+    position: relative;
+    height: 13rem;
+}

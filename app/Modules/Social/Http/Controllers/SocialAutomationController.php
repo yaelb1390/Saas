@@ -10,6 +10,7 @@ use App\Modules\Social\Enums\KeywordMatch;
 use App\Modules\Social\Exceptions\SocialException;
 use App\Modules\Social\Http\Requests\StoreAutomationRequest;
 use App\Modules\Social\Services\ZernioClient;
+use App\Modules\Social\Support\AutomationOverlap;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -64,6 +65,9 @@ final class SocialAutomationController extends Controller
             'aviso' => $aviso,
             'coincidencias' => KeywordMatch::cases(),
             'disparadores' => AutomationTrigger::cases(),
+            // Cuáles no van a llegar a responder porque otra se les adelanta. Se calcula con lo que
+            // ya vino en la misma llamada: no cuesta ni una petición más.
+            'tapadas' => AutomationOverlap::tapadas($automatizaciones),
         ]);
     }
 

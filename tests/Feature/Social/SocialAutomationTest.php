@@ -1044,3 +1044,65 @@ it('al editar, una de historia sigue siendo de historia', function (): void {
         ->assertOk()
         ->assertSee('Cuando respondan una historia');
 });
+
+// ------------------------------------------- Cuando dos automatizaciones se pisan
+
+/*
+ * Caso real: cinco automatizaciones con las mismas seis palabras en la misma cuenta. Un comentario lo
+ * atiende una sola, así que cuatro no disparaban nunca —una con cero registros en cinco días— y la
+ * pantalla decía «espera a que alguien comente», invitando a crear otra igual.
+ */
+
+it('avisa de que una no va a responder porque otra se le adelanta', function (): void {
+    zernioConAutomatizaciones([
+        [
+            'id' => 'vieja', 'name' => 'Promocion Todas', 'platform' => 'instagram', 'accountId' => 'ig_1',
+            'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+            'createdAt' => '2026-08-16T23:47:38Z',
+        ],
+        [
+            'id' => 'nueva', 'name' => 'Promocion', 'platform' => 'instagram', 'accountId' => 'ig_1',
+            'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+            'createdAt' => '2026-08-20T01:03:07Z',
+        ],
+    ]);
+
+    $html = $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()->getContent();
+
+    expect($html)->toContain('Esta no va a responder')
+        ->toContain('Promocion Todas');
+});
+
+it('y ese aviso sustituye al «espera a que alguien comente», que aquí era falso', function (): void {
+    // El mensaje viejo no solo era inútil: mandaba a esperar algo que no iba a pasar nunca.
+    zernioConAutomatizaciones([
+        [
+            'id' => 'vieja', 'name' => 'Primera', 'platform' => 'instagram', 'accountId' => 'ig_1',
+            'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+            'createdAt' => '2026-08-16T00:00:00Z',
+        ],
+        [
+            'id' => 'nueva', 'name' => 'Segunda', 'platform' => 'instagram', 'accountId' => 'ig_1',
+            'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+            'createdAt' => '2026-08-20T00:00:00Z',
+        ],
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertDontSee('espera a que alguien comente una de tus palabras');
+});
+
+it('una sola automatización no se avisa de nada', function (): void {
+    // El contraste: un aviso que salta siempre se ignora en dos días.
+    zernioConAutomatizaciones([[
+        'id' => 'sola', 'name' => 'Promocion', 'platform' => 'instagram', 'accountId' => 'ig_1',
+        'keywords' => ['precio'], 'dmMessage' => 'Hola', 'isActive' => true,
+        'createdAt' => '2026-08-16T00:00:00Z',
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertDontSee('Esta no va a responder');
+});

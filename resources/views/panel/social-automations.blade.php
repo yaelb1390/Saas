@@ -163,6 +163,13 @@
                          clic tiene que estar donde nace la duda.
 
                          Va fuera de cualquier <form>: el bloque es hermano del <details>, no hijo. --}}
+                    @if (isset($tapadas[$a['id']]) && $a['stats']['triggered'] > 0)
+                        <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                            <b>Ya no responde:</b> «{{ $tapadas[$a['id']]['nombre'] }}» tiene las mismas
+                            palabras y se le adelanta. Lo de abajo es de antes.
+                        </p>
+                    @endif
+
                     @if ($a['stats']['triggered'] > 0)
                         <a href="{{ route('panel.social.automations.reporte', $a['id'])
                                   .($a['stats']['failed'] > 0 ? '?estado=failed' : '') }}"
@@ -179,6 +186,23 @@
                                 ver el reporte →
                             </p>
                         </a>
+                    @elseif (isset($tapadas[$a['id']]))
+                        {{-- El motivo REAL, y no «espera a que alguien comente».
+
+                             Ese mensaje era falso aquí y además hacía daño: invitaba a esperar algo
+                             que no iba a pasar, y a crear otra automatización igual para «arreglarlo»
+                             —que nacía tapada también—. En una cuenta real pasó cinco veces. --}}
+                        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <p class="text-sm font-semibold text-amber-900">Esta no va a responder</p>
+                            <p class="mt-1 text-sm text-amber-800">
+                                «{{ $tapadas[$a['id']]['nombre'] }}» tiene las mismas palabras clave y
+                                el mismo alcance, y se le adelanta: un comentario lo atiende una sola
+                                automatización.
+                            </p>
+                            <p class="mt-1.5 text-xs text-amber-700">
+                                Para que esta sirva, cámbiale las palabras o borra la otra.
+                            </p>
+                        </div>
                     @else
                         {{-- Cuatro ceros no dicen nada, y un «sin fallos» verde sería mentira: no ha
                              acertado nada todavía porque no ha llegado a intentarlo. --}}

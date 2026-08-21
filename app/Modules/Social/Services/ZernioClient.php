@@ -161,6 +161,11 @@ final class ZernioClient
             // formulario mandaría el valor por omisión. Mismo fallo que ya tuvimos con las
             // variaciones y con la tolerancia a erratas.
             'trigger' => (string) ($a['trigger'] ?? 'comment'),
+            // Cuándo se creó. Se lee porque es lo que decide QUIÉN RESPONDE cuando dos
+            // automatizaciones de la misma cuenta comparten palabras y ámbito: la más antigua se
+            // queda con todos los comentarios y la nueva no ve ninguno. Visto en la cuenta real: la
+            // del 16 de agosto tenía seis registros y la del 20, cero.
+            'createdAt' => (string) ($a['createdAt'] ?? ''),
             'commentReply' => $a['commentReply'] ?? null,
             'dmMessage' => (string) ($a['dmMessage'] ?? ''),
             // Las versiones alternativas, para poder editarlas. Sin esto, abrir una automatización

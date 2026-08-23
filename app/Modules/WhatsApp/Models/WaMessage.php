@@ -41,6 +41,7 @@ class WaMessage extends Model implements HasCompany
             'direction' => MessageDirection::class,
             'status' => MessageStatus::class,
             'sent_at' => 'datetime',
+            'sent_by_bot' => 'boolean',
         ];
     }
 

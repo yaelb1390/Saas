@@ -169,6 +169,16 @@
                     Esto no se puede cambiar después de crearla. Si la quieres en otra publicación,
                     crea una nueva abajo y borra esta.
                 </p>
+
+                {{-- La regla que más confunde al probar, dicha donde se prueba.
+                     Sin esto, el dueño comenta con su propia cuenta, no recibe nada, crea otra
+                     publicación, vuelve a comentar, tampoco recibe nada, y concluye que está rota.
+                     Y funcionaba: había decidido no repetirse. --}}
+                <p class="mt-2 text-xs text-amber-700">
+                    <b>A cada persona se le escribe una sola vez.</b> Si ya le mandaste el mensaje,
+                    no se lo repite aunque comente otra vez ni aunque sea en otra publicación. Para
+                    probarla necesitas comentar desde una cuenta que no lo haya recibido todavía.
+                </p>
             </div>
         @endif
 

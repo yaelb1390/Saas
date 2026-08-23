@@ -25,6 +25,30 @@ enum SocialPlatform: string
     case LinkedIn = 'linkedin';
     case Pinterest = 'pinterest';
 
+    /**
+     * WhatsApp NO se publica: se conecta.
+     *
+     * Está en este enum porque el alta va por el mismo camino que las demás —el Embedded Signup de
+     * Meta sale de `GET /v1/connect/whatsapp`, que es lo que usa `connectUrl()`—. Pero no aparece en
+     * la pantalla de Redes sociales: WhatsApp no tiene muro, y ofrecerlo entre las de publicar
+     * crearía publicaciones que no salen a ninguna parte. Se conecta desde la pantalla de WhatsApp,
+     * que es donde alguien lo va a buscar. De filtrarlo se encarga {@see paraPublicar()}.
+     */
+    case WhatsApp = 'whatsapp';
+
+    /**
+     * Las redes en las que de verdad se publica, que son las que se ofrecen en Redes sociales.
+     *
+     * @return list<self>
+     */
+    public static function paraPublicar(): array
+    {
+        return array_values(array_filter(
+            self::cases(),
+            static fn (self $red): bool => $red !== self::WhatsApp,
+        ));
+    }
+
     public function label(): string
     {
         return match ($this) {
@@ -36,6 +60,7 @@ enum SocialPlatform: string
             self::Threads => 'Threads',
             self::LinkedIn => 'LinkedIn',
             self::Pinterest => 'Pinterest',
+            self::WhatsApp => 'WhatsApp',
         };
     }
 
@@ -53,7 +78,7 @@ enum SocialPlatform: string
     {
         return match ($this) {
             self::Instagram, self::TikTok, self::YouTube, self::Pinterest => true,
-            self::Facebook, self::Twitter, self::Threads, self::LinkedIn => false,
+            self::Facebook, self::Twitter, self::Threads, self::LinkedIn, self::WhatsApp => false,
         };
     }
 
@@ -69,6 +94,7 @@ enum SocialPlatform: string
             self::Threads => '#000000',
             self::LinkedIn => '#0A66C2',
             self::Pinterest => '#BD081C',
+            self::WhatsApp => '#25D366',
         };
     }
 }

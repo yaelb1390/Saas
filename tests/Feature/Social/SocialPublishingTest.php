@@ -156,9 +156,16 @@ it('publica en las cuentas elegidas y manda el texto tal cual', function (): voi
     });
 });
 
-it('al programar viaja la zona horaria', function (): void {
-    // Sin ella, «mañana a las 8» se publicaría a las 4 de la madrugada de aquí, que es justo cuando
-    // no lo ve nadie.
+it('al programar viaja la zona horaria DEL NEGOCIO, no la del servidor', function (): void {
+    /*
+     * Sin ella, «mañana a las 8» se publicaría a las 4 de la madrugada de aquí, que es justo cuando
+     * no lo ve nadie.
+     *
+     * Antes esto solo comprobaba que viajara ALGO —`filled(...)`—, y por eso pasaba mientras se
+     * mandaba «UTC»: el dueño escribía las 6 de la tarde y la publicación salía a las 2. Comprobar
+     * que un campo está relleno no comprueba que sea el correcto, y aquí la diferencia son cuatro
+     * horas de la vida real.
+     */
     $this->company->update(['social_api_key' => CLAVE]);
     zernioResponde();
 
@@ -174,7 +181,8 @@ it('al programar viaja la zona horaria', function (): void {
 
     Http::assertSent(fn ($request): bool => str_contains($request->url(), '/v1/posts')
         && $request->method() === 'POST'
-        && (filled($request->data()['timezone'] ?? null) && ! isset($request->data()['publishNow'])));
+        && ($request->data()['timezone'] ?? null) === 'America/Santo_Domingo'
+        && ! isset($request->data()['publishNow']));
 });
 
 it('no deja programar en el pasado', function (): void {
@@ -261,6 +269,9 @@ it('un cajero no entra a redes sociales', function (): void {
     $this->actingAs($cajero)->post(route('panel.social.publish'), [
         'content' => 'Hola', 'accounts' => ['instagram|acc_1'],
     ])->assertForbidden();
+
+    // Cancelar es la vuelta atrás de publicar: quien no puede lo uno tampoco puede lo otro.
+    $this->actingAs($cajero)->delete(route('panel.social.posts.cancel', 'post_prog'))->assertForbidden();
 });
 
 it('sin el módulo contratado no hay pantalla', function (): void {
@@ -404,4 +415,67 @@ it('pide permiso de subida con el nombre de campo que la API exige', function ()
     Http::assertSent(fn ($request): bool => array_key_exists('filename', $request->data())
         && $request->data()['filename'] === 'batida.jpg'
         && ! array_key_exists('fileName', $request->data()));
+});
+
+// -------------------------------------------------------------------- Cancelar lo programado
+
+/** Zernio con una publicación programada, además de la ya publicada. */
+function zernioConProgramada(): void
+{
+    Http::fake([
+        '*/v1/profiles*' => Http::response(['profiles' => [['_id' => 'prof_1', 'name' => 'Default', 'isDefault' => true]]]),
+        '*/v1/accounts*' => Http::response(['accounts' => []]),
+        '*/v1/posts/*' => Http::response(['message' => 'Post deleted successfully']),
+        '*/v1/posts*' => Http::response(['posts' => [
+            [
+                '_id' => 'post_prog',
+                'status' => 'scheduled',
+                'content' => 'Sale esta tarde',
+                // Diez de la noche en UTC son las seis de la tarde aquí.
+                'scheduledFor' => '2099-01-15T22:00:00.000Z',
+            ],
+            ['_id' => 'post_pub', 'status' => 'published', 'content' => 'Ya salió'],
+        ]]),
+    ]);
+}
+
+it('cancela una publicación programada', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+    zernioConProgramada();
+
+    $this->actingAs($this->owner)
+        ->delete(route('panel.social.posts.cancel', 'post_prog'))
+        ->assertRedirect();
+
+    Http::assertSent(fn ($request): bool => $request->method() === 'DELETE'
+        && str_ends_with($request->url(), '/v1/posts/post_prog'));
+});
+
+it('el botón de cancelar solo sale en lo que todavía no ha salido', function (): void {
+    /*
+     * Zernio rechaza borrar una publicada, así que ofrecer el botón ahí sería prometer algo que
+     * falla. Retirar algo que ya vio la gente es otra acción, con otras consecuencias.
+     */
+    $this->company->update(['social_api_key' => CLAVE]);
+    zernioConProgramada();
+
+    $html = $this->actingAs($this->owner)->get(route('panel.social'))->assertOk()->getContent();
+
+    expect($html)->toContain(route('panel.social.posts.cancel', 'post_prog'))
+        ->and($html)->not->toContain(route('panel.social.posts.cancel', 'post_pub'));
+});
+
+it('la hora de salida se enseña en la hora del negocio, no en UTC', function (): void {
+    /*
+     * Quien viene a decidir si para una publicación necesita saber a qué hora sale. En UTC leería
+     * las diez de la noche una que sale a las seis de la tarde, y decidiría con una hora que no es.
+     */
+    $this->company->update(['social_api_key' => CLAVE]);
+    zernioConProgramada();
+
+    $this->actingAs($this->owner)
+        ->get(route('panel.social'))
+        ->assertOk()
+        ->assertSee('a las 18:00')
+        ->assertDontSee('a las 22:00');
 });

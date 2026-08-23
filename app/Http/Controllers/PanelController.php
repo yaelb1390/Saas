@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Modules\AI\Models\AiDocument;
 use App\Modules\AI\Models\AiSentimentAnalysis;
 use App\Modules\AI\Models\AiSetting;
+use App\Modules\AI\Providers\Contracts\AiProvider;
 use App\Modules\AI\Services\RagService;
 use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
@@ -37,11 +38,11 @@ use App\Modules\Purchasing\Models\Supplier;
 use App\Modules\Reports\Services\ReportService;
 use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Models\Sale;
-use App\Modules\WhatsApp\Gateways\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WaBotSetting;
+use App\Modules\WhatsApp\Models\WaTemplate;
 use App\Modules\WhatsApp\Support\InboxPresenter;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Carbon;
-use Throwable;
 
 /**
  * Capa de presentación del panel de administración. Compone datos (solo lectura) de los distintos
@@ -169,20 +170,39 @@ final class PanelController extends Controller
         ]);
     }
 
-    public function whatsapp(WhatsAppConnection $connection, InboxPresenter $inbox): View
+    public function whatsapp(InboxPresenter $inbox): View
     {
-        // Si Evolution está caído, la bandeja debe seguir siendo usable.
-        try {
-            $status = $connection->status();
-        } catch (Throwable) {
-            $status = ['state' => 'error', 'instance' => '—', 'connected' => false];
-        }
-
-        // Misma forma que devuelve el endpoint de sondeo: la vista se pinta una sola vez
-        // y luego se refresca sola con esos mismos datos.
+        /*
+         * Una sola fuente para toda la pantalla.
+         *
+         * El estado de la línea ya no se pide aparte: viaja dentro del mismo dato que devuelve el
+         * sondeo, y de ahí que la vista se refresque sola al escanear el QR. Antes se pedía aquí, la
+         * primera carga lo sabía y el sondeo no, así que la pantalla se quedaba clavada en «Sin
+         * conectar» hasta que alguien recargaba a mano.
+         *
+         * Que Evolution esté caído tampoco tumba nada: eso lo absorbe LineStatus.
+         */
         return view('panel.whatsapp', [
             'inbox' => $inbox->payload((string) request('c', '')),
-            'status' => $status,
+            'plantillas' => WaTemplate::query()->where('is_active', true)->orderBy('name')->get(),
+            'ajustes' => WaBotSetting::paraEmpresaSiHay(),
+            'maxInfo' => WaBotSetting::MAX_INFO,
+            /*
+             * Las dos vías, por su nombre.
+             *
+             * Van como dato y no escritas en la plantilla porque una vista no tiene por qué conocer
+             * los valores que guarda la base: el día que cambie uno hay UN sitio que tocar, y el
+             * servidor comprueba el mismo valor al guardar.
+             */
+            'vias' => ['oficial' => WaBotSetting::OFICIAL, 'qr' => WaBotSetting::POR_QR],
+            /*
+             * ¿Hay quien redacte?
+             *
+             * Sin clave de IA en la plataforma, el asistente no contesta NADA: se aparta en cada
+             * mensaje y pasa la conversación a una persona. Desde fuera se ve como un bot roto, así
+             * que la pantalla tiene que poder decirlo en vez de dejar encenderlo a ciegas.
+             */
+            'iaLista' => app(AiProvider::class)->redactaRespuestas(),
         ]);
     }
 

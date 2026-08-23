@@ -69,6 +69,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Zona horaria del negocio
+    |--------------------------------------------------------------------------
+    |
+    | La de arriba se queda en UTC Y NO SE TOCA: es la que Laravel usa para guardar y leer fechas,
+    | y todo lo que hay en la base se escribió con ella. Cambiarla haría que las filas nuevas se
+    | guardaran en hora local mientras las viejas siguen en UTC, y a partir de ahí ninguna fecha
+    | del sistema significaría lo mismo que la de al lado.
+    |
+    | Esta es la de MOSTRAR y la de programar: la hora que ve y escribe la gente. Existe porque
+    | `APP_TIMEZONE` estaba en el `.env` desde el principio y Laravel lo ignoraba —el fichero fija
+    | «UTC» a pelo—, así que seis sitios que creían estar convirtiendo a la hora dominicana no
+    | convertían nada. El peor: al programar una publicación se le mandaba «UTC» a Zernio, y salía
+    | cuatro horas antes de lo que el dueño había escrito.
+    |
+    */
+
+    'business_timezone' => env('APP_TIMEZONE', 'America/Santo_Domingo'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

@@ -12,7 +12,6 @@ use App\Modules\Core\Services\PlatformHealthService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use RuntimeException;
 
 /*
  * El monitoreo de la plataforma.

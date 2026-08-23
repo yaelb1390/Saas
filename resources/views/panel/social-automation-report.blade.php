@@ -43,6 +43,19 @@
     ];
 
     $serie = array_values($porDia);
+
+    /*
+     * Por qué no se envió, dicho en español y sin alarmar.
+     *
+     * Zernio manda estos motivos EN INGLÉS y por el campo `error`, así que la pantalla los pintaba
+     * en rojo como si algo se hubiera roto. El más frecuente no es una avería: es la regla de que a
+     * cada persona se le escribe UNA sola vez por automatización, para siempre. Ver «Already sent DM
+     * to this commenter» en rojo después de comentar en una publicación nueva hace pensar que la
+     * automatización no funciona, cuando funcionó y decidió no repetirse.
+     */
+    $motivos = [
+        'already sent dm to this commenter' => 'Ya le habías escrito a esta persona. A cada una se le manda el mensaje una sola vez, aunque vuelva a comentar en otra publicación.',
+    ];
 @endphp
 
 <x-layouts.admin title="Reporte" :heading="$a['name']"
@@ -239,18 +252,27 @@
                             Todavía no le toca: esta respuesta espera antes de escribir.
                             @if (filled($log['nextDueAt'] ?? null))
                                 Le escribe a las
-                                {{ \Carbon\Carbon::parse($log['nextDueAt'])->timezone(config('app.timezone'))->format('H:i') }}.
+                                {{ \Carbon\Carbon::parse($log['nextDueAt'])->timezone(config('app.business_timezone'))->format('H:i') }}.
                             @endif
                         </p>
                     @elseif ($clave === 'gated')
                         <p class="mt-1 text-xs text-violet-600">
                             Le mandamos la confirmación de seguimiento y estamos esperando que la pulse.
                         </p>
-                    @elseif ($clave === 'skipped' && filled($log['audienceOutcome'] ?? null))
-                        <p class="mt-1 text-xs text-slate-500">Motivo: {{ $log['audienceOutcome'] }}</p>
+                    @elseif ($clave === 'skipped')
+                        @php
+                            // El motivo llega por `audienceOutcome` o por `error`, según cuál sea.
+                            $crudo = (string) ($log['audienceOutcome'] ?? $log['error'] ?? '');
+                            $explicado = $motivos[mb_strtolower(trim($crudo))] ?? $crudo;
+                        @endphp
+                        @if ($explicado !== '')
+                            <p class="mt-1 text-xs text-slate-500">{{ $explicado }}</p>
+                        @endif
                     @endif
 
-                    @if (filled($log['error'] ?? null))
+                    {{-- En rojo SOLO lo que de verdad falló. Un «no se envió» tiene su motivo arriba,
+                         y pintarlo de rojo convertía una decisión normal en una alarma. --}}
+                    @if ($clave !== 'skipped' && filled($log['error'] ?? null))
                         <p class="mt-1 text-xs text-rose-600">{{ $log['error'] }}</p>
                     @endif
                     @if (filled($log['commentReplyError'] ?? null))
@@ -259,7 +281,7 @@
 
                     <p class="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-400">
                         @if (filled($log['createdAt'] ?? null))
-                            <span>{{ \Carbon\Carbon::parse($log['createdAt'])->timezone(config('app.timezone'))->format('d/m/Y H:i') }}</span>
+                            <span>{{ \Carbon\Carbon::parse($log['createdAt'])->timezone(config('app.business_timezone'))->format('d/m/Y H:i') }}</span>
                         @endif
                         {{-- De qué puerta vino: explica «esto no salió de un comentario». --}}
                         @if (($log['source'] ?? 'comment') !== 'comment')

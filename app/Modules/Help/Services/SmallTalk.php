@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Help\Services;
 
 use App\Models\User;
+use App\Modules\Core\Support\ChatText;
 use App\Modules\Core\Support\ModuleRegistry;
 use Illuminate\Support\Collection;
 
@@ -60,35 +61,23 @@ final class SmallTalk
      */
     public function responder(string $texto, ?User $usuario = null): ?string
     {
-        $limpio = $this->normalizar($texto);
-
-        if ($limpio === '') {
-            return null;
-        }
-
-        /*
-         * La comprobación es de IGUALDAD, no de «contiene», y ahí está todo el asunto.
-         *
-         * «Hola, ¿cómo anulo una venta?» lleva un saludo dentro y NO es un saludo: es una pregunta de
-         * verdad que hay que buscar. Si esto usara `str_contains`, esa pregunta —y cualquiera que
-         * empiece educadamente— se comería un «¡Hola! ¿En qué te ayudo?» y el usuario tendría que
-         * repetirla sin los buenos días.
-         */
-        if ($this->esSolo($limpio, self::SALUDOS)) {
+        // Normalizar y comparar viven en ChatText: el bot de WhatsApp hace exactamente lo mismo con
+        // los mensajes de los clientes, y dos copias del mismo criterio acaban divergiendo.
+        if (ChatText::esAlgunaDe($texto, self::SALUDOS)) {
             return '¡Hola! Soy el asistente de BM Business y te explico cómo se usa el sistema. '
                 .'Pregúntame lo que necesites hacer, por ejemplo «¿cómo anulo una venta?» o '
                 .'«¿cómo cierro la caja?».';
         }
 
-        if ($this->esSolo($limpio, self::AGRADECIMIENTOS)) {
+        if (ChatText::esAlgunaDe($texto, self::AGRADECIMIENTOS)) {
             return '¡A ti! Si te surge otra duda con el sistema, aquí estoy.';
         }
 
-        if ($this->esSolo($limpio, self::DESPEDIDAS)) {
+        if (ChatText::esAlgunaDe($texto, self::DESPEDIDAS)) {
             return '¡Hasta luego! Cualquier duda con el sistema, me escribes.';
         }
 
-        if ($this->esSolo($limpio, self::SOBRE_MI)) {
+        if (ChatText::esAlgunaDe($texto, self::SOBRE_MI)) {
             return $this->quienSoy($usuario);
         }
 
@@ -120,44 +109,5 @@ final class SmallTalk
             .'sistema, paso a paso y solo con lo que dice el manual, sin inventarme nada.'
             .($nombres === '' ? '' : " Puedo ayudarte con {$nombres} y lo demás que tengas contratado.")
             .' Dime qué quieres hacer y te digo dónde se hace.';
-    }
-
-    /**
-     * ¿El mensaje es SOLO una de estas frases, sin nada más?
-     *
-     * @param  list<string>  $frases
-     */
-    private function esSolo(string $limpio, array $frases): bool
-    {
-        foreach ($frases as $frase) {
-            if ($limpio === $this->normalizar($frase)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Minúsculas, sin acentos, sin signos y sin los rellenos con los que se escribe en un chat.
-     *
-     * Se quitan «buenas!!», «hola." y «ok, gracias» para que las tres caigan en la misma frase: quien
-     * escribe en un chat no cuida la puntuación, y una lista que solo case con la forma limpia no
-     * acierta casi nunca.
-     */
-    private function normalizar(string $texto): string
-    {
-        $texto = mb_strtolower(trim($texto));
-
-        $texto = strtr($texto, [
-            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n',
-        ]);
-
-        $texto = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $texto) ?? $texto;
-
-        // Rellenos que no cambian la intención: «ok gracias» y «gracias ok» son lo mismo.
-        $texto = preg_replace('/\b(ok|okay|oki|dale|pues|bueno|este|eh)\b/u', ' ', $texto) ?? $texto;
-
-        return trim(preg_replace('/\s+/', ' ', $texto) ?? $texto);
     }
 }

@@ -449,7 +449,7 @@ final class ZernioClient
             $cuerpo['publishNow'] = true;
         } else {
             $cuerpo['scheduledFor'] = $scheduledFor;
-            $cuerpo['timezone'] = config('app.timezone');
+            $cuerpo['timezone'] = config('app.business_timezone');
         }
 
         $respuesta = $this->http()->post(self::BASE.'/v1/posts', $cuerpo);
@@ -528,6 +528,55 @@ final class ZernioClient
 
             throw SocialException::noRespondio();
         }
+    }
+
+    /**
+     * Cancela una publicación que aún no ha salido.
+     *
+     * Zernio la BORRA —no la deja en «cancelada»—, y es lo correcto: una publicación programada que
+     * ya no va a publicarse no es un estado del que se pueda volver, es una que no existe. Además
+     * devuelve la cuota de subida que tenía reservada.
+     *
+     * Solo vale para programadas y borradores. Una ya publicada la rechaza con un 400, y por eso el
+     * botón ni siquiera se ofrece ahí: para retirar algo que ya salió hace falta despublicarlo, que
+     * es una acción distinta con otras consecuencias —lo vio gente— y merece su propia decisión.
+     */
+    public function cancelarPublicacion(string $postId): void
+    {
+        $respuesta = $this->http()->delete(self::BASE.'/v1/posts/'.rawurlencode($postId));
+
+        if (! $respuesta->successful()) {
+            $this->registrar('no se pudo cancelar la publicación', null, $respuesta->status(), $respuesta->body());
+
+            throw SocialException::noRespondio();
+        }
+    }
+
+    /**
+     * Desconecta una cuenta.
+     *
+     * NO revoca nada en Meta: eso se hace desde el Business Manager del negocio, que es suyo. Esto
+     * deja de tenerla conectada aquí, que es lo que promete el botón.
+     *
+     * No lanza, por el mismo motivo que borrar un webhook no lanza: desconectar tiene que funcionar
+     * aunque Zernio no conteste. Quedarse con una cuenta fantasma es molesto; no poder soltar la que
+     * escribe en tu nombre, no.
+     */
+    public function desconectarCuenta(string $accountId): bool
+    {
+        try {
+            $respuesta = $this->http()->delete(self::BASE.'/v1/accounts/'.rawurlencode($accountId));
+        } catch (Throwable $e) {
+            $this->registrar('no se pudo desconectar la cuenta: '.$e->getMessage(), null, 0, '');
+
+            return false;
+        }
+
+        if (! $respuesta->successful()) {
+            $this->registrar('no se pudo desconectar la cuenta', null, $respuesta->status(), $respuesta->body());
+        }
+
+        return $respuesta->successful();
     }
 
     /**

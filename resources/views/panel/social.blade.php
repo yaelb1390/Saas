@@ -352,6 +352,14 @@
                             'draft' => 'Borrador',
                             default => $estado ?: '—',
                         };
+
+                        // La hora ya viene convertida a la zona del negocio desde el controlador.
+                        $sale = $post['sale_el'] ?? null;
+
+                        // Solo lo que todavía no ha salido se puede cancelar. Lo publicado exige
+                        // despublicarlo, que es otra cosa: ya lo vio gente.
+                        $sePuedeCancelar = in_array($estado, ['scheduled', 'draft'], true)
+                            && filled($post['_id'] ?? null);
                     @endphp
                     <div class="flex items-start justify-between gap-4 border-b border-slate-50 p-5 last:border-0">
                         <div class="min-w-0">
@@ -361,7 +369,32 @@
                                    class="mt-1 inline-block text-xs font-medium text-indigo-600 hover:underline">Verlo en la red →</a>
                             @endif
                         </div>
-                        <span class="bmos-badge shrink-0 {{ $color }}">{{ $etiqueta }}</span>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <div class="text-right">
+                                <span class="bmos-badge {{ $color }}">{{ $etiqueta }}</span>
+                                @if ($sale !== null && $estado === 'scheduled')
+                                    {{-- La hora a la que sale, que es el dato que hace falta para
+                                         decidir si da tiempo a pararla. --}}
+                                    <p class="mt-1 text-xs text-slate-400">
+                                        Sale el {{ $sale->translatedFormat('j M') }} a las {{ $sale->format('H:i') }}
+                                    </p>
+                                @endif
+                            </div>
+
+                            @can('social.publish')
+                                @if ($sePuedeCancelar)
+                                    <x-panel.confirm-action
+                                        :action="route('panel.social.posts.cancel', $post['_id'])"
+                                        title="¿Cancelar esta publicación?"
+                                        message="No va a salir. El texto y las fotos se pierden: si la quieres, hay que volver a escribirla."
+                                        confirm="Cancelar publicación"
+                                        tooltip="Cancelar"
+                                        class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.05rem;height:1.05rem"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                                    </x-panel.confirm-action>
+                                @endif
+                            @endcan
+                        </div>
                     </div>
                 @empty
                     <p class="bmos-empty">Todavía no has publicado nada desde aquí.</p>

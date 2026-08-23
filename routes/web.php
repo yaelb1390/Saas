@@ -522,6 +522,10 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:social.publish')->name('panel.social.publish');
         Route::post('/panel/redes/imagen', [SocialController::class, 'presign'])
             ->middleware('can:social.publish')->name('panel.social.presign');
+        // Cancelar lo programado es la vuelta atrás de publicar, así que va con el mismo permiso:
+        // quien puede decidir que algo salga puede decidir que ya no.
+        Route::delete('/panel/redes/publicaciones/{post}', [SocialController::class, 'cancelPost'])
+            ->middleware('can:social.publish')->name('panel.social.posts.cancel');
 
         /*
          * Respuestas automáticas a comentarios y mensajes.
@@ -631,6 +635,23 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:whatsapp.send')->name('panel.whatsapp.send');
         Route::post('/panel/whatsapp/conectar', [WhatsAppController::class, 'connect'])
             ->middleware('can:whatsapp.connect')->name('panel.whatsapp.connect');
+        // Desvincular es la otra mitad del mismo permiso, que decía «vincula/desvincula» y solo
+        // sabía hacer lo primero.
+        Route::post('/panel/whatsapp/desvincular', [WhatsAppController::class, 'disconnect'])
+            ->middleware('can:whatsapp.connect')->name('panel.whatsapp.disconnect');
+        // Lo que el asistente sabe del negocio es lo que le promete a los clientes: mismo permiso
+        // que administrar la línea, no el de escribir en ella.
+        Route::post('/panel/whatsapp/asistente', [WhatsAppController::class, 'saveBot'])
+            ->middleware('can:whatsapp.connect')->name('panel.whatsapp.bot');
+        // Devolverle una conversación al asistente lo decide quien está atendiendo, así que basta
+        // con poder contestar.
+        Route::post('/panel/whatsapp/reanudar', [WhatsAppController::class, 'resumeBot'])
+            ->middleware('can:whatsapp.send')->name('panel.whatsapp.resume');
+        // Respuestas rápidas. El permiso existía desde el principio y nunca guardó nada.
+        Route::post('/panel/whatsapp/respuestas', [WhatsAppController::class, 'storeTemplate'])
+            ->middleware('can:whatsapp.templates.manage')->name('panel.whatsapp.templates.store');
+        Route::delete('/panel/whatsapp/respuestas/{template}', [WhatsAppController::class, 'destroyTemplate'])
+            ->middleware('can:whatsapp.templates.manage')->name('panel.whatsapp.templates.destroy');
     });
 
     // Asistente de IA (RAG): consultar es de uso diario; alimentar la base de conocimiento, no.

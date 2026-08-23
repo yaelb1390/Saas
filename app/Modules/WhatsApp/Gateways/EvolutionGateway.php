@@ -20,6 +20,20 @@ final class EvolutionGateway implements WhatsAppConnection, WhatsAppGateway
     /**
      * @param  array<string, mixed>  $config
      */
+    /**
+     * Los eventos que Evolution nos tiene que avisar.
+     *
+     * `CONNECTION_UPDATE` es el que hace que la pantalla se entere sola de que ya escaneaste el QR.
+     * Sin él la vista tenía que pedirle al usuario que recargara, porque nadie le contaba nunca que
+     * el emparejamiento había salido bien.
+     *
+     * @var list<string>
+     */
+    private const EVENTOS = ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'];
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
     public function __construct(private readonly array $config) {}
 
     public function sendText(string $phone, string $body): array
@@ -63,7 +77,7 @@ final class EvolutionGateway implements WhatsAppConnection, WhatsAppGateway
         $status = $this->status();
 
         if ($status['connected']) {
-            return ['state' => 'open', 'qr' => null];
+            return ['state' => 'open', 'qr' => null, 'url' => null];
         }
 
         if ($status['state'] === 'missing') {
@@ -74,19 +88,56 @@ final class EvolutionGateway implements WhatsAppConnection, WhatsAppGateway
                 'webhook' => [
                     'url' => $this->webhookUrl(),
                     'byEvents' => false,
-                    'events' => ['MESSAGES_UPSERT'],
+                    'events' => self::EVENTOS,
                 ],
             ]);
 
             if ($created->successful()) {
-                return ['state' => 'connecting', 'qr' => $created->json('qrcode.base64')];
+                return ['state' => 'connecting', 'qr' => $created->json('qrcode.base64'), 'url' => null];
             }
+        } else {
+            /*
+             * La instancia ya existía: hay que ponerle los eventos al día.
+             *
+             * Las creadas antes de esto solo pidieron `MESSAGES_UPSERT`, y eso no se arregla cambiando
+             * el alta —el alta ya no vuelve a ocurrir para ellas—. Se comprobó contra Evolution 2.3.7:
+             * la instancia que llevaba aquí desde julio seguía suscrita a un único evento.
+             *
+             * Va sin `throw()` a propósito: que no se pueda actualizar el webhook no es motivo para
+             * negarle el QR a alguien que solo quiere vincular su línea. Como mucho se pierde el aviso
+             * instantáneo, y el sondeo sigue contando la verdad.
+             */
+            $this->request()->post('/webhook/set/'.$status['instance'], [
+                'webhook' => [
+                    'enabled' => true,
+                    'url' => $this->webhookUrl(),
+                    'byEvents' => false,
+                    'base64' => false,
+                    'events' => self::EVENTOS,
+                ],
+            ]);
         }
 
         // La instancia existe pero está desconectada: pide un QR nuevo.
         $connect = $this->request()->get('/instance/connect/'.$status['instance']);
 
-        return ['state' => 'connecting', 'qr' => $connect->json('base64')];
+        return ['state' => 'connecting', 'qr' => $connect->json('base64'), 'url' => null];
+    }
+
+    /**
+     * Desvincula el teléfono de la línea.
+     *
+     * Cierra la sesión, NO borra la instancia: en Evolution vive el histórico —en la línea que había
+     * aquí, treinta y tres mil mensajes— y borrarla lo tiraría entero para no ganar nada. Después de
+     * esto, `connect()` encuentra la instancia cerrada y pide un QR nuevo, que es justo lo que quiere
+     * quien desvincula para vincular otro número.
+     *
+     * Es `DELETE`, no `POST`: comprobado contra la API, que responde 200 incluso si la línea ya
+     * estaba caída —así desvincular arregla una sesión a medias en vez de fallar sobre ella—.
+     */
+    public function logout(): bool
+    {
+        return $this->request()->delete('/instance/logout/'.$this->instanceName())->successful();
     }
 
     private function request(): PendingRequest

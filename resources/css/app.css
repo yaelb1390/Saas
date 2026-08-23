@@ -22,9 +22,16 @@
    ============================================================ */
 
 :root {
-    --bmos-bg: #f4f6fb;
+    /*
+     * El fondo va un punto más oscuro de lo que estaba (#f4f6fb).
+     *
+     * Con el anterior, una tarjeta blanca sobre él se separaba tan poco que había que buscar el
+     * borde para saber dónde empezaba. La diferencia entre superficie y fondo es lo que hace que se
+     * lea «esto es un bloque» sin tener que fijarse, y aquí no llegaba.
+     */
+    --bmos-bg: #edf0f7;
     --bmos-surface: #ffffff;
-    --bmos-border: #e6e9f0;
+    --bmos-border: #e2e6f0;
     --bmos-text: #1e2230;
     --bmos-muted: #6b7280;
     --bmos-primary: #4f46e5;
@@ -306,7 +313,19 @@ body {
     background: var(--bmos-surface);
     border: 1px solid var(--bmos-border);
     border-radius: 1rem;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    /*
+     * Dos sombras, y cada una hace algo distinto.
+     *
+     * La primera es el filo: un pixel oscuro pegado al borde, que es lo que separa la tarjeta del
+     * fondo aunque estén a dos tonos de distancia. La segunda es la caída, ancha y muy suave, que es
+     * la que da la sensación de que el bloque está POR ENCIMA y no pintado sobre el fondo.
+     *
+     * Antes había una sola de 1px al 4 %, que a la práctica no se veía: las tarjetas parecían
+     * recortadas en el mismo papel.
+     */
+    box-shadow:
+        0 1px 2px rgba(16, 24, 40, 0.06),
+        0 6px 16px -10px rgba(16, 24, 40, 0.18);
 }
 
 .bmos-card-pad {

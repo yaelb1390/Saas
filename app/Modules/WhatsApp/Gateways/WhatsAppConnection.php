@@ -20,9 +20,25 @@ interface WhatsAppConnection
     public function status(): array;
 
     /**
-     * Inicia (o reanuda) el emparejamiento y devuelve el QR en base64 si hace falta escanearlo.
+     * Inicia (o reanuda) el vínculo con la línea.
      *
-     * @return array{state: string, qr: ?string}
+     * Devuelve DOS formas posibles porque hay dos maneras de conectar, y son distintas de raíz:
+     *
+     *  · `qr`  — un código que se escanea con el teléfono (Evolution). Dos minutos y cualquier número.
+     *  · `url` — una dirección a la que ir (la vía oficial de Meta). El negocio se va a Meta, elige su
+     *            cuenta y su número, y vuelve conectado. No hay nada que escanear.
+     *
+     * Nunca vienen las dos: la que no aplica llega en null, y la pantalla pinta la que haya.
+     *
+     * @return array{state: string, qr: ?string, url: ?string}
      */
     public function connect(): array;
+
+    /**
+     * Desvincula el teléfono. Devuelve si el proveedor lo aceptó.
+     *
+     * El permiso `whatsapp.connect` dice desde el principio «vincula/desvincula la línea»: esta era
+     * la mitad que no existía, y sin ella cambiar de número obligaba a entrar al panel de Evolution.
+     */
+    public function logout(): bool;
 }

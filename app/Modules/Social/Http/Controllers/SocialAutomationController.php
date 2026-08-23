@@ -239,7 +239,7 @@ final class SocialAutomationController extends Controller
             }
 
             $dia = rescue(
-                fn (): ?string => Carbon::parse((string) $log['createdAt'])->timezone(config('app.timezone'))->toDateString(),
+                fn (): ?string => Carbon::parse((string) $log['createdAt'])->timezone(config('app.business_timezone'))->toDateString(),
                 null,
                 report: false,
             );
@@ -255,7 +255,7 @@ final class SocialAutomationController extends Controller
 
         // Como mucho un mes: más atrás las barras se vuelven ilegibles y nadie mira tan lejos.
         $desde = Carbon::parse(min(array_keys($cuentas)))
-            ->max(Carbon::now(config('app.timezone'))->subDays(29)->startOfDay());
+            ->max(Carbon::now(config('app.business_timezone'))->subDays(29)->startOfDay());
         $hasta = Carbon::parse(max(array_keys($cuentas)));
 
         $serie = [];

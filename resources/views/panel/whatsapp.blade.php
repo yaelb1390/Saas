@@ -39,10 +39,15 @@
 
                 <div class="wa-linea-acciones">
                     @can('whatsapp.connect')
-                        <form method="POST" action="{{ route('panel.whatsapp.connect') }}" x-show="!linea.connected">
+                        {{-- El botón solo si de verdad puede hacer algo. Ofrecerlo sin la clave de
+                             Zernio llevaba a un error que además culpaba al servidor. --}}
+                        <form method="POST" action="{{ route('panel.whatsapp.connect') }}" x-show="!linea.connected && !bot.falta">
                             @csrf
                             <button type="submit" class="bmos-btn bmos-btn-primary" x-text="textoConectar"></button>
                         </form>
+
+                        <a href="{{ route('panel.social') }}" class="bmos-btn bmos-btn-ghost"
+                           x-show="bot.falta === 'clave'" x-cloak>Conectar Zernio &rarr;</a>
 
                         {{-- Desvincular NO borra la instancia: el histórico se queda donde está. Por eso
                              el aviso habla de volver a escanear y no de perder nada. --}}
@@ -86,8 +91,26 @@
                 </div>
             </div>
 
+            {{-- Lo que falta antes de poder conectar nada. Va primero: sin esto no hay pasos que dar. --}}
+            <div class="wa-emparejar" x-show="!linea.connected && bot.falta" x-cloak>
+                <div>
+                    <p class="font-semibold text-slate-800" x-show="bot.falta === 'clave'">Falta conectar tu cuenta de Zernio</p>
+                    <p class="font-semibold text-slate-800" x-show="bot.falta === 'servidor'">El código QR no está disponible aquí</p>
+
+                    <p class="mt-1 text-sm text-slate-500" x-show="bot.falta === 'clave'">
+                        La vía oficial de Meta pasa por Zernio, y su clave se guarda en Redes sociales.
+                        Ponla ahí y vuelve: entonces sí podrás conectar tu número.
+                    </p>
+                    <p class="mt-1 text-sm text-slate-500" x-show="bot.falta === 'servidor'">
+                        Esta instalación no tiene el servicio de emparejamiento por QR. Cambia a la vía
+                        oficial de Meta en la pestaña Asistente: no necesita nada instalado y además no
+                        te pueden bloquear el número.
+                    </p>
+                </div>
+            </div>
+
             {{-- Alta por la vía oficial. Aquí no hay nada que escanear: se va a Meta y se vuelve. --}}
-            <div class="wa-emparejar wa-emparejar--meta" x-show="esOficial && !linea.connected" x-cloak>
+            <div class="wa-emparejar wa-emparejar--meta" x-show="esOficial && !linea.connected && !bot.falta" x-cloak>
                 <div>
                     <p class="font-semibold text-slate-800">Conecta tu WhatsApp Business con Meta</p>
                     <p class="mt-1 mb-4 text-sm text-slate-500">
@@ -234,7 +257,20 @@
 
                 <div class="wa-lienzo" x-ref="lienzo">
                     <template x-for="(m, i) in thread" :key="m.id">
-                        <div class="wa-linea-msg" :class="m.out && 'wa-linea-msg--sale'" :style="`--i:${Math.min(i, 12)}`">
+                        <div>
+                            {{-- El día, cuando cambia respecto al mensaje de arriba. Sin esto, ayer
+                                 y hoy son la misma pared de burbujas y no hay forma de situar una
+                                 conversación larga. --}}
+                            <template x-if="m.separador">
+                                <div class="wa-dia"><span x-text="m.separador"></span></div>
+                            </template>
+
+                            {{-- `data-seguido`: continúa lo que venía diciendo el mismo. Se junta al
+                                 anterior y pierde la cola, como en cualquier chat. Tres «Hola»
+                                 seguidos con tres colas no se parecen a una conversación. --}}
+                            <div class="wa-linea-msg" :class="m.out && 'wa-linea-msg--sale'"
+                                 :data-seguido="m.seguido ? 'true' : 'false'"
+                                 :style="`--i:${Math.min(i, 12)}`">
                             <div class="wa-burbuja" :class="m.out ? (m.bot ? 'wa-burbuja--bot' : 'wa-burbuja--sale') : 'wa-burbuja--entra'">
                                 {{-- Quién lo escribió. Sin esto no se puede saber qué prometió el bot
                                      y qué dijo un empleado, que es lo que hay que mirar si algo sale mal. --}}
@@ -243,7 +279,8 @@
                                     Asistente
                                 </span>
                                 <p class="wa-texto" x-text="m.body"></p>
-                                <span class="wa-meta">
+                                {{-- `data-leido`: el doble check se pone azul, como en WhatsApp. --}}
+                                <span class="wa-meta" :data-leido="m.status === 'read' ? 'true' : 'false'">
                                     <span x-text="m.time"></span>
                                     <template x-if="m.out && m.status === 'failed'">
                                         <span class="wa-meta-fallo">no enviado</span>
@@ -260,6 +297,7 @@
                                         </svg>
                                     </template>
                                 </span>
+                            </div>
                             </div>
                         </div>
                     </template>
@@ -426,6 +464,53 @@
                                class="bmos-input @error('greeting') wa-campo--error @enderror"
                                placeholder="¡Hola! Gracias por escribir a Colmado La Esquina. ¿En qué te ayudo?">
                         @error('greeting') <p class="wa-redactor-error">{{ $message }}</p> @enderror
+                    </div>
+
+                    {{-- El papel. Va DESPUÉS de los datos porque se toca mucho más a menudo: se
+                         prueba un tono, se cambia la oferta. Los datos casi no se tocan. --}}
+                    <div class="wa-bot-campo">
+                        <label for="instructions" class="wa-bot-etiqueta">Cómo debe comportarse</label>
+                        <p class="wa-bot-ayuda">
+                            Quién es y qué debe hacer, no qué sabe. Por ejemplo: «Eres un asesor de BM
+                            Business. Antes de recomendar un plan pregunta de qué es el negocio y cuánta
+                            gente lo usa. Si le interesa, ofrécele una demo». <strong>Por mucho que
+                            escribas aquí, nunca podrá inventarse precios ni prometer descuentos</strong>:
+                            esas reglas mandan sobre esto.
+                        </p>
+                        <textarea id="instructions" name="instructions" rows="5" maxlength="{{ $maxInstrucciones }}"
+                                  class="bmos-input wa-bot-area @error('instructions') wa-campo--error @enderror"
+                                  placeholder="Eres un asesor de BM Business. Sé directo y cercano. Pregunta de qué es el negocio antes de recomendar nada, y ofrece una demo a quien muestre interés.">{{ old('instructions', $ajustes?->instructions) }}</textarea>
+                        @error('instructions') <p class="wa-redactor-error">{{ $message }}</p> @enderror
+                    </div>
+
+                    <div class="wa-bot-campo">
+                        <span class="wa-bot-etiqueta">De dónde más puede sacar respuestas</span>
+                        <div class="wa-fuentes">
+                            <label class="wa-fuente">
+                                <input type="checkbox" name="uses_documents" value="1"
+                                       @checked(old('uses_documents', $ajustes?->uses_documents ?? false))>
+                                <span>
+                                    <b>De tus documentos</b>
+                                    <span class="wa-fuente-nota">
+                                        Busca en lo que subas en Administración › IA antes de contestar. Sirve
+                                        para lo que no cabe arriba: un folleto, preguntas frecuentes, la lista de
+                                        funciones. <strong>Cuesta una consulta de IA más por cada mensaje.</strong>
+                                    </span>
+                                </span>
+                            </label>
+
+                            <label class="wa-fuente">
+                                <input type="checkbox" name="includes_plans" value="1"
+                                       @checked(old('includes_plans', $ajustes?->includes_plans ?? false))>
+                                <span>
+                                    <b>Los planes de BM Business y sus precios</b>
+                                    <span class="wa-fuente-nota">
+                                        Solo si lo que vendes es el sistema. Los lee de los planes reales, así que
+                                        no se quedan viejos cuando cambies un precio.
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
                     </div>
 
                     @can('whatsapp.connect')

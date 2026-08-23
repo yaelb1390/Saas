@@ -11,6 +11,7 @@ use App\Modules\WhatsApp\Enums\MessageStatus;
 use App\Modules\WhatsApp\Jobs\SendWhatsAppMessage;
 use App\Modules\WhatsApp\Models\WaMessage;
 use App\Modules\WhatsApp\Services\WhatsAppService;
+use App\Modules\WhatsApp\Support\InboxPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
@@ -147,4 +148,71 @@ it('la bandeja sigue siendo usable si Evolution está caído', function (): void
         ->get(route('panel.whatsapp'))
         ->assertOk()
         ->assertSee('Sin conexión');
+});
+
+// ------------------------------------------------------------------ Cómo se lee el hilo
+
+it('la hora sale en la del negocio, no en UTC', function (): void {
+    /*
+     * Se guardan en UTC y aquí son cuatro horas menos. Se vio en pantalla: un mensaje recién
+     * llegado aparecía marcado a las 04:01 cuando eran las 00:01.
+     *
+     * En un chat la hora no es decoración —se mira para saber si hace rato que alguien espera— y
+     * cuatro horas de diferencia la vuelven inútil.
+     */
+    $mensaje = app(WhatsAppService::class)->recordInbound('18095551234', 'buenas', 'M-1');
+    // Las diez de la noche en Santo Domingo son las dos de la madrugada del día siguiente en UTC.
+    $mensaje->forceFill(['sent_at' => '2026-08-23 02:00:00'])->save();
+
+    $hilo = app(InboxPresenter::class)->payload('18095551234')['thread'];
+
+    expect($hilo[0]['time'])->toBe('22:00');
+});
+
+it('los mensajes seguidos del mismo se marcan para agruparlos', function (): void {
+    // Tres «Hola» seguidos con tres colas no se parecen a una conversación.
+    $wa = app(WhatsAppService::class);
+
+    $uno = $wa->recordInbound('18095551234', 'Hola', 'M-1');
+    $dos = $wa->recordInbound('18095551234', 'Hola?', 'M-2');
+    $uno->forceFill(['sent_at' => '2026-08-23 02:00:00'])->save();
+    $dos->forceFill(['sent_at' => '2026-08-23 02:01:00'])->save();
+
+    $hilo = app(InboxPresenter::class)->payload('18095551234')['thread'];
+
+    expect($hilo[0]['seguido'])->toBeFalse()
+        ->and($hilo[1]['seguido'])->toBeTrue();
+});
+
+it('pasados cinco minutos ya no se agrupa, aunque escriba el mismo', function (): void {
+    // Media hora después es otra intervención, no una frase más de la misma.
+    $wa = app(WhatsAppService::class);
+
+    $uno = $wa->recordInbound('18095551234', 'Hola', 'M-1');
+    $dos = $wa->recordInbound('18095551234', 'Sigues ahi?', 'M-2');
+    $uno->forceFill(['sent_at' => '2026-08-23 02:00:00'])->save();
+    $dos->forceFill(['sent_at' => '2026-08-23 02:40:00'])->save();
+
+    $hilo = app(InboxPresenter::class)->payload('18095551234')['thread'];
+
+    expect($hilo[1]['seguido'])->toBeFalse();
+});
+
+it('el separador de día solo aparece cuando cambia el día', function (): void {
+    $wa = app(WhatsAppService::class);
+
+    $ayer = $wa->recordInbound('18095551234', 'De ayer', 'M-1');
+    $hoyA = $wa->recordInbound('18095551234', 'De hoy', 'M-2');
+    $hoyB = $wa->recordInbound('18095551234', 'De hoy tambien', 'M-3');
+
+    $ayer->forceFill(['sent_at' => now()->subDay()->setTime(15, 0)])->save();
+    $hoyA->forceFill(['sent_at' => now()->setTime(10, 0)])->save();
+    $hoyB->forceFill(['sent_at' => now()->setTime(11, 0)])->save();
+
+    $hilo = app(InboxPresenter::class)->payload('18095551234')['thread'];
+
+    expect($hilo[0]['separador'])->toBe('Ayer')
+        ->and($hilo[1]['separador'])->toBe('Hoy')
+        // El tercero es del mismo día que el segundo: no lleva separador.
+        ->and($hilo[2]['separador'])->toBeNull();
 });

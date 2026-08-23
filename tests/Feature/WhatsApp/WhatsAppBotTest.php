@@ -61,14 +61,16 @@ function botConGemini(string $respuesta = 'Claro que sí, tenemos.'): void
  * sentimiento, que es otra función y llama al proveedor por su cuenta. Sin distinguirlos, «no se
  * llamó a nadie» sería falso siempre y el test no probaría nada.
  *
- * Se distingue por la primera línea de las instrucciones del bot, que ninguna otra llamada lleva.
+ * Se distingue por el encabezado de las reglas del bot, que ninguna otra llamada lleva. Se eligió
+ * ese y no la primera línea porque la primera línea la escribe el dueño y puede ser cualquier cosa:
+ * las reglas están siempre, digan lo que digan sus instrucciones.
  */
 function elBotLlamo(): bool
 {
     $llamo = false;
 
     Http::recorded(function ($peticion) use (&$llamo): void {
-        if (str_contains(json_encode($peticion->data()) ?: '', 'Atiendes por WhatsApp')) {
+        if (str_contains(json_encode($peticion->data()) ?: '', 'REGLAS QUE MANDAN')) {
             $llamo = true;
         }
     });

@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Modules\Core\Support\DbTable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use RuntimeException;
 
@@ -21,6 +22,20 @@ abstract class TestCase extends BaseTestCase
     protected function refreshApplication(): void
     {
         parent::refreshApplication();
+
+        /*
+         * El memo de «¿existe esta tabla?» NO puede sobrevivir entre tests.
+         *
+         * `DbTable` recuerda el resultado durante todo el proceso, y en producción eso es lo
+         * correcto: el catálogo solo cambia el día que alguien migra. En la suite es justo al revés
+         * —un test puede borrar una tabla a propósito para comprobar que la pantalla aguanta sin
+         * ella— y ese «no existe» se quedaba pegado para todos los tests siguientes, que ya corrían
+         * con la tabla restaurada.
+         *
+         * Costó encontrarlo: los tests afectados pasaban SUELTOS y fallaban en la suite completa,
+         * que es la peor forma de fallar que hay.
+         */
+        DbTable::olvidar();
 
         $connection = (string) config('database.default');
         $database = (string) config("database.connections.{$connection}.database");

@@ -145,6 +145,20 @@ final class TenantDataPurger
          */
         'social_welcome_settings',
 
+        /*
+         * Los ajustes del bot de WhatsApp, por los dos mismos motivos.
+         *
+         * Lo que guardan es lo que el DUEÑO escribió sobre su propio negocio —horario, si hay
+         * delivery, formas de pago— y por dónde conecta su línea. No son datos de terceros: las
+         * conversaciones y los mensajes de sus clientes sí se purgan, y están arriba.
+         *
+         * Y borrarlos dejaría el mismo webhook huérfano: si la empresa iba por la vía oficial, el
+         * webhook está registrado en Zernio porque este bot estaba encendido. Sin esta fila,
+         * `ZernioWebhookRegistrar` diría que ya no hace falta —y nadie iría a darlo de baja—, así que
+         * seguiría disparando contra una dirección que no atiende a nadie.
+         */
+        'wa_bot_settings',
+
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',
         'users',

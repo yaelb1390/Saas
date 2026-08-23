@@ -33,6 +33,12 @@ final class LogWhatsAppGateway implements WhatsAppConnection, WhatsAppGateway
 
     public function connect(): array
     {
-        return ['state' => 'log', 'qr' => null];
+        return ['state' => 'log', 'qr' => null, 'url' => null];
+    }
+
+    public function logout(): bool
+    {
+        // No hay nada que desvincular: nunca hubo línea.
+        return false;
     }
 }

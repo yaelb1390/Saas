@@ -12,11 +12,13 @@ use App\Modules\Social\Http\Requests\PublishPostRequest;
 use App\Modules\Social\Http\Requests\StoreWelcomeRequest;
 use App\Modules\Social\Models\SocialWelcomeSetting;
 use App\Modules\Social\Services\ZernioClient;
+use App\Modules\Social\Services\ZernioWebhookRegistrar;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
@@ -46,7 +48,7 @@ final class SocialController extends Controller
         if ($cliente->isConfigured()) {
             try {
                 $cuentas = $cliente->accounts();
-                $publicaciones = $cliente->posts();
+                $publicaciones = $this->conHoraLocal($cliente->posts());
             } catch (SocialException $e) {
                 $aviso = $e->getMessage();
             }
@@ -74,15 +76,41 @@ final class SocialController extends Controller
             'cuentas' => $cuentas,
             'publicaciones' => $publicaciones,
             'aviso' => $aviso,
-            'plataformas' => SocialPlatform::cases(),
+            'plataformas' => SocialPlatform::paraPublicar(),
             // Qué redes no publican texto suelto, para avisar mientras se redacta. Sale de la
             // enumeración y no de una lista escrita a mano en el JavaScript: la regla la comprueba
             // también el servidor al publicar, y dos copias acabarían discrepando.
-            'redesQueExigenFoto' => collect(SocialPlatform::cases())
+            'redesQueExigenFoto' => collect(SocialPlatform::paraPublicar())
                 ->filter(static fn (SocialPlatform $r): bool => $r->requiereMedia())
                 ->mapWithKeys(static fn (SocialPlatform $r): array => [$r->value => $r->label()])
                 ->all(),
         ]);
+    }
+
+    /**
+     * Añade a cada publicación la hora a la que sale, EN LA ZONA DEL NEGOCIO.
+     *
+     * Zernio la manda en UTC y aquí son cuatro horas menos: sin convertir, una publicación de las
+     * seis de la tarde se leería como las diez de la noche, y quien viene a decidir si la para
+     * estaría mirando una hora que no es.
+     *
+     * Se calcula aquí y no en la plantilla porque en la plantilla haría falta escribir el nombre
+     * completo de la clase Carbon, y una vista no debería conocerlas. (Se intentó: un fallo al
+     * escribirlo dejó el dato en blanco sin un solo error, porque `rescue` se lo tragaba. Aquí, si
+     * algo se rompe, se ve.)
+     *
+     * @param  array<int, array<string, mixed>>  $publicaciones
+     * @return array<int, array<string, mixed>>
+     */
+    private function conHoraLocal(array $publicaciones): array
+    {
+        return array_map(static function (array $post): array {
+            $post['sale_el'] = blank($post['scheduledFor'] ?? null)
+                ? null
+                : Carbon::parse((string) $post['scheduledFor'])->timezone(config('app.business_timezone'));
+
+            return $post;
+        }, $publicaciones);
     }
 
     /** Guarda (o borra) la clave de Zernio de la empresa. */
@@ -129,33 +157,53 @@ final class SocialController extends Controller
             'variations' => $request->variaciones(),
         ]);
 
-        $cliente = new ZernioClient($company);
+        // El interruptor se guarda ANTES de tocar el webhook: quien decide si hace falta es el
+        // registrador, y necesita leer el estado nuevo, no el que había.
+        $ajustes->is_active = $encender;
+        $ajustes->save();
 
         try {
-            // Solo se toca el webhook cuando CAMBIA el interruptor. Sin esta comprobación, cada
-            // guardado de un cambio de texto daría de alta otro webhook: Zernio admite cincuenta por
-            // cuenta, y llegaríamos ahí sin enterarnos, con el cliente recibiendo cincuenta copias.
-            if ($encender && $ajustes->zernio_webhook_id === null) {
-                $ajustes->zernio_webhook_id = $cliente->registrarWebhook(
-                    route('webhooks.social', $ajustes->token),
-                    (string) $ajustes->secret,
-                );
-            }
-
-            if (! $encender && $ajustes->zernio_webhook_id !== null) {
-                $cliente->borrarWebhook((string) $ajustes->zernio_webhook_id);
-                $ajustes->zernio_webhook_id = null;
-            }
+            /*
+             * El webhook ya no es de la bienvenida, es de la integración con Zernio.
+             *
+             * Por la misma dirección entran también los mensajes de WhatsApp cuando la empresa usa la
+             * vía oficial. Borrarlo al apagar la bienvenida dejaría a ese bot sin recibir nada, sin
+             * un aviso y sin que nadie relacionara las dos cosas.
+             */
+            (new ZernioWebhookRegistrar($company))->sincronizar();
         } catch (SocialException $e) {
             return back()->withInput()->with('panel_error', $e->getMessage());
         }
 
-        $ajustes->is_active = $encender;
-        $ajustes->save();
-
         return back()->with('panel_ok', $encender
             ? 'Bienvenida encendida. Quien te escriba por primera vez la recibirá.'
             : 'Bienvenida apagada.');
+    }
+
+    /**
+     * Cancela una publicación programada.
+     *
+     * Se puede cambiar de idea. Hasta ahora, lo que se programaba salía sí o sí: para no publicarlo
+     * había que entrar al panel de Zernio, y desde aquí no había forma de pararlo.
+     *
+     * El identificador viene de la lista que la propia pantalla acaba de pintar, y esa lista sale de
+     * la clave de ESTA empresa: Zernio solo devuelve —y solo deja borrar— lo que pertenece a la
+     * cuenta de la clave con la que se pregunta, así que una empresa no puede cancelar la publicación
+     * de otra ni conociendo su identificador.
+     */
+    public function cancelPost(string $post, CurrentCompany $currentCompany): RedirectResponse
+    {
+        $company = $currentCompany->model();
+
+        abort_if($company === null, 403);
+
+        try {
+            (new ZernioClient($company))->cancelarPublicacion($post);
+        } catch (SocialException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
+
+        return back()->with('panel_ok', 'Publicación cancelada. No va a salir.');
     }
 
     /** Manda al cliente a autorizar una red en la propia red. */

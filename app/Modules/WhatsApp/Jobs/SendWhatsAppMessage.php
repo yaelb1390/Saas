@@ -31,11 +31,26 @@ final class SendWhatsAppMessage implements ShouldQueue
 
     public function __construct(private readonly WaMessage $message) {}
 
-    public function handle(WhatsAppGateway $gateway, CurrentCompany $currentCompany): void
+    public function handle(CurrentCompany $currentCompany): void
     {
         // El worker no tiene sesión: hay que restablecer el tenant para que el gateway
         // resuelva la instancia correcta (una línea de WhatsApp por empresa).
         $currentCompany->set((int) $this->message->company_id);
+
+        /*
+         * El gateway se pide AQUÍ, y el orden es lo único que importa de esta línea.
+         *
+         * Antes llegaba por inyección en la firma del método, y Laravel resuelve las dependencias
+         * ANTES de ejecutar el cuerpo: se construía con la empresa que hubiera puesta —ninguna en un
+         * worker recién arrancado, o la del trabajo anterior en uno que lleva rato— y el `set()` de
+         * arriba llegaba tarde.
+         *
+         * Mientras la vía era una sola daba igual, porque salía de la configuración global. Desde que
+         * cada empresa elige la suya, resolverlo antes de tiempo mandaba los mensajes de una empresa
+         * de la vía oficial por el emparejamiento por QR, o por el gateway de registro —que no envía
+         * nada— sin un solo error que lo delatara.
+         */
+        $gateway = app(WhatsAppGateway::class);
 
         $conversation = $this->message->conversation;
 

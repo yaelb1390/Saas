@@ -11,6 +11,7 @@ use App\Modules\Social\Models\SocialWelcome;
 use App\Modules\Social\Models\SocialWelcomeSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
 
 /*
@@ -225,6 +226,15 @@ it('si Zernio rechaza el envío, no se devuelve 500 ni se da por saludado', func
 // ------------------------------------------------------------------ Desde el panel
 
 it('encender la bienvenida da de alta el webhook en Zernio', function (): void {
+    /*
+     * Con una dirección PÚBLICA, que es la única con la que esto funciona de verdad.
+     *
+     * Por omisión los tests corren en «localhost», y ahí el alta se rechaza a propósito: Zernio está
+     * en internet y `localhost` es su propia máquina, no la nuestra. Registrarlo no da error y hace
+     * que los mensajes se entreguen en otro sitio sin que nada lo avise.
+     */
+    URL::forceRootUrl('https://bmos.bm1390.cloud');
+
     zernioContesta();
     $this->ajustes->update(['is_active' => false]);
 
@@ -280,4 +290,29 @@ it('un cajero no puede tocar la bienvenida', function (): void {
     $this->actingAs($cajero)
         ->put(route('panel.social.welcome'), ['message' => 'Hola'])
         ->assertForbidden();
+});
+
+it('al borrar el webhook, el identificador viaja en la query y no en el cuerpo', function (): void {
+    /*
+     * La API lo exige en la query y rechaza el cuerpo con «missing_required_field: id».
+     *
+     * Se mandaba en el cuerpo, y como este borrado NO lanza a propósito —apagar la bienvenida tiene
+     * que funcionar aunque Zernio no conteste—, el fallo era mudo: se limpiaba nuestro identificador
+     * y el webhook seguía VIVO allí, disparando contra una dirección que ya no reconocía a nadie.
+     * El webhook huérfano que el propio código decía estar evitando.
+     */
+    URL::forceRootUrl('https://bmos.bm1390.cloud');
+    zernioContesta();
+
+    $this->ajustes->forceFill(['is_active' => true, 'zernio_webhook_id' => 'wh_viejo'])->save();
+
+    $this->actingAs($this->company->ownerUser())
+        ->put(route('panel.social.welcome'), [
+            'message' => 'Gracias por escribirnos, dime que necesitas.',
+            'is_active' => '0',
+        ])->assertRedirect();
+
+    Http::assertSent(fn ($request): bool => $request->method() === 'DELETE'
+        && str_contains($request->url(), '/v1/webhooks/settings?id=wh_viejo')
+        && $request->data() === []);
 });

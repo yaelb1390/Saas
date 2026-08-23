@@ -76,6 +76,31 @@
 @endphp
 
 <x-layouts.admin title="Dashboard" heading="Dashboard" :subheading="'Resumen de ' . ($company?->name ?? 'la plataforma')">
+    {{-- La respuesta antes que ningún dato, igual que en Monitoreo.
+         Abrir el panel y encontrarse seis tarjetas de cifras obliga a leerlas todas para saber si
+         hay algo que hacer. Esta línea lo dice de una vez, y lo que enumera es exactamente lo que
+         cuenta la campana de arriba: misma fuente, para que no puedan discrepar. --}}
+    @php
+        $pendientes = collect($alertas ?? []);
+        $cuantas = $pendientes->count();
+    @endphp
+    <x-panel.estado class="mb-5"
+        :tono="$cuantas > 0 ? 'aviso' : 'ok'"
+        :titulo="$cuantas > 0
+            ? ($cuantas === 1 ? 'Una cosa pide atención' : $cuantas.' cosas piden atención')
+            : 'Todo en orden'"
+        :nota="$cuantas > 0
+            ? $pendientes->pluck('title')->implode(' · ')
+            : 'Sin stock bajo, sin cajas abiertas y sin entregas atrasadas.'">
+
+        {{-- Un atajo a lo primero que hay que mirar. Con una sola cosa pendiente, el enlace lleva
+             directo; con varias, la lista ya está en la línea de arriba y cada una tiene su entrada
+             en la campana. --}}
+        @if ($cuantas === 1)
+            <a href="{{ $pendientes->first()['url'] }}" class="bmos-btn bmos-btn-ghost shrink-0">Ir a verlo</a>
+        @endif
+    </x-panel.estado>
+
     {{-- KPIs: indicadores de gestión. Cada tarjeta se muestra solo si la empresa tiene contratado su
          módulo y el usuario puede abrirlo (mismo criterio que las tarjetas de acceso rápido). Así una
          empresa de solo Préstamos no ve Ventas, Caja, CRM ni Entregas; y un cajero (sin reports.view)

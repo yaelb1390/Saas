@@ -256,3 +256,41 @@ it('un cajero no entra al reporte', function (): void {
     $this->actingAs($cajero)->get(route('panel.social.automations.reporte', 'auto_1'))
         ->assertForbidden();
 });
+
+it('«ya le habías escrito» se explica en español y no se pinta como un fallo', function (): void {
+    /*
+     * El caso que hizo pensar que la automatización estaba rota.
+     *
+     * Zernio manda este motivo EN INGLÉS y por el campo `error`, y la pantalla pintaba de rojo todo
+     * lo que llegara ahí. Después de comentar en una publicación nueva y ver
+     * «Already sent DM to this commenter» en rojo, cualquiera concluye que no funciona — cuando
+     * funcionó y decidió no repetirse, que es la regla: a cada persona se le escribe una sola vez.
+     */
+    zernioConReporte(logs: [[
+        'id' => 'l1', 'commenterName' => 'yael.b1390', 'commentText' => 'Informacion',
+        'status' => 'skipped', 'error' => 'Already sent DM to this commenter',
+        'createdAt' => '2026-08-22T13:31:00Z',
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations.reporte', 'auto_1'))
+        ->assertOk()
+        ->assertSee('Ya le habías escrito a esta persona')
+        ->assertSee('una sola vez')
+        // Ni el inglés de Zernio, ni el rojo de los fallos de verdad.
+        ->assertDontSee('Already sent DM')
+        ->assertDontSee('text-rose-600 skipped', false);
+});
+
+it('un fallo de verdad sí se sigue viendo en rojo', function (): void {
+    // El arreglo de arriba no puede haberse llevado por delante los errores reales.
+    zernioConReporte(logs: [[
+        'id' => 'l1', 'commenterName' => 'Ana', 'status' => 'failed',
+        'error' => 'La cuenta ya no autoriza el envío',
+        'createdAt' => '2026-08-22T13:31:00Z',
+    ]]);
+
+    $this->actingAs($this->owner)->get(route('panel.social.automations.reporte', 'auto_1'))
+        ->assertOk()
+        ->assertSee('La cuenta ya no autoriza el envío')
+        ->assertSee('text-rose-600', false);
+});

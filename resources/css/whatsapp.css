@@ -4,64 +4,144 @@
    indicador de línea con pulso, burbujas con cola y metadatos técnicos
    en monoespaciada. El verde queda reservado al dominio de WhatsApp
    (línea activa y mensajes salientes); el índigo sigue siendo el color
-   del sistema.
+   del sistema, y el asistente tiene el suyo propio para que no se
+   confunda con lo que escribió una persona.
+
+   Dos decisiones de estructura mandan sobre el resto:
+
+     · La bandeja ocupa TODO EL ALTO disponible. Antes tenía topes fijos
+       (26rem el hilo, 30rem la lista) y dejaba media pantalla vacía por
+       debajo mientras el hilo se leía por una rendija.
+     · Por debajo de 1024px se ve UN panel, no dos: la lista o el hilo,
+       como en el WhatsApp del teléfono. Apilar los dos en 390px dejaba
+       ambos inservibles.
    ============================================================ */
 
 :root {
-    --wa-green: #0f8a5f;
-    --wa-canvas: #f7f8fb;
-    --wa-dot: #dfe3ec;
+    --wa-verde: #0f8a5f;
+    --wa-lienzo: #f7f8fb;
+    --wa-punto: #dfe3ec;
+    /* El asistente no habla en verde: hay que poder distinguir de un vistazo lo que dijo el bot
+       de lo que escribió una persona, y el color es lo primero que se lee. */
+    --wa-bot: #4f46e5;
 }
 
-/* ---------- Cabecera de la línea ---------- */
-.wa-hero {
+.wa-consola {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    /*
+     * En escritorio, el alto de la ventana menos todo lo que queda por encima.
+     *
+     * `--wa-arriba` lo mide el propio componente al arrancar y en cada cambio de tamaño, y NO es
+     * pereza: la cabecera del panel mide 176px en escritorio y 212px en móvil, así que una resta
+     * fija se equivoca en una de las dos. Se probó: con `calc(100dvh - 19rem)` el cuadro de escribir
+     * caía 64px por debajo del borde en escritorio y 164px en móvil, y para escribir había que
+     * desplazar la página entera. Eso es el mismo problema que se venía a arreglar, movido de sitio.
+     *
+     * Con el alto puesto aquí, la tira de conexión y las pestañas cogen lo que necesiten y la
+     * bandeja se queda con el resto: cuando aparece el QR, la tira crece y la bandeja encoge sola.
+     *
+     * Solo en la bandeja. El formulario del asistente es más largo que una pantalla y se lee
+     * desplazando, como cualquier formulario: encajarlo a la fuerza le pondría su propia barra de
+     * desplazamiento dentro de la página, que es de las cosas que peor se manejan.
+     */
+}
+
+/*
+ * En móvil la página se desplaza, y no es una rendición.
+ *
+ * Medido a 390x844: la cabecera del panel se lleva 212px y los dos elementos que flotan pegados
+ * abajo —el banner de «instala la app» y la burbuja del asistente— otros 180. Quedan 452px para la
+ * tira de conexión (213 con la línea caída), las pestañas y la bandeja entera. Encajarlo a la fuerza
+ * daba una bandeja de 164px: un hilo de dos mensajes y medio.
+ *
+ * Así que abajo se RESERVA en vez de recortar: al llegar al final de la página, el cuadro de
+ * escribir queda por encima del banner en vez de debajo, que era el fallo de verdad.
+ */
+.wa-consola {
+    padding-bottom: var(--wa-abajo, 1rem);
+}
+
+@media (min-width: 1024px) {
+    .wa-consola {
+        padding-bottom: 0;
+    }
+
+    /* Aquí sí cabe: la cabecera mide lo mismo pero la pantalla es mucho más alta. */
+    .wa-consola[data-alto='fijo'] {
+        height: calc(100dvh - var(--wa-arriba, 14rem) - var(--wa-abajo, 1rem));
+    }
+}
+
+/* ---------- Tira de conexión ---------- */
+.wa-linea {
+    padding: 1rem 1.15rem;
+    transition: padding 0.2s ease;
+    /* Con el alto de la consola fijado, flex encoge a todos sus hijos por igual. La que tiene que
+       ceder es la bandeja, no esto: sin el `flex-shrink: 0`, a 390px las pestañas pasaban de 43px
+       a 11px y quedaban ilegibles. */
+    flex-shrink: 0;
+}
+
+/* Conectada no hay nada que hacer: se encoge y deja de robar pantalla. */
+.wa-linea[data-abierta='true'] {
+    padding: 1.35rem 1.5rem;
+}
+
+.wa-linea-fila {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.25rem;
-}
-
-.wa-hero-id {
-    display: flex;
     align-items: center;
     gap: 0.9rem;
 }
 
+.wa-linea-texto {
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.wa-linea-acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
 /* Estado: bloque sólido + anillo que respira solo cuando hay actividad. */
-.wa-status-orb {
+.wa-orbe {
     position: relative;
     display: grid;
     place-items: center;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 2.5rem;
+    height: 2.5rem;
     flex-shrink: 0;
-    border-radius: 0.9rem;
+    border-radius: 0.85rem;
     background: #f1f3f8;
     color: #6b7280;
 }
 
-.wa-status-orb svg {
-    width: 1.25rem;
-    height: 1.25rem;
+.wa-orbe svg {
+    width: 1.2rem;
+    height: 1.2rem;
 }
 
-.wa-status-orb[data-tone='live'] {
+.wa-orbe[data-tono='viva'] {
     background: rgba(15, 138, 95, 0.1);
-    color: var(--wa-green);
+    color: var(--wa-verde);
 }
 
-.wa-status-orb[data-tone='pending'] {
+.wa-orbe[data-tono='espera'] {
     background: rgba(217, 119, 6, 0.1);
     color: #b45309;
 }
 
-.wa-status-orb[data-tone='down'] {
+.wa-orbe[data-tono='caida'] {
     background: rgba(190, 18, 60, 0.08);
     color: #9f1239;
 }
 
-.wa-status-orb::after {
+.wa-orbe::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -70,17 +150,17 @@
     opacity: 0;
 }
 
-.wa-status-orb[data-pulse='true']::after {
-    animation: wa-breathe 2.4s ease-out infinite;
+.wa-orbe[data-pulso='true']::after {
+    animation: wa-respira 2.4s ease-out infinite;
 }
 
-@keyframes wa-breathe {
+@keyframes wa-respira {
     0% { opacity: 0.55; transform: scale(1); }
     70% { opacity: 0; transform: scale(1.35); }
     100% { opacity: 0; transform: scale(1.35); }
 }
 
-.wa-hero-title {
+.wa-linea-titulo {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -88,14 +168,14 @@
     color: var(--bmos-text);
 }
 
-.wa-hero-hint {
+.wa-linea-pista {
     margin-top: 0.1rem;
     font-size: 0.875rem;
     color: var(--bmos-muted);
 }
 
 /* La instancia es un dato técnico: monoespaciada y discreta. */
-.wa-instance {
+.wa-instancia {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -105,8 +185,14 @@
     color: #94a3b8;
 }
 
+.wa-instancia svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex-shrink: 0;
+}
+
 /* ---------- Emparejamiento (QR) ---------- */
-.wa-pair {
+.wa-emparejar {
     display: grid;
     gap: 1.5rem;
     align-items: center;
@@ -114,12 +200,12 @@
     padding: 1.5rem;
     border: 1px solid var(--bmos-border);
     border-radius: 0.9rem;
-    background: var(--wa-canvas);
-    animation: wa-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    background: var(--wa-lienzo);
+    animation: wa-sube 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (min-width: 768px) {
-    .wa-pair {
+    .wa-emparejar {
         grid-template-columns: auto 1fr;
     }
 }
@@ -127,6 +213,7 @@
 .wa-qr {
     width: 15rem;
     height: 15rem;
+    max-width: 100%;
     padding: 0.75rem;
     border-radius: 0.9rem;
     background: #fff;
@@ -134,22 +221,22 @@
     justify-self: center;
 }
 
-.wa-steps {
+.wa-pasos {
     display: grid;
     gap: 0.7rem;
-    counter-reset: wa-step;
+    counter-reset: wa-paso;
 }
 
-.wa-step {
+.wa-paso {
     position: relative;
     padding-left: 2rem;
     font-size: 0.875rem;
     color: #475569;
 }
 
-.wa-step::before {
-    counter-increment: wa-step;
-    content: counter(wa-step);
+.wa-paso::before {
+    counter-increment: wa-paso;
+    content: counter(wa-paso);
     position: absolute;
     left: 0;
     top: -0.05rem;
@@ -165,16 +252,89 @@
     color: var(--bmos-primary);
 }
 
+/* ---------- Pestañas ---------- */
+.wa-pestanas {
+    display: flex;
+    flex-shrink: 0;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+}
+
+.wa-pestana {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+    padding: 0.55rem 0.95rem;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.wa-pestana svg {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.wa-pestana:hover {
+    color: var(--bmos-text);
+    background: #f4f5fa;
+}
+
+.wa-pestana[aria-selected='true'] {
+    border-color: var(--bmos-border);
+    background: #fff;
+    color: var(--bmos-primary);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+/* Cuántos clientes están esperando a una persona. Va en la pestaña porque es lo que urge. */
+.wa-pildora {
+    display: grid;
+    place-items: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: #d97706;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.wa-punto {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: #cbd5e1;
+}
+
+.wa-punto[data-encendido='true'] {
+    background: var(--wa-verde);
+    box-shadow: 0 0 0 3px rgba(15, 138, 95, 0.15);
+}
+
 /* ---------- Bandeja: una sola superficie dividida ---------- */
 .wa-shell {
     display: grid;
     overflow: hidden;
-    margin-top: 1.25rem;
+    /* Se queda con lo que sobre del alto de la consola. El suelo evita que, con el QR abierto, la
+       bandeja se comprima hasta ser inservible: en ese caso la página se desplaza, que es lo
+       razonable cuando estás mirando un código para escanearlo. */
+    flex: 1;
+    /* En móvil la bandeja manda sobre el alto de la página, que se desplaza: 26rem da un hilo que
+       se puede leer de verdad en vez de la rendija de 164px que salía al forzarla dentro. */
+    min-height: 26rem;
 }
 
 @media (min-width: 1024px) {
     .wa-shell {
         grid-template-columns: 21rem 1fr;
+        min-height: 22rem;
     }
 }
 
@@ -182,62 +342,71 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    border-bottom: 1px solid var(--bmos-border);
 }
 
 @media (min-width: 1024px) {
     .wa-aside {
-        border-bottom: 0;
         border-right: 1px solid var(--bmos-border);
     }
 }
 
-.wa-panel-head {
+/* Un panel cada vez por debajo de 1024px. Apilar lista y hilo en 390px dejaba los dos
+   inservibles: la lista con dos filas visibles y el hilo empujado fuera de la pantalla. */
+@media (max-width: 1023px) {
+    .wa-shell[data-vista='hilo'] .wa-aside,
+    .wa-shell[data-vista='lista'] .wa-hilo {
+        display: none;
+    }
+}
+
+.wa-aside-cabeza {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 1rem 1.15rem;
+    padding: 0.9rem 1.15rem;
     border-bottom: 1px solid var(--bmos-border);
 }
 
-.wa-panel-title {
+.wa-aside-titulo {
     font-weight: 600;
     color: var(--bmos-text);
 }
 
-.wa-count {
+.wa-cuenta {
     font-family: ui-monospace, 'SF Mono', monospace;
     font-size: 0.7rem;
     color: #94a3b8;
 }
 
-.wa-list {
+.wa-lista {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    max-height: 30rem;
 }
 
 /* Conversación activa: barra de acento, no un fondo saturado. */
-.wa-item {
+.wa-fila {
     position: relative;
     display: flex;
+    width: 100%;
     align-items: center;
     gap: 0.75rem;
     padding: 0.9rem 1.15rem;
     border-bottom: 1px solid #f1f3f8;
+    text-align: left;
     transition: background 0.15s ease;
 }
 
-.wa-item:hover {
+.wa-fila:hover {
     background: #fafbfd;
 }
 
-.wa-item[aria-current='true'] {
+.wa-fila[aria-current='true'] {
     background: #f7f8fd;
 }
 
-.wa-item[aria-current='true']::before {
+.wa-fila[aria-current='true']::before {
     content: '';
     position: absolute;
     left: 0;
@@ -261,19 +430,24 @@
     font-weight: 700;
 }
 
-.wa-item-body {
+.wa-avatar svg {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.wa-fila-cuerpo {
     flex: 1;
     min-width: 0;
 }
 
-.wa-item-top {
+.wa-fila-alto {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem;
 }
 
-.wa-item-name {
+.wa-fila-nombre {
     overflow: hidden;
     font-size: 0.9rem;
     font-weight: 600;
@@ -282,13 +456,14 @@
     white-space: nowrap;
 }
 
-.wa-item-time {
+.wa-fila-hora {
     flex-shrink: 0;
     font-size: 0.68rem;
     color: #a3aab8;
 }
 
-.wa-item-preview {
+.wa-fila-avance {
+    display: block;
     margin-top: 0.1rem;
     overflow: hidden;
     font-size: 0.82rem;
@@ -297,51 +472,136 @@
     white-space: nowrap;
 }
 
+.wa-fila-marcas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.35rem;
+}
+
+.wa-fila-marcas:empty {
+    display: none;
+}
+
+.wa-nuevo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.75rem;
+    border-top: 1px solid var(--bmos-border);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bmos-primary);
+    transition: background 0.15s ease;
+}
+
+.wa-nuevo:hover {
+    background: #f7f8fd;
+}
+
+.wa-nuevo svg {
+    width: 1rem;
+    height: 1rem;
+}
+
 /* ---------- Hilo ---------- */
-.wa-thread {
+.wa-hilo {
     display: flex;
     flex-direction: column;
     min-height: 0;
 }
 
-.wa-thread-head {
+.wa-hilo-cabeza {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.9rem 1.15rem;
+    gap: 0.6rem;
+    padding: 0.75rem 1.15rem;
     border-bottom: 1px solid var(--bmos-border);
 }
 
-/* El ancla visual: lienzo de puntos. Ni liso, ni los garabatos de WhatsApp. */
-.wa-canvas {
+.wa-hilo-quien {
+    display: flex;
+    min-width: 0;
     flex: 1;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.wa-hilo-quien > a {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* Volver a la lista: solo tiene sentido donde se ve un panel cada vez. */
+.wa-volver {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+    border-radius: 0.6rem;
+    color: var(--bmos-muted);
+}
+
+.wa-volver:hover {
+    background: #f1f3f8;
+}
+
+.wa-volver svg {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+@media (min-width: 1024px) {
+    .wa-volver {
+        display: none;
+    }
+}
+
+/* El bot se apartó: quien mira la bandeja tiene que saberlo antes de leer nada. */
+.wa-traspaso {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 1.15rem;
+    border-bottom: 1px solid #fde68a;
+    background: #fffbeb;
+    font-size: 0.85rem;
+    color: #92400e;
+}
+
+/* El ancla visual: lienzo de puntos. Ni liso, ni los garabatos de WhatsApp. */
+.wa-lienzo {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    min-height: 22rem;
-    max-height: 26rem;
     padding: 1.25rem;
-    background-color: var(--wa-canvas);
-    background-image: radial-gradient(var(--wa-dot) 1px, transparent 1px);
+    background-color: var(--wa-lienzo);
+    background-image: radial-gradient(var(--wa-punto) 1px, transparent 1px);
     background-size: 18px 18px;
     background-position: -9px -9px;
 }
 
-.wa-row {
+.wa-linea-msg {
     display: flex;
     margin-bottom: 0.65rem;
-    animation: wa-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: wa-sube 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
     animation-delay: calc(var(--i, 0) * 35ms);
 }
 
-.wa-row--out {
+.wa-linea-msg--sale {
     justify-content: flex-end;
 }
 
-@keyframes wa-rise {
+@keyframes wa-sube {
     from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: none; }
 }
 
-.wa-bubble {
+.wa-burbuja {
     position: relative;
     max-width: min(72%, 34rem);
     min-width: 5.5rem;
@@ -354,26 +614,51 @@
 
 /* pre-line SOLO en el texto del mensaje: si se aplica a la burbuja, los saltos de línea de la
    propia plantilla Blade se renderizan como saltos reales y deforman la altura. */
-.wa-text {
+.wa-texto {
     white-space: pre-line;
     overflow-wrap: anywhere;
 }
 
-.wa-bubble--in {
+.wa-burbuja--entra {
     border: 1px solid var(--bmos-border);
     border-bottom-left-radius: 0.25rem;
     background: #fff;
     color: var(--bmos-text);
 }
 
-.wa-bubble--out {
+.wa-burbuja--sale {
     border-bottom-right-radius: 0.25rem;
-    background: var(--wa-green);
+    background: var(--wa-verde);
     color: #fff;
 }
 
+/* Lo que contestó el asistente. Mismo lado que lo que escribe el negocio —porque habla en su
+   nombre— pero otro color, para poder separarlo de un vistazo cuando algo salga mal. */
+.wa-burbuja--bot {
+    border-bottom-right-radius: 0.25rem;
+    background: var(--wa-bot);
+    color: #fff;
+}
+
+.wa-firma {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.15rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.wa-firma svg {
+    width: 0.7rem;
+    height: 0.7rem;
+}
+
 /* Cola de la burbuja: recortada con un radial, no un triángulo pegado. */
-.wa-bubble::after {
+.wa-burbuja::after {
     content: '';
     position: absolute;
     bottom: 0;
@@ -381,14 +666,19 @@
     height: 0.55rem;
 }
 
-.wa-bubble--in::after {
+.wa-burbuja--entra::after {
     left: -0.3rem;
     background: radial-gradient(circle at 100% 0, transparent 0.55rem, #fff 0.56rem);
 }
 
-.wa-bubble--out::after {
+.wa-burbuja--sale::after {
     right: -0.3rem;
-    background: radial-gradient(circle at 0 0, transparent 0.55rem, var(--wa-green) 0.56rem);
+    background: radial-gradient(circle at 0 0, transparent 0.55rem, var(--wa-verde) 0.56rem);
+}
+
+.wa-burbuja--bot::after {
+    right: -0.3rem;
+    background: radial-gradient(circle at 0 0, transparent 0.55rem, var(--wa-bot) 0.56rem);
 }
 
 .wa-meta {
@@ -401,38 +691,128 @@
     font-size: 0.62rem;
 }
 
-.wa-bubble--in .wa-meta {
+.wa-burbuja--entra .wa-meta {
     color: #a3aab8;
 }
 
-.wa-bubble--out .wa-meta {
+.wa-burbuja--sale .wa-meta,
+.wa-burbuja--bot .wa-meta {
     color: rgba(255, 255, 255, 0.72);
 }
 
-.wa-meta-fail {
+.wa-meta-fallo {
     font-weight: 700;
     color: #fecdd3;
 }
 
-/* ---------- Composer ---------- */
-.wa-composer {
-    display: grid;
+/* ---------- Redactor ---------- */
+/*
+ * Flex y no rejilla, y el motivo es el campo del teléfono.
+ *
+ * Con una conversación abierta ese campo pasa a `hidden`, y una rejilla de columnas fijas se
+ * quedaría con una columna vacía de 10rem en medio. Con flex, lo que no se pinta no ocupa: el
+ * cuadro de escribir crece y en un móvil se acabaron las cuatro filas apiladas que dejaban el hilo
+ * en 69 píxeles.
+ */
+.wa-redactor {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
     padding: 0.85rem 1.15rem 1rem;
     border-top: 1px solid var(--bmos-border);
     background: #fff;
+    flex-shrink: 0;
 }
 
-@media (min-width: 640px) {
-    .wa-composer {
-        grid-template-columns: 11rem minmax(0, 1fr) auto;
-        align-items: center;
-    }
+/* Respuestas rápidas: el desplegable se ancla al rayo y sube, que es donde hay sitio. */
+.wa-rapidas {
+    position: relative;
+    flex: 0 0 auto;
 }
 
-/* Campos propios: .bmos-input impone width:100% y rompería la rejilla. */
-.wa-field {
+.wa-rapidas-boton {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border: 1px solid #e2e5ee;
+    border-radius: 0.8rem;
+    background: #f8f9fc;
+    color: var(--bmos-primary);
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.wa-rapidas-boton:hover {
+    background: #eef0f8;
+    border-color: #cdd3e3;
+}
+
+.wa-rapidas-boton svg {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.wa-rapidas-menu {
+    position: absolute;
+    bottom: calc(100% + 0.5rem);
+    left: 0;
+    z-index: 20;
+    width: min(22rem, calc(100vw - 3rem));
+    max-height: 18rem;
+    overflow-y: auto;
+    padding: 0.4rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    background: #fff;
+    box-shadow: 0 20px 45px -22px rgba(16, 24, 40, 0.45);
+}
+
+.wa-rapidas-titulo {
+    padding: 0.35rem 0.6rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.wa-rapidas-item {
+    display: block;
     width: 100%;
+    padding: 0.55rem 0.6rem;
+    border-radius: 0.6rem;
+    text-align: left;
+    transition: background 0.12s ease;
+}
+
+.wa-rapidas-item:hover {
+    background: #f4f5fa;
+}
+
+.wa-rapidas-nombre {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-rapidas-texto {
+    display: block;
+    margin-top: 0.1rem;
+    overflow: hidden;
+    font-size: 0.78rem;
+    color: var(--bmos-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Campos propios: .bmos-input impone width:100% y rompería la fila. */
+.wa-campo {
+    /* La base es pequeña a propósito: crece hasta llenar la fila igualmente, y con 12rem no cabía
+       junto al botón en un móvil por seis píxeles —el redactor mide 332px ahí— y lo tiraba a una
+       segunda fila que se comía la mitad del hilo. */
+    flex: 1 1 8rem;
     min-width: 0;
     padding: 0.65rem 0.9rem;
     border: 1px solid #e2e5ee;
@@ -442,23 +822,25 @@
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.wa-field:focus {
+.wa-campo:focus {
     outline: none;
     border-color: #a5b4fc;
     background: #fff;
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
 
-.wa-field--phone {
+.wa-campo--tel {
+    flex: 0 1 10rem;
     font-family: ui-monospace, 'SF Mono', monospace;
     font-size: 0.82rem;
 }
 
-.wa-field--error {
+.wa-campo--error {
     border-color: #fca5a5;
 }
 
-.wa-send {
+.wa-enviar {
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -473,24 +855,241 @@
     transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.wa-send:hover {
+.wa-enviar:hover {
     background: var(--bmos-primary-600);
     transform: translateY(-1px);
 }
 
-.wa-send svg {
+.wa-enviar svg {
     width: 1rem;
     height: 1rem;
 }
 
-.wa-composer-error {
-    grid-column: 1 / -1;
+.wa-redactor-error {
+    flex: 1 0 100%;
     font-size: 0.8rem;
     color: #be123c;
 }
 
+/* ---------- Asistente ---------- */
+.wa-bot {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.wa-bot-cabeza {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.1rem;
+}
+
+.wa-bot-titulo {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-bot-sub {
+    max-width: 46rem;
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--bmos-muted);
+}
+
+/* Interruptor: la casilla real sigue ahí (accesible y enviable), solo que oculta. */
+.wa-palanca {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.wa-palanca input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.wa-palanca-pista {
+    position: relative;
+    width: 2.9rem;
+    height: 1.65rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: #d5d9e5;
+    transition: background 0.18s ease;
+}
+
+.wa-palanca-pista::after {
+    content: '';
+    position: absolute;
+    top: 0.2rem;
+    left: 0.2rem;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.25);
+    transition: transform 0.18s ease;
+}
+
+.wa-palanca input:checked + .wa-palanca-pista {
+    background: var(--wa-verde);
+}
+
+.wa-palanca input:checked + .wa-palanca-pista::after {
+    transform: translateX(1.25rem);
+}
+
+.wa-palanca input:focus-visible + .wa-palanca-pista {
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+}
+
+.wa-palanca-texto {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-aviso {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 1.1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid #fde68a;
+    border-radius: 0.8rem;
+    background: #fffbeb;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #92400e;
+}
+
+.wa-aviso--grave {
+    border-color: #fecdd3;
+    background: #fff1f2;
+    color: #9f1239;
+}
+
+.wa-aviso svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.wa-bot-campo {
+    margin-bottom: 1.25rem;
+}
+
+.wa-bot-etiqueta {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-bot-ayuda {
+    max-width: 46rem;
+    margin: 0.25rem 0 0.6rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--bmos-muted);
+}
+
+.wa-bot-area {
+    min-height: 12rem;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.wa-bot-pie {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.35rem;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+.wa-bot-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.9rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--bmos-border);
+}
+
+.wa-bot-contador {
+    margin-right: auto;
+    font-size: 0.82rem;
+    color: var(--bmos-muted);
+}
+
+/* ---------- Respuestas rápidas (gestión) ---------- */
+.wa-plantillas {
+    display: grid;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+.wa-plantilla {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    /* Los elementos de una rejilla no encogen por debajo de su contenido a menos que se les diga:
+       sin esto, el texto de la respuesta —que va en una sola línea con puntos suspensivos— estiraba
+       la fila 4px fuera de la tarjeta a 390px y el botón de borrar quedaba medio cortado. */
+    min-width: 0;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.75rem;
+    background: #fbfcfe;
+}
+
+.wa-plantilla-nombre {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-plantilla-texto {
+    margin-top: 0.1rem;
+    overflow: hidden;
+    font-size: 0.82rem;
+    color: var(--bmos-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wa-plantilla-alta {
+    display: grid;
+    gap: 0.5rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--bmos-border);
+}
+
+@media (min-width: 768px) {
+    .wa-plantilla-alta {
+        grid-template-columns: 14rem minmax(0, 1fr) auto;
+        align-items: center;
+    }
+}
+
 /* ---------- Vacíos ---------- */
-.wa-blank {
+.wa-vacio {
     display: grid;
     place-items: center;
     gap: 0.35rem;
@@ -500,7 +1099,7 @@
     color: #94a3b8;
 }
 
-.wa-blank-icon {
+.wa-vacio-icono {
     display: grid;
     place-items: center;
     width: 3rem;
@@ -510,15 +1109,128 @@
     color: #b6bdcc;
 }
 
-.wa-blank-icon svg {
+.wa-vacio-icono svg {
     width: 1.5rem;
     height: 1.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .wa-row,
-    .wa-pair,
-    .wa-status-orb[data-pulse='true']::after {
+    .wa-linea-msg,
+    .wa-emparejar,
+    .wa-orbe[data-pulso='true']::after {
         animation: none;
     }
+}
+
+/* ---------- Las dos vías de conexión ---------- */
+
+/*
+ * El aviso que acompaña a cada alta.
+ *
+ * Va con el paso, no en un bloque de ayuda aparte: lo que cuenta —que por QR pueden bloquearte el
+ * número, que la vía oficial necesita uno que no esté en la app— hay que leerlo ANTES de conectar,
+ * no descubrirlo cuando ya pasó.
+ */
+.wa-nota {
+    margin-top: 0.9rem;
+    padding: 0.6rem 0.75rem;
+    border-left: 3px solid #fbbf24;
+    border-radius: 0 0.5rem 0.5rem 0;
+    background: #fffbeb;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: #92400e;
+}
+
+.wa-nota + .wa-nota {
+    margin-top: 0.5rem;
+}
+
+/* El alta oficial no tiene QR, así que no necesita la columna de la imagen. */
+.wa-emparejar--meta {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 768px) {
+    .wa-emparejar--meta {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.wa-vias {
+    display: grid;
+    gap: 0.6rem;
+}
+
+@media (min-width: 900px) {
+    .wa-vias {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Tarjeta seleccionable entera, no un punto diminuto al lado de un párrafo. */
+.wa-via {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.85rem;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wa-via:hover {
+    border-color: #cdd3e3;
+    background: #fbfcfe;
+}
+
+.wa-via:has(input:checked) {
+    border-color: var(--bmos-primary);
+    background: #f7f8fd;
+    box-shadow: 0 0 0 1px var(--bmos-primary);
+}
+
+.wa-via input {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+    accent-color: var(--bmos-primary);
+}
+
+.wa-via-cuerpo {
+    min-width: 0;
+}
+
+.wa-via-titulo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-via-texto {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--bmos-muted);
+}
+
+/* «No puedes escribir el primero»: ocupa el sitio del botón, con el mismo alto, para que la lista
+   no dé un salto al cambiar de vía. */
+.wa-nuevo--no {
+    color: var(--bmos-muted);
+    font-weight: 400;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    text-align: center;
+    cursor: default;
+}
+
+.wa-nuevo--no:hover {
+    background: transparent;
 }

@@ -7,6 +7,7 @@ namespace App\Modules\Core\Http\Controllers;
 use App\Modules\Core\Models\Branch;
 use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Reports\Services\AlertService;
 use App\Modules\Reports\Services\ReportService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -18,8 +19,12 @@ use Illuminate\Routing\Controller;
  */
 final class DashboardController extends Controller
 {
-    public function __invoke(Request $request, CurrentCompany $currentCompany, ReportService $reports): View
-    {
+    public function __invoke(
+        Request $request,
+        CurrentCompany $currentCompany,
+        ReportService $reports,
+        AlertService $alertas,
+    ): View {
         $user = $request->user();
 
         // Instancia compartida de la petición: el layout y las tarjetas de módulos la reutilizan.
@@ -40,6 +45,14 @@ final class DashboardController extends Controller
             'branchesCount' => Branch::count(),      // aislado por el tenant activo
             'warehousesCount' => Warehouse::count(), // aislado por el tenant activo
             'summary' => $reports->executiveSummary(),
+            /*
+             * Lo que pide atención, arriba del todo y antes de ningún dato.
+             *
+             * Sale del MISMO servicio que la campana de la cabecera, no de consultas propias: si la
+             * campana dice tres cosas y el dashboard dijera dos, dejarían de creerse las dos. Además
+             * ya viene cacheado un minuto, así que no cuesta consultas nuevas.
+             */
+            'alertas' => $alertas->forCurrentCompany(),
             'collectionsTrend' => $showLoans ? $reports->collectionsTrend() : [],
             'salesTrend' => $showSales ? $reports->salesTrend() : [],
             'portfolio' => $showLoans ? $reports->loanPortfolio() : null,

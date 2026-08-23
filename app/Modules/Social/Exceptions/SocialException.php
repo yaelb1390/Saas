@@ -34,6 +34,23 @@ final class SocialException extends DomainException
         return new self('Elige al menos una red donde publicar.');
     }
 
+    /**
+     * La dirección donde recibiríamos los avisos no existe fuera de este equipo.
+     *
+     * El mensaje nombra la dirección concreta porque sin ella no se entiende nada: ver «localhost»
+     * escrito es lo que hace caer la ficha. Y explica la consecuencia —los mensajes se entregan en
+     * otro sitio— porque el síntoma es «no llega nada» y eso no apunta a ninguna causa.
+     */
+    public static function webhookInalcanzable(string $url): self
+    {
+        return new self(
+            "No se puede activar aquí: los mensajes se reciben en «{$url}», y esa dirección solo "
+            .'existe dentro de este equipo. El servicio de redes está en internet y no puede '
+            .'alcanzarla, así que los mensajes se entregarían donde esté publicado el sistema. '
+            .'Actívalo desde ahí, o publica este equipo con un túnel y vuelve a intentarlo.'
+        );
+    }
+
     public static function noSePudoPublicar(?string $motivo = null): self
     {
         // El motivo de Zernio es mucho más útil que el nuestro cuando existe: «el vídeo excede la

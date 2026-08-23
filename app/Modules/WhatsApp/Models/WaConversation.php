@@ -34,6 +34,9 @@ class WaConversation extends Model implements HasCompany
     {
         return [
             'last_message_at' => 'datetime',
+            // Fecha y no un booleano: la bandeja tiene que poder decir «te está esperando desde
+            // hace veinte minutos», y un sí/no no responde a eso.
+            'bot_paused_at' => 'datetime',
         ];
     }
 

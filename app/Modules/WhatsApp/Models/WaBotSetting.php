@@ -18,6 +18,9 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $provider
  * @property bool $is_active
  * @property string|null $business_info
+ * @property string|null $instructions
+ * @property bool $uses_documents
+ * @property bool $includes_plans
  * @property string|null $greeting
  */
 final class WaBotSetting extends Model
@@ -26,6 +29,15 @@ final class WaBotSetting extends Model
 
     /** Lo que cabe en el texto del negocio. Suficiente para horario, pagos, envíos y devoluciones. */
     public const MAX_INFO = 4000;
+
+    /**
+     * Lo que cabe en el papel que juega el bot.
+     *
+     * Más corto que los datos a propósito: unas instrucciones que no caben aquí suelen ser datos
+     * disfrazados, y esos van en el otro campo o —si son muchos— en la base de conocimiento, que no
+     * paga su coste en cada mensaje.
+     */
+    public const MAX_INSTRUCCIONES = 2000;
 
     /**
      * Emparejamiento por código QR (Evolution API).
@@ -48,7 +60,10 @@ final class WaBotSetting extends Model
     /** @var list<string> */
     public const VIAS = [self::OFICIAL, self::POR_QR];
 
-    protected $fillable = ['company_id', 'provider', 'is_active', 'business_info', 'greeting'];
+    protected $fillable = [
+        'company_id', 'provider', 'is_active', 'business_info', 'greeting',
+        'instructions', 'uses_documents', 'includes_plans',
+    ];
 
     /** La fila de una empresa, apagada la primera vez. */
     public static function paraEmpresa(int $companyId): self
@@ -105,6 +120,8 @@ final class WaBotSetting extends Model
     {
         return [
             'is_active' => 'boolean',
+            'uses_documents' => 'boolean',
+            'includes_plans' => 'boolean',
             'last_sent_at' => 'datetime',
         ];
     }

@@ -72,7 +72,19 @@ final class WhatsAppController extends Controller
         }
 
         if ($result['state'] === 'log') {
-            return back()->with('panel_error', 'WhatsApp no está configurado en este servidor. La línea opera en modo registro y no envía nada.');
+            /*
+             * Aquí hay DOS causas muy distintas y antes se contaban como una sola.
+             *
+             * Decir «no está configurado en este servidor» a una empresa que eligió la vía oficial y
+             * no tiene clave de Zernio es mentirle: el servidor está bien, lo que falta es su clave,
+             * y además la puede poner ella misma en Redes sociales. Mandarla a mirar el servidor es
+             * mandarla a donde no está el problema.
+             */
+            $ajustes = WaBotSetting::paraEmpresaSiHay();
+
+            return back()->with('panel_error', $ajustes?->usaZernio() === true
+                ? 'Para conectar por la vía oficial hace falta tu clave de Zernio. Ponla en Redes sociales y vuelve aquí.'
+                : 'El emparejamiento por código QR no está disponible en este servidor. Usa la vía oficial de Meta, que no necesita nada instalado.');
         }
 
         /*
@@ -138,6 +150,9 @@ final class WhatsAppController extends Controller
             'is_active' => $request->boolean('is_active'),
             'business_info' => $request->input('business_info'),
             'greeting' => $request->input('greeting'),
+            'instructions' => $request->input('instructions'),
+            'uses_documents' => $request->boolean('uses_documents'),
+            'includes_plans' => $request->boolean('includes_plans'),
         ])->save();
 
         /*

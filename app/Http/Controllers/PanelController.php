@@ -187,6 +187,7 @@ final class PanelController extends Controller
             'plantillas' => WaTemplate::query()->where('is_active', true)->orderBy('name')->get(),
             'ajustes' => WaBotSetting::paraEmpresaSiHay(),
             'maxInfo' => WaBotSetting::MAX_INFO,
+            'maxInstrucciones' => WaBotSetting::MAX_INSTRUCCIONES,
             /*
              * Las dos vías, por su nombre.
              *

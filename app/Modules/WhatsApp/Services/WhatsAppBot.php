@@ -11,7 +11,7 @@ use App\Modules\Help\Services\AssistantQuota;
 use App\Modules\WhatsApp\Models\WaBotSetting;
 use App\Modules\WhatsApp\Models\WaConversation;
 use App\Modules\WhatsApp\Models\WaMessage;
-use App\Modules\WhatsApp\Support\ProductLookup;
+use App\Modules\WhatsApp\Support\BotPrompt;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -98,7 +98,7 @@ final class WhatsAppBot
         private readonly AiProvider $provider,
         private readonly WhatsAppService $whatsapp,
         private readonly AssistantQuota $cuota,
-        private readonly ProductLookup $catalogo,
+        private readonly BotPrompt $prompt,
     ) {}
 
     /**
@@ -235,7 +235,7 @@ final class WhatsAppBot
             return null;
         }
 
-        $mensajes = [['role' => 'system', 'content' => $this->instrucciones($ajustes, $pregunta)]];
+        $mensajes = [['role' => 'system', 'content' => $this->prompt->paraPregunta($ajustes, $pregunta)]];
 
         foreach ($this->ultimosTurnos($conversacion) as $turno) {
             $mensajes[] = $turno;
@@ -263,44 +263,6 @@ final class WhatsAppBot
         }
 
         return $respuesta;
-    }
-
-    private function instrucciones(WaBotSetting $ajustes, string $pregunta): string
-    {
-        $productos = $this->catalogo->buscar($pregunta);
-
-        $catalogo = $productos === []
-            ? 'No se encontró ningún producto que coincida con lo que preguntó.'
-            : collect($productos)->map(static fn (array $p): string => sprintf(
-                '- %s: %s%s%s',
-                $p['nombre'],
-                number_format((float) $p['precio'], 2),
-                $p['hay'] ? '' : ' (HOY NO HAY)',
-                filled($p['descripcion']) ? ' — '.Str::limit((string) $p['descripcion'], 120) : '',
-            ))->implode("\n");
-
-        $negocio = (string) $ajustes->business_info;
-
-        return <<<TXT
-        Atiendes por WhatsApp a los clientes de este negocio. Escribes EN SU NOMBRE.
-
-        Reglas, por orden de importancia:
-        - Responde ÚNICAMENTE con la información de abajo. Si lo que preguntan no está ahí, responde
-          exactamente NO_LO_SE y nada más. No supongas horarios, precios, plazos ni condiciones: el
-          cliente va a tomar una decisión con lo que le digas y el negocio va a tener que cumplirlo.
-        - Los precios salen SOLO de la lista de productos. Si no está en la lista, no tiene precio.
-        - Si un producto dice HOY NO HAY, dilo claro y ofrece los otros que sí haya.
-        - Sé breve: es WhatsApp, no un correo. Dos o tres frases.
-        - Habla en español de República Dominicana, de tú, cercano y sin tecnicismos. Nada de
-          «estimado cliente».
-        - No prometas nada que no esté escrito abajo: ni descuentos, ni envíos gratis, ni plazos.
-
-        SOBRE EL NEGOCIO:
-        {$negocio}
-
-        PRODUCTOS QUE COINCIDEN CON SU PREGUNTA:
-        {$catalogo}
-        TXT;
     }
 
     /**

@@ -57,6 +57,31 @@ body {
     min-height: 100vh;
 }
 
+/*
+ * El fondo oscuro de la columna lo pinta LA REJILLA, no solo la barra.
+ *
+ * La barra mide `100vh` fijo dentro de una celda que crece con el contenido: en una página larga, el
+ * sobrante de esa celda no tiene fondo. Normalmente no se ve porque la barra va `sticky` y tapa la
+ * ventana, pero el pegado se rompe con facilidad —un ancestro con `overflow`, cierto zoom, algún
+ * navegador— y entonces aparece una franja blanca bajo el menú. Reportado con una captura donde la
+ * franja oscura se cortaba a media pantalla.
+ *
+ * Pintarlo aquí elimina el caso entero en vez de perseguir la condición exacta: haya o no sobrante,
+ * y funcione o no el pegado, esa columna es oscura de arriba abajo.
+ *
+ * Solo en escritorio: por debajo de 1024px la rejilla es de una sola columna y la barra es un cajón
+ * flotante, así que esta franja pintaría una banda oscura sobre el contenido.
+ */
+@media (min-width: 1024px) {
+    .bmos-shell {
+        background: linear-gradient(
+            to right,
+            var(--bmos-sidebar-to) 0 264px,
+            transparent 264px
+        );
+    }
+}
+
 @media (max-width: 1023px) {
     .bmos-shell {
         grid-template-columns: 1fr;

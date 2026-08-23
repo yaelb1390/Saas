@@ -1234,3 +1234,160 @@
 .wa-nuevo--no:hover {
     background: transparent;
 }
+
+/* ---------- De dónde saca las respuestas ---------- */
+
+/*
+ * Las dos fuentes opcionales. Se pintan como tarjetas y no como casillas sueltas porque cada una
+ * lleva una consecuencia que hay que leer ANTES de marcarla: una cuesta dinero en cada mensaje y la
+ * otra solo tiene sentido si lo que vendes es el sistema. Con una casilla y una línea de texto, esa
+ * letra pequeña se salta.
+ */
+.wa-fuentes {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.wa-fuente {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.85rem;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.wa-fuente:hover {
+    border-color: #cdd3e3;
+    background: #fbfcfe;
+}
+
+.wa-fuente:has(input:checked) {
+    border-color: var(--bmos-primary);
+    background: #f7f8fd;
+}
+
+.wa-fuente input {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+    accent-color: var(--bmos-primary);
+}
+
+.wa-fuente b {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.wa-fuente-nota {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--bmos-muted);
+}
+
+/* ---------- Lo que hace que un hilo se lea como un chat ---------- */
+
+/*
+ * El separador de día.
+ *
+ * Es lo que más se echa en falta en un hilo largo: sin él, ayer y hoy son la misma pared de burbujas
+ * y no hay dónde apoyarse para situar una conversación. Va centrado y flotando sobre el lienzo, como
+ * en cualquier chat.
+ */
+.wa-dia {
+    display: flex;
+    justify-content: center;
+    margin: 0.9rem 0 0.8rem;
+}
+
+.wa-dia span {
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+/*
+ * Mensajes seguidos del mismo: pegados y sin cola.
+ *
+ * Tres «Hola» seguidos salían como tres burbujas completas, cada una con su cola. Un chat los junta:
+ * la cola marca dónde EMPIEZA a hablar alguien, no cada frase que suelta.
+ */
+.wa-linea-msg[data-seguido='true'] {
+    margin-top: -0.45rem;
+}
+
+.wa-linea-msg[data-seguido='true'] .wa-burbuja::after {
+    display: none;
+}
+
+.wa-linea-msg[data-seguido='true'] .wa-burbuja--entra {
+    border-top-left-radius: 0.35rem;
+    border-bottom-left-radius: 1rem;
+}
+
+.wa-linea-msg[data-seguido='true'] .wa-burbuja--sale,
+.wa-linea-msg[data-seguido='true'] .wa-burbuja--bot {
+    border-top-right-radius: 0.35rem;
+    border-bottom-right-radius: 1rem;
+}
+
+/* La firma del asistente solo en la primera de su tanda: repetirla en cada burbuja es ruido. */
+.wa-linea-msg[data-seguido='true'] .wa-firma {
+    display: none;
+}
+
+/*
+ * La hora, DENTRO de la burbuja y abajo a la derecha.
+ *
+ * Debajo del texto ocupaba una línea entera para tres caracteres. El truco es el de siempre: la hora
+ * se saca del flujo y el texto reserva su hueco con un espaciador invisible al final, así la última
+ * línea se detiene antes de chocar con ella en vez de pasarle por debajo.
+ */
+.wa-burbuja {
+    padding-bottom: 0.5rem;
+}
+
+.wa-meta {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.35rem;
+    margin-top: 0;
+}
+
+.wa-texto::after {
+    content: '';
+    display: inline-block;
+    /* Lo que mide la hora. Los salientes llevan además el check, así que necesitan más sitio. */
+    width: var(--reserva, 2.2rem);
+}
+
+.wa-burbuja--sale .wa-texto::after,
+.wa-burbuja--bot .wa-texto::after {
+    --reserva: 3.4rem;
+}
+
+/*
+ * El doble check azul al leerse.
+ *
+ * Es la señal que más se mira de un chat y la única que distingue «llegó» de «lo vio». En el verde
+ * saliente hay que usar un azul claro: el de WhatsApp sobre fondo oscuro.
+ */
+.wa-meta[data-leido='true'] svg {
+    color: #53bdeb;
+}
+
+.wa-burbuja--entra .wa-meta[data-leido='true'] svg {
+    color: #0ea5e9;
+}

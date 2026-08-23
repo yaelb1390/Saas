@@ -6,6 +6,7 @@ use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Social\Exceptions\SocialException;
 use App\Modules\Social\Models\SocialWelcome;
 use App\Modules\Social\Models\SocialWelcomeSetting;
 use App\Modules\Social\Services\ZernioWebhookRegistrar;
@@ -19,6 +20,7 @@ use App\Modules\WhatsApp\Models\WaMessage;
 use App\Modules\WhatsApp\Services\WhatsAppService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Testing\TestResponse;
 
 /*
@@ -273,6 +275,9 @@ it('sin nadie que lo necesite, el webhook se da de baja', function (): void {
 });
 
 it('el bot de WhatsApp por sí solo da de alta el webhook, aunque no se use Instagram', function (): void {
+    // Con una dirección pública: en local es «localhost», y ahí el registro se rechaza a propósito.
+    URL::forceRootUrl('https://bmos.bm1390.cloud');
+
     $this->ajustes->forceFill(['is_active' => false, 'zernio_webhook_id' => null])->save();
 
     WaBotSetting::paraEmpresa((int) $this->company->id)
@@ -338,4 +343,44 @@ it('el envío encolado sale por la vía de SU empresa, no por la que hubiera pue
     // Salió por la bandeja de Zernio, y no por Evolution.
     Http::assertSent(fn ($request): bool => str_contains($request->url(), '/v1/inbox/conversations/conv_abc/messages'));
     Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'evolution:8080'));
+});
+
+it('no registra un webhook en una dirección que el servicio no puede alcanzar', function (): void {
+    /*
+     * El fallo que hizo perder una tarde.
+     *
+     * En local, la dirección de aviso es «http://localhost:8000/...». Zernio la acepta sin rechistar
+     * —no da error— pero `localhost` no es este equipo: es el suyo. Los mensajes acaban
+     * entregándose donde esté publicado el sistema, aquí no llega ninguno, y no hay absolutamente
+     * nada que mirar para entender por qué.
+     *
+     * Vale más fallar diciendo el motivo que registrar una dirección muerta en silencio.
+     */
+    config(['app.url' => 'http://localhost:8000']);
+    URL::forceRootUrl('http://localhost:8000');
+
+    $this->ajustes->forceFill(['is_active' => false, 'zernio_webhook_id' => null])->save();
+
+    WaBotSetting::paraEmpresa((int) $this->company->id)
+        ->forceFill(['provider' => WaBotSetting::OFICIAL, 'is_active' => true])->save();
+
+    Http::fake();
+
+    expect(fn () => (new ZernioWebhookRegistrar($this->company))->sincronizar())
+        ->toThrow(SocialException::class, 'solo existe dentro de este equipo');
+
+    // Y no se llamó a registrar nada.
+    Http::assertNothingSent();
+    expect($this->ajustes->fresh()->zernio_webhook_id)->toBeNull();
+});
+
+it('reconoce qué direcciones puede alcanzar el servicio y cuáles no', function (): void {
+    // El nombre de un contenedor —«web»— no existe fuera, y tampoco una IP de red privada.
+    expect(ZernioWebhookRegistrar::alcanzable('https://bmos.bm1390.cloud/webhooks/redes/x'))->toBeTrue()
+        ->and(ZernioWebhookRegistrar::alcanzable('http://mi-negocio.com/webhooks/redes/x'))->toBeTrue()
+        ->and(ZernioWebhookRegistrar::alcanzable('http://localhost:8000/webhooks/redes/x'))->toBeFalse()
+        ->and(ZernioWebhookRegistrar::alcanzable('http://127.0.0.1/webhooks/redes/x'))->toBeFalse()
+        ->and(ZernioWebhookRegistrar::alcanzable('http://192.168.1.50/webhooks/redes/x'))->toBeFalse()
+        ->and(ZernioWebhookRegistrar::alcanzable('http://web/webhooks/redes/x'))->toBeFalse()
+        ->and(ZernioWebhookRegistrar::alcanzable('http://bmos.test/webhooks/redes/x'))->toBeFalse();
 });

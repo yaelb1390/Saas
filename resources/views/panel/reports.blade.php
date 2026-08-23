@@ -1,13 +1,14 @@
 @php
     use Illuminate\Support\Carbon;
 
+    // La 5.ª posición es el tono de la paleta compartida (ver <x-panel.metricas>).
     $cards = [
-        ['Ventas (histórico)', number_format((float) $summary['sales_total'], 2), $summary['sales_count'].' ventas completadas', 'tone-emerald'],
-        ['Balance de caja', number_format((float) $summary['cash_balance'], 2), 'Efectivo en cuentas', 'tone-indigo'],
-        ['Oportunidades abiertas', (string) $summary['open_opportunities'], 'Pipeline del CRM', 'tone-violet'],
-        ['Entregas pendientes', (string) $summary['pending_deliveries'], 'En logística', 'tone-amber'],
-        ['Productos', (string) $summary['products'], 'En catálogo', 'tone-sky'],
-        ['Stock bajo', (string) $summary['low_stock'], 'Requieren reposición', 'tone-rose'],
+        ['Ventas (histórico)', number_format((float) $summary['sales_total'], 2), $summary['sales_count'].' ventas completadas', 'tone-emerald', 'verde'],
+        ['Balance de caja', number_format((float) $summary['cash_balance'], 2), 'Efectivo en cuentas', 'tone-indigo', 'indigo'],
+        ['Oportunidades abiertas', (string) $summary['open_opportunities'], 'Pipeline del CRM', 'tone-violet', 'violeta'],
+        ['Entregas pendientes', (string) $summary['pending_deliveries'], 'En logística', 'tone-amber', 'ambar'],
+        ['Productos', (string) $summary['products'], 'En catálogo', 'tone-sky', 'azul'],
+        ['Stock bajo', (string) $summary['low_stock'], 'Requieren reposición', 'tone-rose', 'rojo'],
     ];
 
     $days = $report['days'];
@@ -19,19 +20,22 @@
     $topValues = array_map(fn ($p) => (float) $p['total'], $topProducts);
 @endphp
 <x-layouts.admin title="Reportes" heading="Reporte ejecutivo" subheading="Indicadores del negocio y ventas por período">
-    {{-- KPIs históricos --}}
-    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        @foreach ($cards as [$label, $value, $hint, $tone])
-            <div class="bmos-stat">
-                <div class="bmos-stat-icon {{ $tone }}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
-                </div>
-                <p class="bmos-stat-label">{{ $label }}</p>
-                <p class="bmos-stat-value">{{ $value }}</p>
-                <p class="mt-1 text-xs text-slate-400">{{ $hint }}</p>
-            </div>
-        @endforeach
-    </div>
+    {{-- La respuesta del período, antes que ninguna cifra suelta. Es lo que se viene a saber. --}}
+    <x-panel.estado class="mb-4" tono="ok"
+        :titulo="money($report['total']).' vendidos en el período'"
+        :nota="$report['count'].' '.($report['count'] === 1 ? 'venta' : 'ventas')
+            .' · ticket promedio '.money($report['avg_ticket'])
+            .' · del '.Carbon::parse($from)->format('d/m/Y').' al '.Carbon::parse($to)->format('d/m/Y')" />
+
+    {{-- Las cifras del histórico.
+         Antes eran seis tarjetas con EL MISMO icono de barras repetido seis veces, que no distinguía
+         una de otra ni decía nada: solo ocupaba el sitio donde va el número. Ahora el color hace ese
+         trabajo, y se apaga a gris cuando el valor es cero. --}}
+    <x-panel.metricas :items="collect($cards)->map(fn (array $c): array => [
+        'valor' => $c[1],
+        'etiqueta' => $c[0],
+        'tono' => $c[4],
+    ])->all()" :columnas="6" />
 
     {{-- Ventas por período --}}
     <div class="mt-8 bmos-card bmos-card-pad">
@@ -50,20 +54,9 @@
             </div>
         </div>
 
-        <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div class="rounded-xl bg-slate-50 p-4">
-                <p class="bmos-stat-label">Total vendido</p>
-                <p class="text-2xl font-bold text-emerald-600" data-testid="report-total">{{ number_format((float) $report['total'], 2) }}</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 p-4">
-                <p class="bmos-stat-label">N.º de ventas</p>
-                <p class="text-2xl font-bold text-indigo-600">{{ $report['count'] }}</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 p-4">
-                <p class="bmos-stat-label">Ticket promedio</p>
-                <p class="text-2xl font-bold text-slate-800">{{ number_format((float) $report['avg_ticket'], 2) }}</p>
-            </div>
-        </div>
+        {{-- Aquí había tres recuadros con el total, el número de ventas y el ticket promedio.
+             Son exactamente los tres datos que ya dice la tira de arriba, así que repetirlos solo
+             obligaba a leer dos veces lo mismo para acabar en el mismo sitio. --}}
 
         <div class="mt-6" x-data="salesChart(@js($chartLabels), @js($chartValues))">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-2">

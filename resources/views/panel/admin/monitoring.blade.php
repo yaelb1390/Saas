@@ -45,40 +45,23 @@
                  subheading="Qué está pasando en todas las empresas, quién lo hizo y qué se está rompiendo"
                  :wide="true">
     <div class="space-y-4">
-        {{-- 1. La respuesta, antes que ningún dato. El punto solo late cuando hay algo que mirar:
-               uno latiendo siempre deja de significar nada a los cinco minutos. --}}
-        <div class="bmos-estado" style="--tono: {{ $pendientes > 0 ? '#d97706' : '#059669' }}">
-            <span class="bmos-pulso {{ $pendientes > 0 ? 'late' : '' }}"></span>
-            <div class="min-w-0 flex-1">
-                <p class="bmos-estado-titulo">
-                    {{ $pendientes > 0
-                        ? ($pendientes === 1 ? 'Una cosa pide atención' : $pendientes.' cosas piden atención')
-                        : 'Todo en orden' }}
-                </p>
-                <p class="bmos-estado-nota">
-                    {{ $salud['empresas_activas'] }} {{ $salud['empresas_activas'] === 1 ? 'empresa activa' : 'empresas activas' }}
-                    · {{ $salud['usuarios'] }} {{ $salud['usuarios'] === 1 ? 'usuario' : 'usuarios' }}
-                    · comprobado {{ now()->format('H:i') }}
-                </p>
-            </div>
-        </div>
+        {{-- 1. La respuesta, antes que ningún dato. --}}
+        <x-panel.estado
+            :tono="$pendientes > 0 ? 'aviso' : 'ok'"
+            :titulo="$pendientes > 0
+                ? ($pendientes === 1 ? 'Una cosa pide atención' : $pendientes.' cosas piden atención')
+                : 'Todo en orden'"
+            :nota="$salud['empresas_activas'].' '.($salud['empresas_activas'] === 1 ? 'empresa activa' : 'empresas activas')
+                .' · '.$salud['usuarios'].' '.($salud['usuarios'] === 1 ? 'usuario' : 'usuarios')
+                .' · comprobado '.now()->format('H:i')" />
 
         {{-- 2. El pulso de las últimas 24 horas. --}}
-        <div class="bmos-pulso-grid">
-            @foreach ([
-                ['#6366f1', $pulso['dia']['sucesos'], 'sucesos 24 h'],
-                ['#f59e0b', $pulso['dia']['problemas'], 'avisos y graves'],
-                ['#0ea5e9', $pulso['dia']['accesos'], 'accesos'],
-                ['#e11d48', $pulso['dia']['fallidos'], 'accesos fallidos'],
-            ] as [$tono, $valor, $etiqueta])
-                {{-- El acento se apaga a gris cuando el valor es cero: un cero en rojo asusta sin
-                     motivo, y aquí cero accesos fallidos es la mejor noticia posible. --}}
-                <div class="bmos-metrica" style="--tono: {{ $valor > 0 ? $tono : '#cbd5e1' }}">
-                    <p class="bmos-metrica-valor">{{ number_format($valor) }}</p>
-                    <p class="bmos-metrica-etq">{{ $etiqueta }}</p>
-                </div>
-            @endforeach
-        </div>
+        <x-panel.metricas :items="[
+            ['valor' => $pulso['dia']['sucesos'], 'etiqueta' => 'sucesos 24 h', 'tono' => 'indigo'],
+            ['valor' => $pulso['dia']['problemas'], 'etiqueta' => 'avisos y graves', 'tono' => 'ambar'],
+            ['valor' => $pulso['dia']['accesos'], 'etiqueta' => 'accesos', 'tono' => 'azul'],
+            ['valor' => $pulso['dia']['fallidos'], 'etiqueta' => 'accesos fallidos', 'tono' => 'rojo'],
+        ]" />
 
         <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_18rem_16rem]">
             {{-- La serie. Es lo que convierte números en tendencia: un pico del martes salta a la

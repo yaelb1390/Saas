@@ -618,7 +618,18 @@ final class ZernioClient
     public function borrarWebhook(string $webhookId): bool
     {
         try {
-            $respuesta = $this->http()->delete(self::BASE.'/v1/webhooks/settings', ['id' => $webhookId]);
+            /*
+             * El identificador va en la QUERY, no en el cuerpo.
+             *
+             * Se mandaba en el cuerpo, y la API lo rechaza con «missing_required_field: id». Como
+             * este método no lanza a propósito, el fallo era mudo: apagar la bienvenida borraba
+             * nuestro identificador local y dejaba el webhook VIVO en Zernio, disparando contra una
+             * dirección que ya no reconocía a nadie. Es exactamente el webhook huérfano que el
+             * comentario de aquí abajo decía estar evitando.
+             *
+             * Comprobado contra la API: con el `id` en la query devuelve «success: true».
+             */
+            $respuesta = $this->http()->delete(self::BASE.'/v1/webhooks/settings?id='.rawurlencode($webhookId));
         } catch (\Throwable $e) {
             $this->registrar('no se pudo borrar el webhook: '.$e->getMessage(), null, 0, '');
 

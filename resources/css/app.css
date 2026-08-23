@@ -2469,3 +2469,18 @@ body {
     position: relative;
     height: 13rem;
 }
+
+/*
+ * Cuántas cifras caben en una fila cuando la pantalla pide algo distinto de cuatro.
+ *
+ * El número lo manda el componente por una variable y no por una clase de Tailwind: en la versión 4
+ * el modificador importante es un SUFIJO (`grid-cols-6!`), y escrito al revés no es una clase válida
+ * —se ignora en silencio y seis cifras salen partidas en 4 + 2 sin que nada avise—.
+ *
+ * Solo a partir de 1280px: por debajo, seis columnas dejarían los números ilegibles.
+ */
+@media (min-width: 1280px) {
+    .bmos-pulso-grid[style*='--columnas'] {
+        grid-template-columns: repeat(var(--columnas), minmax(0, 1fr));
+    }
+}

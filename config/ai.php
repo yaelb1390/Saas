@@ -14,7 +14,7 @@ return [
         // redacta: su embed() lanza excepción, así que con Claude el RAG no puede ni indexar.
         'gemini' => [
             'api_key' => env('GEMINI_API_KEY'),
-            'chat_model' => env('GEMINI_CHAT_MODEL', 'gemini-2.0-flash'),
+            'chat_model' => env('GEMINI_CHAT_MODEL', 'gemini-2.5-flash'),
             'embedding_model' => env('GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001'),
             'embedding_dimensions' => (int) env('GEMINI_EMBEDDING_DIMENSIONS', 768),
         ],

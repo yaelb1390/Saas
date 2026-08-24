@@ -47,11 +47,11 @@ use App\Modules\Loans\Http\Controllers\LoanApplicationController;
 use App\Modules\Loans\Http\Controllers\LoanController;
 use App\Modules\POS\Http\Controllers\OfflineSyncController;
 use App\Modules\POS\Http\Controllers\PosController;
-use App\Modules\Quotes\Http\Controllers\PublicQuoteController;
-use App\Modules\Quotes\Http\Controllers\QuoteController;
 use App\Modules\POS\Http\Controllers\QuickPosController;
 use App\Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchasing\Http\Controllers\SupplierController;
+use App\Modules\Quotes\Http\Controllers\PublicQuoteController;
+use App\Modules\Quotes\Http\Controllers\QuoteController;
 use App\Modules\Sales\Http\Controllers\SaleController;
 use App\Modules\Social\Http\Controllers\SocialAutomationController;
 use App\Modules\Social\Http\Controllers\SocialController;
@@ -373,6 +373,10 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:products.view')->name('panel.products.lookup');
         Route::post('/panel/inventario/entradas', [StockController::class, 'store'])
             ->middleware('can:stock.adjust')->name('panel.stock.store');
+        // Contar y ajustar la existencia de un producto. Mismo permiso que dar entrada: mover
+        // existencias es lo que permite tapar un faltante.
+        Route::post('/panel/inventario/{product}/existencia', [StockController::class, 'count'])
+            ->middleware('can:stock.adjust')->name('panel.stock.count');
         // Foto del producto (cacheable). La sirve quien puede ver el catálogo… o quien opera el
         // punto de venta: el cajero no tiene `products.view` y sin esto la rejilla salía sin fotos.
         Route::get('/panel/inventario/{product}/imagen', [ProductController::class, 'image'])

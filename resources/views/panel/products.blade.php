@@ -193,7 +193,17 @@
                                 <td>{{ $product->unit }}</td>
                                 <td>{{ number_format((float) $product->cost, 2) }}</td>
                                 <td class="font-semibold">{{ number_format((float) $product->price, 2) }}</td>
-                                <td><span class="bmos-badge {{ $stock < 5 ? 'badge-amber' : 'badge-blue' }}">{{ number_format($stock, 0) }}</span></td>
+                                {{-- Un producto SIN control de existencias no tiene existencia, y enseñarle
+                                     un «0» en ámbar es mentirle: se lee como «se acabó» cuando significa «esto
+                                     no se cuenta». Pasó de verdad —una batida sin control aparecía como agotada
+                                     y no había forma de entender por qué no se podía reponer—. --}}
+                                <td>
+                                    @if (! $product->track_stock)
+                                        <span class="bmos-badge badge-gray" title="Este producto no lleva control de existencias.">—</span>
+                                    @else
+                                        <span class="bmos-badge {{ $stock < 5 ? 'badge-amber' : 'badge-blue' }}">{{ number_format($stock, 0) }}</span>
+                                    @endif
+                                </td>
                                 <td>
                                     <span class="bmos-badge {{ $product->is_active ? 'badge-green' : 'badge-gray' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
                                     {{-- «Se acabó» no es lo mismo que «inactivo»: lo primero cambia
@@ -225,6 +235,19 @@
                                                     </svg>
                                                 </button>
                                             </form>
+                                        @endcan
+                                        @can('stock.adjust')
+                                            @if ($product->track_stock)
+                                                {{-- Contar desde aquí. Antes había que ir a «Entrada de mercancía» y
+                                                     buscar el producto otra vez, y esa pantalla es para COMPRAS: no
+                                                     sirve para corregir hacia abajo cuando lo contado es menos de lo
+                                                     que decía el sistema. --}}
+                                                <button type="button" title="Contar existencia"
+                                                        @click="contar({ id: {{ $product->id }}, nombre: @js($product->name), actual: '{{ number_format($stock, 0, '.', '') }}' })"
+                                                        class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600">
+                                                    <x-icono name="cube" class="h-4 w-4" />
+                                                </button>
+                                            @endif
                                         @endcan
                                         @can('products.manage')
                                         <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
@@ -342,7 +365,58 @@
                 </form>
             </div>
         </div>
+    
+    {{-- Contar existencia.
+
+         El usuario escribe LO QUE HAY, no la diferencia: nadie cuenta «tengo tres de más», cuenta
+         «tengo veinticuatro». El sistema traduce eso a un movimiento de ajuste con la diferencia,
+         que es lo que hace que el kardex siga contando la verdad. --}}
+    <div x-show="conteo.abierto" x-cloak @keydown.escape.window="conteo.abierto = false"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+        <div @click.outside="conteo.abierto = false" class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <div class="mb-3 flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Contar existencia</p>
+                    <p class="font-semibold text-slate-800" x-text="conteo.nombre"></p>
+                </div>
+                <button type="button" @click="conteo.abierto = false" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <form method="POST" :action="'{{ url('panel/inventario') }}/' + conteo.id + '/existencia'">
+                @csrf
+
+                <p class="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    El sistema dice <b x-text="conteo.actual"></b>.
+                </p>
+
+                <label class="bmos-field-label">¿Cuántos hay de verdad?</label>
+                <input type="number" name="counted" step="1" min="0" x-model="conteo.contado"
+                       class="bmos-input" required autofocus>
+
+                <label class="bmos-field-label mt-3">¿Por qué no cuadraba? <span class="font-normal text-slate-400">— opcional</span></label>
+                <input type="text" name="note" x-model="conteo.nota" maxlength="255"
+                       class="bmos-input" placeholder="Se rompieron dos, se regaló uno…">
+
+                {{-- Se dice el salto ANTES de guardar. «De 21 a 24» se entiende; «+3» hay que
+                     calcularlo, y es justo el momento de darse cuenta de que uno se equivocó. --}}
+                <p x-show="Number(conteo.contado) !== Number(conteo.actual)" x-cloak
+                   class="mt-2 text-xs font-medium"
+                   :class="Number(conteo.contado) > Number(conteo.actual) ? 'text-emerald-600' : 'text-amber-600'">
+                    Queda registrado como
+                    <span x-text="(Number(conteo.contado) > Number(conteo.actual) ? '+' : '') + (Number(conteo.contado) - Number(conteo.actual))"></span>,
+                    de <span x-text="conteo.actual"></span> a <span x-text="conteo.contado"></span>.
+                </p>
+
+                <div class="mt-4 flex justify-end gap-2">
+                    <button type="button" @click="conteo.abierto = false" class="bmos-btn">Cancelar</button>
+                    <button type="submit" class="bmos-btn bmos-btn-primary"
+                            :disabled="Number(conteo.contado) === Number(conteo.actual)">Guardar el conteo</button>
+                </div>
+            </form>
+        </div>
     </div>
+
+</div>
 
     <script>
         /**
@@ -477,6 +551,29 @@
         function productsCrud() {
             return {
                 open: false,
+                /*
+                 * El conteo de existencia, aparte del formulario del producto.
+                 *
+                 * Son dos operaciones distintas y con permisos distintos: editar el producto exige
+                 * `products.manage` y mover existencias exige `stock.adjust`. Mezclarlas en un solo
+                 * formulario dejaría a quien solo tiene uno de los dos permisos con un botón que
+                 * falla a medias.
+                 */
+                conteo: { abierto: false, id: '', nombre: '', actual: '0', contado: '', nota: '' },
+
+                contar(producto) {
+                    this.conteo = {
+                        abierto: true,
+                        id: producto.id,
+                        nombre: producto.nombre,
+                        actual: producto.actual,
+                        // Se precarga con lo que dice el sistema: casi siempre se cuenta para
+                        // confirmar, y así solo hay que teclear cuando NO cuadra.
+                        contado: producto.actual,
+                        nota: '',
+                    };
+                },
+
                 row: { id: '', sku: '', name: '', barcode: '', category_id: '', unit: '', cost: '', price: '', track_stock: true,
                        part_number: '', brand: '', vehicle_make: '', vehicle_model: '', year_from: '', year_to: '', location: '' },
                 get editUrl() { return '{{ url('panel/inventario') }}/' + this.row.id; },

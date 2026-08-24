@@ -3441,3 +3441,351 @@ a.bmos-destino:hover {
     font-size: 0.72rem;
     color: #94a3b8;
 }
+
+/* ============================================================
+   Compositor de publicaciones: las piezas del formulario
+
+   Se reescribieron los controles del compositor —el cuadro de texto, las fichas
+   de cuenta, la zona de la foto y el «¿cuándo?»— y estos son sus estilos.
+   ============================================================ */
+
+/*
+ * El cuadro de redactar: el texto y su contador dentro del MISMO marco.
+ *
+ * Un contador flotando debajo de un campo con su propio borde se lee como dos cosas sueltas. Aquí
+ * el borde envuelve a los dos, así que el pie es parte del cuadro y no un apunte al margen.
+ */
+.bmos-redactar {
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    background: var(--bmos-surface);
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* El foco se pinta en el MARCO, no en el campo: si lo llevara el campo, el borde saldría por dentro
+   del cuadro y se verían dos rectángulos, uno dentro del otro. */
+.bmos-redactar:focus-within {
+    border-color: color-mix(in srgb, #4f46e5 55%, #fff);
+    box-shadow: 0 0 0 3px color-mix(in srgb, #4f46e5 12%, transparent);
+}
+
+.bmos-redactar-campo {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 0.95rem;
+    border: 0;
+    background: transparent;
+    color: var(--bmos-text);
+    font: inherit;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.bmos-redactar-campo:focus {
+    outline: none;
+}
+
+.bmos-redactar-pie {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.95rem;
+    border-top: 1px solid var(--bmos-border);
+    background: #fafbff;
+}
+
+/* El medidor de cuánto texto cabe. Corto a propósito: acompaña al número, no compite con él. */
+.bmos-medidor {
+    width: 6rem;
+    height: 0.25rem;
+    flex: none;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.bmos-medidor-barra {
+    height: 100%;
+    border-radius: 999px;
+    background: #4f46e5;
+    transition: width 0.15s ease-out, background 0.15s;
+}
+
+.bmos-medidor-barra.is-cerca { background: #f59e0b; }
+.bmos-medidor-barra.is-pasado { background: #e11d48; }
+
+/*
+ * La ficha de cada cuenta: LA FICHA ENTERA es el interruptor.
+ *
+ * La casilla del navegador sigue ahí, solo que invisible —es la que viaja en el formulario y la que
+ * recibe el tabulador—, así que quien no usa ratón puede elegir igual. Se esconde con opacidad y
+ * tamaño de un píxel, y no con display:none, porque lo que se oculta así deja de ser enfocable.
+ */
+.bmos-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 15rem;
+    padding: 0.4rem 0.85rem 0.4rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid var(--bmos-border);
+    background: var(--bmos-surface);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.bmos-chip:hover {
+    border-color: color-mix(in srgb, var(--tono, #4f46e5) 45%, #fff);
+    transform: translateY(-1px);
+}
+
+/* Elegida: se tiñe del color de SU red. Se ve de un golpe dónde va a salir la publicación. */
+.bmos-chip:has(.bmos-chip-caja:checked) {
+    border-color: var(--tono, #4f46e5);
+    background: color-mix(in srgb, var(--tono, #4f46e5) 8%, #fff);
+    box-shadow: 0 8px 18px -12px color-mix(in srgb, var(--tono, #4f46e5) 70%, transparent);
+}
+
+/* El anillo del tabulador va en la ficha, que es lo que se ve; la casilla es invisible. */
+.bmos-chip:has(.bmos-chip-caja:focus-visible) {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--tono, #4f46e5) 25%, transparent);
+}
+
+/* Caducada: se ve, pero no se puede elegir. Elegirla daría un «publicado» que no publica nada. */
+.bmos-chip.is-caducada {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.bmos-chip.is-caducada:hover {
+    transform: none;
+    border-color: var(--bmos-border);
+}
+
+.bmos-chip-caja {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.bmos-chip-foto {
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: none;
+    border-radius: 999px;
+    object-fit: cover;
+    background: #f1f5f9;
+}
+
+/* Sin foto de perfil: un punto del color de la red, del mismo tamaño que la foto, para que las
+   fichas con avatar y sin él midan igual y la fila no baile. */
+.bmos-chip-punto {
+    display: block;
+    background: var(--tono, #94a3b8);
+}
+
+/* La marca de elegida. Ocupa su sitio siempre —escondida con opacidad, no con display— para que la
+   ficha no cambie de ancho al marcarla y la fila entera no se recoloque. */
+.bmos-chip-marca {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.05rem;
+    height: 1.05rem;
+    flex: none;
+    border-radius: 999px;
+    background: var(--tono, #4f46e5);
+    color: #fff;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.15s, transform 0.15s;
+}
+
+.bmos-chip-caja:checked ~ .bmos-chip-marca {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* ── La zona de la foto ───────────────────────────────────────────────────── */
+
+.bmos-soltar-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex: none;
+    border-radius: 0.7rem;
+    background: color-mix(in srgb, #4f46e5 10%, #fff);
+    color: #4f46e5;
+}
+
+.bmos-soltar-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    text-align: left;
+}
+
+.bmos-soltar-texto b {
+    color: var(--bmos-text);
+    font-weight: 600;
+}
+
+.bmos-soltar-pista {
+    font-size: 0.78rem;
+    color: var(--bmos-muted);
+}
+
+.bmos-soltar-formatos {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.bmos-soltar-formato {
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.35rem;
+    background: #f1f5f9;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: #64748b;
+}
+
+/* En un móvil los tres bloques no caben en una fila: se apilan en vez de estrujarse. */
+@media (max-width: 640px) {
+    .bmos-soltar {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .bmos-soltar-texto {
+        text-align: center;
+    }
+}
+
+/* Subiendo. Con un vídeo esto tarda, así que van juntos el nombre, el porcentaje y la barra. */
+.bmos-subiendo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid color-mix(in srgb, #4f46e5 25%, #fff);
+    border-radius: 0.9rem;
+    background: color-mix(in srgb, #4f46e5 4%, #fff);
+}
+
+.bmos-subiendo-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    border-radius: 0.6rem;
+    background: color-mix(in srgb, #4f46e5 12%, #fff);
+    color: #4f46e5;
+}
+
+/* ── El archivo ya elegido ────────────────────────────────────────────────── */
+
+.bmos-media-marco {
+    position: relative;
+    display: block;
+    flex: none;
+}
+
+/* Un vídeo parado se ve igual que una foto; el rótulo dice cuál es, que es lo que decide si
+   Instagram lo publica como reel o como imagen. */
+.bmos-media-tipo {
+    position: absolute;
+    bottom: 0.2rem;
+    right: 0.2rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.3rem;
+    background: rgba(15, 23, 42, 0.75);
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+}
+
+.bmos-media-listo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #059669;
+}
+
+.bmos-media-quitar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    border-radius: 0.6rem;
+    color: #94a3b8;
+    transition: background 0.15s, color 0.15s;
+}
+
+.bmos-media-quitar:hover {
+    background: #fff1f2;
+    color: #e11d48;
+}
+
+/* ── La columna de la decisión ────────────────────────────────────────────── */
+
+.bmos-decidir {
+    padding: 1rem;
+    border-radius: 1rem;
+    background: #f8fafc;
+    border: 1px solid var(--bmos-border);
+}
+
+/*
+ * «Ahora» y «Programar»: dos botones, no una casilla.
+ *
+ * Son dos caminos distintos y una casilla solo enseña uno —el otro queda implícito en no marcarla—.
+ * Con los dos a la vista se ve de un golpe cuál está elegido, que es lo que hay que saber antes de
+ * pulsar un botón que publica de verdad.
+ */
+.bmos-segmento {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.2rem;
+    padding: 0.2rem;
+    border-radius: 0.7rem;
+    background: #e9edf5;
+}
+
+.bmos-segmento-op {
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.55rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.bmos-segmento-op:hover {
+    color: var(--bmos-text);
+}
+
+.bmos-segmento-op.is-activa {
+    background: var(--bmos-surface);
+    color: var(--bmos-text);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}

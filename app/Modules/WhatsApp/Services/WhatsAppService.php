@@ -47,6 +47,39 @@ final class WhatsAppService
     }
 
     /**
+     * Encola un ARCHIVO. Mismo camino que un texto: se persiste y lo entrega la cola.
+     *
+     * Se guarda la dirección del archivo, no el archivo. El proveedor lo descarga por su cuenta
+     * —Evolution acepta una URL— y aquí no hay dónde guardarlo: en producción el disco es de solo
+     * lectura. Además, generándolo al vuelo detrás de un enlace firmado nunca se manda una versión
+     * vieja de un documento que pudo cambiar.
+     *
+     * El `body` lleva el pie del mensaje, que es lo que se ve en la bandeja: una fila que solo
+     * dijera «documento» no le diría nada a quien revise la conversación mañana.
+     */
+    public function sendDocument(string $phone, string $url, string $fileName, string $caption = '', ?int $userId = null): WaMessage
+    {
+        $conversation = $this->conversationFor($phone);
+
+        $message = $conversation->messages()->create([
+            'company_id' => $conversation->company_id,
+            'direction' => MessageDirection::Outbound,
+            'type' => 'document',
+            'body' => $caption,
+            'media_url' => $url,
+            'media_name' => $fileName,
+            'status' => MessageStatus::Pending,
+            'user_id' => $userId ?? auth()->id(),
+        ]);
+
+        $conversation->update(['last_message_at' => now()]);
+
+        SendWhatsAppMessage::dispatch($message);
+
+        return $message->refresh();
+    }
+
+    /**
      * Registra un mensaje entrante (invocado desde el webhook de Evolution).
      */
     public function recordInbound(string $phone, string $body, ?string $externalId = null, ?string $name = null): WaMessage

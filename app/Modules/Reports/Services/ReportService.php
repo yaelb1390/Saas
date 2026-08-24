@@ -9,7 +9,9 @@ use App\Modules\CRM\Enums\OpportunityStatus;
 use App\Modules\CRM\Models\Opportunity;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
+use App\Modules\Finance\Enums\MovementType;
 use App\Modules\Finance\Models\Account;
+use App\Modules\Finance\Models\FinancialMovement;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Loans\Enums\InstallmentStatus;
 use App\Modules\Loans\Enums\LoanStatus;
@@ -115,6 +117,95 @@ final class ReportService
             'loans_count' => $prestamos['count'],
             'loans_overdue' => $vencido['amount'],
             'overdue_count' => $vencido['count'],
+        ];
+    }
+
+    /**
+     * Cuánto han cambiado los indicadores respecto a hace N días.
+     *
+     * Devuelve HECHOS —el valor de antes y el de ahora—, no colores ni flechas: qué es bueno y qué
+     * es malo lo decide quien lo pinta, porque depende de la cifra y no de los datos.
+     *
+     * SOLO ESTÁN LAS QUE SE PUEDEN RECONSTRUIR DE VERDAD. No hay tabla de fotos diarias, así que el
+     * pasado se recompone de las marcas de tiempo que ya existen:
+     *
+     * - ventas: la suma de las completadas hasta esa fecha;
+     * - caja: el saldo de hoy menos lo que se movió después de esa fecha;
+     * - oportunidades: las creadas antes y aún sin cerrar en ese momento (`closed_at`);
+     * - productos: los creados antes y no borrados todavía (borrado suave).
+     *
+     * Faltan a propósito «entregas pendientes» y «stock bajo». Una entrega cancelada o fallida no
+     * deja marca de CUÁNDO dejó de estar pendiente, y las existencias no guardan su historia: en
+     * ambos casos habría que suponer, y una tendencia supuesta se lee como un dato medido. Antes que
+     * un porcentaje inventado, ninguno.
+     *
+     * @return array<string, array{antes: float, ahora: float}>
+     */
+    public function executiveTrends(int $dias = 30): array
+    {
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:executive-trends:{$dias}",
+            self::SUMMARY_TTL,
+            fn (): array => $this->computeExecutiveTrends($dias),
+        );
+    }
+
+    /**
+     * El cálculo real de las tendencias, sin caché. Separado para poder probar el valor fresco.
+     *
+     * @return array<string, array{antes: float, ahora: float}>
+     */
+    public function computeExecutiveTrends(int $dias = 30): array
+    {
+        $corte = now()->subDays($dias);
+
+        /*
+         * El estado de las tablas HOY, no el que tenían entonces.
+         *
+         * Una venta anulada la semana pasada no cuenta ni en «ahora» ni en «antes», aunque en su
+         * momento sí contara. Es deliberado: comparar el pasado tal como se recuerda hoy con el
+         * presente da una diferencia que se explica sola; mezclarlo con lo que se creía entonces
+         * daría saltos que nadie sabría justificar.
+         */
+        $ventasAhora = (float) Sale::query()->where('status', SaleStatus::Completed)->sum('total');
+        $ventasAntes = (float) Sale::query()->where('status', SaleStatus::Completed)
+            ->where('created_at', '<=', $corte)->sum('total');
+
+        /*
+         * El saldo de entonces se deshace desde el de hoy.
+         *
+         * No hay foto del saldo, pero sí el registro de cada movimiento: restarle a hoy todo lo que
+         * entró y sumarle todo lo que salió después del corte devuelve el saldo exacto de esa fecha,
+         * siempre que la caja se mueva por ahí. Un solo barrido, no dos sumas.
+         */
+        $cajaAhora = (float) Account::query()->sum('balance');
+        $movidoDespues = (float) FinancialMovement::query()
+            ->where('occurred_at', '>', $corte)
+            ->selectRaw('coalesce(sum(case when type = ? then amount else -amount end), 0) as neto', [
+                MovementType::Income->value,
+            ])
+            ->value('neto');
+
+        return [
+            'sales_total' => ['antes' => $ventasAntes, 'ahora' => $ventasAhora],
+            'cash_balance' => ['antes' => $cajaAhora - $movidoDespues, 'ahora' => $cajaAhora],
+            'open_opportunities' => [
+                'antes' => (float) Opportunity::query()->withTrashed()
+                    ->where('created_at', '<=', $corte)
+                    ->where(fn (Builder $q) => $q->whereNull('closed_at')->orWhere('closed_at', '>', $corte))
+                    ->where(fn (Builder $q) => $q->whereNull('deleted_at')->orWhere('deleted_at', '>', $corte))
+                    ->count(),
+                'ahora' => (float) Opportunity::query()->where('status', OpportunityStatus::Open)->count(),
+            ],
+            'products' => [
+                'antes' => (float) Product::query()->withTrashed()
+                    ->where('created_at', '<=', $corte)
+                    ->where(fn (Builder $q) => $q->whereNull('deleted_at')->orWhere('deleted_at', '>', $corte))
+                    ->count(),
+                'ahora' => (float) Product::query()->count(),
+            ],
         ];
     }
 

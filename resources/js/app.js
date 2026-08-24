@@ -493,6 +493,36 @@ Alpine.data('kiosko', () => ({
     },
 }));
 
+/**
+ * Lo que hace falta para cobrar sin internet, disponible para las dos pantallas del POS.
+ *
+ * Se carga BAJO DEMANDA, como Chart.js y por el mismo motivo: son unos kilobytes que solo usan dos
+ * pantallas de quince, y el bundle principal lo descarga hasta quien entra a mirar un informe.
+ *
+ * Cada pantalla del POS llama `await window.cargarOffline()` al arrancar. Si el navegador no puede
+ * guardar nada —navegación privada, almacenamiento bloqueado— devuelve null y el terminal NO ofrece
+ * cobrar sin conexión: prometer que la venta se guarda y perderla es peor que decirlo de entrada.
+ */
+window.cargarOffline = async () => {
+    if (window.bmosOffline !== undefined) return window.bmosOffline;
+
+    try {
+        const [almacen, cola, recibo] = await Promise.all([
+            import('./offline/almacen'),
+            import('./offline/cola'),
+            import('./offline/recibo'),
+        ]);
+
+        window.bmosOffline = (await almacen.disponible())
+            ? { almacen, cola, recibo }
+            : null;
+    } catch {
+        window.bmosOffline = null;
+    }
+
+    return window.bmosOffline;
+};
+
 Alpine.start();
 
 /**

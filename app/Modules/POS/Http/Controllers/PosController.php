@@ -23,6 +23,7 @@ use App\Modules\Sales\DTOs\CreateSaleData;
 use App\Modules\Sales\Enums\OrderType;
 use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Exceptions\InsufficientPaymentException;
+use App\Modules\Sales\Models\Sale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -87,6 +88,25 @@ final class PosController extends Controller
         return response()->json(['results' => $lookup->search($term, 24)]);
     }
 
+    /**
+     * El catálogo entero, para que el mostrador pueda cobrar sin conexión.
+     *
+     * El mostrador normalmente NO carga el catálogo: busca contra el servidor a medida que el cajero
+     * escribe o escanea, que es lo que le permite ir rápido con miles de productos. Pero sin línea no
+     * hay a quién preguntar, así que se descarga una copia al abrir la pantalla y se guarda en el
+     * equipo. Se pide una vez por turno, no una vez por venta.
+     *
+     * Existe aparte de la del terminal táctil porque aquella exige el módulo «quick_pos», y una
+     * ferretería que solo contrató el mostrador recibiría un 403 justo cuando más falta le hace.
+     */
+    public function catalogo(ProductLookupPresenter $lookup): JsonResponse
+    {
+        // 2.000 cubre de sobra el catálogo de un colmado o una ferretería de barrio. Es un tope y no
+        // una paginación a propósito: media copia del catálogo sería peor que ninguna, porque el
+        // cajero no sabría qué mitad tiene.
+        return response()->json($lookup->catalog(null, 2000));
+    }
+
     public function checkout(Request $request, CheckoutService $checkout, InvoiceService $invoices, CartResolver $cart): RedirectResponse|JsonResponse
     {
         $companyId = app(CurrentCompany::class)->id();
@@ -98,6 +118,16 @@ final class PosController extends Controller
             // que no significa nada. Se sigue exigiendo para el resto, unas líneas más abajo, cuando
             // ya se sabe qué clase de pedido es.
             'paid' => ['nullable', 'numeric', 'min:0'],
+            /*
+             * La llave que identifica ESTE cobro, puesta por el navegador antes de mandarlo.
+             *
+             * Viaja también cuando hay conexión, y esa es la gracia: si la petición se corta a
+             * mitad, el terminal no sabe si la venta llegó, y hasta ahora lo único que podía hacer
+             * era avisar al cajero de que lo comprobara a mano. Con la llave puesta de antemano
+             * puede encolarla sin miedo: o el servidor la registró ya, o la registrará al subirla,
+             * pero nunca las dos veces.
+             */
+            'client_uuid' => ['nullable', 'uuid'],
             'tip' => ['nullable', 'numeric', 'min:0'],
             'discount_total' => ['nullable', 'numeric', 'min:0'],
             'customer_name' => ['nullable', 'string', 'max:255'],
@@ -131,6 +161,21 @@ final class PosController extends Controller
         ], [
             'delivery_address.required_if' => 'Un pedido con envío necesita la dirección.',
         ]);
+
+        /*
+         * ¿Esta venta ya entró?
+         *
+         * Pasa cuando la respuesta se perdió pero la petición sí llegó, y el terminal reintenta. Sin
+         * esta comprobación el cliente aparecería cobrado dos veces y el stock descontado dos veces,
+         * y nadie se enteraría hasta cuadrar la caja.
+         */
+        if ($request->filled('client_uuid')) {
+            $yaEstaba = Sale::query()->where('client_uuid', $request->string('client_uuid')->toString())->first();
+
+            if ($yaEstaba !== null) {
+                return $this->yaCobrada($request, $yaEstaba);
+            }
+        }
 
         $orderType = OrderType::tryFrom((string) $request->input('order_type'));
 
@@ -190,6 +235,9 @@ final class PosController extends Controller
                     discountTotal: (string) max(0, (float) $request->input('discount_total', 0)),
                     employeeId: $request->filled('employee_id') ? (int) $request->input('employee_id') : null,
                     orderType: $orderType,
+                    clientUuid: $request->filled('client_uuid')
+                        ? $request->string('client_uuid')->toString()
+                        : null,
                 ),
                 $orderType?->generaEntrega()
                     ? new DeliveryOrderData(
@@ -222,6 +270,29 @@ final class PosController extends Controller
         // La venta rápida cobra por fetch y espera JSON: así no recarga la página, que es lo que
         // sacaba al terminal del modo pantalla completa en cada cobro. El POS de mostrador envía un
         // formulario normal y sigue recibiendo su redirección de siempre.
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'code' => $sale->code,
+                'change' => (string) $sale->change,
+                'receipt_id' => $sale->id,
+                'receipt_url' => route('panel.sales.receipt', $sale).'?print=1',
+            ]);
+        }
+
+        return back()->with('pos_ok', $message)->with('pos_receipt_id', $sale->id);
+    }
+
+    /**
+     * Una venta que ya se había registrado con esta misma llave.
+     *
+     * Se contesta como un éxito y no como un error, porque para el cajero LO ES: la venta está
+     * cobrada. Devolver un fallo le haría repetirla y ahí sí habría dos.
+     */
+    private function yaCobrada(Request $request, Sale $sale): RedirectResponse|JsonResponse
+    {
+        $message = "Venta {$sale->code} ya estaba registrada.";
+
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => $message,

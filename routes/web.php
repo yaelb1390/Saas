@@ -45,7 +45,10 @@ use App\Modules\Inventory\Http\Controllers\ProductController;
 use App\Modules\Inventory\Http\Controllers\StockController;
 use App\Modules\Loans\Http\Controllers\LoanApplicationController;
 use App\Modules\Loans\Http\Controllers\LoanController;
+use App\Modules\POS\Http\Controllers\OfflineSyncController;
 use App\Modules\POS\Http\Controllers\PosController;
+use App\Modules\Quotes\Http\Controllers\PublicQuoteController;
+use App\Modules\Quotes\Http\Controllers\QuoteController;
 use App\Modules\POS\Http\Controllers\QuickPosController;
 use App\Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchasing\Http\Controllers\SupplierController;
@@ -283,6 +286,24 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('/panel/ventas/{sale}/recibo/pdf/{mode?}', [SaleController::class, 'receiptPdf'])
         ->middleware(['can:pos.sale-receipt', 'module:sales'])->name('panel.sales.receipt.pdf');
 
+    /*
+     * Cotizaciones.
+     *
+     * «convert» va con su propio permiso —como anular una venta— porque descuenta existencias y mete
+     * dinero en la caja. Quien prepara una oferta no tiene por qué poder cobrarla.
+     */
+    Route::controller(QuoteController::class)->prefix('panel/cotizaciones')
+        ->middleware('module:quotes')->name('panel.quotes.')->group(function (): void {
+            Route::get('/', 'index')->middleware('can:quotes.view')->name('index');
+            Route::get('/nueva', 'create')->middleware('can:quotes.manage')->name('create');
+            Route::post('/', 'store')->middleware('can:quotes.manage')->name('store');
+            Route::get('/{quote}', 'show')->middleware('can:quotes.view')->name('show');
+            Route::get('/{quote}/pdf/{mode?}', 'pdf')->middleware('can:quotes.view')->name('pdf');
+            Route::post('/{quote}/enviar', 'send')->middleware(['can:quotes.send', 'throttle:20,1'])->name('send');
+            Route::put('/{quote}/estado', 'status')->middleware('can:quotes.manage')->name('status');
+            Route::post('/{quote}/cobrar', 'convert')->middleware('can:quotes.convert')->name('convert');
+        });
+
     // Exportaciones a CSV: exigen el mismo permiso (y módulo) que ver los datos que exportan.
     Route::controller(ExportController::class)->prefix('panel/exportar')->name('panel.export.')->group(function (): void {
         Route::get('/productos', 'products')->middleware(['can:products.view', 'module:inventory'])->name('products');
@@ -301,10 +322,30 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/buscar', 'lookup')->middleware('can:pos.operate')->name('lookup');
         // Búsqueda difusa por SKU/nombre para el mostrador (reemplaza cargar todo el catálogo).
         Route::get('/buscar-productos', 'search')->middleware('can:pos.operate')->name('search');
+        // Copia del catálogo para poder cobrar sin conexión. Ver PosController::catalogo().
+        Route::get('/catalogo', 'catalogo')->middleware('can:pos.operate')->name('catalogo');
         Route::post('/abrir-caja', 'openSession')->middleware('can:cash.open')->name('open');
         Route::post('/cobrar', 'checkout')->middleware('can:pos.operate')->name('checkout');
         Route::post('/cerrar-caja', 'closeSession')->middleware('can:cash.close')->name('close');
     });
+
+    /*
+     * Las ventas que se cobraron sin internet.
+     *
+     * Van en el mismo prefijo que el resto del POS y con el mismo permiso —quien puede cobrar puede
+     * subir lo cobrado—, pero en su propio controlador: lo que entra por aquí ya ocurrió, y por eso
+     * se acepta el precio que trae el navegador. En ningún otro sitio del sistema se hace eso, y
+     * mezclarlo con el cobro normal invitaría a copiarlo donde no toca.
+     *
+     * El límite de peticiones es generoso a propósito: un terminal que recupera la línea después de
+     * media jornada a oscuras tiene derecho a reintentar sin que se le cierre la puerta.
+     */
+    Route::controller(OfflineSyncController::class)->prefix('panel/pos')
+        ->middleware(['can:pos.operate', 'module:pos,quick_pos'])->name('panel.pos.offline.')
+        ->group(function (): void {
+            Route::get('/sesion', 'estado')->name('estado');
+            Route::post('/sincronizar', 'sincronizar')->middleware('throttle:60,1')->name('sync');
+        });
 
     // Punto de venta táctil (heladería y comida rápida). Módulo propio y vendible por separado;
     // el cobro lo sigue haciendo el motor compartido de arriba.
@@ -670,6 +711,21 @@ Route::middleware(['auth'])->group(function (): void {
 // controlador. La empresa se deriva del cliente del enlace, nunca de la sesión.
 Route::get('/portal/cliente/{customer}', CustomerPortalController::class)
     ->middleware('signed')->name('portal.customer');
+
+/*
+ * La cotización que ve el cliente (sin sesión: el cliente no es usuario del sistema).
+ *
+ * Autentica la FIRMA de la URL, igual que el portal del cliente: `signed` comprueba el HMAC y la
+ * caducidad, así que un id cambiado a mano no abre la cotización de otro. Caduca porque un chat se
+ * reenvía, y también porque el precio de dentro caduca.
+ *
+ * La ruta del PDF existe aparte y firmada por su cuenta porque es la que se le pasa a WhatsApp: el
+ * servidor del proveedor la abre por su cuenta, sin cookies ni sesión de nadie.
+ */
+Route::get('/cotizacion/{quote}', PublicQuoteController::class)
+    ->middleware('signed')->name('quotes.public');
+Route::get('/cotizacion/{quote}/pdf', [PublicQuoteController::class, 'pdf'])
+    ->middleware('signed')->name('quotes.public.pdf');
 
 // Webhook entrante de Evolution API (sin sesión; protegido por secreto compartido).
 Route::post('/webhooks/evolution', EvolutionWebhookController::class)->name('webhooks.evolution');

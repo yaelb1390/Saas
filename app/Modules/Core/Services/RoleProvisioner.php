@@ -51,6 +51,12 @@ final class RoleProvisioner
         // Ventas / POS
         'sales.view',
         'sales.create',
+        // Cotizaciones. «convert» va aparte —como sales.void— porque convertir descuenta existencias
+        // y mete dinero en la caja: quien prepara una oferta no tiene por qué poder cobrarla.
+        'quotes.view',
+        'quotes.manage',
+        'quotes.send',
+        'quotes.convert',
         // Anular una venta devuelve el stock y saca el cobro de la caja: mueve dinero y existencias,
         // así que es un permiso aparte y no se deduce de «ver ventas». Quien consulta el historial no
         // tiene por qué poder deshacerlo.
@@ -138,6 +144,10 @@ final class RoleProvisioner
             'sales.view',
             'sales.create',
             'sales.void',
+            'quotes.view',
+            'quotes.manage',
+            'quotes.send',
+            'quotes.convert',
             'pos.operate',
             'invoices.view',
             'invoices.issue',

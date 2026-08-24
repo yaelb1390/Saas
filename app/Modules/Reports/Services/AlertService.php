@@ -7,10 +7,12 @@ namespace App\Modules\Reports\Services;
 use App\Modules\Billing\Models\FiscalSequence;
 use App\Modules\Cash\Enums\CashSessionStatus;
 use App\Modules\Cash\Models\CashSession;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Inventory\Models\Product;
+use App\Modules\Sales\Models\Sale;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -60,6 +62,33 @@ final class AlertService
                 'tone' => 'amber',
                 'icon' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z',
             ];
+        }
+
+        /*
+         * Ventas cobradas sin internet que entraron aceptando algo raro.
+         *
+         * El precio ya no era el del catálogo, la existencia quedó en negativo, o la caja de ese
+         * turno estaba cerrada y su dinero no entró en el arqueo. Todas ESTÁN registradas —el cliente
+         * pagó y se fue—, pero cada una deja un descuadre que solo una persona puede resolver.
+         *
+         * Sale aquí y no en un informe aparte porque un aviso que hay que ir a buscar no lo mira
+         * nadie, y esto es dinero e inventario que no cuadran.
+         */
+        if (DbTable::tieneColumna('sales', 'offline_review')) {
+            $porRevisar = Sale::query()->whereNotNull('offline_review')->count();
+
+            if ($porRevisar > 0) {
+                $alerts[] = [
+                    'key' => 'offline_review',
+                    'title' => $porRevisar === 1
+                        ? '1 venta cobrada sin conexión necesita revisión'
+                        : "{$porRevisar} ventas cobradas sin conexión necesitan revisión",
+                    'count' => $porRevisar,
+                    'url' => route('panel.sales', ['filter' => 'offline_review']),
+                    'tone' => 'rose',
+                    'icon' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z',
+                ];
+            }
         }
 
         $openCash = CashSession::query()->where('status', CashSessionStatus::Open)->count();

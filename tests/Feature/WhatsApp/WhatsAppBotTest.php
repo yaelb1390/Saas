@@ -110,6 +110,18 @@ beforeEach(function (): void {
 
             return ['external_id' => 'ext-'.count($this->enviados), 'status' => 'sent'];
         }
+
+        public function puedeEnviarDocumentos(): bool
+        {
+            return false;
+        }
+
+        public function sendDocument(string $phone, string $url, string $fileName, string $caption = ''): array
+        {
+            $this->enviados[] = [$phone, $caption];
+
+            return ['external_id' => 'doc-'.count($this->enviados), 'status' => 'sent'];
+        }
     };
     $this->app->instance(WhatsAppGateway::class, $this->gateway);
 });

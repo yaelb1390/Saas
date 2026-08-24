@@ -54,6 +54,42 @@ final class EvolutionGateway implements WhatsAppConnection, WhatsAppGateway
         ];
     }
 
+    public function puedeEnviarDocumentos(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Manda un archivo con `sendMedia`.
+     *
+     * La ruta y sus campos NO salen de la documentación: se le preguntaron al servidor. `sendDocument`
+     * no existe («Cannot POST»); `sendMedia` sí, y mandándole un cuerpo vacío contesta que exige
+     * `number` y `mediatype`, y que el `media` «must be a url or base64».
+     */
+    public function sendDocument(string $phone, string $url, string $fileName, string $caption = ''): array
+    {
+        $response = $this->request()
+            ->post('/message/sendMedia/'.$this->instanceName(), [
+                'number' => $phone,
+                'mediatype' => 'document',
+                // El tipo va explícito: sin él, algunos clientes de WhatsApp enseñan el PDF como un
+                // archivo sin nombre que no se puede previsualizar.
+                'mimetype' => 'application/pdf',
+                'media' => $url,
+                'fileName' => $fileName,
+                'caption' => $caption,
+            ])
+            ->throw();
+
+        /** @var array<string, mixed> $data */
+        $data = (array) $response->json();
+
+        return [
+            'external_id' => data_get($data, 'key.id'),
+            'status' => 'sent',
+        ];
+    }
+
     public function status(): array
     {
         $instance = $this->instanceName();

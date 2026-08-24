@@ -79,6 +79,26 @@ final class ZernioWhatsAppGateway implements WhatsAppConnection, WhatsAppGateway
     }
 
     /**
+     * Por esta vía no se adjuntan archivos.
+     *
+     * No está comprobado que la API no pueda; está comprobado que no se puede comprobar sin mandarle
+     * un mensaje a una persona real. Ante la duda se dice que no: quien llama manda el enlace, que
+     * funciona seguro. Prometer un adjunto y que el cliente reciba un mensaje vacío es peor que
+     * mandarle un enlace desde el principio.
+     */
+    public function puedeEnviarDocumentos(): bool
+    {
+        return false;
+    }
+
+    public function sendDocument(string $phone, string $url, string $fileName, string $caption = ''): array
+    {
+        throw new RuntimeException(
+            'La vía oficial de WhatsApp no manda archivos desde aquí. Se envía el enlace.'
+        );
+    }
+
+    /**
      * ¿Hay una cuenta de WhatsApp conectada?
      *
      * Sale del listado de cuentas, no de un estado de sesión: aquí no hay sesión que se caiga, hay

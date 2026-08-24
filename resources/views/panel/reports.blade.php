@@ -1,14 +1,54 @@
 @php
+    use App\Modules\Core\Support\Tendencia;
     use Illuminate\Support\Carbon;
 
-    // La 5.ª posición es el tono de la paleta compartida (ver <x-panel.metricas>).
+    /*
+     * Las cifras del histórico, ya con la forma que pide <x-panel.metricas>.
+     *
+     * Con claves y no por posición: antes cada tarjeta era un array de seis elementos sueltos y había
+     * que traducirlo abajo ($c[4] es el tono, $c[5] el icono), lo que además escondía que dos de esos
+     * seis —un texto de detalle y una clase de color— ya no los pintaba nadie desde que estas cifras
+     * pasaron al componente común. Aquí ya no hay nada que traducir ni nada muerto.
+     *
+     * Cada una lleva SU icono, no el mismo repetido: un dibujo igual en las seis no distingue una
+     * tarjeta de la de al lado, solo ocupa el sitio donde va el número.
+     */
+    /*
+     * QUÉ SIGNIFICA CRECER, cifra por cifra. No es un detalle de color: es el dato.
+     *
+     * Que suban las ventas es bueno; que suban los productos sin existencia es malo. Si la tendencia
+     * se pintara de verde por el mero hecho de crecer, un almacén vaciándose se leería como una
+     * buena noticia. Por eso cada tarjeta lo declara y Tendencia no lo adivina.
+     *
+     * «Entregas pendientes» y «stock bajo» no llevan tendencia, y no por olvido: no hay forma de
+     * reconstruir cuántas había hace un mes. Ver ReportService::computeExecutiveTrends().
+     */
+    $cambio = function (string $clave, ?bool $subeEsBueno, string $que, bool $dinero = false) use ($trends, $trendDays): ?array {
+        if (! isset($trends[$clave])) {
+            return null;
+        }
+
+        $comoTexto = fn (float $v): string => $dinero ? money($v) : number_format($v);
+        $antes = (float) $trends[$clave]['antes'];
+        $ahora = (float) $trends[$clave]['ahora'];
+
+        return Tendencia::calcular($antes, $ahora, $subeEsBueno, detalle: sprintf(
+            '%s: %s hoy frente a %s hace %d días.',
+            $que, $comoTexto($ahora), $comoTexto($antes), $trendDays,
+        ));
+    };
+
     $cards = [
-        ['Ventas (histórico)', number_format((float) $summary['sales_total'], 2), $summary['sales_count'].' ventas completadas', 'tone-emerald', 'verde'],
-        ['Balance de caja', number_format((float) $summary['cash_balance'], 2), 'Efectivo en cuentas', 'tone-indigo', 'indigo'],
-        ['Oportunidades abiertas', (string) $summary['open_opportunities'], 'Pipeline del CRM', 'tone-violet', 'violeta'],
-        ['Entregas pendientes', (string) $summary['pending_deliveries'], 'En logística', 'tone-amber', 'ambar'],
-        ['Productos', (string) $summary['products'], 'En catálogo', 'tone-sky', 'azul'],
-        ['Stock bajo', (string) $summary['low_stock'], 'Requieren reposición', 'tone-rose', 'rojo'],
+        ['etiqueta' => 'Ventas (histórico)', 'valor' => number_format((float) $summary['sales_total'], 2), 'tono' => 'verde', 'icono' => 'receipt',
+            'tendencia' => $cambio('sales_total', true, 'Ventas acumuladas', dinero: true)],
+        ['etiqueta' => 'Balance de caja', 'valor' => number_format((float) $summary['cash_balance'], 2), 'tono' => 'indigo', 'icono' => 'cash',
+            'tendencia' => $cambio('cash_balance', true, 'Efectivo en cuentas', dinero: true)],
+        ['etiqueta' => 'Oportunidades abiertas', 'valor' => (string) $summary['open_opportunities'], 'tono' => 'violeta', 'icono' => 'target',
+            'tendencia' => $cambio('open_opportunities', true, 'Oportunidades sin cerrar')],
+        ['etiqueta' => 'Entregas pendientes', 'valor' => (string) $summary['pending_deliveries'], 'tono' => 'ambar', 'icono' => 'truck'],
+        ['etiqueta' => 'Productos', 'valor' => (string) $summary['products'], 'tono' => 'azul', 'icono' => 'cube',
+            'tendencia' => $cambio('products', true, 'Productos en catálogo')],
+        ['etiqueta' => 'Stock bajo', 'valor' => (string) $summary['low_stock'], 'tono' => 'rojo', 'icono' => 'alert'],
     ];
 
     $days = $report['days'];
@@ -31,11 +71,7 @@
          Antes eran seis tarjetas con EL MISMO icono de barras repetido seis veces, que no distinguía
          una de otra ni decía nada: solo ocupaba el sitio donde va el número. Ahora el color hace ese
          trabajo, y se apaga a gris cuando el valor es cero. --}}
-    <x-panel.metricas :items="collect($cards)->map(fn (array $c): array => [
-        'valor' => $c[1],
-        'etiqueta' => $c[0],
-        'tono' => $c[4],
-    ])->all()" :columnas="6" />
+    <x-panel.metricas :items="$cards" :columnas="3" />
 
     {{-- Ventas por período --}}
     <div class="mt-8 bmos-card bmos-card-pad">

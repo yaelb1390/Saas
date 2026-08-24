@@ -61,6 +61,20 @@ final class PanelController extends Controller
             'openSession' => CashSession::query()->where('status', 'open')->latest('opened_at')->first(),
             'posConfig' => $company !== null ? PosProfile::for($company) : ['profile' => PosProfile::DEFAULT, 'options' => PosProfile::defaults(PosProfile::DEFAULT)],
             'employees' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+
+            /*
+             * Los datos del negocio, para el recibo que el terminal imprime cuando no hay línea.
+             *
+             * Viajan con la pantalla y no se piden al imprimir, que es justo cuando no hay servidor a
+             * quien pedírselos. Sin esto el cliente se llevaría un papel sin el nombre de quién le
+             * cobró, que no le sirve para reclamar nada.
+             */
+            'negocio' => [
+                'nombre' => $company?->name ?? 'Comercio',
+                'rnc' => $company?->tax_id,
+                'direccion' => $company?->address,
+                'telefono' => $company?->phone,
+            ],
         ]);
     }
 
@@ -112,6 +126,9 @@ final class PanelController extends Controller
                 ->when(request('q'), fn ($query, $q) => $query->where(
                     fn ($sub) => $sub->whereLike('code', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")
                 ))
+                // A donde lleva el aviso de la campana: solo las ventas cobradas sin conexión que
+                // entraron aceptando algo —precio distinto, existencia en negativo, caja cerrada—.
+                ->when(request('filter') === 'offline_review', fn ($query) => $query->whereNotNull('offline_review'))
                 ->latest()->paginate(15)->withQueryString(),
         ]);
     }
@@ -433,8 +450,20 @@ final class PanelController extends Controller
             [$from, $to] = [$to, $from];
         }
 
+        /*
+         * Los treinta días de la tendencia NO son el período que se elige arriba, y es a propósito.
+         *
+         * Las seis cifras del histórico no dependen de ese filtro —son el acumulado del negocio—, así
+         * que compararlas contra un rango que el usuario acaba de mover daría un porcentaje distinto
+         * cada vez que toca una fecha, sin que ninguna de las cifras haya cambiado. Un mes fijo es
+         * siempre la misma pregunta: ¿cómo veníamos hace un mes?
+         */
+        $trendDays = 30;
+
         return view('panel.reports', [
             'summary' => $reports->executiveSummary(),
+            'trends' => $reports->executiveTrends($trendDays),
+            'trendDays' => $trendDays,
             'report' => $reports->salesReport($from, $to),
             'from' => $from->format('Y-m-d'),
             'to' => $to->format('Y-m-d'),

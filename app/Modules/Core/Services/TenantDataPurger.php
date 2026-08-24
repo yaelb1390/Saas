@@ -82,6 +82,10 @@ final class TenantDataPurger
         'invoice_items',
         'invoices',
         'fiscal_sequences',
+        // Cotizaciones. Van ANTES que ventas y clientes porque apuntan a los dos, y las líneas
+        // antes que la cotización de la que cuelgan.
+        'quote_items',
+        'quotes',
         // Ventas (las opciones vendidas cuelgan de la línea: van antes)
         'sale_item_options',
         'sale_items',

@@ -205,9 +205,20 @@ it('el separador de día solo aparece cuando cambia el día', function (): void 
     $hoyA = $wa->recordInbound('18095551234', 'De hoy', 'M-2');
     $hoyB = $wa->recordInbound('18095551234', 'De hoy tambien', 'M-3');
 
-    $ayer->forceFill(['sent_at' => now()->subDay()->setTime(15, 0)])->save();
-    $hoyA->forceFill(['sent_at' => now()->setTime(10, 0)])->save();
-    $hoyB->forceFill(['sent_at' => now()->setTime(11, 0)])->save();
+    /*
+     * Las horas se construyen EN LA ZONA DEL NEGOCIO, no en UTC.
+     *
+     * El sistema guarda en UTC y aquí son cuatro horas menos, así que entre las ocho de la noche y
+     * la medianoche el día del reloj y el día del negocio NO son el mismo. Escrito con now() a
+     * secas, «ayer a las tres de la tarde» en UTC caía en el HOY del negocio y el test fallaba todas
+     * las noches durante esas cuatro horas —y pasaba el resto del día, que es la peor forma de
+     * fallar—. Lo que se está probando es lo que ve el dueño, así que se escribe en su hora.
+     */
+    $aqui = now()->timezone(config('app.business_timezone'));
+
+    $ayer->forceFill(['sent_at' => $aqui->copy()->subDay()->setTime(15, 0)])->save();
+    $hoyA->forceFill(['sent_at' => $aqui->copy()->setTime(10, 0)])->save();
+    $hoyB->forceFill(['sent_at' => $aqui->copy()->setTime(11, 0)])->save();
 
     $hilo = app(InboxPresenter::class)->payload('18095551234')['thread'];
 

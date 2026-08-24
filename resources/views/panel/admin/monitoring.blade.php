@@ -16,6 +16,27 @@
     Todo lo que se pinta es de TODAS las empresas, no de la que el operador tenga abierta.
 --}}
 @php
+    use App\Modules\Core\Support\Tendencia;
+
+    /*
+     * Las 24 horas anteriores a las 24 que se enseñan, para poder decir si mejora o empeora.
+     *
+     * Fíjate en el tercer argumento, que es el que de verdad importa: más avisos o más accesos
+     * fallidos es MALO aunque la flecha suba, y por eso van con false. «Sucesos» va con null —ni
+     * bueno ni malo— porque que la plataforma registre más actividad no dice nada por sí solo, y
+     * darle color sería inventarse un juicio que nadie ha hecho.
+     *
+     * Va en ESTE bloque y no junto a las tarjetas: un `use` dentro de un @php de en medio Blade lo
+     * compila dentro de la función de la vista, y ahí es un error de sintaxis que tumba la pantalla.
+     */
+    $frenteAAyer = fn (string $clave, ?bool $subeEsBueno, string $que): ?array => Tendencia::calcular(
+        (float) ($pulso['antes'][$clave] ?? 0),
+        (float) $pulso['dia'][$clave],
+        $subeEsBueno,
+        detalle: sprintf('%s: %d en las últimas 24 h frente a %d en las 24 anteriores.',
+            $que, $pulso['dia'][$clave], $pulso['antes'][$clave] ?? 0),
+    );
+
     $tonos = ['bien' => '#059669', 'aviso' => '#d97706', 'apagado' => '#94a3b8'];
     $nivel = ['critical' => 'badge-red', 'warning' => 'badge-amber', 'info' => 'badge-blue'];
 
@@ -57,10 +78,14 @@
 
         {{-- 2. El pulso de las últimas 24 horas. --}}
         <x-panel.metricas :items="[
-            ['valor' => $pulso['dia']['sucesos'], 'etiqueta' => 'sucesos 24 h', 'tono' => 'indigo'],
-            ['valor' => $pulso['dia']['problemas'], 'etiqueta' => 'avisos y graves', 'tono' => 'ambar'],
-            ['valor' => $pulso['dia']['accesos'], 'etiqueta' => 'accesos', 'tono' => 'azul'],
-            ['valor' => $pulso['dia']['fallidos'], 'etiqueta' => 'accesos fallidos', 'tono' => 'rojo'],
+            ['valor' => $pulso['dia']['sucesos'], 'etiqueta' => 'sucesos 24 h', 'tono' => 'indigo', 'icono' => 'pulse',
+                'tendencia' => $frenteAAyer('sucesos', null, 'Sucesos registrados')],
+            ['valor' => $pulso['dia']['problemas'], 'etiqueta' => 'avisos y graves', 'tono' => 'ambar', 'icono' => 'alert',
+                'tendencia' => $frenteAAyer('problemas', false, 'Avisos y errores graves')],
+            ['valor' => $pulso['dia']['accesos'], 'etiqueta' => 'accesos', 'tono' => 'azul', 'icono' => 'login',
+                'tendencia' => $frenteAAyer('accesos', true, 'Entradas al sistema')],
+            ['valor' => $pulso['dia']['fallidos'], 'etiqueta' => 'accesos fallidos', 'tono' => 'rojo', 'icono' => 'ban',
+                'tendencia' => $frenteAAyer('fallidos', false, 'Intentos de entrada fallidos')],
         ]" />
 
         <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_18rem_16rem]">

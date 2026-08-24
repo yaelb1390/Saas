@@ -29,11 +29,26 @@ beforeEach(function (): void {
         /** @var array<int, array{0: string, 1: string}> */
         public array $calls = [];
 
+        /** @var array<int, array{0: string, 1: string, 2: string}> */
+        public array $documentos = [];
+
         public function sendText(string $phone, string $body): array
         {
             $this->calls[] = [$phone, $body];
 
             return ['external_id' => 'ext-123', 'status' => 'sent'];
+        }
+
+        public function puedeEnviarDocumentos(): bool
+        {
+            return true;
+        }
+
+        public function sendDocument(string $phone, string $url, string $fileName, string $caption = ''): array
+        {
+            $this->documentos[] = [$phone, $url, $fileName];
+
+            return ['external_id' => 'doc-123', 'status' => 'sent'];
         }
     };
     $this->app->instance(WhatsAppGateway::class, $this->gateway);
@@ -69,6 +84,16 @@ it('marca el mensaje como fallido si el gateway lanza excepción', function (): 
     $this->app->instance(WhatsAppGateway::class, new class implements WhatsAppGateway
     {
         public function sendText(string $phone, string $body): array
+        {
+            throw new RuntimeException('gateway caído');
+        }
+
+        public function puedeEnviarDocumentos(): bool
+        {
+            return true;
+        }
+
+        public function sendDocument(string $phone, string $url, string $fileName, string $caption = ''): array
         {
             throw new RuntimeException('gateway caído');
         }

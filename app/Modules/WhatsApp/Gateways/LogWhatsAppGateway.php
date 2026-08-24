@@ -26,6 +26,32 @@ final class LogWhatsAppGateway implements WhatsAppConnection, WhatsAppGateway
         ];
     }
 
+    /**
+     * Dice que SÍ adjunta, aunque no mande nada.
+     *
+     * Es lo correcto para el gateway de desarrollo: si dijera que no, en local nunca se recorrería
+     * el camino del adjunto y ese código solo se estrenaría en producción, con un cliente delante.
+     */
+    public function puedeEnviarDocumentos(): bool
+    {
+        return true;
+    }
+
+    public function sendDocument(string $phone, string $url, string $fileName, string $caption = ''): array
+    {
+        Log::info('WhatsApp (log gateway) → documento sin envío real', [
+            'phone' => $phone,
+            'url' => $url,
+            'file' => $fileName,
+            'caption' => $caption,
+        ]);
+
+        return [
+            'external_id' => 'log-'.Str::uuid()->toString(),
+            'status' => 'sent',
+        ];
+    }
+
     public function status(): array
     {
         return ['state' => 'log', 'instance' => 'log', 'connected' => false];

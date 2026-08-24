@@ -58,6 +58,20 @@ final class QuickPosController extends Controller
             // igual pero no hay a dónde mandarlo.
             'ofreceEnvio' => $reparte,
 
+            /*
+             * Los datos del negocio, para el recibo que el terminal imprime cuando no hay línea.
+             *
+             * Viajan con la pantalla y no se piden al imprimir, que es justo cuando no hay servidor
+             * a quien pedírselos. Sin esto el cliente se iría con un papel sin el nombre de quién le
+             * cobró, que no le sirve para reclamar nada.
+             */
+            'negocio' => [
+                'nombre' => $company?->name ?? 'Comercio',
+                'rnc' => $company?->tax_id,
+                'direccion' => $company?->address,
+                'telefono' => $company?->phone,
+            ],
+
             // Para elegir repartidor a mano en el momento del cobro. Vacío = solo automático.
             'repartidores' => $reparte
                 ? Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])

@@ -16,6 +16,7 @@ use App\Modules\Core\Support\PolarSignature;
 use App\Modules\Core\Support\SubscriptionNotice;
 use App\Modules\WhatsApp\Enums\MessageStatus;
 use App\Modules\WhatsApp\Models\WaMessage;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -87,7 +88,11 @@ final class PlatformHealthService
      * Sin caché, a diferencia del resumen: son cuatro conteos por índice y esta pantalla se abre
      * cuando algo va mal, que es justo cuando no se quiere un número de hace un minuto.
      *
-     * @return array{dia: array<string, int>, etiquetas: list<string>, normales: list<int>, problemas: list<int>}
+     * Junto al pulso van los mismos cuatro conteos de las 24 horas ANTERIORES, en 'antes'. Sin ellos
+     * no hay tendencia posible: un número solo no dice si la cosa mejora o empeora, y esta pantalla
+     * existe para responder justo eso. Son cuatro conteos más por índice sobre la misma tabla.
+     *
+     * @return array{dia: array<string, int>, antes: array<string, int>, etiquetas: list<string>, normales: list<int>, problemas: list<int>}
      */
     public function pulso(): array
     {
@@ -96,6 +101,7 @@ final class PlatformHealthService
         if (! DbTable::existe('system_events')) {
             return [
                 'dia' => ['sucesos' => 0, 'problemas' => 0, 'accesos' => 0, 'fallidos' => 0, 'errores' => 0],
+                'antes' => ['sucesos' => 0, 'problemas' => 0, 'accesos' => 0, 'fallidos' => 0],
                 'etiquetas' => [], 'normales' => [], 'problemas' => [],
             ];
         }
@@ -111,6 +117,26 @@ final class PlatformHealthService
             'fallidos' => SystemEvent::query()->where('created_at', '>=', $desde)
                 ->where('type', 'auth.failed')->count(),
             'errores' => ErrorEvent::query()->where('last_seen_at', '>=', $desde)->count(),
+        ];
+
+        /*
+         * Las 24 horas de antes de esas 24 horas, para poder decir si sube o baja.
+         *
+         * La ventana se cierra en $desde y no en «ayer a esta hora» calculado aparte: usar el mismo
+         * límite para las dos garantiza que ningún suceso se cuente en las dos ventanas ni se caiga
+         * entre ellas, que es el error clásico de comparar dos períodos.
+         */
+        $anterior = (clone $desde)->subDay();
+        $enLaVentanaPrevia = fn (): Builder => SystemEvent::query()
+            ->where('created_at', '>=', $anterior)
+            ->where('created_at', '<', $desde);
+
+        $antes = [
+            'sucesos' => $enLaVentanaPrevia()->count(),
+            'problemas' => $enLaVentanaPrevia()
+                ->whereIn('level', [SystemEvent::AVISO, SystemEvent::GRAVE])->count(),
+            'accesos' => $enLaVentanaPrevia()->where('type', 'auth.login')->count(),
+            'fallidos' => $enLaVentanaPrevia()->where('type', 'auth.failed')->count(),
         ];
 
         /*
@@ -137,7 +163,7 @@ final class PlatformHealthService
             $normales[] = $delDia->where('level', SystemEvent::INFO)->count();
         }
 
-        return compact('dia', 'etiquetas', 'normales', 'problemas');
+        return compact('dia', 'antes', 'etiquetas', 'normales', 'problemas');
     }
 
     /**

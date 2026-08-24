@@ -225,9 +225,19 @@
 
                 {{-- Redactar --}}
                 <div class="bmos-card mt-5 overflow-hidden" x-data="redactor()">
-                    <div class="border-b border-slate-100 p-5">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Publicar</p>
-                        <p class="mt-0.5 font-semibold text-slate-800">Nueva publicación</p>
+                    {{-- Un rótulo con icono, no dos líneas de texto sueltas.
+
+                         Esta tarjeta cae la cuarta de una columna de rectángulos blancos
+                         —automatizaciones, bienvenida, publicar, historial— y sin nada que la
+                         distinga hay que leerlas todas para dar con la única que se usa cada día. --}}
+                    <div class="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-br from-indigo-50 via-white to-violet-50 p-5">
+                        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-100">
+                            <x-icono name="megafono" class="h-5 w-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-400">Publicar</p>
+                            <p class="font-semibold text-slate-800">Nueva publicación</p>
+                        </div>
                     </div>
 
                     <form method="POST" action="{{ route('panel.social.publish') }}" class="p-5"
@@ -238,10 +248,43 @@
                             <div class="space-y-4">
                                 <div>
                                     <label class="bmos-field-label">¿Qué quieres contar?</label>
-                                    <textarea name="content" rows="5" class="bmos-input" required
-                                              maxlength="5000" x-model="texto"
-                                              placeholder="Hoy tenemos batida de guineo a RD$150. Te la llevamos a la casa."></textarea>
-                                    <p class="mt-1 text-xs text-slate-400"><span x-text="texto.length"></span> / 5000</p>
+                                    {{-- El campo y su contador, dentro de UNA sola caja.
+
+                                         Antes eran dos piezas sueltas: el cuadro con su borde y, debajo y al
+                                         aire, el contador con su barrita. Suelto, el contador parecía medir la
+                                         pantalla entera en vez del texto que tiene justo encima. --}}
+                                    <div class="bmos-redactar">
+                                        <textarea name="content" rows="5" class="bmos-redactar-campo" required
+                                                  maxlength="5000" x-model="texto"
+                                                  placeholder="Hoy tenemos batida de guineo a RD$150. Te la llevamos a la casa."></textarea>
+                                        {{-- El contador cambia de color al acercarse al tope de la red MÁS CORTA de
+                                             las elegidas, no al de 5000. Instagram corta en 2.200 y X en 280: un
+                                             contador que dice «1.800 / 5000» en verde mientras el texto ya no cabe en
+                                             Instagram no está informando, está tranquilizando en falso. --}}
+                                        <div class="bmos-redactar-pie">
+                                            <p class="text-xs tabular-nums"
+                                               :class="pasaDelTope ? 'font-semibold text-rose-600' : 'text-slate-400'">
+                                                <span x-text="texto.length"></span> / <span x-text="topeActual"></span>
+                                                <span x-show="redDelTope" x-cloak x-text="'· tope de ' + redDelTope"></span>
+                                            </p>
+                                            <div class="bmos-medidor">
+                                                <div class="bmos-medidor-barra"
+                                                     :class="pasaDelTope ? 'is-pasado' : (texto.length / topeActual > 0.85 ? 'is-cerca' : '')"
+                                                     :style="'width: ' + Math.min(100, (texto.length / topeActual) * 100) + '%'"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Los asteriscos de las negritas.
+                                         Ninguna red social entiende Markdown: lo que se escribe como **negrita**
+                                         sale con los asteriscos a la vista de los seguidores. Es fácil de escribir
+                                         sin querer cuando el texto lo redacta una IA, y solo se descubre mirando la
+                                         publicación ya hecha. --}}
+                                    <p x-show="tieneMarcado" x-cloak
+                                       class="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                                        Las redes no entienden <b>**negritas**</b>: esos asteriscos se van a ver tal cual.
+                                        <button type="button" @click="quitarMarcado()" class="ml-1 font-semibold underline">Quitarlos</button>
+                                    </p>
                                 </div>
 
                                 <div>
@@ -252,22 +295,36 @@
                                         <div class="flex flex-wrap gap-2">
                                             @foreach ($cuentas as $cuenta)
                                                 @php $red = SocialPlatform::tryFrom((string) $cuenta['platform']); @endphp
-                                                {{-- Las que hay que reconectar no se ofrecen: elegirlas daría
-                                                     un «publicado» que no publica nada. --}}
-                                                <label class="bmos-red {{ $cuenta['necesita_reconectar'] ? 'opacity-50' : 'cursor-pointer' }}"
+                                                {{-- La ficha ENTERA es el interruptor, y encendida se tiñe del
+                                                     color de la red. La casilla del navegador sigue estando ahí,
+                                                     solo que invisible: es la que viaja en el formulario y la que
+                                                     recibe el tabulador, así que borrarla dejaría esta elección
+                                                     fuera del alcance de quien no usa ratón.
+
+                                                     Las que hay que reconectar salen apagadas y no se dejan
+                                                     marcar: elegirlas daría un «publicado» que no publica nada. --}}
+                                                <label class="bmos-chip {{ $cuenta['necesita_reconectar'] ? 'is-caducada' : '' }}"
                                                        style="--tono: {{ $red?->color() ?? '#94a3b8' }}">
                                                     {{-- Plataforma e id viajan juntos: Zernio necesita los dos y el
                                                          servidor los separa, para que el navegador no decida
                                                          qué cuenta pertenece a qué red. --}}
-                                                    <input type="checkbox" name="accounts[]" class="rounded border-slate-300"
+                                                    <input type="checkbox" name="accounts[]" class="bmos-chip-caja"
                                                            x-model="destinos"
                                                            @disabled($cuenta['necesita_reconectar'])
                                                            value="{{ $cuenta['platform'] }}|{{ $cuenta['id'] }}">
-                                                    <span class="bmos-red-punto"></span>
+                                                    @if (filled($cuenta['avatar']))
+                                                        <img src="{{ $cuenta['avatar'] }}" alt="" class="bmos-chip-foto">
+                                                    @else
+                                                        <span class="bmos-chip-foto bmos-chip-punto"></span>
+                                                    @endif
                                                     <span class="truncate">{{ $cuenta['name'] }}</span>
+                                                    <span class="bmos-chip-marca">
+                                                        <x-icono name="check" class="h-3 w-3" stroke-width="3" />
+                                                    </span>
                                                 </label>
                                             @endforeach
                                         </div>
+                                        <p class="mt-2 text-xs text-slate-400">Toca las que quieras: sale en todas a la vez.</p>
                                     @endif
                                 </div>
 
@@ -282,8 +339,83 @@
                                         <span x-show="faltaFoto.length === 0">(opcional)</span>
                                         <span x-show="faltaFoto.length > 0" x-cloak class="text-rose-500">*</span>
                                     </label>
-                                    <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4"
-                                           @change="subir($event)" class="bmos-input">
+                                    {{-- Zona para soltar, en vez del control desnudo del navegador.
+                                         El de antes solo decía «Sin archivos seleccionados» y NO enseñaba qué se
+                                         iba a publicar; publicar la foto equivocada en una cuenta con dos mil
+                                         seguidores no se deshace. --}}
+                                    <div x-show="!mediaUrl && !subiendo" x-cloak
+                                         class="bmos-soltar" :class="arrastrando && 'is-encima'"
+                                         @dragover.prevent="arrastrando = true"
+                                         @dragleave.prevent="arrastrando = false"
+                                         @drop.prevent="arrastrando = false; subirArchivo($event.dataTransfer.files[0])">
+                                        <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4"
+                                               @change="subir($event)">
+                                        <span class="bmos-soltar-icono">
+                                            <x-icono name="foto" class="h-5 w-5" />
+                                        </span>
+                                        {{-- El rótulo cambia mientras se arrastra. Es la diferencia entre
+                                             «aquí hay algo que se puede pulsar» y «suelta AQUÍ»: sin ese
+                                             cambio, quien viene arrastrando una foto no sabe si el sitio la
+                                             va a recoger hasta que la suelta. --}}
+                                        <span class="bmos-soltar-texto">
+                                            <b x-show="!arrastrando">Arrastra tu foto o vídeo aquí</b>
+                                            <b x-show="arrastrando" x-cloak>Suéltalo y empieza a subir</b>
+                                            <span class="bmos-soltar-pista">o toca para elegirlo de tu equipo</span>
+                                        </span>
+                                        <span class="bmos-soltar-formatos">
+                                            <span class="bmos-soltar-formato">JPG</span>
+                                            <span class="bmos-soltar-formato">PNG</span>
+                                            <span class="bmos-soltar-formato">WEBP</span>
+                                            <span class="bmos-soltar-formato">MP4</span>
+                                        </span>
+                                    </div>
+
+                                    {{-- Con un vídeo esto tarda. Antes solo ponía «Subiendo...» y no se
+                                         distinguía una subida lenta de una colgada; por eso van juntos el
+                                         nombre del archivo, el porcentaje y la barra. --}}
+                                    <div x-show="subiendo" x-cloak class="bmos-subiendo">
+                                        <span class="bmos-subiendo-icono">
+                                            <x-icono name="subir" class="h-4 w-4" />
+                                        </span>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-baseline justify-between gap-2">
+                                                <p class="truncate text-sm font-medium text-slate-700"
+                                                   x-text="nombreArchivo || 'Subiendo el archivo'"></p>
+                                                <p class="shrink-0 text-xs font-semibold tabular-nums text-indigo-600">
+                                                    <span x-text="progreso"></span>%
+                                                </p>
+                                            </div>
+                                            <div class="bmos-progreso mt-2">
+                                                <div class="bmos-progreso-barra" :style="'width: ' + progreso + '%'"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="mediaUrl && !subiendo" x-cloak class="bmos-media">
+                                        <span class="bmos-media-marco">
+                                            <template x-if="mediaTipo === 'video'">
+                                                <video class="bmos-media-foto" :src="mediaUrl" muted></video>
+                                            </template>
+                                            <template x-if="mediaTipo !== 'video'">
+                                                <img class="bmos-media-foto" :src="mediaUrl" alt="">
+                                            </template>
+                                            {{-- Un vídeo parado se ve igual que una foto. El rótulo dice cuál
+                                                 de los dos es, que es justo lo que decide si Instagram lo
+                                                 publica como reel o como imagen. --}}
+                                            <span x-show="mediaTipo === 'video'" x-cloak class="bmos-media-tipo">Vídeo</span>
+                                        </span>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate text-sm font-medium text-slate-700" x-text="nombreArchivo || 'Archivo listo'"></p>
+                                            <span class="bmos-media-listo">
+                                                <x-icono name="check" class="h-3 w-3" stroke-width="3" />
+                                                Listo para publicar
+                                            </span>
+                                        </div>
+                                        <button type="button" @click="quitarMedia()" class="bmos-media-quitar" title="Quitar">
+                                            <x-icono name="cerrar" class="h-4 w-4" />
+                                        </button>
+                                    </div>
+
                                     <input type="hidden" name="media_url" x-model="mediaUrl">
                                     <input type="hidden" name="media_type" x-model="mediaTipo">
                                     <p x-show="faltaFoto.length > 0" x-cloak
@@ -292,99 +424,242 @@
                                         <span x-text="faltaFoto.length === 1 ? 'no publica' : 'no publican'"></span>
                                         solo texto: añade una foto o un vídeo.
                                     </p>
-                                    <p x-show="subiendo" x-cloak class="mt-1 text-xs text-slate-500">Subiendo...</p>
-                                    <p x-show="mediaUrl" x-cloak class="mt-1 text-xs font-medium text-emerald-600">Imagen lista.</p>
                                     <p x-show="errorMedia" x-cloak x-text="errorMedia" class="mt-1 text-xs text-rose-600"></p>
                                 </div>
                             </div>
 
                             {{-- Cuándo y el botón, apartados a un lado: son la decisión final, no parte
                                  de redactar. --}}
-                            <div class="space-y-3 rounded-2xl bg-slate-50 p-4">
-                                <p class="text-sm font-medium text-slate-700">¿Cuándo?</p>
-                                <label class="flex items-center gap-2 text-sm text-slate-600">
-                                    <input type="checkbox" x-model="programar" class="rounded border-slate-300">
-                                    Programar para más tarde
-                                </label>
+                            <div class="space-y-4">
+                            {{-- Cómo va a quedar. Es la pieza que evita el error más caro de esta pantalla:
+                                 publicar algo que no se ve como uno creía. Y de paso enseña, sin explicar
+                                 nada, que los asteriscos de las negritas salen tal cual. --}}
+                            <div x-show="texto.length > 0 || mediaUrl" x-cloak class="bmos-previa">
+                                <div class="bmos-previa-cabecera">
+                                    <span class="bmos-previa-avatar"></span>
+                                    <div class="min-w-0">
+                                        <p class="truncate text-sm font-semibold text-slate-800"
+                                           x-text="nombreDestino || 'Tu cuenta'"></p>
+                                        <p class="text-xs text-slate-400" x-text="programar ? 'Programado' : 'Ahora'"></p>
+                                    </div>
+                                </div>
+                                <template x-if="mediaUrl && mediaTipo !== 'video'">
+                                    <img class="bmos-previa-foto" :src="mediaUrl" alt="">
+                                </template>
+                                <template x-if="mediaUrl && mediaTipo === 'video'">
+                                    <video class="bmos-previa-foto" :src="mediaUrl" muted controls></video>
+                                </template>
+                                <p class="bmos-previa-texto" x-text="texto || 'Escribe algo y aparecerá aquí.'"></p>
+                            </div>
+
+                            <div class="bmos-decidir">
+                                <p class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                    <x-icono name="reloj" class="h-4 w-4 text-slate-400" />
+                                    ¿Cuándo?
+                                </p>
+                                {{-- Dos botones en vez de una casilla suelta.
+
+                                     «Ahora» y «programado» son dos caminos distintos, y una casilla solo
+                                     enseña uno: el otro está implícito en no marcarla. Con los dos a la
+                                     vista se ve de un golpe cuál está elegido, que es lo que hay que saber
+                                     antes de pulsar un botón que publica de verdad. --}}
+                                <div class="bmos-segmento mt-2.5">
+                                    <button type="button" class="bmos-segmento-op" :class="!programar && 'is-activa'"
+                                            @click="programar = false">Ahora</button>
+                                    <button type="button" class="bmos-segmento-op" :class="programar && 'is-activa'"
+                                            @click="programar = true">Programar</button>
+                                </div>
                                 <input x-show="programar" x-cloak type="datetime-local" name="scheduled_for"
-                                       class="bmos-input" :required="programar">
-                                <p x-show="programar" x-cloak class="text-xs text-slate-400">
+                                       class="bmos-input mt-2.5" :required="programar">
+                                <p x-show="programar" x-cloak class="mt-1.5 text-xs text-slate-400">
                                     La hora es la tuya: si pones las 8, sale a las 8 de aquí.
                                 </p>
 
                                 {{-- Apagado mientras falte la foto que la red exige: dejar pulsar un
                                      botón cuyo resultado ya se sabe que es un rechazo no es una
                                      libertad, es una pérdida de tiempo con la oferta escrita. --}}
-                                <button type="submit" :disabled="subiendo || preparando || faltaFoto.length > 0"
-                                        class="bmos-btn bmos-btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">
-                                    <span x-text="programar ? 'Programar' : 'Publicar ahora'"></span>
+                                <button type="submit" :disabled="subiendo || preparando || faltaFoto.length > 0 || pasaDelTope"
+                                        class="bmos-btn bmos-btn-primary mt-3 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">
+                                    <x-icono name="enviar" class="h-4 w-4" x-show="!preparando" />
+                                    <span x-show="!preparando" x-text="programar ? 'Programar' : 'Publicar ahora'"></span>
+                                    <span x-show="preparando" x-cloak>Enviando…</span>
                                 </button>
+
+                                {{-- Por qué está apagado el botón. Un botón gris sin explicación se lee como
+                                     una avería del sistema, no como algo que falta por hacer. --}}
+                                <p x-show="pasaDelTope" x-cloak class="mt-2 text-xs font-medium text-rose-600">
+                                    El texto no cabe en <span x-text="redDelTope"></span>.
+                                </p>
+                            </div>
                             </div>
                         </div>
                     </form>
                 </div>
             @endcan
 
-            {{-- Lo publicado --}}
-            <div class="bmos-card mt-5 overflow-hidden">
+            {{-- Lo publicado.
+                 Cada fila enseña la FOTO —que en Instagram es la publicación, y el texto solo el
+                 pie— y el estado de CADA destino por separado. Antes llevaba una sola etiqueta para
+                 todo, y «publicado a medias» no decía cuál de las mitades había fallado. --}}
+            <div class="bmos-card mt-5 overflow-hidden"
+                 x-data="{
+                     filtro: 'todas',
+                     abierta: null,
+                 }">
                 <div class="border-b border-slate-100 p-5">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Historial</p>
-                    <p class="mt-0.5 font-semibold text-slate-800">Últimas publicaciones</p>
+                    <div class="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Historial</p>
+                            <p class="mt-0.5 font-semibold text-slate-800">Últimas publicaciones</p>
+                        </div>
+
+                        @if ($publicaciones !== [])
+                            @php
+                                // Se cuentan aquí y no en el navegador: la cifra tiene que estar bien
+                                // desde el primer instante, antes de que Alpine arranque.
+                                $porEstado = collect($publicaciones)->groupBy('estado')->map->count();
+                                $pestanas = [
+                                    'todas' => 'Todas ('.count($publicaciones).')',
+                                    'scheduled' => 'Programadas ('.($porEstado['scheduled'] ?? 0).')',
+                                    'published' => 'Publicadas ('.($porEstado['published'] ?? 0).')',
+                                    'failed' => 'Fallidas ('.($porEstado['failed'] ?? 0).')',
+                                ];
+                            @endphp
+                            <div class="bmos-pestanas">
+                                @foreach ($pestanas as $clave => $rotulo)
+                                    {{-- Las que están a cero se ofrecen igual: que no haya ninguna fallida
+                                         es justamente lo que se quiere poder comprobar de un vistazo. --}}
+                                    <button type="button" @click="filtro = '{{ $clave }}'"
+                                            :class="filtro === '{{ $clave }}' && 'is-activa'"
+                                            class="bmos-pestana">{{ $rotulo }}</button>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
                 </div>
 
                 @forelse ($publicaciones as $post)
-                    @php
-                        $estado = (string) ($post['status'] ?? '');
-                        $color = match ($estado) {
-                            'published' => 'badge-green',
-                            'scheduled' => 'badge-blue',
-                            'publishing' => 'badge-amber',
-                            'failed' => 'badge-red',
-                            'partial' => 'badge-amber',
-                            default => 'badge-gray',
-                        };
-                        $etiqueta = match ($estado) {
-                            'published' => 'Publicado',
-                            'scheduled' => 'Programado',
-                            'publishing' => 'Publicando',
-                            'failed' => 'Falló',
-                            'partial' => 'Publicado a medias',
-                            'draft' => 'Borrador',
-                            default => $estado ?: '—',
-                        };
+                    <div class="bmos-post" data-estado="{{ $post['estado'] }}"
+                         x-show="filtro === 'todas' || filtro === '{{ $post['estado'] }}'" x-cloak>
 
-                        // La hora ya viene convertida a la zona del negocio desde el controlador.
-                        $sale = $post['sale_el'] ?? null;
+                        {{-- La miniatura. Un vídeo se marca: no es lo mismo revisar una foto que un reel. --}}
+                        <div>
+                            @if (filled($post['foto']))
+                                <div class="relative">
+                                    @if ($post['es_video'])
+                                        {{-- Un vídeo NO se pinta con <img>: un .mp4 ahí sale como imagen rota,
+                                             que es exactamente lo que pasaba. Con <video> y `preload="metadata"`
+                                             el navegador baja solo la cabecera y enseña el primer fotograma, sin
+                                             descargar el archivo entero por una miniatura de 56 píxeles. --}}
+                                        <video src="{{ $post['foto'] }}" class="bmos-post-foto"
+                                               preload="metadata" muted playsinline></video>
+                                        <span class="absolute bottom-1 right-1 rounded bg-slate-900/70 px-1 text-[9px] font-bold text-white">VÍDEO</span>
+                                    @else
+                                        {{-- Si la imagen no carga —el enlace de la red caduca— se esconde y queda
+                                             el hueco del mismo tamaño. Un cuadro gris roto se lee como que la
+                                             publicación falló, y no falló: es la miniatura la que no está. --}}
+                                        <img src="{{ $post['foto'] }}" alt="" class="bmos-post-foto" loading="lazy"
+                                             onerror="this.closest('.relative').querySelector('[data-sinfoto]').hidden = false; this.remove();">
+                                        @if ($post['medias'] > 1)
+                                            <span class="absolute bottom-1 right-1 rounded bg-slate-900/70 px-1 text-[9px] font-bold text-white">+{{ $post['medias'] - 1 }}</span>
+                                        @endif
+                                    @endif
 
-                        // Solo lo que todavía no ha salido se puede cancelar. Lo publicado exige
-                        // despublicarlo, que es otra cosa: ya lo vio gente.
-                        $sePuedeCancelar = in_array($estado, ['scheduled', 'draft'], true)
-                            && filled($post['_id'] ?? null);
-                    @endphp
-                    <div class="flex items-start justify-between gap-4 border-b border-slate-50 p-5 last:border-0">
-                        <div class="min-w-0">
-                            <p class="line-clamp-2 text-sm text-slate-700">{{ $post['content'] ?? '' }}</p>
-                            @if (filled($post['platformPostUrl'] ?? null))
-                                <a href="{{ $post['platformPostUrl'] }}" target="_blank" rel="noopener"
-                                   class="mt-1 inline-block text-xs font-medium text-indigo-600 hover:underline">Verlo en la red →</a>
+                                    <div data-sinfoto hidden class="bmos-post-foto bmos-post-sinfoto">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:1.4rem;height:1.4rem"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 9.75h.008v.008H18V9.75Zm.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="bmos-post-foto bmos-post-sinfoto">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:1.4rem;height:1.4rem"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z"/></svg>
+                                </div>
                             @endif
                         </div>
-                        <div class="flex shrink-0 items-center gap-2">
-                            <div class="text-right">
-                                <span class="bmos-badge {{ $color }}">{{ $etiqueta }}</span>
-                                @if ($sale !== null && $estado === 'scheduled')
-                                    {{-- La hora a la que sale, que es el dato que hace falta para
-                                         decidir si da tiempo a pararla. --}}
-                                    <p class="mt-1 text-xs text-slate-400">
-                                        Sale el {{ $sale->translatedFormat('j M') }} a las {{ $sale->format('H:i') }}
-                                    </p>
+
+                        <div class="min-w-0">
+                            {{-- El texto TAL CUAL se publica, con sus saltos de línea y sus asteriscos si
+                                 los lleva: pintarlo en negrita aquí sería enseñar algo distinto de lo que
+                                 ve el seguidor. --}}
+                            <p class="bmos-post-texto"
+                               :class="abierta !== '{{ $post['id'] }}' && 'is-corto'"
+                            >{{ $post['texto'] !== '' ? $post['texto'] : 'Sin texto' }}</p>
+
+                            @if (mb_strlen($post['texto']) > 160)
+                                <button type="button"
+                                        @click="abierta = abierta === '{{ $post['id'] }}' ? null : '{{ $post['id'] }}'"
+                                        class="mt-1 text-xs font-semibold text-indigo-600 hover:underline"
+                                        x-text="abierta === '{{ $post['id'] }}' ? 'Ver menos' : 'Ver todo'"></button>
+                            @endif
+
+                            <div class="bmos-post-meta mt-2">
+                                @foreach ($post['destinos'] as $destino)
+                                    @php $rotulo = ($destino['cuenta'] ?? null) ?: $destino['red']; @endphp
+
+                                    {{-- Enlace solo si ya salió. Un enlace a algo que aún no existe
+                                         lleva a un 404, y eso se lee como que la publicación falló. --}}
+                                    @if (filled($destino['url']))
+                                        <a href="{{ $destino['url'] }}" target="_blank" rel="noopener"
+                                           class="bmos-destino" style="--tono: {{ $destino['color'] }}"
+                                           title="Ver en {{ $destino['red'] }}">
+                                            <span class="bmos-destino-punto"></span>
+                                            <span class="truncate">{{ $rotulo }}</span>
+                                            <span class="bmos-destino-estado" data-estado="{{ $destino['estado'] }}">{{ $destino['etiqueta'] }}</span>
+                                        </a>
+                                    @else
+                                        <span class="bmos-destino" style="--tono: {{ $destino['color'] }}">
+                                            <span class="bmos-destino-punto"></span>
+                                            <span class="truncate">{{ $rotulo }}</span>
+                                            <span class="bmos-destino-estado" data-estado="{{ $destino['estado'] }}">{{ $destino['etiqueta'] }}</span>
+                                        </span>
+                                    @endif
+                                @endforeach
+
+                                @if ($post['publicado'] !== null)
+                                    <span title="{{ $post['publicado']->format('d/m/Y H:i') }}">
+                                        {{ $post['publicado']->diffForHumans() }}
+                                    </span>
+                                @elseif ($post['sale_el'] !== null)
+                                    {{-- La hora EXACTA a la que sale, más lo que falta.
+                                         Las dos cosas, y no solo «en 15 horas»: quien viene a decidir si le da
+                                         tiempo a pararla necesita saber si sale antes o después de que él cierre,
+                                         y eso con un relativo hay que calcularlo de cabeza. La hora ya viene
+                                         convertida a la zona del negocio; en UTC leería las diez de la noche una
+                                         que sale a las seis de la tarde. --}}
+                                    <span class="font-medium text-indigo-600">
+                                        Sale el {{ $post['sale_el']->translatedFormat('j M') }} a las {{ $post['sale_el']->format('H:i') }}
+                                        <span class="font-normal text-slate-400">({{ $post['sale_el']->diffForHumans() }})</span>
+                                    </span>
+                                @elseif ($post['creado'] !== null)
+                                    <span title="{{ $post['creado']->format('d/m/Y H:i') }}">
+                                        Creada {{ $post['creado']->diffForHumans() }}
+                                    </span>
                                 @endif
                             </div>
 
+                            @foreach ($post['destinos'] as $destino)
+                                @if (filled($destino['motivo']))
+                                    {{-- El motivo del fallo. «Falló» a secas no dice qué hacer después. --}}
+                                    <p class="mt-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700">
+                                        {{ $destino['red'] }}: {{ $destino['motivo'] }}
+                                    </p>
+                                @elseif ($destino['intentos'] > 1)
+                                    {{-- Que hiciera falta más de un intento no es un detalle técnico: avisa de
+                                         que esa cuenta da guerra, antes del día en que el último intento
+                                         tampoco funcione. --}}
+                                    <p class="mt-1.5 text-xs text-amber-600">
+                                        {{ $destino['red'] }} necesitó {{ $destino['intentos'] }} intentos.
+                                    </p>
+                                @endif
+                            @endforeach
+                        </div>
+
+                        <div class="bmos-post-lado flex shrink-0 items-start gap-2">
+                            <span class="bmos-badge {{ $post['tono'] }}">{{ $post['etiqueta'] }}</span>
+
                             @can('social.publish')
-                                @if ($sePuedeCancelar)
+                                @if ($post['se_puede_cancelar'])
                                     <x-panel.confirm-action
-                                        :action="route('panel.social.posts.cancel', $post['_id'])"
+                                        :action="route('panel.social.posts.cancel', $post['id'])"
                                         title="¿Cancelar esta publicación?"
                                         message="No va a salir. El texto y las fotos se pierden: si la quieres, hay que volver a escribirla."
                                         confirm="Cancelar publicación"
@@ -431,6 +706,25 @@
                     mediaUrl: '',
                     mediaTipo: 'image',
                     errorMedia: '',
+                    nombreArchivo: '',
+                    arrastrando: false,
+                    progreso: 0,
+
+                    /*
+                     * Cuánto texto admite cada red.
+                     *
+                     * Escrito aquí porque es un límite de la red, no del sistema: nada del servidor
+                     * lo comprueba ni podría. Son los topes públicos de cada plataforma.
+                     */
+                    topes: {
+                        instagram: 2200, threads: 500, twitter: 280,
+                        tiktok: 2200, facebook: 63206, linkedin: 3000,
+                        youtube: 5000, pinterest: 500,
+                    },
+
+                    /* id de cuenta → nombre, para que la vista previa diga en qué cuenta va a salir
+                       y no un «Tu cuenta» genérico. */
+                    cuentas: @js(collect($cuentas)->mapWithKeys(fn (array $c): array => [(string) $c['id'] => (string) $c['name']])->all()),
 
                     /* Las redes elegidas, para poder avisar antes de pulsar. */
                     destinos: [],
@@ -438,6 +732,71 @@
                     /* Las que no publican texto suelto. La lista la manda el servidor desde la
                        enumeración, para que no haya dos versiones de la regla. */
                     exigenFoto: @js($redesQueExigenFoto),
+
+                    /* Las redes elegidas, ya sin el id de cuenta. */
+                    get redesElegidas() {
+                        return [...new Set(this.destinos.map((d) => d.split('|')[0]))];
+                    },
+
+                    /*
+                     * El tope de la red MÁS CORTA de las elegidas.
+                     *
+                     * Manda la más estricta porque el texto es el mismo para todas: si se publica a
+                     * la vez en Instagram y en X, lo que no cabe en X no cabe, y avisar del tope de
+                     * Instagram sería avisar del límite equivocado.
+                     */
+                    get topeActual() {
+                        const topes = this.redesElegidas.map((r) => this.topes[r]).filter(Boolean);
+
+                        return topes.length ? Math.min(...topes) : 5000;
+                    },
+
+                    /** Cuál es esa red, para poder nombrarla en vez de decir «el tope». */
+                    get redDelTope() {
+                        const conTope = this.redesElegidas
+                            .filter((r) => this.topes[r])
+                            .sort((a, b) => this.topes[a] - this.topes[b]);
+
+                        if (!conTope.length) return '';
+
+                        return conTope[0].charAt(0).toUpperCase() + conTope[0].slice(1);
+                    },
+
+                    get pasaDelTope() {
+                        return this.texto.length > this.topeActual;
+                    },
+
+                    /** El nombre de la cuenta elegida, para la vista previa. */
+                    get nombreDestino() {
+                        if (this.destinos.length === 0) return '';
+                        if (this.destinos.length > 1) return this.destinos.length + ' cuentas';
+
+                        const id = this.destinos[0].split('|')[1];
+
+                        return (this.cuentas[id] ?? '').toString();
+                    },
+
+                    /*
+                     * ¿Lleva marcas de Markdown?
+                     *
+                     * Ninguna red las entiende: **negrita** sale con los asteriscos a la vista. Pasa
+                     * sobre todo cuando el texto lo redacta una IA, y solo se descubre mirando la
+                     * publicación ya hecha, cuando ya la vio gente.
+                     */
+                    get tieneMarcado() {
+                        return /\*\*[^*]+\*\*|__[^_]+__/.test(this.texto);
+                    },
+
+                    quitarMarcado() {
+                        this.texto = this.texto.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/__([^_]+)__/g, '$1');
+                    },
+
+                    quitarMedia() {
+                        this.mediaUrl = '';
+                        this.nombreArchivo = '';
+                        this.progreso = 0;
+                        this.errorMedia = '';
+                    },
 
                     /* Instagram rechaza el texto sin foto con un 400. Decirlo mientras redacta
                        evita escribir la oferta entera para que la rechacen al final. */
@@ -455,13 +814,18 @@
                      * permiso, se sube al enlace que devuelve, y al formulario solo viaja la
                      * dirección pública resultante.
                      */
-                    async subir(evento) {
-                        const archivo = evento.target.files[0];
+                    subir(evento) {
+                        return this.subirArchivo(evento.target.files[0]);
+                    },
+
+                    async subirArchivo(archivo) {
                         if (! archivo) return;
 
                         this.subiendo = true;
                         this.errorMedia = '';
                         this.mediaUrl = '';
+                        this.progreso = 0;
+                        this.nombreArchivo = archivo.name;
 
                         try {
                             const permiso = await fetch('{{ route('panel.social.presign') }}', {
@@ -477,13 +841,29 @@
                             const datos = await permiso.json();
                             if (! permiso.ok) throw new Error(datos.message ?? 'No se pudo preparar la subida.');
 
-                            const subida = await fetch(datos.uploadUrl, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': archivo.type },
-                                body: archivo,
-                            });
+                            /*
+                             * Con XHR y no con fetch, por una sola razón: fetch NO informa de cuánto
+                             * lleva subido. Un vídeo de 40 MB por una conexión de barrio tarda
+                             * minutos, y sin barra de progreso no hay forma de distinguir «va por la
+                             * mitad» de «se colgó» —así que se cierra la pestaña y se pierde todo—.
+                             */
+                            await new Promise((listo, fallo) => {
+                                const peticion = new XMLHttpRequest();
+                                peticion.open('PUT', datos.uploadUrl);
+                                peticion.setRequestHeader('Content-Type', archivo.type);
 
-                            if (! subida.ok) throw new Error('No se pudo subir el archivo.');
+                                peticion.upload.onprogress = (e) => {
+                                    if (e.lengthComputable) {
+                                        this.progreso = Math.round((e.loaded / e.total) * 100);
+                                    }
+                                };
+
+                                peticion.onload = () => (peticion.status >= 200 && peticion.status < 300)
+                                    ? listo()
+                                    : fallo(new Error('No se pudo subir el archivo.'));
+                                peticion.onerror = () => fallo(new Error('Se cortó la conexión al subir el archivo.'));
+                                peticion.send(archivo);
+                            });
 
                             this.mediaUrl = datos.publicUrl;
                             this.mediaTipo = archivo.type.startsWith('video/') ? 'video' : 'image';

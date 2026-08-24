@@ -33,9 +33,18 @@ final class SaleService
         private readonly TaxCalculator $tax,
     ) {}
 
-    public function complete(CreateSaleData $data): Sale
+    /**
+     * @param  bool  $permitirStockNegativo  dejar la existencia por debajo de cero en vez de rechazar
+     *                                       la venta. Solo lo enciende la subida de ventas cobradas
+     *                                       sin internet: ahí la mercancía ya se la llevó el cliente,
+     *                                       y rechazar la salida no la devuelve, solo hace que el
+     *                                       inventario mienta al alza. Va como parámetro de la
+     *                                       OPERACIÓN y no dentro del DTO porque no describe la
+     *                                       venta, sino cómo se permite registrarla.
+     */
+    public function complete(CreateSaleData $data, bool $permitirStockNegativo = false): Sale
     {
-        return DB::transaction(function () use ($data): Sale {
+        return DB::transaction(function () use ($data, $permitirStockNegativo): Sale {
             $warehouse = Warehouse::findOrFail($data->warehouseId);
             $companyId = (int) $warehouse->company_id;
 
@@ -74,6 +83,7 @@ final class SaleService
                 'warehouse_id' => $warehouse->id,
                 'cash_session_id' => $data->cashSessionId,
                 'code' => $this->nextCode($companyId),
+                'client_uuid' => $data->clientUuid,
                 'status' => SaleStatus::Completed,
                 'order_type' => $data->orderType?->value,
                 'customer_name' => $data->customerName ?? $customer?->name,
@@ -130,6 +140,7 @@ final class SaleService
                         StockMovementType::Sale,
                         $line->quantity,
                         ['reference' => $sale, 'notes' => "Venta {$sale->code}"],
+                        $permitirStockNegativo,
                     );
                 }
             }

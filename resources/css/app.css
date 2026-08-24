@@ -2351,6 +2351,23 @@ body {
 
 .bmos-metrica {
     position: relative;
+    /*
+     * El número ocupa las dos columnas; la etiqueta y el icono se reparten la de abajo.
+     *
+     * Es lo que impide que el icono pise la cifra: a seis columnas la tarjeta no da para «20,755.00»
+     * y un dibujo al lado, y un número no se puede partir. La etiqueta sí, así que el hueco sale de
+     * ella. Sin icono la segunda columna mide cero y la tarjeta queda igual que antes.
+     *
+     * El icono ocupa las DOS filas de abajo, y de ahí sale su tamaño: puede crecer todo lo que den
+     * la etiqueta y la tendencia juntas sin robarle un píxel a la cifra.
+     */
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "valor valor"
+        "etq   icono"
+        "tend  icono";
+    column-gap: 0.6rem;
     padding: 0.85rem 0.9rem;
     border-radius: 0.85rem;
     border: 1px solid var(--bmos-border);
@@ -2368,6 +2385,7 @@ body {
 }
 
 .bmos-metrica-valor {
+    grid-area: valor;
     font-size: 1.5rem;
     font-weight: 700;
     line-height: 1.1;
@@ -2377,6 +2395,7 @@ body {
 }
 
 .bmos-metrica-etq {
+    grid-area: etq;
     margin-top: 0.15rem;
     font-size: 0.7rem;
     font-weight: 600;
@@ -2508,4 +2527,917 @@ body {
     .bmos-pulso-grid[style*='--columnas'] {
         grid-template-columns: repeat(var(--columnas), minmax(0, 1fr));
     }
+}
+
+/* ============================================================
+   Presentación del producto (/bmia)
+
+   Es la primera pantalla de quien llega desde Instagram o desde un
+   mensaje, y se lee casi siempre en un teléfono. Por eso el diseño
+   es de una sola columna, con mucho aire y los botones anchos: en
+   una rejilla de tarjetas apretadas, esa persona no llega al precio.
+
+   Hereda el fondo oscuro de las pantallas públicas (.bmos-auth-body)
+   para que el registro y el login, adonde lleva, no parezcan otro
+   producto.
+   ============================================================ */
+
+.bmos-landing {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 3rem;
+    color: #e2e6f3;
+}
+
+.bmos-landing-hero {
+    text-align: center;
+    padding: 1rem 0 2.5rem;
+}
+
+.bmos-landing-titulo {
+    margin-top: 1.5rem;
+    font-size: clamp(1.85rem, 6vw, 3rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: #fff;
+}
+
+.bmos-landing-bajada {
+    max-width: 34rem;
+    margin: 0.9rem auto 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #a9b1c9;
+}
+
+/* Los botones en columna en el teléfono y en fila a partir de ahí: dos botones estrechos uno al
+   lado del otro son dos botones que nadie acierta con el pulgar. */
+.bmos-landing-botones {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.7rem;
+    margin-top: 1.75rem;
+}
+
+@media (min-width: 640px) {
+    .bmos-landing-botones {
+        flex-direction: row;
+        justify-content: center;
+    }
+}
+
+.bmos-landing-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1.6rem;
+    border-radius: 0.85rem;
+    background: var(--bmos-primary);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 12px 28px -14px rgba(79, 70, 229, 0.9);
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.bmos-landing-cta:hover {
+    background: var(--bmos-primary-600);
+    transform: translateY(-1px);
+}
+
+/* El de WhatsApp en verde: es el canal por el que llega la gente, y reconocerlo de un vistazo
+   importa más que la coherencia con el índigo del sistema. */
+.bmos-landing-cta--wa {
+    background: #0f8a5f;
+    box-shadow: 0 12px 28px -14px rgba(15, 138, 95, 0.9);
+}
+
+.bmos-landing-cta--wa:hover {
+    background: #0c7350;
+}
+
+.bmos-landing-cta svg {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.bmos-landing-letra {
+    margin-top: 1rem;
+    font-size: 0.82rem;
+    color: #7c869f;
+}
+
+.bmos-landing-enlace {
+    color: #a5b4fc;
+    font-weight: 600;
+}
+
+.bmos-landing-enlace:hover {
+    text-decoration: underline;
+}
+
+/* ---------- Secciones ---------- */
+.bmos-landing-seccion {
+    padding: 2.5rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bmos-landing-etiqueta {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7c869f;
+}
+
+.bmos-landing-h2 {
+    margin-top: 0.4rem;
+    font-size: clamp(1.35rem, 4vw, 1.85rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #fff;
+}
+
+/* ---------- Para quién ---------- */
+.bmos-landing-quien {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+}
+
+.bmos-landing-quien span {
+    padding: 0.5rem 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 0.85rem;
+    color: #cdd3e6;
+}
+
+/* ---------- Módulos ---------- */
+.bmos-landing-modulos {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+    .bmos-landing-modulos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1024px) {
+    .bmos-landing-modulos { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.bmos-landing-modulo {
+    padding: 1.1rem 1.15rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.bmos-landing-modulo h3 {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.bmos-landing-modulo p {
+    margin-top: 0.35rem;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: #a9b1c9;
+}
+
+.bmos-landing-resto {
+    margin-top: 1.1rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #7c869f;
+}
+
+/* ---------- Planes ---------- */
+.bmos-landing-planes {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+    .bmos-landing-planes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.bmos-landing-plan {
+    padding: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.035);
+    text-align: center;
+}
+
+.bmos-landing-plan-nombre {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #a5b4fc;
+}
+
+.bmos-landing-plan-precio {
+    margin-top: 0.45rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+}
+
+.bmos-landing-plan-precio span {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #7c869f;
+}
+
+.bmos-landing-plan-detalle {
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: #a9b1c9;
+}
+
+/* ---------- Cierre y pie ---------- */
+.bmos-landing-cierre {
+    margin-top: 2.5rem;
+    padding: 2.5rem 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 1.25rem;
+    background: linear-gradient(160deg, rgba(79, 70, 229, 0.18), rgba(255, 255, 255, 0.03));
+    text-align: center;
+}
+
+.bmos-landing-pie {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2.5rem;
+    font-size: 0.82rem;
+    color: #7c869f;
+}
+
+/*
+ * El icono de una tarjeta de cifra.
+ *
+ * Arriba a la derecha y en el tono del acento: refuerza lo que ya dice la barra de la izquierda en
+ * vez de meter un color más, y se apaga a gris con ella cuando el valor es cero.
+ *
+ * Discreto a propósito. Lo que se viene a leer es el número; un icono que compita con él convierte
+ * la tarjeta en un adorno. Antes esta pantalla llevaba el MISMO icono seis veces, que no distinguía
+ * una cifra de la de al lado: ocupaba el sitio del dato sin decir nada.
+ */
+.bmos-metrica-icono {
+    grid-area: icono;
+    /* Centrado en las dos filas que ocupa, no pegado a una de ellas. */
+    align-self: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    color: var(--tono, #cbd5e1);
+    opacity: 0.85;
+}
+
+/*
+ * La tendencia.
+ *
+ * El color dice si va BIEN o MAL, nunca si sube o baja: lo decide quien pone la cifra, porque
+ * depende de ella. Que suban los accesos fallidos es malo aunque la flecha apunte hacia arriba.
+ *
+ * Y va con flecha además de color. Quien no distingue el verde del rojo —uno de cada doce hombres—
+ * vería solo un porcentaje gris sin saber de qué lado está; con la flecha lo lee igual que todos.
+ */
+.bmos-metrica-tend {
+    grid-area: tend;
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    margin-top: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--bmos-muted);
+}
+
+.bmos-metrica-tend[data-signo='bueno'] {
+    color: #059669;
+}
+
+.bmos-metrica-tend[data-signo='malo'] {
+    color: #e11d48;
+}
+
+.bmos-metrica-flecha {
+    flex: none;
+    width: 0.75rem;
+    height: 0.75rem;
+}
+
+/* ============================================================
+   Cobrar sin internet
+   ============================================================ */
+
+/*
+ * El aviso de conexión en las pantallas de cobro.
+ *
+ * Solo aparece cuando hay algo que decir: sin línea, o con ventas esperando. Cuando todo está subido
+ * no se enseña nada, porque «va bien» no necesita ocupar sitio en un mostrador donde lo que importa
+ * es el total y el botón de cobrar.
+ */
+.bmos-conexion {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.6rem;
+    border: 1px solid var(--tono-borde, #fcd34d);
+    background: var(--tono-fondo, #fffbeb);
+    color: var(--tono-texto, #92400e);
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+/* Sin línea: ámbar. Se puede seguir vendiendo, así que no es una alarma. */
+.bmos-conexion[data-estado='sin-linea'] {
+    --tono-borde: #fcd34d;
+    --tono-fondo: #fffbeb;
+    --tono-texto: #92400e;
+}
+
+/* Subiendo: azul. Es información, no un problema. */
+.bmos-conexion[data-estado='subiendo'] {
+    --tono-borde: #bae6fd;
+    --tono-fondo: #f0f9ff;
+    --tono-texto: #075985;
+}
+
+/* Ventas que no pudieron registrarse: rojo. Es lo único aquí que exige que alguien actúe. */
+.bmos-conexion[data-estado='grave'] {
+    --tono-borde: #fecdd3;
+    --tono-fondo: #fff1f2;
+    --tono-texto: #9f1239;
+}
+
+.bmos-conexion-punto {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-top: 0.35rem;
+    border-radius: 9999px;
+    background: currentColor;
+}
+
+/* Late mientras hay algo en vuelo: es lo que distingue «enviando» de «atascado». */
+.bmos-conexion[data-estado='subiendo'] .bmos-conexion-punto {
+    animation: bmos-latido 1.4s ease-in-out infinite;
+}
+
+@keyframes bmos-latido {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+.bmos-conexion-texto {
+    min-width: 0;
+}
+
+.bmos-conexion-nota {
+    opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bmos-conexion .bmos-conexion-punto { animation: none; }
+}
+
+/*
+ * La zona para soltar la foto y su miniatura, en el compositor de redes.
+ */
+.bmos-soltar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    min-height: 7rem;
+    padding: 1rem;
+    border: 2px dashed var(--bmos-border);
+    border-radius: 0.9rem;
+    background: var(--bmos-surface);
+    color: var(--bmos-muted);
+    font-size: 0.85rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.bmos-soltar:hover {
+    border-color: color-mix(in srgb, #4f46e5 45%, #fff);
+    background: color-mix(in srgb, #4f46e5 4%, #fff);
+}
+
+/* Mientras se arrastra un archivo encima: la única señal de que soltar aquí hace algo. */
+.bmos-soltar.is-encima {
+    border-color: #4f46e5;
+    background: color-mix(in srgb, #4f46e5 8%, #fff);
+    transform: scale(1.01);
+}
+
+.bmos-soltar input[type='file'] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.bmos-media {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    background: var(--bmos-surface);
+}
+
+.bmos-media-foto {
+    width: 4rem;
+    height: 4rem;
+    flex: none;
+    border-radius: 0.6rem;
+    object-fit: cover;
+    background: #f1f5f9;
+}
+
+/* La barra de subida: con un vídeo esto tarda, y «Subiendo...» no distingue lento de colgado. */
+.bmos-progreso {
+    height: 0.3rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.bmos-progreso-barra {
+    height: 100%;
+    border-radius: 999px;
+    background: #4f46e5;
+    transition: width 0.2s ease-out;
+}
+
+/*
+ * El recibo que se imprime sin conexión.
+ *
+ * Vive oculto en la propia página y solo existe al imprimir. Se hace así y no abriendo una ventana
+ * nueva porque un bloqueador de emergentes tumbaría la impresión justo cuando no hay red para
+ * averiguar qué pasó, y el cliente se quedaría esperando su papel.
+ */
+#bmos-recibo-offline {
+    display: none;
+}
+
+@media print {
+    /* Al imprimir manda el recibo y desaparece todo lo demás: el terminal entero no cabe en un
+       rollo de 80 mm y saldrían diez páginas de menú. */
+    body > *:not(#bmos-recibo-offline) {
+        display: none !important;
+    }
+
+    #bmos-recibo-offline {
+        display: block;
+    }
+
+    .bmos-recibo-hoja {
+        width: 100%;
+        max-width: 72mm;
+        margin: 0 auto;
+        font-family: ui-monospace, 'Courier New', monospace;
+        font-size: 11px;
+        line-height: 1.4;
+        color: #000;
+    }
+
+    .bmos-recibo-hoja h1 {
+        margin: 0 0 0.2rem;
+        font-size: 13px;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    .bmos-recibo-hoja p {
+        margin: 0.1rem 0;
+        text-align: center;
+    }
+
+    /* El aviso de que esto NO es una factura, con marco y en mayúsculas: un papel que parece fiscal
+       y no lo es causa más problemas que no dar ninguno. */
+    .bmos-recibo-aviso {
+        margin: 0.5rem 0 !important;
+        padding: 0.3rem;
+        border: 1px dashed #000;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .bmos-recibo-hoja table {
+        width: 100%;
+        margin-top: 0.4rem;
+        border-collapse: collapse;
+    }
+
+    .bmos-recibo-hoja td {
+        padding: 0.1rem 0;
+        vertical-align: top;
+    }
+
+    .bmos-recibo-hoja td.n {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .bmos-recibo-totales {
+        border-top: 1px dashed #000;
+        margin-top: 0.4rem !important;
+        font-weight: 700;
+    }
+
+    .bmos-recibo-uuid {
+        margin-top: 0.6rem !important;
+        font-size: 10px;
+    }
+}
+
+/* ============================================================
+   Publicar en redes: compositor e historial
+
+   Sin librería nueva. Este panel ya usa Tailwind 4 y Alpine, y meter un segundo
+   marco de CSS traería su propio reset y sus propias variables a pelearse con
+   las que ya hay: acabaría con dos sistemas de botones y dos de tarjetas, que es
+   el problema de las dos copias que este proyecto lleva evitando en todas partes.
+   ============================================================ */
+
+/*
+ * La vista previa: cómo va a quedar la publicación de verdad.
+ *
+ * Es la pieza que evita el error más caro de esa pantalla —publicar algo que no se ve como uno
+ * creía— y la que enseña, sin explicar nada, que Instagram NO entiende los asteriscos de las
+ * negritas.
+ */
+.bmos-previa {
+    border: 1px solid var(--bmos-border);
+    border-radius: 1rem;
+    overflow: hidden;
+    background: var(--bmos-surface);
+    box-shadow: 0 10px 30px -22px rgba(15, 23, 42, 0.45);
+}
+
+.bmos-previa-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 0.85rem;
+    border-bottom: 1px solid var(--bmos-border);
+}
+
+.bmos-previa-avatar {
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #f59e0b, #e11d48 45%, #7c3aed);
+}
+
+.bmos-previa-foto {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background: #f1f5f9;
+}
+
+.bmos-previa-texto {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--bmos-text);
+    /* Los saltos de línea, tal cual: es como los va a ver el seguidor. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* ── El historial de publicaciones ────────────────────────────────────────── */
+
+.bmos-post {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.9rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.12s;
+}
+
+.bmos-post:last-child {
+    border-bottom: 0;
+}
+
+.bmos-post:hover {
+    background: #fafbff;
+}
+
+.bmos-post-foto {
+    width: 3.5rem;
+    height: 3.5rem;
+    flex: none;
+    border-radius: 0.7rem;
+    object-fit: cover;
+    background: #f1f5f9;
+}
+
+/* Sin foto: un hueco del mismo tamaño, para que las filas no bailen entre sí. */
+.bmos-post-sinfoto {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cbd5e1;
+}
+
+.bmos-post-texto {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--bmos-text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* Recortado a tres líneas hasta que se pide verlo entero. */
+.bmos-post-texto.is-corto {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/*
+ * Un destino, con SU propio estado.
+ *
+ * Antes solo se veía el estado del conjunto, y eso miente en el caso que más importa: una
+ * publicación que salió en Instagram y falló en Facebook aparecía con una sola etiqueta y nadie
+ * sabía cuál de las dos había fallado.
+ */
+.bmos-destino {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.55rem 0.2rem 0.3rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--tono, #94a3b8) 30%, #fff);
+    background: color-mix(in srgb, var(--tono, #94a3b8) 6%, #fff);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+    text-decoration: none;
+}
+
+a.bmos-destino:hover {
+    border-color: color-mix(in srgb, var(--tono, #94a3b8) 55%, #fff);
+    box-shadow: 0 6px 14px -10px color-mix(in srgb, var(--tono, #94a3b8) 70%, transparent);
+}
+
+.bmos-destino-punto {
+    width: 0.55rem;
+    height: 0.55rem;
+    flex: none;
+    border-radius: 999px;
+    background: var(--tono, #94a3b8);
+}
+
+.bmos-destino-estado {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-size: 0.62rem;
+    color: var(--bmos-muted);
+}
+
+.bmos-destino-estado[data-estado='published'] { color: #059669; }
+.bmos-destino-estado[data-estado='failed'] { color: #e11d48; }
+.bmos-destino-estado[data-estado='pending'] { color: #b45309; }
+
+.bmos-post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    color: var(--bmos-muted);
+}
+
+/* En pantalla estrecha la columna de la derecha estorba más de lo que aporta: pasa debajo en vez
+   de estrujar el texto hasta partir cada palabra. */
+@media (max-width: 640px) {
+    .bmos-post {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .bmos-post-lado {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+}
+
+/* ============================================================
+   Cotizaciones
+   ============================================================ */
+
+/* Una fila del listado. Enlace entero y no solo el código: en un móvil, acertarle a un texto de
+   ocho caracteres con el dedo es una lotería. */
+.bmos-cot-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid #f1f5f9;
+    text-decoration: none;
+    transition: background 0.12s;
+}
+
+.bmos-cot-fila:last-child { border-bottom: 0; }
+.bmos-cot-fila:hover { background: #fafbff; }
+
+/*
+ * La página que ve el cliente.
+ *
+ * No es el panel: quien la abre no es usuario del sistema, es alguien que pidió un precio y recibió
+ * un enlace por WhatsApp. Casi siempre la abre en el móvil, de pie y con prisa, así que una sola
+ * columna, el total grande y el botón de descargar bien a mano.
+ */
+.bmos-cot-body {
+    margin: 0;
+    background: #f1f5f9;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    color: #1e293b;
+}
+
+.bmos-cot {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+}
+
+.bmos-cot-cab {
+    text-align: center;
+    padding-bottom: 1rem;
+}
+
+.bmos-cot-negocio {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.bmos-cot-titulo {
+    margin-top: 0.9rem;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.bmos-cot-muted {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+/* El total, arriba y grande: es lo primero que mira quien recibe una cotización. */
+.bmos-cot-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 1rem 1.1rem;
+    border-radius: 1rem;
+    background: #4f46e5;
+    color: #fff;
+    box-shadow: 0 14px 30px -18px rgba(79, 70, 229, 0.9);
+}
+
+.bmos-cot-total .bmos-cot-muted { color: #c7d2fe; }
+.bmos-cot-total strong { font-size: 1.7rem; font-weight: 800; }
+
+.bmos-cot-validez {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: 0.7rem;
+    border: 1px dashed #a5b4fc;
+    background: #eef2ff;
+    font-size: 0.82rem;
+    color: #3730a3;
+}
+
+/* Vencida: en rojo y sin ambigüedad. Que el cliente se entere en el mostrador de que el precio ya
+   no vale es peor que decírselo aquí. */
+.bmos-cot-validez[data-vencida='si'] {
+    border-color: #fda4af;
+    border-style: solid;
+    background: #fff1f2;
+    color: #9f1239;
+    font-weight: 600;
+}
+
+.bmos-cot-lineas {
+    margin: 1.1rem 0 0;
+    padding: 0;
+    list-style: none;
+    border-radius: 1rem;
+    background: #fff;
+    overflow: hidden;
+}
+
+.bmos-cot-lineas li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.bmos-cot-lineas li:last-child { border-bottom: 0; }
+
+.bmos-cot-concepto {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.bmos-cot-importe {
+    flex: none;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.bmos-cot-sumas {
+    margin: 0.9rem 0 0;
+    padding: 0.9rem 1rem;
+    border-radius: 1rem;
+    background: #fff;
+    font-size: 0.88rem;
+}
+
+.bmos-cot-sumas > div {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.15rem 0;
+}
+
+.bmos-cot-sumas dt { color: #64748b; }
+.bmos-cot-sumas dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.bmos-cot-suma-total {
+    margin-top: 0.4rem;
+    padding-top: 0.5rem !important;
+    border-top: 1px solid #e2e8f0;
+    font-size: 1.02rem;
+    font-weight: 800;
+}
+
+.bmos-cot-suma-total dt { color: #0f172a !important; }
+
+.bmos-cot-notas {
+    margin-top: 0.9rem;
+    padding: 0.85rem 1rem;
+    border-radius: 1rem;
+    background: #fff;
+    font-size: 0.85rem;
+    color: #334155;
+}
+
+/* Ancho completo: en un móvil, un botón estrecho en medio de la pantalla se falla con el pulgar. */
+.bmos-cot-boton {
+    display: block;
+    margin-top: 1.1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 0.9rem;
+    background: #0f172a;
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+}
+
+.bmos-cot-boton:hover { background: #1e293b; }
+
+.bmos-cot-pie {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.72rem;
+    color: #94a3b8;
 }

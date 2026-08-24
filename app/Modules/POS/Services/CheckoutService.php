@@ -36,11 +36,20 @@ final class CheckoutService
         private readonly DeliveryService $deliveries,
     ) {}
 
-    public function checkout(CashSession $session, CreateSaleData $data, ?DeliveryOrderData $delivery = null): Sale
-    {
-        return DB::transaction(function () use ($session, $data, $delivery): Sale {
+    /**
+     * @param  bool  $permitirStockNegativo  ver SaleService::complete(). Solo lo enciende la subida
+     *                                       de ventas cobradas sin internet, donde la mercancía ya
+     *                                       salió por la puerta y negarse no la devuelve.
+     */
+    public function checkout(
+        CashSession $session,
+        CreateSaleData $data,
+        ?DeliveryOrderData $delivery = null,
+        bool $permitirStockNegativo = false,
+    ): Sale {
+        return DB::transaction(function () use ($session, $data, $delivery, $permitirStockNegativo): Sale {
             // Lo único que el POS añade a la venta es la sesión de caja en la que se cobra.
-            $sale = $this->sales->complete($data->withCashSession((int) $session->id));
+            $sale = $this->sales->complete($data->withCashSession((int) $session->id), $permitirStockNegativo);
 
             // Solo el efectivo entra al cajón. Una venta con tarjeta o transferencia queda ligada a
             // la sesión (para saber quién y cuándo la cobró) pero NO suma al arqueo: si sumara, el

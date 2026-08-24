@@ -55,7 +55,22 @@ final class SendWhatsAppMessage implements ShouldQueue
         $conversation = $this->message->conversation;
 
         try {
-            $result = $gateway->sendText($conversation->phone, (string) $this->message->body);
+            /*
+             * Un mensaje con archivo se manda como archivo; el resto, como texto.
+             *
+             * Se decide por lo que TRAE el mensaje y no por lo que sabe hacer el gateway: si llegó
+             * aquí con una dirección de archivo es porque quien lo encoló ya comprobó que esta vía
+             * adjunta. Volver a decidirlo aquí abriría la puerta a que un mensaje pensado como PDF
+             * saliera como un enlace suelto sin que nadie lo pidiera.
+             */
+            $result = filled($this->message->media_url)
+                ? $gateway->sendDocument(
+                    $conversation->phone,
+                    (string) $this->message->media_url,
+                    (string) ($this->message->media_name ?? 'documento.pdf'),
+                    (string) $this->message->body,
+                )
+                : $gateway->sendText($conversation->phone, (string) $this->message->body);
         } catch (Throwable $e) {
             $this->message->update(['status' => MessageStatus::Failed]);
 

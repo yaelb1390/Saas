@@ -29,6 +29,8 @@ class WaMessage extends Model implements HasCompany
         'direction',
         'type',
         'body',
+        'media_url',
+        'media_name',
         'status',
         'external_id',
         'sent_at',

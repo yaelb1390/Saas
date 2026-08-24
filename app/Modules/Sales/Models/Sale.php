@@ -46,6 +46,8 @@ class Sale extends Model implements Auditable, HasCompany
         'warehouse_id',
         'cash_session_id',
         'code',
+        // La llave que pone el navegador al cobrar sin línea. Ver la migración que la añade.
+        'client_uuid',
         'status',
         'order_type',
         'customer_name',
@@ -60,6 +62,8 @@ class Sale extends Model implements Auditable, HasCompany
         'completed_at',
         'user_id',
         'employee_id',
+        'synced_offline_at',
+        'offline_review',
     ];
 
     protected function casts(): array
@@ -75,6 +79,7 @@ class Sale extends Model implements Auditable, HasCompany
             'paid' => 'decimal:2',
             'change' => 'decimal:2',
             'completed_at' => 'datetime',
+            'synced_offline_at' => 'datetime',
         ];
     }
 

@@ -13,12 +13,12 @@ use App\Modules\Social\Http\Requests\StoreWelcomeRequest;
 use App\Modules\Social\Models\SocialWelcomeSetting;
 use App\Modules\Social\Services\ZernioClient;
 use App\Modules\Social\Services\ZernioWebhookRegistrar;
+use App\Modules\Social\Support\PostPresenter;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
@@ -48,7 +48,9 @@ final class SocialController extends Controller
         if ($cliente->isConfigured()) {
             try {
                 $cuentas = $cliente->accounts();
-                $publicaciones = $this->conHoraLocal($cliente->posts());
+                // El volcado de la API pasa por el presentador: la vista no debería tener que saber
+                // que un destino trae su id de cuenta unas veces suelto y otras dentro de un objeto.
+                $publicaciones = PostPresenter::paraPantalla($cliente->posts(), $cuentas);
             } catch (SocialException $e) {
                 $aviso = $e->getMessage();
             }
@@ -85,32 +87,6 @@ final class SocialController extends Controller
                 ->mapWithKeys(static fn (SocialPlatform $r): array => [$r->value => $r->label()])
                 ->all(),
         ]);
-    }
-
-    /**
-     * Añade a cada publicación la hora a la que sale, EN LA ZONA DEL NEGOCIO.
-     *
-     * Zernio la manda en UTC y aquí son cuatro horas menos: sin convertir, una publicación de las
-     * seis de la tarde se leería como las diez de la noche, y quien viene a decidir si la para
-     * estaría mirando una hora que no es.
-     *
-     * Se calcula aquí y no en la plantilla porque en la plantilla haría falta escribir el nombre
-     * completo de la clase Carbon, y una vista no debería conocerlas. (Se intentó: un fallo al
-     * escribirlo dejó el dato en blanco sin un solo error, porque `rescue` se lo tragaba. Aquí, si
-     * algo se rompe, se ve.)
-     *
-     * @param  array<int, array<string, mixed>>  $publicaciones
-     * @return array<int, array<string, mixed>>
-     */
-    private function conHoraLocal(array $publicaciones): array
-    {
-        return array_map(static function (array $post): array {
-            $post['sale_el'] = blank($post['scheduledFor'] ?? null)
-                ? null
-                : Carbon::parse((string) $post['scheduledFor'])->timezone(config('app.business_timezone'));
-
-            return $post;
-        }, $publicaciones);
     }
 
     /** Guarda (o borra) la clave de Zernio de la empresa. */

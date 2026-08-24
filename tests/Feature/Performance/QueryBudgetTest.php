@@ -76,7 +76,16 @@ it('el dashboard se mantiene dentro de su presupuesto de consultas', function ()
     // alertas comparte a propósito con el resumen (se cachean aparte porque la campana se pinta en
     // todas las páginas). El tope se deja holgado para seguir cazando lo que importa: la repetición
     // por elemento, que se cuenta por decenas y no por unidades.
-    expect($count)->toBeLessThan(30, "El dashboard ejecutó {$count} consultas.");
+    //
+    // Subió a 30 al añadir el aviso de ventas cobradas sin conexión, y el tope pasó de 30 a 33. Las
+    // tres consultas nuevas son: el conteo de ventas por revisar (1, real en cada cálculo) y las dos
+    // con las que DbTable comprueba que la columna `offline_review` ya existe —el despliegue puede ir
+    // por delante de la migración, ver DbTable—.
+    //
+    // Esas DOS no se pagan en cada petición: el memo de DbTable es estático y en PHP-FPM vive lo que
+    // vive el proceso trabajador, así que se hacen una vez y sirven a miles de peticiones. Aquí se
+    // ven porque el test arranca en frío, que es justo lo que tiene que medir.
+    expect($count)->toBeLessThan(33, "El dashboard ejecutó {$count} consultas.");
 });
 
 it('el POS se mantiene dentro de su presupuesto de consultas', function (): void {

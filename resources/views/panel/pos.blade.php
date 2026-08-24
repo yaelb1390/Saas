@@ -41,7 +41,8 @@
             </form>
         </div>
     @else
-        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}', '{{ route('panel.pos.search') }}')"
+        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}', '{{ route('panel.pos.search') }}', '{{ route('panel.pos.catalogo') }}', @js($negocio), @js($openSession?->id))"
+             x-init="arrancarSinLinea()"
              @codigo-escaneado="barcode = $event.detail.codigo; scan()">
             {{-- Barra de sesión --}}
             <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -135,14 +136,20 @@
                 {{-- Ticket. `data-asis-evitar`: el asistente flotante se aparta de esta columna en
                      vez de taparla. Aquí están el total y el botón de cobrar. --}}
                 <div data-asis-evitar>
+                    {{-- Sin conexión el formulario NO se manda: se cobra en el propio equipo y se
+                         encola. Se decide aquí, en el submit, y no escondiendo el botón, porque el
+                         cajero tiene que poder cobrar exactamente igual que siempre. --}}
                     <form method="POST" action="{{ route('panel.pos.checkout') }}" x-ref="form"
-                          @submit="prepare()"
+                          @submit="prepare(); if (sinLinea.disponible && !navigator.onLine) { $event.preventDefault(); cobrarSinLinea(); }"
                           class="bmos-card bmos-card-pad">
                         @csrf
                         <input type="hidden" name="cart" x-ref="cartInput">
+                        <input type="hidden" name="client_uuid" x-ref="uuidInput">
                         <input type="hidden" name="tip" :value="tipAmount">
                         <input type="hidden" name="discount_total" :value="globalDiscountAmount">
                         <input type="hidden" name="employee_id" :value="attendantId">
+
+                        <x-panel.estado-conexion class="mb-3" />
 
                         <p class="mb-3 font-semibold text-slate-800">Ticket</p>
 
@@ -288,10 +295,31 @@
         </div>
 
         <script>
-            function posTerminal(lookupUrl, searchUrl) {
+            function posTerminal(lookupUrl, searchUrl, catalogoUrl, negocio, sesionCaja) {
                 return {
+                    negocio, sesionCaja,
                     cart: [], paid: '', customer: '', customerId: '', invoice: false, method: 'cash',
                     barcode: '', scanError: '', busy: false,
+
+                    /*
+                     * El modo sin internet. Lo pinta el componente panel.estado-conexion —escrito
+                     * así, sin las etiquetas: Blade compila una etiqueta de componente aunque esté
+                     * dentro de un comentario de JavaScript, y se la traga como un componente sin
+                     * cerrar. La pantalla entera deja de compilar por un comentario—.
+                     *
+                     * `disponible` solo se enciende si el navegador puede guardar de verdad: si no
+                     * puede, este terminal no ofrece cobrar a oscuras, porque prometer que la venta
+                     * se guarda y perderla es peor que decirlo de entrada.
+                     */
+                    sinLinea: {
+                        disponible: false,
+                        conexion: navigator.onLine ? 'en-linea' : 'sin-conexion',
+                        pendientes: 0, apartadas: 0, subiendo: false, pideLogin: false,
+                        catalogoDe: null,
+                    },
+
+                    /** Copia local del catálogo, para buscar y escanear sin línea. */
+                    catalogoLocal: [],
                     globalDiscount: '', tip: '', attendant: '',
                     query: '', results: [], searching: false,
 
@@ -321,8 +349,10 @@
                                 this.results = data.results || [];
                             }
                         } catch {
-                            // La búsqueda no es crítica como el escaneo: un fallo puntual se reintenta
-                            // al seguir escribiendo, sin romper la caja.
+                            // Sin línea se busca en la copia local: es la diferencia entre poder
+                            // cobrar y no poder. Un fallo puntual con conexión se reintenta solo al
+                            // seguir escribiendo.
+                            this.results = this.buscarEnLocal(q);
                         } finally {
                             this.searching = false;
                         }
@@ -364,8 +394,23 @@
                                 this.add(data.product.id, data.product.name, data.product.price, data.product.image);
                             }
                         } catch {
-                            // Un fallo de red puntual no debe romper la caja: se reintenta escaneando.
-                            this.scanError = 'Sin conexión con el servidor. Inténtalo de nuevo.';
+                            /*
+                             * Sin línea, el código se resuelve contra la copia local del catálogo.
+                             *
+                             * Lo que NO se puede comprobar aquí es la existencia: el stock cambia con
+                             * cada venta y la copia es de cuando se descargó. Se añade igual y el
+                             * servidor lo marcará al subir la venta, porque negarse a vender lo que
+                             * está en el estante es peor que un inventario que hay que revisar.
+                             */
+                            const local = this.catalogoLocal.find(
+                                (prod) => prod.barcode === code || prod.sku === code,
+                            );
+
+                            if (local) {
+                                this.add(local.id, local.name, local.price, local.image);
+                            } else {
+                                this.scanError = 'Sin conexión y ese código no está en la copia guardada: ' + code;
+                            }
                         } finally {
                             // Limpiar y recuperar el foco es la mitad del valor: si el foco se pierde,
                             // el siguiente disparo del lector se escribe en el vacío.
@@ -411,6 +456,146 @@
                             serial: i.serial || '',
                             employee_id: i.employeeId || '',
                         })));
+
+                        // La llave de ESTE cobro. Viaja también con conexión: si la respuesta se
+                        // pierde por el camino, la venta se puede reintentar sin cobrar dos veces.
+                        this.$refs.uuidInput.value = crypto.randomUUID();
+                    },
+
+                    // ── Sin internet ──────────────────────────────────────────────────────────
+
+                    async arrancarSinLinea() {
+                        const offline = await window.cargarOffline();
+                        if (!offline) return;
+
+                        this.sinLinea.disponible = true;
+                        offline.cola.alCambiar((estado) => { this.sinLinea = { ...this.sinLinea, ...estado }; });
+                        offline.cola.vigilar();
+
+                        await this.cargarCatalogoLocal(offline);
+                    },
+
+                    /**
+                     * Una copia del catálogo en el equipo, para el día que no haya línea.
+                     *
+                     * Se pide una vez al abrir la pantalla —que es una vez por turno— y no en cada
+                     * venta. Primero se pinta la copia guardada, y luego se refresca si hay red: así
+                     * un terminal que arranca ya sin conexión tiene precios desde el primer segundo.
+                     */
+                    async cargarCatalogoLocal(offline) {
+                        const guardado = await offline.almacen.leer(offline.almacen.CATALOGO, 'actual').catch(() => null);
+
+                        if (guardado) {
+                            this.catalogoLocal = guardado.results ?? [];
+                            this.sinLinea.catalogoDe = guardado.guardado_en ?? null;
+                        }
+
+                        if (!navigator.onLine) return;
+
+                        try {
+                            const res = await fetch(catalogoUrl, { headers: { Accept: 'application/json' } });
+                            if (!res.ok) return;
+
+                            const data = await res.json();
+                            this.catalogoLocal = data.results ?? [];
+                            this.sinLinea.catalogoDe = Date.now();
+
+                            await offline.almacen.guardar(
+                                offline.almacen.CATALOGO,
+                                { results: data.results, guardado_en: Date.now() },
+                                'actual',
+                            );
+                        } catch {
+                            // Se queda la copia guardada, que para esto es exactamente igual de útil.
+                        }
+                    },
+
+                    buscarEnLocal(termino) {
+                        const t = termino.toLowerCase();
+
+                        return this.catalogoLocal
+                            .filter((prod) => (prod.name ?? '').toLowerCase().includes(t)
+                                || (prod.sku ?? '').toLowerCase().includes(t))
+                            .slice(0, 24);
+                    },
+
+                    /** Cuántas horas tiene el catálogo con el que se está cobrando. */
+                    get catalogoAntiguedad() {
+                        if (!this.sinLinea.catalogoDe) return '';
+
+                        const horas = Math.floor((Date.now() - this.sinLinea.catalogoDe) / 3_600_000);
+                        if (horas < 1) return 'precios de hace menos de una hora';
+                        if (horas < 24) return `precios de hace ${horas} h`;
+
+                        return `precios de hace ${Math.floor(horas / 24)} día(s)`;
+                    },
+
+                    /**
+                     * Cobra sin línea en vez de mandar el formulario.
+                     *
+                     * Se GUARDA primero y solo entonces se limpia el ticket: al revés, un fallo al
+                     * guardar borraría la venta de los dos sitios a la vez y no quedaría rastro de lo
+                     * que se acaba de cobrar.
+                     */
+                    async cobrarSinLinea() {
+                        const offline = await window.cargarOffline();
+
+                        if (!offline) {
+                            this.scanError = 'Este navegador no puede guardar la venta. No la des por cobrada.';
+                            return;
+                        }
+
+                        const uuid = crypto.randomUUID();
+
+                        const detalle = this.cart.map((i) => ({
+                            nombre: i.name,
+                            cantidad: i.qty,
+                            precio: Number(i.price),
+                            importe: Number(i.price) * i.qty - (parseFloat(i.discount) || 0),
+                        }));
+
+                        const venta = {
+                            uuid,
+                            cash_session_id: this.sesionCaja,
+                            payment_method: this.method,
+                            paid: this.paid || String(this.total),
+                            tip: String(this.tipAmount || 0),
+                            discount_total: String(this.globalDiscountAmount || 0),
+                            customer_name: this.customer || null,
+                            customer_id: this.customerId || null,
+                            employee_id: this.attendantId || null,
+                            lines: this.cart.map((i) => ({
+                                product_id: i.id,
+                                quantity: String(i.qty),
+                                // El precio que se cobra AHORA: es el que va en el recibo del cliente.
+                                unit_price: String(i.price),
+                                discount: String(parseFloat(i.discount) || 0),
+                                note: i.note || null,
+                                serial: i.serial || null,
+                                employee_id: i.employeeId || null,
+                            })),
+                        };
+
+                        let guardada;
+
+                        try {
+                            guardada = await offline.cola.encolar(venta);
+                        } catch {
+                            this.scanError = 'No se pudo guardar la venta en este equipo. No la des por cobrada.';
+                            return;
+                        }
+
+                        // Se imprime lo guardado, no lo que se iba a guardar: el papel y la cola
+                        // llevan la misma hora y el mismo contenido.
+                        offline.recibo.imprimir(guardada, this.negocio, detalle);
+
+                        this.cart = [];
+                        this.paid = '';
+                        this.customer = '';
+                        this.customerId = '';
+                        this.globalDiscount = '';
+                        this.tip = '';
+                        this.scanError = '';
                     },
                 };
             }

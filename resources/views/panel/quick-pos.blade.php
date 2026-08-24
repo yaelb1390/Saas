@@ -54,7 +54,7 @@
              un aviso de «venta cobrada» o el banner de vencimiento de la suscripción empujan el
              tablero hacia abajo, y un `calc(100dvh - 11rem)` fijo se equivocaría justo en esos
              momentos. --}}
-        <div x-data="quickPos('{{ route('panel.quick-pos.catalog') }}', @js($categories))"
+        <div x-data="quickPos('{{ route('panel.quick-pos.catalog') }}', @js($categories), @js($negocio), @js($openSession?->id))"
              x-init="arrancar(); medirAlto()"
              @resize.window.debounce.150ms="medirAlto()"
              :style="altoTablero"
@@ -248,11 +248,16 @@
                 <form @submit.prevent="cobrar()" class="border-t border-slate-100 p-3">
                     @csrf
 
+                    <x-panel.estado-conexion class="mb-3" />
+
                     {{-- Acuse del último cobro, sin recargar. --}}
                     <div x-show="ultimaVenta" x-cloak
                          class="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800">
                         <p class="font-semibold" x-text="ultimaVenta?.message"></p>
-                        <a :href="ultimaVenta?.receipt_url" target="_blank" rel="noopener"
+                        {{-- Solo si hay recibo que abrir. Una venta cobrada sin conexión ya
+                             imprimió el suyo y no tiene página en el servidor todavía: el enlace
+                             llevaría a un error justo cuando no hay red para entenderlo. --}}
+                        <a x-show="ultimaVenta?.receipt_url" :href="ultimaVenta?.receipt_url" target="_blank" rel="noopener"
                            class="mt-1 inline-block text-xs font-semibold text-emerald-700 underline">🖨️ Imprimir recibo</a>
                     </div>
                     <div x-show="errorCobro" x-cloak
@@ -429,10 +434,30 @@
         </div>
 
         <script>
-            function quickPos(catalogUrl, categoriasIniciales) {
+            function quickPos(catalogUrl, categoriasIniciales, negocio, sesionCaja) {
                 return {
                     catalogUrl,
+                    negocio,
+                    sesionCaja,
                     cats: categoriasIniciales,
+
+                    /*
+                     * El modo sin internet.
+                     *
+                     * `disponible` arranca en false y solo se enciende si el navegador puede guardar
+                     * de verdad. Si no puede —navegación privada, almacenamiento bloqueado— el
+                     * terminal NO ofrece cobrar sin línea: prometerle al cajero que la venta se
+                     * guarda y perderla es mucho peor que decirle de entrada que hoy no se puede.
+                     */
+                    sinLinea: {
+                        disponible: false,
+                        conexion: navigator.onLine ? 'en-linea' : 'sin-conexion',
+                        pendientes: 0,
+                        apartadas: 0,
+                        subiendo: false,
+                        pideLogin: false,
+                        catalogoDe: null,
+                    },
                     // `all` guarda lo ya traído del servidor; `visible` es lo que se pinta tras
                     // aplicar chip y buscador. Separarlos evita volver a la red al escribir.
                     all: [],
@@ -518,6 +543,7 @@
                     },
 
                     arrancar() {
+                        this.arrancarSinLinea();
                         this.load();
                         this.cargarEnEspera();
 
@@ -588,8 +614,15 @@
                             // La barra viaja con el catálogo: crece y se encoge al ritmo del
                             // inventario sin pedir nada aparte.
                             if (data.categories) this.cats = data.categories;
+
+                            // Copia local de la carga completa. Solo la de «Todo»: guardar además
+                            // cada filtro por categoría duplicaría los mismos productos.
+                            if (categoryId === null) this.guardarCatalogo(data);
                         } catch (e) {
-                            // Sin conexión: se conserva lo ya cargado en vez de vaciar la rejilla.
+                            // Sin conexión. Se conserva lo ya cargado y, si no había nada —el
+                            // terminal se abrió ya sin línea—, se tira de la última copia guardada:
+                            // sin catálogo no hay precios y no se puede cobrar.
+                            if (this.all.length === 0) await this.recuperarCatalogo();
                         } finally {
                             this.loading = false;
                         }
@@ -906,6 +939,23 @@
                         this.cobrando = true;
                         this.errorCobro = '';
 
+                        /*
+                         * La llave de este cobro, generada ANTES de mandarlo.
+                         *
+                         * Es lo que convierte «no sé si llegó» en algo resoluble. Si la petición se
+                         * corta a mitad, la venta se encola con esta misma llave: o el servidor ya
+                         * la tiene y al subirla contestará «ya estaba», o no la tiene y entrará
+                         * entonces. Nunca las dos cosas.
+                         */
+                        const uuid = crypto.randomUUID();
+
+                        // Sin conexión no se pregunta a la red: se cobra y se guarda directamente.
+                        if (this.sinLinea.disponible && !navigator.onLine) {
+                            await this.cobrarSinLinea(uuid);
+                            this.cobrando = false;
+                            return;
+                        }
+
                         try {
                             const res = await fetch(this.checkoutUrl, {
                                 method: 'POST',
@@ -929,6 +979,7 @@
                                     // en vez de vacío para no depender de cómo trate el servidor un
                                     // campo ausente.
                                     paid: this.cobraElMotorista ? '0' : this.paid,
+                                    client_uuid: uuid,
                                     payment_method: this.method,
                                     order_type: this.orderType,
                                     // Los datos del reparto viajan siempre que el pedido sea envío. El
@@ -968,12 +1019,139 @@
                             // aparecer marcado antes de que el cajero intente venderlo otra vez.
                             this.$nextTick(() => this.refrescar());
                         } catch (e) {
-                            // Red caída: NO se limpia el carrito. El cobro pudo llegar o no, y
-                            // borrar las líneas dejaría al cajero sin saber qué estaba vendiendo.
-                            this.errorCobro = 'Sin conexión. Comprueba si la venta se registró antes de repetirla.';
+                            /*
+                             * Se cayó la red con el cobro en vuelo.
+                             *
+                             * Antes esto dejaba al cajero comprobando a mano si la venta había
+                             * entrado. Ya no hace falta: la venta se encola con la MISMA llave que
+                             * llevaba la petición perdida, así que al subirla el servidor sabrá si
+                             * ya la tenía. Se cobra, se imprime y se sigue atendiendo.
+                             */
+                            if (this.sinLinea.disponible) {
+                                await this.cobrarSinLinea(uuid);
+                            } else {
+                                // Sin dónde guardar no se puede prometer nada. Se conserva el
+                                // carrito: borrarlo dejaría al cajero sin saber qué estaba vendiendo.
+                                this.errorCobro = 'Sin conexión y este navegador no puede guardar la venta. '
+                                    + 'Comprueba si se registró antes de repetirla.';
+                            }
                         } finally {
                             this.cobrando = false;
                         }
+                    },
+
+                    // ── Sin internet ──────────────────────────────────────────────────────────
+
+                    async arrancarSinLinea() {
+                        const offline = await window.cargarOffline();
+                        if (!offline) return;
+
+                        this.sinLinea.disponible = true;
+
+                        offline.cola.alCambiar((estado) => {
+                            this.sinLinea = { ...this.sinLinea, ...estado };
+                        });
+
+                        offline.cola.vigilar();
+                    },
+
+                    async guardarCatalogo(data) {
+                        const offline = await window.cargarOffline();
+                        if (!offline) return;
+
+                        await offline.almacen.guardar(
+                            offline.almacen.CATALOGO,
+                            { results: data.results, categories: data.categories, guardado_en: Date.now() },
+                            'actual',
+                        ).catch(() => {});
+                    },
+
+                    async recuperarCatalogo() {
+                        const offline = await window.cargarOffline();
+                        if (!offline) return;
+
+                        const copia = await offline.almacen.leer(offline.almacen.CATALOGO, 'actual').catch(() => null);
+                        if (!copia) return;
+
+                        this.all = copia.results ?? [];
+                        if (copia.categories) this.cats = copia.categories;
+                        this.sinLinea.catalogoDe = copia.guardado_en ?? null;
+                        this.loaded.add('all');
+                    },
+
+                    /** Cuántas horas tiene el catálogo con el que se está cobrando. */
+                    get catalogoAntiguedad() {
+                        if (!this.sinLinea.catalogoDe) return '';
+
+                        const horas = Math.floor((Date.now() - this.sinLinea.catalogoDe) / 3_600_000);
+                        if (horas < 1) return 'precios de hace menos de una hora';
+                        if (horas < 24) return `precios de hace ${horas} h`;
+
+                        return `precios de hace ${Math.floor(horas / 24)} día(s)`;
+                    },
+
+                    /**
+                     * Cobra sin línea: guarda la venta, imprime el recibo y deja el terminal listo.
+                     *
+                     * El orden importa. Primero se GUARDA y solo si eso sale bien se limpia el
+                     * carrito: si se limpiara antes y el guardado fallara, la venta desaparecería de
+                     * los dos sitios a la vez y no quedaría ni rastro de lo que se acaba de cobrar.
+                     */
+                    async cobrarSinLinea(uuid) {
+                        const offline = await window.cargarOffline();
+
+                        if (!offline) {
+                            this.errorCobro = 'Este navegador no puede guardar la venta. No la des por cobrada.';
+                            return;
+                        }
+
+                        const detalle = this.cart.map((i) => ({
+                            nombre: i.name,
+                            cantidad: i.qty,
+                            precio: Number(i.price),
+                            importe: Number(i.price) * i.qty,
+                        }));
+
+                        const venta = {
+                            uuid,
+                            cash_session_id: this.sesionCaja,
+                            payment_method: this.method,
+                            paid: this.paid || String(this.subtotal),
+                            order_type: this.orderType === 'delivery' ? 'takeaway' : this.orderType,
+                            lines: this.cart.map((i) => ({
+                                product_id: i.id,
+                                quantity: String(i.qty),
+                                // El precio que se está cobrando AHORA, con el recargo de las
+                                // opciones ya dentro. Es el número que va a llevar el recibo del
+                                // cliente, y por eso es el que se guarda.
+                                unit_price: String(i.price),
+                                options: (i.opciones ?? []).map((o) => o.id),
+                            })),
+                        };
+
+                        let guardada;
+
+                        try {
+                            guardada = await offline.cola.encolar(venta);
+                        } catch (e) {
+                            this.errorCobro = 'No se pudo guardar la venta en este equipo. No la des por cobrada.';
+                            return;
+                        }
+
+                        // Se imprime lo guardado, no lo que se iba a guardar: así el papel y la cola
+                        // dicen lo mismo, con la misma hora.
+                        offline.recibo.imprimir(guardada, this.negocio, detalle);
+
+                        this.ultimaVenta = {
+                            message: 'Venta cobrada sin conexión. Se enviará al volver la línea.',
+                            code: 'Ref. ' + uuid.slice(0, 8),
+                            change: String(Math.max(0, Number(this.paid || 0) - this.subtotal)),
+                        };
+
+                        this.cart = [];
+                        this.paid = '';
+                        this.method = 'cash';
+                        this.orderType = 'dine_in';
                     },
                 };
             }

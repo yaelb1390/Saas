@@ -42,6 +42,14 @@ final readonly class CreateSaleData
         // Cómo se lleva el cliente lo que compró. Null = no se preguntó (el negocio no encendió la
         // opción, o la venta viene de la API). Solo el envío genera entrega; ver OrderType.
         public ?OrderType $orderType = null,
+        /*
+         * La llave que puso el navegador al cobrar sin internet, si esta venta viene de ahí.
+         *
+         * Es una propiedad de la venta y no un parámetro de la operación: identifica ESTE cobro
+         * concreto, y es lo que permite reintentar la subida sin cobrar dos veces. Null en todo lo
+         * que se cobra con conexión.
+         */
+        public ?string $clientUuid = null,
     ) {}
 
     /**
@@ -67,6 +75,7 @@ final readonly class CreateSaleData
             discountTotal: $this->discountTotal,
             employeeId: $this->employeeId,
             orderType: $this->orderType,
+            clientUuid: $this->clientUuid,
         );
     }
 

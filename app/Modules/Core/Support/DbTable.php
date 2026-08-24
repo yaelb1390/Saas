@@ -26,6 +26,9 @@ final class DbTable
     /** @var array<string, bool> */
     private static array $vistas = [];
 
+    /** @var array<string, bool> memo de columnas, con la clave «tabla.columna» */
+    private static array $columnas = [];
+
     public static function existe(string $tabla): bool
     {
         if (! array_key_exists($tabla, self::$vistas)) {
@@ -41,9 +44,35 @@ final class DbTable
         return self::$vistas[$tabla];
     }
 
+    /**
+     * ¿Existe ya esta COLUMNA?
+     *
+     * Mismo problema que con la tabla —el código sale antes que la migración— pero un escalón más
+     * fino: la tabla lleva años ahí y lo que falta es la columna que se acaba de añadir.
+     *
+     * Y con el mismo memo, que aquí no es un detalle: `Schema::hasColumn()` interroga al catálogo del
+     * motor y no es barata. Llamarla suelta en la campana de alertas —que se pinta en TODAS las
+     * páginas— se llevó por delante el presupuesto de consultas del dashboard, y el test lo cazó.
+     */
+    public static function tieneColumna(string $tabla, string $columna): bool
+    {
+        $clave = $tabla.'.'.$columna;
+
+        if (! array_key_exists($clave, self::$columnas)) {
+            try {
+                self::$columnas[$clave] = self::existe($tabla) && Schema::hasColumn($tabla, $columna);
+            } catch (Throwable) {
+                self::$columnas[$clave] = false;
+            }
+        }
+
+        return self::$columnas[$clave];
+    }
+
     /** Para los tests, que comparten proceso y crean y borran tablas entre casos. */
     public static function olvidar(): void
     {
         self::$vistas = [];
+        self::$columnas = [];
     }
 }

@@ -53,8 +53,14 @@ beforeEach(function (): void {
     $this->conteo = app(StockCountService::class);
 });
 
-/** La existencia actual, sin ceros de más. */
-function existencia(int $productId): string
+/**
+ * La existencia actual, sin ceros de más.
+ *
+ * El nombre lleva apellido a propósito: los ayudantes de los tests son GLOBALES para toda la suite,
+ * así que un «existencia()» a secas choca con el que ya tiene SaleBulkVoidTest y tumba la ejecución
+ * entera con un «Cannot redeclare». Y lo peor: el fichero pasa cuando se ejecuta solo.
+ */
+function existenciaContada(int $productId): string
 {
     $n = (string) (Stock::query()->where('product_id', $productId)->sum('quantity'));
 
@@ -70,7 +76,7 @@ it('deja la existencia en lo contado, no suma lo contado', function (): void {
      */
     $this->conteo->ajustar($this->producto, '15');
 
-    expect(existencia($this->producto->id))->toBe('15');
+    expect(existenciaContada($this->producto->id))->toBe('15');
 });
 
 it('lo que se registra es la DIFERENCIA, con su antes y su después', function (): void {
@@ -95,7 +101,7 @@ it('también sirve para corregir hacia ABAJO', function (): void {
      */
     $this->conteo->ajustar($this->producto, '7');
 
-    expect(existencia($this->producto->id))->toBe('7')
+    expect(existenciaContada($this->producto->id))->toBe('7')
         ->and((string) StockMovement::query()->latest('id')->value('quantity'))->toStartWith('-3');
 });
 
@@ -153,7 +159,7 @@ it('exige el permiso de mover existencias: un empleado de mostrador no puede', f
         ->post(route('panel.stock.count', $this->producto), ['counted' => '99'])
         ->assertForbidden();
 
-    expect(existencia($this->producto->id))->toBe('10');
+    expect(existenciaContada($this->producto->id))->toBe('10');
 });
 
 it('no se puede contar el producto de otra empresa', function (): void {
@@ -173,6 +179,6 @@ it('desde la pantalla, contar deja la existencia y avisa', function (): void {
         ->post(route('panel.stock.count', $this->producto), ['counted' => '24', 'note' => 'Conteo del lunes'])
         ->assertRedirect();
 
-    expect(existencia($this->producto->id))->toBe('24')
+    expect(existenciaContada($this->producto->id))->toBe('24')
         ->and(session('panel_ok'))->toContain('24');
 });

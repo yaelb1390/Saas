@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Modules\Core\Database\PostgresConnection;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -13,7 +15,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        /*
+         * PostgreSQL usa nuestra conexión, que escribe los booleanos como Postgres los acepta.
+         *
+         * Sin esto no se puede guardar NINGUNA casilla de verificación: marcar «Controla stock» o
+         * «Activo» devuelve un 500 porque el valor llega como el número 1 a una columna booleana.
+         * El porqué completo está en la propia clase; aquí solo queda enchufada.
+         *
+         * Va en register() y no en boot(): la primera conexión puede abrirse antes de que arranquen
+         * los servicios, y para entonces el resolvedor tiene que estar puesto.
+         */
+        Connection::resolverFor('pgsql', static fn (...$argumentos): PostgresConnection => new PostgresConnection(...$argumentos));
     }
 
     /**

@@ -180,6 +180,9 @@
                                 </span>
                                 <span class="wa-fila-avance">
                                     <span class="text-slate-400" x-show="c.out">Tú:</span>
+                                    {{-- Ya transcrito, el resumen es texto corriente y no habría nada
+                                         que distinguiera un audio de un mensaje escrito. --}}
+                                    <span class="wa-fila-voz" x-show="c.preview_tipo === 'audio'" title="Nota de voz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"/></svg></span>
                                     <span x-text="c.preview"></span>
                                 </span>
                                 <span class="wa-fila-marcas">
@@ -278,7 +281,20 @@
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.091 3.091"/></svg>
                                     Asistente
                                 </span>
-                                <p class="wa-texto" x-text="m.body"></p>
+                                {{-- Un audio transcrito NO se lee igual que un mensaje escrito, aunque
+                                     acabe siendo el mismo texto: la transcripción pudo entender mal.
+                                     Sin esta marca, el dueño lee «mándame dos cajas» y no tiene forma
+                                     de sospecharlo ni se le ocurre ir a escuchar el original. --}}
+                                <template x-if="m.tipo === 'audio'">
+                                    <span class="wa-voz">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"/></svg>
+                                        <span x-text="m.sin_transcribir ? 'Nota de voz — escúchala en tu teléfono' : 'Nota de voz, transcrita'"></span>
+                                    </span>
+                                </template>
+
+                                {{-- Si no se pudo transcribir, el cuerpo es el propio rótulo y
+                                     enseñarlo debajo de la marca lo diría dos veces. --}}
+                                <p class="wa-texto" x-text="m.body" x-show="!m.sin_transcribir"></p>
                                 {{-- `data-leido`: el doble check se pone azul, como en WhatsApp. --}}
                                 <span class="wa-meta" :data-leido="m.status === 'read' ? 'true' : 'false'">
                                     <span x-text="m.time"></span>
@@ -509,6 +525,46 @@
                                         no se quedan viejos cuando cambies un precio.
                                     </span>
                                 </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="wa-bot-campo">
+                        <span class="wa-bot-etiqueta">Cómo se comporta</span>
+                        <div class="wa-numeros">
+                            <label class="wa-numero">
+                                <span class="wa-numero-titulo">Espera antes de contestar</span>
+                                <span class="wa-numero-campo">
+                                    <input type="number" name="group_seconds" min="0" max="60" step="1"
+                                           class="bmos-input @error('group_seconds') wa-campo--error @enderror"
+                                           value="{{ old('group_seconds', $ajustes->group_seconds ?? 8) }}">
+                                    <span class="wa-numero-unidad">segundos</span>
+                                </span>
+                                <span class="wa-numero-nota">
+                                    Nadie escribe de una vez: manda «hola», luego «buenas», luego la pregunta.
+                                    Esperando unos segundos, el bot contesta <strong>una sola vez y a todo junto</strong>
+                                    en vez de tres veces. Pon <strong>0</strong> para que conteste al instante.
+                                </span>
+                                @error('group_seconds') <span class="wa-redactor-error">{{ $message }}</span> @enderror
+                            </label>
+
+                            <label class="wa-numero">
+                                <span class="wa-numero-titulo">Guardar las conversaciones</span>
+                                <span class="wa-numero-campo">
+                                    <input type="number" name="retention_days" min="0" max="3650" step="1"
+                                           class="bmos-input @error('retention_days') wa-campo--error @enderror"
+                                           value="{{ old('retention_days', $ajustes->retention_days ?? 0) }}">
+                                    <span class="wa-numero-unidad">días</span>
+                                </span>
+                                <span class="wa-numero-nota">
+                                    {{-- El aviso va aquí, junto al campo, y no en un mensaje después de guardar:
+                                         cuando alguien lee «se borraron 4.000 mensajes» ya no hay marcha atrás. --}}
+                                    <strong>0 = no se borra nunca</strong>, y es lo que está puesto de fábrica.
+                                    Con cualquier otro número, cada madrugada se borran los mensajes más viejos
+                                    que eso. <strong>Es definitivo: no hay papelera.</strong> Se usa para no
+                                    guardar para siempre los datos personales de tus clientes.
+                                </span>
+                                @error('retention_days') <span class="wa-redactor-error">{{ $message }}</span> @enderror
                             </label>
                         </div>
                     </div>

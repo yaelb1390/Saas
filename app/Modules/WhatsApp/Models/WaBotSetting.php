@@ -22,6 +22,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property bool $uses_documents
  * @property bool $includes_plans
  * @property string|null $greeting
+ * @property int $group_seconds
+ * @property int $retention_days
  */
 final class WaBotSetting extends Model
 {
@@ -63,6 +65,7 @@ final class WaBotSetting extends Model
     protected $fillable = [
         'company_id', 'provider', 'is_active', 'business_info', 'greeting',
         'instructions', 'uses_documents', 'includes_plans',
+        'group_seconds', 'retention_days',
     ];
 
     /** La fila de una empresa, apagada la primera vez. */
@@ -122,6 +125,8 @@ final class WaBotSetting extends Model
             'is_active' => 'boolean',
             'uses_documents' => 'boolean',
             'includes_plans' => 'boolean',
+            'group_seconds' => 'integer',
+            'retention_days' => 'integer',
             'last_sent_at' => 'datetime',
         ];
     }

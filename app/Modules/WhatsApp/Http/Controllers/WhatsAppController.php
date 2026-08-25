@@ -156,6 +156,21 @@ final class WhatsAppController extends Controller
         ])->save();
 
         /*
+         * Los dos ajustes nuevos van APARTE y solo si sus columnas existen.
+         *
+         * Aquí las migraciones se aplican a mano y el despliegue no las corre: entre que sale el
+         * código y alguien migra, meterlos en el fill() de arriba haría que guardar la pantalla
+         * entera fallara. Perder el texto del negocio por una columna que todavía no está sería un
+         * intercambio pésimo, y le pasaría a todo el que abriera esta pantalla en ese hueco.
+         */
+        if (DbTable::tieneColumna('wa_bot_settings', 'group_seconds')) {
+            $ajustes->forceFill([
+                'group_seconds' => (int) $request->input('group_seconds', 8),
+                'retention_days' => (int) $request->input('retention_days', 0),
+            ])->save();
+        }
+
+        /*
          * Por la vía oficial los mensajes entran por el webhook de Zernio, así que hay que darlo de
          * alta —o de baja— según quede el interruptor.
          *

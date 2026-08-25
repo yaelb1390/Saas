@@ -9,6 +9,7 @@ use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\WhatsApp\Services\WhatsAppService;
 use App\Modules\WhatsApp\Support\LineStatus;
+use App\Modules\WhatsApp\Support\MensajeEntrante;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -144,14 +145,22 @@ final class EvolutionWebhookController extends Controller
         }
 
         $phone = $this->extractPhone((string) ($key['remoteJid'] ?? ''));
-        $body = $this->extractBody((array) ($data['message'] ?? []));
+        $entrante = MensajeEntrante::desdeEvolution((array) ($data['message'] ?? []));
 
-        if ($phone !== '' && $body !== null) {
+        /*
+         * Se guarda TODO lo que sea un mensaje, se pueda leer o no.
+         *
+         * Antes solo se guardaba el texto y el resto se descartaba: una nota de voz no llegaba a
+         * existir —ni en la bandeja— y para el dueño era igual que si el cliente no hubiera escrito.
+         * Ahora lo que no se entiende entra con su rótulo y lo atiende una persona.
+         */
+        if ($phone !== '' && $entrante !== null) {
             $whatsApp->recordInbound(
                 phone: $phone,
-                body: $body,
+                body: $entrante->cuerpo,
                 externalId: $key['id'] ?? null,
                 name: $data['pushName'] ?? null,
+                entrante: $entrante,
             );
         }
 
@@ -161,14 +170,5 @@ final class EvolutionWebhookController extends Controller
     private function extractPhone(string $remoteJid): string
     {
         return explode('@', $remoteJid)[0];
-    }
-
-    /**
-     * @param  array<string, mixed>  $message
-     */
-    private function extractBody(array $message): ?string
-    {
-        return $message['conversation']
-            ?? ($message['extendedTextMessage']['text'] ?? null);
     }
 }

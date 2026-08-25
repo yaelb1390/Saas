@@ -99,6 +99,41 @@ final class GeminiProvider implements AiProvider
     }
 
     /** Sí: solo se instancia cuando hay clave. */
+    public function puedeTranscribir(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Transcribe con el mismo modelo de chat.
+     *
+     * Gemini 2.5 Flash entiende audio de forma nativa, así que no hace falta otro proveedor, otra
+     * clave ni otro servicio: se manda una parte de audio junto a la instrucción, igual que se manda
+     * texto. El audio viaja en la propia petición y no se guarda en ninguna parte.
+     *
+     * La instrucción pide SOLO la transcripción. Sin eso, el modelo tiende a describir el audio
+     * («el hablante pregunta por el precio…») y lo que hace falta aquí son las palabras que dijo el
+     * cliente, que son las que va a leer el dueño y las que va a contestar el bot.
+     */
+    public function transcribe(string $audioBase64, string $mimeType): string
+    {
+        $modelo = (string) $this->config['chat_model'];
+
+        $response = $this->client()
+            ->post("/models/{$modelo}:generateContent", [
+                'contents' => [[
+                    'parts' => [
+                        ['text' => 'Transcribe este audio literalmente. Devuelve SOLO lo que se dice, '
+                            .'sin comillas, sin comentarios y sin describir el audio. Está en español '
+                            .'dominicano. Si no se entiende nada, responde exactamente: (no se entiende)'],
+                        ['inline_data' => ['mime_type' => $mimeType, 'data' => $audioBase64]],
+                    ],
+                ]],
+            ]);
+
+        return trim((string) $response->json('candidates.0.content.parts.0.text', ''));
+    }
+
     public function redactaRespuestas(): bool
     {
         return true;

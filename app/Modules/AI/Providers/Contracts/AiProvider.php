@@ -42,4 +42,24 @@ interface AiProvider
      * configuración: si mañana cambia cómo se elige el proveedor, cambia en un sitio.
      */
     public function redactaRespuestas(): bool;
+
+    /**
+     * ¿Este proveedor sabe convertir un audio en texto?
+     *
+     * Se pregunta igual que `redactaRespuestas()`: quien llama no tiene por qué saber qué proveedor
+     * hay puesto ni cuál de ellos entiende audio. Si dice que no, la nota de voz se guarda con su
+     * rótulo y la atiende una persona —que es lo correcto: mejor eso que inventarse lo que dijo—.
+     */
+    public function puedeTranscribir(): bool;
+
+    /**
+     * Convierte un audio en texto.
+     *
+     * Recibe el audio EN BASE64 y no una dirección: llega así desde WhatsApp y aquí no hay dónde
+     * guardarlo —en producción el disco es de solo lectura—, así que pasarlo en memoria evita
+     * inventar un almacenamiento intermedio para algo que se usa una vez y se tira.
+     *
+     * @param  string  $mimeType  lo que dice WhatsApp del archivo; los audios suelen ser audio/ogg
+     */
+    public function transcribe(string $audioBase64, string $mimeType): string;
 }

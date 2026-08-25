@@ -657,6 +657,96 @@
     height: 0.7rem;
 }
 
+/* Los dos ajustes numéricos del bot: la espera y la retención. */
+.wa-numeros {
+    display: grid;
+    gap: 0.9rem;
+}
+
+@media (min-width: 40rem) {
+    .wa-numeros {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.wa-numero {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+}
+
+.wa-numero-titulo {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.wa-numero-campo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Estrecho a propósito: son días y segundos, no importes. Un campo ancho invita a escribir de más. */
+.wa-numero-campo input {
+    width: 5.5rem;
+}
+
+.wa-numero-unidad {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.wa-numero-nota {
+    font-size: 0.74rem;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+/*
+ * La marca de nota de voz, dentro de la burbuja.
+ *
+ * Va discreta a propósito: es un apunte sobre el mensaje, no el mensaje. Compite con el texto si se
+ * pone del mismo tamaño, y lo que el cliente dijo tiene que seguir siendo lo primero que se lee.
+ */
+.wa-voz {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-bottom: 0.2rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.wa-voz svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex: none;
+}
+
+/* Dentro de una burbuja de color, el gris no se lee: hereda el tono claro de la firma. */
+.wa-burbuja--sale .wa-voz,
+.wa-burbuja--bot .wa-voz {
+    color: rgba(255, 255, 255, 0.78);
+}
+
+/* El micrófono de la lista: solo un indicio junto al resumen, sin robarle sitio. */
+.wa-fila-voz {
+    display: inline-flex;
+    flex: none;
+    color: #94a3b8;
+}
+
+.wa-fila-voz svg {
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
 /* Cola de la burbuja: recortada con un radial, no un triángulo pegado. */
 .wa-burbuja::after {
     content: '';

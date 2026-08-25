@@ -11,6 +11,8 @@ use App\Modules\WhatsApp\Events\WhatsAppMessageReceived;
 use App\Modules\WhatsApp\Jobs\SendWhatsAppMessage;
 use App\Modules\WhatsApp\Models\WaConversation;
 use App\Modules\WhatsApp\Models\WaMessage;
+use App\Modules\WhatsApp\Support\ClienteDeWhatsApp;
+use App\Modules\WhatsApp\Support\MensajeEntrante;
 
 /**
  * Orquesta el envío y la recepción de mensajes de WhatsApp. Persiste toda la conversación para
@@ -20,6 +22,8 @@ use App\Modules\WhatsApp\Models\WaMessage;
  */
 final class WhatsAppService
 {
+    public function __construct(private readonly ClienteDeWhatsApp $clientes) {}
+
     /**
      * Encola un mensaje saliente. Se persiste como "Pendiente" y la cola lo entrega al proveedor,
      * de modo que la petición del usuario no espera a la red de WhatsApp.
@@ -82,14 +86,20 @@ final class WhatsAppService
     /**
      * Registra un mensaje entrante (invocado desde el webhook de Evolution).
      */
-    public function recordInbound(string $phone, string $body, ?string $externalId = null, ?string $name = null): WaMessage
-    {
+    public function recordInbound(
+        string $phone,
+        string $body,
+        ?string $externalId = null,
+        ?string $name = null,
+        ?MensajeEntrante $entrante = null,
+    ): WaMessage {
         $conversation = $this->conversationFor($phone, $name);
 
         $message = $conversation->messages()->create([
             'company_id' => $conversation->company_id,
             'direction' => MessageDirection::Inbound,
-            'type' => 'text',
+            // El tipo, para que la bandeja pueda enseñar «🎤 nota de voz» y no una fila vacía.
+            'type' => $entrante?->tipo ?? 'text',
             'body' => $body,
             'status' => MessageStatus::Received,
             'external_id' => $externalId,
@@ -97,6 +107,16 @@ final class WhatsAppService
         ]);
 
         $conversation->update(['last_message_at' => now()]);
+
+        /*
+         * Quien escribe entra en el CRM.
+         *
+         * Antes solo se ENLAZABA con un cliente que ya existiera, así que quien escribía por primera
+         * vez dejaba una conversación sin ficha: no se le podía cotizar ni ver su historial sin darlo
+         * de alta a mano. Va después de guardar el mensaje a propósito: si crear el cliente falla, el
+         * mensaje ya está a salvo.
+         */
+        $this->clientes->deLaConversacion($conversation, $phone, $name);
 
         WhatsAppMessageReceived::dispatch($message);
 

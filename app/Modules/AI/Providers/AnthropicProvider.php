@@ -56,6 +56,23 @@ final class AnthropicProvider implements AiProvider
     }
 
     /** Sí: solo se instancia cuando hay clave de API, así que `chat()` redacta de verdad. */
+    /**
+     * Claude no acepta audio.
+     *
+     * Se dice que NO en vez de intentarlo: quien llama manda la nota de voz a la bandeja con su
+     * rótulo y la atiende una persona. Prometer una transcripción y devolver un texto inventado
+     * sería mucho peor que no transcribir.
+     */
+    public function puedeTranscribir(): bool
+    {
+        return false;
+    }
+
+    public function transcribe(string $audioBase64, string $mimeType): string
+    {
+        throw new RuntimeException('Este proveedor de IA no transcribe audio.');
+    }
+
     public function redactaRespuestas(): bool
     {
         return true;

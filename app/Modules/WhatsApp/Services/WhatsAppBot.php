@@ -8,10 +8,12 @@ use App\Modules\AI\Providers\Contracts\AiProvider;
 use App\Modules\Core\Support\ChatText;
 use App\Modules\Help\Models\AssistantQuestion;
 use App\Modules\Help\Services\AssistantQuota;
+use App\Modules\WhatsApp\Enums\MessageDirection;
 use App\Modules\WhatsApp\Models\WaBotSetting;
 use App\Modules\WhatsApp\Models\WaConversation;
 use App\Modules\WhatsApp\Models\WaMessage;
 use App\Modules\WhatsApp\Support\BotPrompt;
+use App\Modules\WhatsApp\Support\MensajeEntrante;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -103,8 +105,15 @@ final class WhatsAppBot
 
     /**
      * Atiende un mensaje entrante. Devuelve qué se hizo, para el registro.
+     *
+     * @param  string|null  $agrupado  Lo que el cliente escribió en la ráfaga, ya unido. Se contesta
+     *                                 a ESTO y no solo al último mensaje, porque el último suele ser
+     *                                 el trozo menos informativo: en «quiero hablar con alguien» /
+     *                                 «por favor», mirar solo el segundo se salta el traspaso a una
+     *                                 persona, y en «tienen coca cola?» / «fría» se buscaría «fría»
+     *                                 en el catálogo. Null cuando no se agrupa: se usa el mensaje.
      */
-    public function atender(WaMessage $entrante): string
+    public function atender(WaMessage $entrante, ?string $agrupado = null): string
     {
         $conversacion = $entrante->conversation;
         $companyId = (int) $entrante->company_id;
@@ -120,10 +129,28 @@ final class WhatsAppBot
             return 'pausado';
         }
 
-        $texto = trim((string) $entrante->body);
+        $texto = trim($agrupado ?? (string) $entrante->body);
 
         if ($texto === '') {
             return 'sin texto';
+        }
+
+        /*
+         * Un RÓTULO no es una pregunta, y contestarlo es peor que callarse.
+         *
+         * «🎤 Nota de voz» es lo que queda cuando la transcripción no se pudo hacer, y «📷 Foto»
+         * cuando llega una imagen sin pie. Metiendo eso en el modelo, el bot le contesta al cliente
+         * algo sobre un mensaje que NO ha leído: en el mejor caso «esa no te la sé contestar» —a
+         * alguien que no ha preguntado nada—, y en el peor, una respuesta inventada.
+         *
+         * Peor todavía: quien manda una nota de voz y recibe una respuesta rara suele mandar OTRA
+         * nota de voz para aclararse, que tampoco se va a poder transcribir. Se calla y se marca para
+         * una persona, que en la bandeja lo ve como «Te espera» y escucha el audio en dos segundos.
+         */
+        if ($this->esSoloUnRotulo($texto)) {
+            $this->pasarAPersona($conversacion, 'llegó algo que el bot no puede leer');
+
+            return 'sin leer';
         }
 
         if (ChatText::contieneAlguna($texto, self::PIDE_PERSONA)) {
@@ -184,6 +211,24 @@ final class WhatsAppBot
         $this->enviar($conversacion, $ajustes, $respuesta);
 
         return 'contestado';
+    }
+
+    /**
+     * ¿Lo que hay que contestar incluye algo que el bot no ha podido leer?
+     *
+     * Se mira si CONTIENE el rótulo y no si es exactamente igual, porque con las ráfagas agrupadas
+     * llega junto con otros mensajes: «buenas» + una nota de voz sin transcribir es una pregunta a
+     * medias, y contestar a la mitad que sí se entiende es justo el error que hay que evitar.
+     */
+    private function esSoloUnRotulo(string $texto): bool
+    {
+        foreach (MensajeEntrante::ROTULOS as $rotulo) {
+            if (str_contains($texto, $rotulo)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -272,11 +317,24 @@ final class WhatsAppBot
      */
     private function ultimosTurnos(WaConversation $conversacion): array
     {
-        // El último es el mensaje que estamos atendiendo: se salta, porque va aparte al final.
-        $mensajes = $conversacion->messages()->latest('id')->limit(self::TURNOS * 2 + 1)->get()
-            ->skip(1)->reverse();
+        /*
+         * Se quitan los ENTRANTES DEL FINAL, no solo el último.
+         *
+         * Son los que se están atendiendo ahora mismo y ya van aparte, como pregunta. Antes se
+         * saltaba uno solo porque solo se atendía uno; desde que se agrupan las ráfagas, saltar uno
+         * dejaría los otros dos metidos aquí Y en la pregunta, y el modelo leería «hola» dos veces.
+         *
+         * Mirar la dirección en vez de contar cuántos se agruparon es lo que mantiene esto correcto
+         * pase lo que pase con el agrupado: la última respuesta del negocio marca dónde acaba lo
+         * hablado, y todo lo que hay después está sin contestar por definición.
+         */
+        $mensajes = $conversacion->messages()->latest('id')->limit(self::TURNOS * 2 + 8)->get();
 
-        return $mensajes->map(static fn (WaMessage $m): array => [
+        while ($mensajes->isNotEmpty() && $mensajes->first()->direction === MessageDirection::Inbound) {
+            $mensajes->shift();
+        }
+
+        return $mensajes->reverse()->map(static fn (WaMessage $m): array => [
             'role' => $m->direction->value === 'inbound' ? 'user' : 'assistant',
             'content' => Str::limit((string) $m->body, 800, ''),
         ])->values()->all();

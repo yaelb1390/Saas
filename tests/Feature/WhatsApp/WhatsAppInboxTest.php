@@ -150,6 +150,39 @@ it('la bandeja sigue siendo usable si Evolution está caído', function (): void
         ->assertSee('Sin conexión');
 });
 
+it('la pantalla trae los dos ajustes nuevos y la marca de nota de voz', function (): void {
+    /*
+     * Que el código guarde `retention_days` no sirve de nada si el formulario no tiene dónde
+     * escribirlo. Ya pasó una vez en este proyecto: una vista reescrita perdió componentes enteros
+     * sin dar ni un error, y solo se vio al abrirla en el navegador.
+     *
+     * Se comprueba el CAMPO, no un texto de ayuda: los textos se reescriben y los nombres de campo
+     * son el contrato con el que guarda.
+     */
+    $respuesta = $this->actingAs($this->user)->get(route('panel.whatsapp'))->assertOk();
+
+    $respuesta->assertSee('name="group_seconds"', false)
+        ->assertSee('name="retention_days"', false)
+        // El aviso de que borrar no tiene vuelta atrás va JUNTO al campo, no después de guardar.
+        ->assertSee('no se borra nunca')
+        // Y la bandeja tiene que saber pintar una nota de voz transcrita.
+        ->assertSee('m.sin_transcribir', false);
+});
+
+it('la retención de menos de una semana se rechaza en vez de aceptarse', function (): void {
+    /*
+     * Alguien que teclea «1» pensando en «un año» se borraría la semana entera de golpe. No hay
+     * confirmación posible después: el comando corre de madrugada y no hay papelera.
+     */
+    $this->actingAs($this->user)
+        ->post(route('panel.whatsapp.bot'), [
+            'provider' => 'evolution',
+            'business_info' => 'Abrimos de 8 a 8.',
+            'retention_days' => 3,
+        ])
+        ->assertSessionHasErrors('retention_days');
+});
+
 // ------------------------------------------------------------------ Cómo se lee el hilo
 
 it('la hora sale en la del negocio, no en UTC', function (): void {

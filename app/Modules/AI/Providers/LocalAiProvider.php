@@ -6,6 +6,7 @@ namespace App\Modules\AI\Providers;
 
 use App\Modules\AI\Enums\Sentiment;
 use App\Modules\AI\Providers\Contracts\AiProvider;
+use RuntimeException;
 
 /**
  * Proveedor de IA local y determinista (sin red). Se usa por defecto cuando no hay API keys
@@ -57,6 +58,23 @@ final class LocalAiProvider implements AiProvider
      * No. `chat()` devuelve una plantilla con el contexto pegado detrás, no una redacción. Quien
      * necesite texto para un cliente tiene que ofrecer otra salida cuando esto es false.
      */
+    /**
+     * El proveedor local no habla con nadie: no tiene con qué transcribir.
+     *
+     * Se dice que NO en vez de intentarlo: quien llama manda la nota de voz a la bandeja con su
+     * rótulo y la atiende una persona. Prometer una transcripción y devolver un texto inventado
+     * sería mucho peor que no transcribir.
+     */
+    public function puedeTranscribir(): bool
+    {
+        return false;
+    }
+
+    public function transcribe(string $audioBase64, string $mimeType): string
+    {
+        throw new RuntimeException('Este proveedor de IA no transcribe audio.');
+    }
+
     public function redactaRespuestas(): bool
     {
         return false;

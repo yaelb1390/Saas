@@ -62,6 +62,24 @@ final class StoreBotRequest extends FormRequest
 
             'uses_documents' => ['boolean'],
             'includes_plans' => ['boolean'],
+
+            /*
+             * Los segundos que se espera por si el cliente sigue escribiendo.
+             *
+             * El techo de sesenta no es por seguridad, es por sentido común: quien escribe a un
+             * negocio por WhatsApp espera respuesta en el momento, y un minuto de silencio ya se lee
+             * como que no hay nadie. Cero contesta al instante, como se hacía antes.
+             */
+            'group_seconds' => ['nullable', 'integer', 'min:0', 'max:60'],
+
+            /*
+             * Los días que se guarda el historial. CERO ES NO BORRAR NUNCA.
+             *
+             * El mínimo efectivo es siete y no uno a propósito: alguien tecleando «1» pensando en
+             * «un año» se borraría la semana entera de un golpe, sin confirmación y sin vuelta atrás.
+             * Los valores que destruyen datos no deberían estar a un dedo de distancia de los que no.
+             */
+            'retention_days' => ['nullable', 'integer', 'min:0', 'max:3650', 'not_in:1,2,3,4,5,6'],
         ];
     }
 
@@ -75,6 +93,8 @@ final class StoreBotRequest extends FormRequest
             'business_info.max' => 'La información del negocio no puede pasar de :max caracteres.',
             'greeting.max' => 'El saludo no puede pasar de :max caracteres.',
             'instructions.max' => 'Las instrucciones no pueden pasar de :max caracteres. Si necesitas contar mucho más, súbelo como documento en Administración › IA.',
+            'group_seconds.max' => 'Esperar más de un minuto para contestar es demasiado: el cliente ya pensó que no hay nadie.',
+            'retention_days.not_in' => 'Guardar menos de una semana borraría conversaciones que todavía estás usando. Pon 0 para no borrar nunca, o 7 días o más.',
         ];
     }
 

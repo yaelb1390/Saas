@@ -141,6 +141,8 @@ final class InboxPresenter
             'title' => $name ?? $phone,
             'initials' => $this->initials($name),
             'preview' => $last === null ? 'Sin mensajes' : (string) $last->body,
+            // Para que la lista pueda poner el icono del clip o del micrófono junto al resumen.
+            'preview_tipo' => $last === null ? 'text' : (string) ($last->type ?? 'text'),
             'out' => $last !== null && $last->direction === MessageDirection::Outbound,
             'time' => $lastAt?->diffForHumans(short: true),
             // Que el bot se haya apartado se ve en la LISTA y no solo dentro: son los clientes que
@@ -233,6 +235,21 @@ final class InboxPresenter
             // Quién lo escribió. Sin esto, el dueño no puede saber qué le prometió el bot a un
             // cliente y qué dijo su empleado, que es justo lo que necesita mirar cuando algo sale mal.
             'bot' => (bool) $message->sent_by_bot,
+
+            /*
+             * De qué clase es: texto, audio, foto, ubicación…
+             *
+             * Va a la pantalla porque un audio transcrito y un mensaje escrito NO son lo mismo aunque
+             * se lean igual. Si el dueño lee «mándame dos cajas» sin saber que salió de un audio, no
+             * tiene forma de sospechar que la transcripción pudo entender mal, ni se le ocurre ir a
+             * escuchar el original. Con la marca, sabe qué está leyendo.
+             */
+            'tipo' => (string) ($message->type ?? 'text'),
+
+            // Un audio que sigue con su rótulo es un audio que NO se pudo transcribir. La pantalla lo
+            // dice con todas las letras en vez de dejar al dueño esperando un texto que no va a llegar.
+            'sin_transcribir' => $message->type === 'audio'
+                && (string) $message->body === MensajeEntrante::ROTULOS['audio'],
         ];
     }
 

@@ -1,0 +1,122 @@
+QUÉ ES BM BUSINESS OS
+
+BM Business OS es un sistema para administrar un negocio completo desde un solo sitio: cobrar,
+controlar el inventario, facturar con NCF, atender a los clientes por WhatsApp y ver los números al
+final del día. Está hecho para República Dominicana y funciona con las reglas de la DGII.
+
+Se usa desde el navegador, en computadora o en teléfono. No hay que instalar nada.
+
+PARA QUIÉN ES
+
+Está pensado para negocios que hoy llevan las cuentas en un cuaderno o en varios sitios a la vez:
+
+- Colmados y minimarkets: cuadre de caja, venta rápida y control de fiaos.
+- Repuestos y ferreterías: catálogos grandes, aviso de existencia baja y lectura de códigos.
+- Comida rápida, heladerías y cafés: pedidos ágiles y comanda interna.
+- Prestamistas: cuotas, cobros y mora al día.
+- Tiendas de ropa: variantes por color y talla, con catálogo visual.
+- Negocios con delivery: asignación al repartidor y seguimiento de cada entrega.
+
+LOS PLANES Y SUS PRECIOS
+
+Los precios están en pesos dominicanos, por mes.
+
+PLAN BÁSICO — RD$750 al mes
+  Lo esencial para vender y controlar existencias.
+  Hasta 3 usuarios. Sucursales ilimitadas.
+  14 días de prueba.
+  Incluye: Venta rápida, Inventario, Ventas, Cotizaciones y Reportes.
+
+PLAN PRO — RD$1,500 al mes
+  Para negocios en crecimiento.
+  Hasta 5 usuarios. Sucursales ilimitadas.
+  14 días de prueba.
+  Incluye: Punto de Venta, Venta rápida, Inventario, Ventas, Compras, CRM, Cotizaciones,
+  Reportes, Redes sociales, Entregas, Recursos Humanos e IA.
+
+PLAN EMPRESARIAL — RD$3,000 al mes
+  Todos los módulos, sin excepción.
+  Usuarios y sucursales ilimitados.
+  Sin días de prueba: se contrata directamente.
+  Incluye todo lo del plan Pro y además: WhatsApp, Facturación con NCF, Finanzas y Préstamos.
+
+La prueba no pide tarjeta de crédito. Se puede cambiar de plan cuando el negocio crezca.
+
+QUÉ HACE CADA MÓDULO
+
+Punto de Venta: cobra en mostrador con lector de código de barras y control de caja.
+Venta rápida: terminal táctil para cobrar rápido, con fotos, tamaños y sabores.
+Inventario: productos, existencias por almacén y entradas de mercancía.
+Ventas: historial de ventas, recibos y devoluciones.
+Cotizaciones: precios por escrito, se mandan por WhatsApp y se cobran con un botón.
+Compras: proveedores y órdenes de compra para reponer existencias.
+CRM: ficha de cada cliente, su historial y las oportunidades de venta.
+WhatsApp: atiende y responde a los clientes por WhatsApp desde el sistema.
+Redes sociales: publica en Instagram, Facebook y TikTok a la vez, ahora o programado.
+Facturación: comprobantes fiscales con NCF y los reportes 606 y 607 de la DGII.
+Finanzas: cuentas, ingresos y gastos para saber en qué se va el dinero.
+Préstamos: préstamos con sus cuotas, pagos y mora al día.
+Entregas: reparto a domicilio con seguimiento de cada entrega.
+Recursos Humanos: empleados, asistencia y su portal para consultar sus datos.
+IA: asistente que responde sobre los documentos y las ventas del propio negocio.
+Reportes: informes de ventas, ganancias y productos más vendidos.
+
+FACTURACIÓN Y DGII
+
+El sistema emite comprobantes fiscales con NCF y genera los reportes 606 y 607 que pide la DGII.
+El ITBIS se calcula solo. Cada venta guarda su comprobante, y una venta anulada deja constancia en
+vez de desaparecer.
+
+VENDER SIN INTERNET
+
+El punto de venta sigue cobrando aunque se caiga la conexión. Las ventas se guardan en el propio
+navegador y se suben solas cuando vuelve el internet, sin que haya que hacer nada. En un colmado un
+apagón de la fibra no debería significar dejar de vender.
+
+COTIZACIONES
+
+Se le arma una cotización a un cliente, se genera el PDF y se le manda por WhatsApp desde el mismo
+sistema. Cuando el cliente acepta, la cotización se convierte en venta con un botón: no hay que
+volver a teclear nada, y lo cotizado es exactamente lo que se cobra.
+
+ATENDER POR WHATSAPP
+
+El sistema recibe los mensajes de los clientes en una bandeja dentro del panel, para que los
+conteste cualquier persona del equipo sin tener el teléfono en la mano.
+
+Hay un asistente automático que puede contestar solo, con la información que el dueño le escriba
+sobre su negocio. Tres reglas que nunca se saltan:
+
+- Solo dice lo que está escrito. Si le preguntan algo que no sabe, no se lo inventa: se aparta y
+  pasa la conversación a una persona.
+- No promete descuentos, envíos gratis ni plazos que no estén puestos por escrito.
+- Si le preguntan si es una persona o una máquina, dice que es el asistente automático del negocio
+  y ofrece pasar con alguien. No se hace pasar por una persona.
+
+Cuando un cliente pide hablar con una persona, el bot se calla y se queda callado hasta que alguien
+del negocio lo reanude.
+
+Las notas de voz se transcriben y aparecen escritas en la bandeja. Las fotos, documentos y
+ubicaciones también se guardan. Nada de lo que manda un cliente se pierde.
+
+Hay dos formas de conectar el WhatsApp:
+
+- Por código QR: se escanea como WhatsApp Web, sirve cualquier número y no cuesta nada.
+- Por la vía oficial de Meta: sin riesgo de bloqueo, pero el número no puede estar en la app de
+  WhatsApp y solo se puede escribir a quien haya escrito primero (es una regla de Meta, no del
+  sistema).
+
+VARIOS NEGOCIOS Y VARIAS SUCURSALES
+
+Cada empresa ve únicamente sus propios datos. Un negocio nunca puede ver los productos, las ventas
+ni los clientes de otro. Dentro de una misma empresa se manejan varias sucursales y varios
+almacenes.
+
+Los permisos van por rol: dueño, administrador, empleado y repartidor. Cada uno ve solo las
+pantallas que le tocan, y queda registro de quién hizo cada cosa.
+
+CÓMO EMPEZAR
+
+Se crea la cuenta desde la página principal, se eligen el plan y la prueba empieza en el momento.
+No se pide tarjeta de crédito. Durante la prueba se cargan los productos, se hacen las primeras
+ventas y se ve si le cuadra al negocio.

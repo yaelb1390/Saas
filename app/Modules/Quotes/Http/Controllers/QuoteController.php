@@ -186,7 +186,9 @@ final class QuoteController extends Controller
      */
     public static function construirPdf(Quote $quote, ?string $mode = null): Response
     {
-        $quote->loadMissing('items', 'customer');
+        // 'user' es el VENDEDOR, y va en la cabecera del papel. Se carga aquí y no se deja al azar
+        // de una carga perezosa: con lazy loading estricto esto reventaría en producción y no en local.
+        $quote->loadMissing('items', 'customer', 'user');
 
         $pdf = Pdf::loadView('quotes.pdf', [
             'quote' => $quote,

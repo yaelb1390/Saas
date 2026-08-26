@@ -187,6 +187,84 @@ it('el PDF se genera con sus líneas y su total', function (): void {
         ->and(substr((string) $respuesta->getContent(), 0, 4))->toBe('%PDF');
 });
 
+it('el papel dice de quién viene: el nombre del negocio sale aunque no haya logo', function (): void {
+    /*
+     * Lo comprueba sobre el HTML de la plantilla y no sobre el PDF: dentro del PDF el texto va
+     * comprimido y buscarlo ahí daría un test que pasa por casualidad o que falla sin motivo.
+     *
+     * El caso que importa es SIN LOGO. Con logo se ve de quién es a simple vista; sin él, si el
+     * nombre no saliera, el cliente recibiría un papel con precios y firmas y ninguna pista de qué
+     * negocio se los ofertó.
+     */
+    $html = view('quotes.pdf', [
+        'quote' => $this->quote->load('items', 'user'),
+        'company' => $this->company,
+        'logo' => null,
+    ])->render();
+
+    expect($html)->toContain($this->company->name)
+        ->and($html)->toContain('COTIZACIÓN')
+        ->and($html)->toContain($this->quote->code)
+        // Las columnas del impreso, con los nombres que se ven en el papel.
+        ->and($html)->toContain('PRODUCTO')
+        ->and($html)->toContain('CANTIDAD')
+        // Y las dos firmas, que es lo que convierte la hoja en algo que se puede aceptar por escrito.
+        ->and($html)->toContain('Firma de Cliente');
+});
+
+it('con logo se pinta el logo Y sigue saliendo el nombre debajo', function (): void {
+    /*
+     * No es redundante: un logo puede ser solo un símbolo sin letras. Si al poner logo desapareciera
+     * el nombre, media clientela recibiría una cotización de un dibujo.
+     */
+    $html = view('quotes.pdf', [
+        'quote' => $this->quote->load('items', 'user'),
+        'company' => $this->company,
+        'logo' => 'data:image/png;base64,iVBORw0KGgo=',
+    ])->render();
+
+    expect($html)->toContain('data:image/png;base64,iVBORw0KGgo=')
+        ->and($html)->toContain($this->company->name);
+});
+
+it('el vendedor sale en el papel, y sin vendedor no queda un rótulo huérfano', function (): void {
+    /*
+     * La hoja se firma por los dos lados, así que quien la hizo tiene que estar escrito. Y cuando no
+     * hay nadie asociado —una cotización creada por un proceso, o un usuario borrado— no puede
+     * quedarse un «VENDEDOR:» seguido de nada: eso parece un dato que se perdió.
+     */
+    $vendedor = User::create([
+        'company_id' => $this->company->id,
+        'name' => 'Juliana Silva',
+        'email' => 'juliana@quotes.test',
+        'password' => 'secret-password',
+    ]);
+
+    $this->quote->forceFill(['user_id' => $vendedor->id])->save();
+
+    $con = view('quotes.pdf', [
+        'quote' => $this->quote->fresh()->load('items', 'user'),
+        'company' => $this->company,
+        'logo' => null,
+    ])->render();
+
+    expect($con)->toContain('Juliana Silva')
+        ->and($con)->toContain('Vendedor:')
+        ->and($con)->toContain('Firma de Vendedor');
+
+    $this->quote->forceFill(['user_id' => null])->save();
+
+    $sin = view('quotes.pdf', [
+        'quote' => $this->quote->fresh()->load('items', 'user'),
+        'company' => $this->company,
+        'logo' => null,
+    ])->render();
+
+    expect($sin)->not->toContain('Vendedor:')
+        // Sin vendedor la firma pasa a ser la del negocio: la línea sigue estando, sin mentir.
+        ->and($sin)->toContain('Firma de la Empresa');
+});
+
 it('las cotizaciones de otra empresa no se ven en el listado', function (): void {
     $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Vecina'));
     app(CurrentCompany::class)->set($otra->id);

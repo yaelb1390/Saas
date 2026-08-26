@@ -954,6 +954,451 @@ body {
     border-bottom: 0;
 }
 
+/* ==========================================================================
+   El mostrador: la tabla de artículos y su ficha
+
+   Antes los resultados eran tarjetas con foto. Sirve para un colmado, donde «Coca-Cola 2L» es
+   inconfundible; no sirve para una ferretería, donde hay que distinguir entre tres piezas que solo
+   se diferencian por marca, aplicación y estante.
+   ========================================================================== */
+
+/*
+ * El scroll horizontal es de ESTE recuadro, no de la página.
+ *
+ * Con muchas columnas la tabla no cabe en la mitad izquierda, y una tabla que empuja la página a lo
+ * ancho deja el ticket —el total y el botón de cobrar— fuera de la vista.
+ */
+.bmos-tabla-envoltura {
+    overflow-x: auto;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.75rem;
+    background: #fff;
+}
+
+/*
+ * Más apretada que una tabla normal: aquí se comparan filas, no se leen párrafos.
+ *
+ * Y apretada DE VERDAD, porque el mostrador ocupa dos tercios de la pantalla y el otro tercio es el
+ * ticket. Con el espaciado normal, siete columnas no cabían y las dos últimas —existencia y precio—
+ * se quedaban fuera del recuadro: había que arrastrar la tabla para ver el precio, que es el dato
+ * por el que se mira la lista.
+ */
+.pos-tabla {
+    font-size: 0.78rem;
+}
+
+.pos-tabla thead th,
+.pos-tabla tbody td {
+    padding: 0.45rem 0.5rem;
+    white-space: nowrap;
+}
+
+/*
+ * Lo largo se recorta con puntos suspensivos en vez de empujar a las demás.
+ *
+ * «Toyota Corolla 2003-2008» y «Pasillo 3 / Estante B» son los dos que crecen sin límite. Recortados
+ * siguen distinguiendo una fila de otra —que es para lo que está la tabla— y el valor entero se lee
+ * en la ficha, que está justo debajo y trae todo.
+ */
+.pos-tabla .pos-recorta {
+    max-width: 6.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pos-tabla td[data-rotulo='Artículo'] {
+    max-width: 15rem;
+}
+
+/* El separador entre SKU, número de parte y marca: más claro que ellos, para que se lean como una
+   sola línea de identidad y no como tres datos sueltos. */
+.pos-sep {
+    color: #cbd5e1;
+    margin: 0 0.3rem;
+}
+
+.pos-nombre {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/*
+ * EXISTENCIA Y PRECIO SE QUEDAN CLAVADOS A LA DERECHA.
+ *
+ * Con siete columnas la tabla no cabe en el recuadro a 1280 px —medido: la tabla pide 731 y el hueco
+ * es de 631— y la que se caía por el borde era justo el PRECIO. Una lista de artículos en la que hay
+ * que arrastrar para ver el precio no sirve para atender a nadie.
+ *
+ * Se clavan en vez de estrechar las otras porque estrechar solo arregla el ancho que se midió: en un
+ * portátil de 1366 o una tableta de 1024 volvería a caerse. Así los dos números por los que se mira
+ * la lista están siempre a la vista, sea cual sea la pantalla.
+ *
+ * El ancho del precio es fijo A PROPÓSITO: es lo que permite anclar la existencia justo a su lado.
+ */
+.pos-tabla .pos-col-precio {
+    position: sticky;
+    right: 0;
+    width: 6.4rem;
+}
+
+.pos-tabla .pos-col-exist {
+    position: sticky;
+    right: 6.4rem;
+    width: 5.6rem;
+}
+
+/*
+ * Las celdas clavadas necesitan fondo propio, o el resto de la tabla se les ve por debajo al
+ * arrastrar. Y tienen que seguir al de su fila: si no, la fila marcada se vería partida en dos.
+ */
+.pos-tabla thead .pos-col-exist,
+.pos-tabla thead .pos-col-precio {
+    background: #f8f9fc;
+}
+
+.pos-tabla tbody .pos-col-exist,
+.pos-tabla tbody .pos-col-precio {
+    background: #fff;
+}
+
+.pos-tabla tbody tr:hover .pos-col-exist,
+.pos-tabla tbody tr:hover .pos-col-precio {
+    background: #fafbff;
+}
+
+.pos-fila--marcada .pos-col-exist,
+.pos-fila--marcada .pos-col-precio {
+    background: #eef2ff;
+}
+
+/*
+ * Una sombra fina marca dónde acaba lo que se arrastra y empieza lo que está clavado.
+ *
+ * En ::after y no en ::before: el ::before de estas celdas ya lo usa el rótulo de la tarjeta en el
+ * teléfono, y al ser el mismo pseudo-elemento se pisaban. Se veía «6 u.» suelto, sin decir de qué.
+ */
+.pos-tabla .pos-col-exist::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 6px;
+    transform: translateX(-6px);
+    background: linear-gradient(to right, rgb(15 23 42 / 0.06), transparent);
+    pointer-events: none;
+}
+
+.pos-fila {
+    cursor: pointer;
+}
+
+/* La fila marcada, con una banda a la izquierda: en una tabla densa un cambio de fondo solo no se
+   distingue del subrayado del ratón. */
+.pos-fila--marcada,
+.pos-fila--marcada:hover {
+    background: #eef2ff;
+    box-shadow: inset 3px 0 0 var(--bmos-primary, #4f46e5);
+}
+
+/* Lo que no se puede vender se ve, apagado. Esconderlo haría que quien atiende lo buscara otra vez
+   sin entender por qué no aparece. */
+.pos-fila--muerta {
+    opacity: 0.55;
+}
+
+.pos-col-img {
+    width: 2.6rem;
+}
+
+.pos-mini {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.35rem;
+    object-fit: cover;
+}
+
+.pos-nombre {
+    display: block;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.pos-sku,
+.pos-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.pos-mono {
+    font-size: 0.78rem;
+    color: #475569;
+}
+
+.pos-num {
+    text-align: right;
+}
+
+.pos-precio {
+    font-weight: 700;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- La ficha */
+.pos-ficha {
+    margin-top: 0.9rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.75rem;
+    background: #fff;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.pos-ficha-cab {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+}
+
+.pos-ficha-img {
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 0.5rem;
+    object-fit: cover;
+    flex: none;
+}
+
+.pos-ficha-nombre {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.25;
+}
+
+.pos-ficha-codigos {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-top: 0.1rem;
+}
+
+.pos-ficha-cerrar {
+    margin-left: auto;
+    font-size: 1.4rem;
+    line-height: 1;
+    color: #94a3b8;
+    padding: 0 0.2rem;
+}
+
+.pos-ficha-cerrar:hover {
+    color: #475569;
+}
+
+/* Los datos en rejilla. Cada bloque se pinta solo si el artículo tiene ese dato: un rótulo sin valor
+   no es información, es un hueco que hace dudar de si el dato falta o el sistema falla. */
+.pos-datos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 0.5rem 1rem;
+    margin-top: 0.8rem;
+}
+
+.pos-datos dt {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+}
+
+.pos-datos dd {
+    font-size: 0.85rem;
+    color: #1e293b;
+    font-weight: 600;
+}
+
+.pos-almacenes {
+    margin-top: 0.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.pos-almacen {
+    font-size: 0.72rem;
+    color: #475569;
+    background: #f1f5f9;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+}
+
+.pos-ficha-desc {
+    margin-top: 0.7rem;
+    font-size: 0.8rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.pos-ficha-pie {
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #f0f2f7;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.6rem;
+}
+
+.pos-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: 7rem;
+}
+
+.pos-campo > span {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+}
+
+/*
+ * El precio se ve, y NO se toca.
+ *
+ * Al cobrar, el servidor lo vuelve a leer de la base e ignora lo que mande el navegador. Un campo
+ * editable aquí enseñaría 1.800 y cobraría 2.450 sin avisar a nadie: se pinta como lo que es, un
+ * dato, para que ni se intente.
+ */
+.pos-solo-lectura {
+    background: #f8fafc;
+    color: #64748b;
+    cursor: default;
+}
+
+.pos-ficha-agregar {
+    margin-left: auto;
+}
+
+/* ---------------------------------------------------------------- En el teléfono */
+@media (max-width: 48rem) {
+    /* Ocho columnas no se leen en 390 px. Cada fila pasa a ser una tarjeta con sus rótulos, que es
+       la misma información sin obligar a arrastrar la tabla a un lado y a otro. */
+    .pos-tabla thead {
+        display: none;
+    }
+
+    .bmos-tabla-envoltura {
+        overflow-x: visible;
+        border: 0;
+        background: transparent;
+    }
+
+    .pos-tabla,
+    .pos-tabla tbody,
+    .pos-tabla tr,
+    .pos-tabla td {
+        display: block;
+        width: 100%;
+    }
+
+    .pos-tabla tr {
+        border: 1px solid var(--bmos-border);
+        border-radius: 0.65rem;
+        background: #fff;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 0.7rem;
+    }
+
+    .pos-tabla td,
+    .pos-tabla .pos-recorta,
+    .pos-tabla td[data-rotulo='Artículo'] {
+        max-width: none;
+        overflow: visible;
+    }
+
+    /* Nada clavado: aquí no se arrastra nada, cada fila es una tarjeta y todo se ve de una vez. */
+    .pos-tabla .pos-col-exist,
+    .pos-tabla .pos-col-precio {
+        position: static;
+        width: auto;
+        background: transparent;
+    }
+
+    .pos-tabla .pos-col-exist::after {
+        content: none;
+    }
+
+    .pos-tabla td {
+        border: 0;
+        padding: 0.15rem 0;
+        white-space: normal;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        gap: 0.8rem;
+        /*
+         * min-width cero y el salto de línea, o el valor se sale de la tarjeta.
+         *
+         * El valor es un nodo de texto suelto dentro de un flex, y por omisión un elemento flexible
+         * no encoge por debajo de su contenido: «Toyota Corolla 2003-2008» se salía por el borde
+         * derecho de la tarjeta en un teléfono de 390 px en vez de partirse en dos líneas.
+         */
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+
+    /*
+     * El valor va envuelto en un span A PROPÓSITO.
+     *
+     * Suelto era un nodo de texto anónimo dentro de un flex, y a esos no se les puede aplicar CSS:
+     * no encogían por debajo de su contenido y «Toyota Corolla 2003-2008» se salía por el borde
+     * derecho de la tarjeta en un teléfono de 390 px. Con el span sí se puede decir que encoja.
+     */
+    .pos-tabla td > .pos-valor {
+        min-width: 0;
+        flex: 1 1 auto;
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    /* El valor, alineado a la derecha y con sitio para bajar de línea si hace falta. */
+    .pos-tabla td[data-rotulo]:not([data-rotulo='']):not([data-rotulo='Artículo']) {
+        text-align: right;
+    }
+
+    /* El rótulo lo pone el propio dato con data-rotulo, así no hay que repetirlo en el marcado. */
+    .pos-tabla td[data-rotulo]::before {
+        content: attr(data-rotulo);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #94a3b8;
+        flex: none;
+    }
+
+    /* El nombre y la foto mandan: van sin rótulo y a todo lo ancho. */
+    .pos-tabla td[data-rotulo='Artículo']::before,
+    .pos-tabla td[data-rotulo='']::before {
+        content: none;
+    }
+
+    .pos-tabla td[data-rotulo='Artículo'] {
+        display: block;
+        margin-bottom: 0.3rem;
+    }
+
+    .pos-campo {
+        width: calc(50% - 0.3rem);
+    }
+
+    .pos-ficha-agregar {
+        width: 100%;
+        margin-left: 0;
+    }
+}
+
 /* ---------- Badges ---------- */
 .bmos-badge {
     display: inline-flex;

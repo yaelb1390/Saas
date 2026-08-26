@@ -42,7 +42,7 @@ final class ProductLookupPresenter
             return ['found' => false, 'product' => null];
         }
 
-        return ['found' => true, 'product' => $this->row($product)];
+        return ['found' => true, 'product' => $this->row($product, conDesglose: true)];
     }
 
     /**
@@ -53,7 +53,7 @@ final class ProductLookupPresenter
     public function search(string $term, int $limit = 20): array
     {
         return $this->products->search($term, $limit)
-            ->map(fn (Product $product): array => $this->row($product))
+            ->map(fn (Product $product): array => $this->row($product, conDesglose: true))
             ->all();
     }
 
@@ -84,9 +84,14 @@ final class ProductLookupPresenter
      * «sellable» y «reason» distinguen «no se puede vender» de «no existe»: el cajero necesita
      * saber por qué, y no es lo mismo un código desconocido que un artículo agotado.
      *
+     * @param  bool  $conDesglose  ¿Se añade en qué almacén está la existencia?
+     *                             Solo para el escaneo y la búsqueda. En el catálogo NO: esa copia
+     *                             guarda dos mil artículos en el navegador para poder cobrar sin
+     *                             línea, y ahí el desglose la engorda sin servir de nada, porque sin
+     *                             conexión nadie está mirando en qué estante hay.
      * @return array<string, mixed>
      */
-    private function row(Product $product): array
+    private function row(Product $product, bool $conDesglose = false): array
     {
         $stock = (string) $product->totalStock();
 
@@ -119,6 +124,11 @@ final class ProductLookupPresenter
              */
             'cost' => Gate::allows('stock.adjust') ? (string) $product->cost : null,
             'stock' => $stock,
+            // La unidad de medida: «12» no significa lo mismo en unidades que en metros o en libras,
+            // y en una ferretería media existencia se cuenta en algo que no son piezas.
+            'unit' => $product->unit,
+            'description' => $product->description,
+            'stock_por_almacen' => $conDesglose ? $this->porAlmacen($product) : null,
             'image' => $product->imageUrl(),
             // La rejilla táctil filtra por categoría en el cliente sin volver al servidor.
             'category_id' => $product->category_id,
@@ -128,5 +138,34 @@ final class ProductLookupPresenter
             'sellable' => $reason === null,
             'reason' => $reason,
         ];
+    }
+
+    /**
+     * Dónde está la existencia, almacén por almacén.
+     *
+     * Un total de «12» no le sirve al dependiente si ocho están en la sucursal del otro lado de la
+     * ciudad: le diría que sí a un cliente y luego no tendría qué entregarle.
+     *
+     * Se salta lo que está a cero: enseñar «Sucursal 2: 0» es ruido, y con muchos almacenes tapa las
+     * dos líneas que de verdad importan.
+     *
+     * @return array<int, array{almacen: string, cantidad: string}>
+     */
+    private function porAlmacen(Product $product): array
+    {
+        // Sin la relación cargada esto sería una consulta por artículo. Quien llama con desglose la
+        // trae ya puesta; si no está, se prefiere no decir nada antes que provocar un N+1 escondido.
+        if (! $product->relationLoaded('stock')) {
+            return [];
+        }
+
+        return $product->stock
+            ->filter(static fn ($fila): bool => bccomp((string) $fila->quantity, '0', 3) > 0)
+            ->map(static fn ($fila): array => [
+                'almacen' => (string) ($fila->warehouse?->name ?? 'Sin almacén'),
+                'cantidad' => bcadd((string) $fila->quantity, '0', 3),
+            ])
+            ->values()
+            ->all();
     }
 }

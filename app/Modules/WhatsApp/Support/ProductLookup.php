@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\WhatsApp\Support;
 
+use App\Modules\Core\Support\BusquedaTexto;
 use App\Modules\Inventory\Models\Product;
 
 /**
@@ -38,9 +39,16 @@ final class ProductLookup
             ->select(['name', 'description', 'price', 'is_active', 'is_available'])
             ->where('is_active', true);
 
+        /*
+         * Cada palabra, sin que importen las mayúsculas.
+         *
+         * La gente escribe a un negocio en minúsculas. Con el `like` de antes, en PostgreSQL «tienen
+         * bomba de agua?» no casaba con «Bomba de agua» y el bot contestaba que no sabía —y pasaba la
+         * conversación a una persona— por un producto que estaba en el catálogo con su precio puesto.
+         */
         $consulta->where(function ($q) use ($palabras): void {
             foreach ($palabras as $palabra) {
-                $q->orWhere('name', 'like', '%'.$palabra.'%');
+                $q->orWhereRaw('lower(name) like ?'.BusquedaTexto::ESCAPE, [BusquedaTexto::patron($palabra)]);
             }
         });
 

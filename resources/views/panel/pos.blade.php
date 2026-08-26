@@ -94,36 +94,176 @@
                          El cajero escribe nombre o SKU y el servidor devuelve solo lo que coincide,
                          así el POS es fluido aunque haya miles de productos. --}}
                     <div class="mb-4">
-                        <input type="search" x-model="query" @input.debounce.300ms="searchProducts()"
-                               placeholder="Busca un producto por nombre o SKU…" autocomplete="off"
+                        {{-- Las flechas y el Enter se atienden AQUÍ y no en la tabla: quien busca
+                             no suelta el teclado para ir a marcar una fila con el ratón. --}}
+                        <input type="search" x-ref="buscarInput" x-model="query" @input.debounce.300ms="searchProducts()"
+                               @keydown.arrow-down.prevent="mover(1)" @keydown.arrow-up.prevent="mover(-1)"
+                               @keydown.enter.prevent="abrirMarcado()" @keydown.escape="ficha = null"
+                               placeholder="Busca por nombre, SKU, código, Nº de parte o marca…" autocomplete="off"
                                class="bmos-input">
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                        <template x-for="p in results" :key="p.id">
-                            <button type="button"
-                                    @click="p.sellable && add(p.id, p.name, p.price, p.image)"
-                                    class="bmos-card bmos-card-pad text-left transition hover:-translate-y-0.5 hover:shadow-md"
-                                    :class="!p.sellable ? 'opacity-50 cursor-not-allowed' : ''"
-                                    :disabled="!p.sellable">
-                                <div class="mb-2 flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-slate-100">
-                                    <template x-if="p.image">
-                                        <img :src="p.image" :alt="p.name" loading="lazy" class="h-full w-full object-cover">
+                    {{--
+                        LA TABLA, y no la rejilla de fotos que había antes.
+
+                        En un colmado una foto basta para saber qué es «Coca-Cola 2L». En una
+                        ferretería no: hay tres bombas de agua que solo se distinguen por marca,
+                        aplicación y estante, y con una foto y un nombre el dependiente acaba yendo
+                        al almacén a mirar —o vendiendo la pieza equivocada—.
+
+                        Las COLUMNAS SE ADAPTAN: una solo se pinta si algún resultado trae ese dato.
+                        Así el mismo mostrador sirve a un colmado —que no verá nunca «Nº de parte»—
+                        y a un taller, sin que nadie elija un modo.
+
+                        El scroll horizontal es del recuadro, no de la página: una tabla que empuja
+                        la pantalla a lo ancho deja el ticket fuera de la vista.
+                    --}}
+                    <div x-show="results.length > 0" x-cloak class="bmos-tabla-envoltura">
+                        <table class="bmos-table pos-tabla">
+                            <thead>
+                                <tr>
+                                    <th x-show="col.imagen" class="pos-col-img"><span class="sr-only">Foto</span></th>
+                                    {{-- El artículo se lleva dentro su SKU, su número de parte y su
+                                         marca. Como columnas propias no cabían: siete columnas piden
+                                         731 px y el hueco del mostrador son 631, así que la ubicación
+                                         se quedaba cortada debajo de las fijas. Un mostrador de verdad
+                                         también los pone juntos: son la identidad de la pieza, no tres
+                                         datos que se comparen por separado. --}}
+                                    <th>Artículo</th>
+                                    <th x-show="col.vehiculo">Aplica a</th>
+                                    <th x-show="col.ubicacion">Ubicación</th>
+                                    <th class="pos-num pos-col-exist">Existencia</th>
+                                    <th class="pos-num pos-col-precio">Precio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(p, i) in results" :key="p.id">
+                                    <tr class="pos-fila" :class="{ 'pos-fila--marcada': i === marcado, 'pos-fila--muerta': !p.sellable }"
+                                        @click="marcar(i)" @dblclick="p.sellable && agregarFicha()">
+                                        <td x-show="col.imagen" class="pos-col-img" data-rotulo="">
+                                            <template x-if="p.image">
+                                                <img :src="p.image" :alt="p.name" loading="lazy" class="pos-mini">
+                                            </template>
+                                        </td>
+                                        <td data-rotulo="Artículo">
+                                            <span class="pos-nombre" x-text="p.name"></span>
+                                            <span class="pos-sku">
+                                                <span x-text="p.sku"></span>
+                                                <template x-if="p.part_number">
+                                                    <span><span class="pos-sep">·</span><span x-text="p.part_number"></span></span>
+                                                </template>
+                                                <template x-if="p.brand">
+                                                    <span><span class="pos-sep">·</span><b x-text="p.brand"></b></span>
+                                                </template>
+                                            </span>
+                                        </td>
+                                        <td x-show="col.vehiculo" data-rotulo="Aplica a" class="pos-recorta" :title="p.vehicle || ''"><span class="pos-valor" x-text="p.vehicle || '—'"></span></td>
+                                        <td x-show="col.ubicacion" data-rotulo="Ubicación" class="pos-recorta" :title="p.location || ''"><span class="pos-valor" x-text="p.location || '—'"></span></td>
+                                        <td data-rotulo="Existencia" class="pos-num pos-col-exist">
+                                            <span class="bmos-badge" :class="Number(p.stock) < 5 ? 'badge-amber' : 'badge-blue'"
+                                                  x-text="p.reason === 'no_stock' ? 'Agotado' : existencia(p)"></span>
+                                        </td>
+                                        <td data-rotulo="Precio" class="pos-num pos-precio pos-col-precio"><span class="pos-valor" x-text="rd(p.price)"></span></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {{--
+                        LA FICHA del artículo marcado: todo lo que tenga relleno, y nada de lo que no.
+
+                        Un artículo de colmado no enseña «Aplica a:» en blanco. Un rótulo sin valor no
+                        es información, es un hueco que hace dudar de si el dato falta o el sistema
+                        falla.
+                    --}}
+                    <div x-show="ficha" x-cloak class="pos-ficha">
+                        <template x-if="ficha">
+                            <div>
+                                <div class="pos-ficha-cab">
+                                    <template x-if="ficha.image">
+                                        <img :src="ficha.image" :alt="ficha.name" class="pos-ficha-img">
                                     </template>
-                                    <template x-if="!p.image">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="h-8 w-8 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+                                    <div class="min-w-0">
+                                        <p class="pos-ficha-nombre" x-text="ficha.name"></p>
+                                        <p class="pos-ficha-codigos">
+                                            <span x-text="'SKU ' + ficha.sku"></span>
+                                            <template x-if="ficha.barcode">
+                                                <span x-text="' · Código ' + ficha.barcode"></span>
+                                            </template>
+                                        </p>
+                                    </div>
+                                    <button type="button" @click="ficha = null" class="pos-ficha-cerrar" aria-label="Cerrar la ficha">&times;</button>
+                                </div>
+
+                                <dl class="pos-datos">
+                                    <template x-if="ficha.part_number">
+                                        <div><dt>Nº de parte</dt><dd class="pos-mono" x-text="ficha.part_number"></dd></div>
                                     </template>
+                                    <template x-if="ficha.brand">
+                                        <div><dt>Marca</dt><dd x-text="ficha.brand"></dd></div>
+                                    </template>
+                                    <template x-if="ficha.vehicle">
+                                        <div><dt>Aplica a</dt><dd x-text="ficha.vehicle"></dd></div>
+                                    </template>
+                                    <template x-if="ficha.location">
+                                        <div><dt>Ubicación</dt><dd x-text="ficha.location"></dd></div>
+                                    </template>
+                                    <template x-if="unidadPropia(ficha)">
+                                        <div><dt>Unidad</dt><dd x-text="ficha.unit"></dd></div>
+                                    </template>
+                                    <div><dt>Existencia</dt><dd x-text="existencia(ficha)"></dd></div>
+                                </dl>
+
+                                {{-- Dónde está la existencia. Un total de «12» no sirve si ocho están
+                                     en la sucursal del otro lado: se le diría que sí a un cliente y
+                                     luego no habría qué entregarle. --}}
+                                <template x-if="ficha.stock_por_almacen && ficha.stock_por_almacen.length > 1">
+                                    <p class="pos-almacenes">
+                                        <template x-for="a in ficha.stock_por_almacen" :key="a.almacen">
+                                            <span class="pos-almacen"><span x-text="a.almacen"></span>: <b x-text="limpio(a.cantidad)"></b></span>
+                                        </template>
+                                    </p>
+                                </template>
+
+                                <template x-if="ficha.description">
+                                    <p class="pos-ficha-desc" x-text="ficha.description"></p>
+                                </template>
+
+                                <div class="pos-ficha-pie">
+                                    <label class="pos-campo">
+                                        <span>Cantidad</span>
+                                        <input type="number" min="0.001" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}"
+                                               x-model.number="fichaQty" @keydown.enter.prevent="agregarFicha()"
+                                               class="bmos-input">
+                                    </label>
+
+                                    {{-- El PRECIO NO SE PUEDE EDITAR, y no es un olvido: al cobrar, el
+                                         servidor lo vuelve a leer de la base e ignora lo que mande el
+                                         navegador. Una casilla editable aquí enseñaría 1.800 y cobraría
+                                         2.450 sin avisar a nadie. Para rebajar está el descuento. --}}
+                                    <label class="pos-campo">
+                                        <span>Precio</span>
+                                        <input type="text" :value="rd(ficha.price)" readonly tabindex="-1" class="bmos-input pos-solo-lectura">
+                                    </label>
+
+                                    @if ($opt['line_discount'])
+                                        <label class="pos-campo">
+                                            <span>Descuento</span>
+                                            <input type="number" min="0" step="0.01" x-model.number="fichaDesc"
+                                                   @keydown.enter.prevent="agregarFicha()" placeholder="0.00" class="bmos-input">
+                                        </label>
+                                    @endif
+
+                                    <button type="button" @click="agregarFicha()" :disabled="!ficha.sellable"
+                                            class="bmos-btn bmos-btn-primary pos-ficha-agregar">
+                                        <span x-text="ficha.sellable ? 'Agregar al ticket' : 'No se puede vender'"></span>
+                                    </button>
                                 </div>
-                                <p class="font-semibold text-slate-800 leading-tight" x-text="p.name"></p>
-                                <p class="text-xs text-slate-400 font-mono" x-text="p.sku"></p>
-                                <div class="mt-2 flex items-center justify-between">
-                                    <span class="text-lg font-bold text-indigo-600" x-text="rd(p.price)"></span>
-                                    <span class="bmos-badge" :class="Number(p.stock) < 5 ? 'badge-amber' : 'badge-blue'"
-                                          x-text="p.reason === 'no_stock' ? 'Agotado' : (Math.round(Number(p.stock)) + ' u.')"></span>
-                                </div>
-                            </button>
+                            </div>
                         </template>
                     </div>
+
                     <p x-show="query.trim().length < 2 && !searching" class="py-8 text-center text-sm text-slate-400">
                         Escribe al menos 2 letras para buscar, o pasa el lector por el código.
                     </p>
@@ -323,6 +463,26 @@
                     globalDiscount: '', tip: '', attendant: '',
                     query: '', results: [], searching: false,
 
+                    /*
+                     * Qué fila está marcada, qué artículo se está mirando y con qué cantidad.
+                     *
+                     * `marcado` es un ÍNDICE y no un id porque se mueve con las flechas: lo que hace
+                     * falta es «el siguiente», y con el id habría que buscarlo en la lista cada vez.
+                     */
+                    marcado: -1,
+                    ficha: null,
+                    fichaQty: 1,
+                    fichaDesc: '',
+
+                    /*
+                     * Qué columnas tienen algo que enseñar.
+                     *
+                     * Se calcula sobre los resultados que hay en pantalla, no sobre el catálogo: una
+                     * ferretería nunca verá «Aplica a» y un taller la verá siempre, sin que nadie
+                     * configure un modo. Una columna entera de guiones no es información.
+                     */
+                    col: { imagen: false, vehiculo: false, ubicacion: false },
+
                     // Formatea un importe como pesos dominicanos para mostrarlo en el ticket.
                     rd(n) {
                         return 'RD$ ' + (parseFloat(n) || 0).toLocaleString('es-DO', {
@@ -337,7 +497,7 @@
                      */
                     async searchProducts() {
                         const q = this.query.trim();
-                        if (q.length < 2) { this.results = []; this.searching = false; return; }
+                        if (q.length < 2) { this.results = []; this.trasBuscar(); this.searching = false; return; }
 
                         this.searching = true;
                         try {
@@ -354,6 +514,7 @@
                             // seguir escribiendo.
                             this.results = this.buscarEnLocal(q);
                         } finally {
+                            this.trasBuscar();
                             this.searching = false;
                         }
                     },
@@ -420,10 +581,153 @@
                         }
                     },
 
-                    add(id, name, price, image = null) {
+                    /**
+                     * Lo que hay que rehacer cada vez que cambian los resultados.
+                     *
+                     * La ficha se cierra a propósito: si se quedara abierta, seguiría enseñando el
+                     * artículo de la búsqueda ANTERIOR mientras la tabla ya muestra otros, y quien
+                     * atiende acabaría metiendo al ticket algo que ya no está mirando.
+                     */
+                    trasBuscar() {
+                        this.calcularColumnas();
+                        // Aquí SÍ se reinicia: la fila 2 de la búsqueda anterior no es la fila 2 de esta.
+                        this.marcado = -1;
+                        this.ficha = null;
+                    },
+
+                    /** Decide qué columnas se pintan mirando lo que traen los resultados. */
+                    calcularColumnas() {
+                        const alguno = (campo) => this.results.some((p) => {
+                            const v = p[campo];
+
+                            return v !== null && v !== undefined && String(v).trim() !== '';
+                        });
+
+                        /*
+                         * El número de parte y la marca NO tienen bandera propia: van dentro de la
+                         * celda del artículo, junto al SKU, y ahí cada fila decide sola si los pinta.
+                         * Como columnas aparte no cabían —siete columnas piden 731 px y el hueco del
+                         * mostrador son 631— y la ubicación se quedaba cortada bajo las fijas.
+                         */
+                        this.col = {
+                            imagen: alguno('image'),
+                            vehiculo: alguno('vehicle'),
+                            ubicacion: alguno('location'),
+                        };
+                    },
+
+                    /** Marca una fila y abre su ficha. */
+                    marcar(i) {
+                        if (i < 0 || i >= this.results.length) return;
+
+                        this.marcado = i;
+                        this.ficha = this.results[i];
+                        // La cantidad vuelve a uno con cada artículo: arrastrar el «12» del anterior
+                        // es como se venden doce llaves cuando el cliente pidió una.
+                        this.fichaQty = 1;
+                        this.fichaDesc = '';
+                    },
+
+                    /** Sube o baja por la lista con las flechas, sin salirse por los extremos. */
+                    mover(paso) {
+                        if (this.results.length === 0) return;
+
+                        const siguiente = this.marcado < 0
+                            ? 0
+                            : Math.min(this.results.length - 1, Math.max(0, this.marcado + paso));
+
+                        this.marcar(siguiente);
+                    },
+
+                    /**
+                     * Qué hace el Enter, según dónde se esté.
+                     *
+                     * Sin nada marcado abre el primero; con la ficha cerrada la reabre donde se quedó;
+                     * con la ficha abierta, agrega. Sin el caso del medio el Enter se quedaba muerto
+                     * justo después de agregar algo, que es cuando más se pulsa.
+                     */
+                    abrirMarcado() {
+                        if (this.results.length === 0) return;
+                        if (this.marcado < 0) { this.marcar(0); return; }
+                        if (this.ficha === null) { this.marcar(this.marcado); return; }
+
+                        this.agregarFicha();
+                    },
+
+                    /**
+                     * Manda al ticket lo que hay en la ficha, con SU cantidad.
+                     *
+                     * Es la diferencia con tocar una tarjeta: allí siempre se añadía de uno en uno y
+                     * había que pulsar «+» once veces para vender doce tornillos.
+                     */
+                    agregarFicha() {
+                        const p = this.ficha;
+                        if (!p || !p.sellable) return;
+
+                        const cantidad = this.round(parseFloat(this.fichaQty) || 0);
+                        if (cantidad <= 0) return;
+
+                        this.add(p.id, p.name, p.price, p.image, cantidad, parseFloat(this.fichaDesc) || 0);
+
+                        /*
+                         * La ficha se cierra, pero LA BÚSQUEDA SE QUEDA.
+                         *
+                         * Borrarla parecía lo lógico —y así estaba— hasta que se cobró una venta de
+                         * verdad: en una ferretería se busca «tubo pvc» una vez y se meten tres
+                         * medidas distintas de la misma lista. Vaciándola había que teclear lo mismo
+                         * tres veces.
+                         *
+                         * El foco vuelve al buscador con el texto seleccionado: si lo siguiente es
+                         * otro artículo de esta lista, se baja con las flechas; y si es otra cosa, se
+                         * teclea encima sin tener que borrar nada.
+                         */
+                        /*
+                         * LA POSICIÓN SE CONSERVA. Volviendo a -1, la flecha abajo saltaba otra vez al
+                         * primero: quien acababa de meter el primer artículo de la lista y bajaba para
+                         * coger el segundo, metía el primero por duplicado.
+                         */
+                        this.ficha = null;
+                        this.$nextTick(() => this.$refs.buscarInput?.select());
+                    },
+
+                    /**
+                     * La existencia con su unidad, cuando la unidad dice algo.
+                     *
+                     * En la base `unit` no admite nulos y viene con «unidad» de fábrica, así que
+                     * pintarla siempre llenaría la columna de «12 unidad» en todas las filas: ruido
+                     * que no distingue nada. Solo se enseña cuando el negocio la cambió a algo que sí
+                     * informa —lb, m, galón, caja—, que es donde confundirse cuesta dinero.
+                     */
+                    existencia(p) {
+                        return this.limpio(p.stock) + ' ' + (this.unidadPropia(p) ? p.unit : 'u.');
+                    },
+
+                    /** ¿La unidad es una decisión del negocio, o el valor de fábrica? */
+                    unidadPropia(p) {
+                        const u = String(p.unit ?? '').trim().toLowerCase();
+
+                        return u !== '' && u !== 'unidad' && u !== 'unidades';
+                    },
+
+                    /** Quita los decimales que no dicen nada: «12.000» se lee «12». */
+                    limpio(n) {
+                        const v = parseFloat(n) || 0;
+
+                        return String(Math.round(v * 1000) / 1000);
+                    },
+
+                    add(id, name, price, image = null, qty = 1, discount = 0) {
+                        const cantidad = this.round(parseFloat(qty) || 1);
                         const it = this.cart.find(i => i.id === id);
-                        if (it) it.qty = this.round(it.qty + 1);
-                        else this.cart.push({ id, name, price: parseFloat(price), image, qty: 1, discount: 0, note: '', serial: '', employeeId: '' });
+
+                        // Repetido, se SUMA en vez de reemplazar: quien escanea tres veces la misma
+                        // lata espera tres, y quien pide cuatro y luego dos más espera seis.
+                        if (it) {
+                            it.qty = this.round(it.qty + cantidad);
+                            if (discount > 0) it.discount = discount;
+                        } else {
+                            this.cart.push({ id, name, price: parseFloat(price), image, qty: cantidad, discount, note: '', serial: '', employeeId: '' });
+                        }
                     },
                     inc(i) { this.cart[i].qty = this.round((parseFloat(this.cart[i].qty) || 0) + 1); },
                     dec(i) {
@@ -513,9 +817,21 @@
                     buscarEnLocal(termino) {
                         const t = termino.toLowerCase();
 
+                        /*
+                         * Los MISMOS campos que busca el servidor, ni uno menos.
+                         *
+                         * Antes solo miraba nombre y SKU. Con el mostrador girando en torno al número
+                         * de parte, eso significaba que en un apagón la ferretería no encontraba nada
+                         * buscando «GMB-125» —aunque el dato estuviera guardado en el propio
+                         * navegador—, y quien atiende no tendría forma de entender por qué el mismo
+                         * término funcionaba hace un minuto.
+                         */
+                        const campos = ['name', 'sku', 'barcode', 'part_number', 'brand', 'vehicle'];
+
                         return this.catalogoLocal
-                            .filter((prod) => (prod.name ?? '').toLowerCase().includes(t)
-                                || (prod.sku ?? '').toLowerCase().includes(t))
+                            .filter((prod) => campos.some(
+                                (campo) => String(prod[campo] ?? '').toLowerCase().includes(t),
+                            ))
                             .slice(0, 24);
                     },
 

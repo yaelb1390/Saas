@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Repositories;
 
+use App\Modules\Core\Support\BusquedaTexto;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Repositories\Contracts\ProductRepositoryInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -18,7 +19,7 @@ final class EloquentProductRepository implements ProductRepositoryInterface
 
     public function findBySku(string $sku): ?Product
     {
-        return Product::where('sku', $sku)->first();
+        return Product::with('stock.warehouse')->where('sku', $sku)->first();
     }
 
     /**
@@ -27,7 +28,9 @@ final class EloquentProductRepository implements ProductRepositoryInterface
      */
     public function findByBarcode(string $barcode): ?Product
     {
-        return Product::where('barcode', $barcode)->first();
+        // Con su existencia y su almacén: es UN artículo, así que traerlos de una vez no cuesta nada
+        // y evita que quien lo pinta tenga que ir a buscarlos por su cuenta.
+        return Product::with('stock.warehouse')->where('barcode', $barcode)->first();
     }
 
     public function search(string $term, int $limit = 20): Collection
@@ -38,15 +41,28 @@ final class EloquentProductRepository implements ProductRepositoryInterface
             return new Collection;
         }
 
-        $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $term).'%';
+        $consulta = Product::query()->where('is_active', true);
 
-        return Product::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($like): void {
-                foreach (['name', 'sku', 'barcode', 'part_number', 'brand', 'vehicle_make', 'vehicle_model'] as $column) {
-                    $query->orWhere($column, 'like', $like);
-                }
-            })
+        /*
+         * SIN QUE IMPORTEN LAS MAYÚSCULAS, y no es un detalle.
+         *
+         * Antes era un `like` a secas. En MySQL eso da igual; en PostgreSQL —que es la base de este
+         * proyecto— distingue, así que quien escribía «bomba» en el mostrador no encontraba nada y
+         * «Bomba» encontraba tres. Nadie lo reporta: se asume que el artículo no está en el catálogo.
+         */
+        return BusquedaTexto::enCualquiera(
+            $consulta,
+            ['name', 'sku', 'barcode', 'part_number', 'brand', 'vehicle_make', 'vehicle_model'],
+            $term,
+        )
+            /*
+             * La existencia, y con ella su almacén, de una vez.
+             *
+             * Sin esto cada resultado pedía su propio stock por separado: veinticuatro consultas de
+             * más POR CADA TECLA que pulsa quien está buscando. `catalog()` ya lo cargaba; esto solo
+             * se había quedado atrás.
+             */
+            ->with('stock.warehouse')
             ->orderBy('name')
             ->limit($limit)
             ->get();

@@ -13,6 +13,7 @@ use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\Stock;
 use App\Modules\Inventory\Repositories\Contracts\ProductRepositoryInterface;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
+use App\Modules\POS\Support\PosProfile;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -261,11 +262,9 @@ it('la pantalla del mostrador trae la tabla, la ficha y las columnas que se adap
         // El número de parte y la marca van dentro de la celda del artículo, no en columna propia.
         ->toContain('x-if="p.part_number"')
         ->toContain('x-if="p.brand"')
-        // La ficha y su cantidad, que es lo que evita pulsar «+» once veces para vender doce.
-        ->toContain('agregarFicha()')
-        ->toContain('x-model.number="fichaQty"')
-        // Y el precio de solo lectura: el servidor lo relee de la base al cobrar.
-        ->toContain('pos-solo-lectura')
+        // La fila manda el artículo AL TICKET de un gesto, igual que el lector de esta misma
+        // pantalla y que el resto del sistema. No abre un formulario.
+        ->toContain('@click="elegir(i)"')
         /*
          * El teclado. En un mostrador no se suelta el teclado para ir a marcar una fila con el
          * ratón, así que las flechas y el Enter no son un adorno: son el modo de trabajar.
@@ -282,11 +281,17 @@ it('la pantalla del mostrador trae la tabla, la ficha y las columnas que se adap
         ->toContain('x-ref="buscarInput"');
 });
 
-it('el precio de la ficha es de SOLO LECTURA', function (): void {
+it('la ficha SOLO INFORMA: no pide cantidad, ni descuento, ni tiene botón de agregar', function (): void {
     /*
-     * No es cosmético. Al cobrar, el servidor vuelve a leer el precio de la base e ignora lo que
-     * mande el navegador. Un campo editable ahí enseñaría 1.800 y cobraría 2.450 sin avisar a nadie:
-     * la peor clase de interfaz, la que miente en silencio.
+     * Es el arreglo de fondo de todo esto.
+     *
+     * La ficha llegó a tener su propia cantidad y su propio descuento, y el ticket ya tenía los dos.
+     * Dos sitios para el mismo dato, que es justo lo que este proyecto evita a propósito en otras
+     * partes —`ProductLookupPresenter` existe, y su comentario lo dice, para que «no haya dos
+     * verdades»—. Y no era teórico: agregar dos veces el mismo artículo pisaba el descuento que se
+     * hubiera escrito en el ticket.
+     *
+     * Se comprueba por AUSENCIA porque es lo único que impide que vuelvan a colarse.
      */
     $dueno = withRole(User::create([
         'company_id' => $this->company->id, 'name' => 'Dueño2',
@@ -297,5 +302,36 @@ it('el precio de la ficha es de SOLO LECTURA', function (): void {
 
     $html = $this->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
 
-    expect($html)->toMatch('/:value="rd\(ficha\.price\)"[^>]*readonly/');
+    expect($html)->not->toContain('fichaQty')
+        ->and($html)->not->toContain('fichaDesc')
+        ->and($html)->not->toContain('agregarFicha')
+        // El precio de la ficha se enseña como cifra, no como campo: un campo que no se puede
+        // escribir invita a intentarlo, y al cobrar el servidor lo relee de la base igualmente.
+        ->and($html)->not->toContain('pos-solo-lectura')
+        ->and($html)->toContain('pos-ficha-precio');
+});
+
+it('la cantidad del ticket se escribe SIN activar la venta por peso', function (): void {
+    /*
+     * Vender doce tornillos costaba once pulsaciones de «+»: el campo de cantidad solo aparecía con
+     * la opción «Cantidad decimal» encendida, que es para quien vende por peso o medida. Un colmado
+     * que despacha doce unidades no tiene por qué activar los decimales para poder teclear un doce.
+     *
+     * El perfil de esta empresa NO tiene decimales, y aun así el campo tiene que estar.
+     */
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño3',
+        'email' => 'dueno3@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    conCajaAbierta($this->company->id, $dueno);
+
+    $html = $this->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+
+    // El perfil de esta empresa no tiene los decimales encendidos: el campo debe estar igualmente.
+    expect(PosProfile::for($this->company->fresh())['options']['decimal_qty'])->toBeFalse();
+
+    // El campo existe, y su paso es de uno: quien vende unidades no debe poder teclear 2,5 tornillos.
+    expect($html)->toContain('aria-label="Cantidad"')
+        ->and($html)->toMatch('/step="1"[^>]*\n?[^>]*x-model\.number="item\.qty"|x-model\.number="item\.qty"/');
 });

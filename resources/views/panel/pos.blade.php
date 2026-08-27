@@ -138,8 +138,14 @@
                             </thead>
                             <tbody>
                                 <template x-for="(p, i) in results" :key="p.id">
+                                    {{-- Un clic MANDA EL ARTÍCULO AL TICKET, no abre un formulario.
+                                         Es como se añade en todo el sistema: tocando el producto en
+                                         Venta rápida, con un clic en el Mostrador de repuestos y
+                                         leyendo el código con el lector de esta misma pantalla. Tener
+                                         dos maneras según de dónde venga el artículo obligaba a quien
+                                         atiende a saber cuál estaba usando. --}}
                                     <tr class="pos-fila" :class="{ 'pos-fila--marcada': i === marcado, 'pos-fila--muerta': !p.sellable }"
-                                        @click="marcar(i)" @dblclick="p.sellable && agregarFicha()">
+                                        @click="elegir(i)">
                                         <td x-show="col.imagen" class="pos-col-img" data-rotulo="">
                                             <template x-if="p.image">
                                                 <img :src="p.image" :alt="p.name" loading="lazy" class="pos-mini">
@@ -173,6 +179,11 @@
                     {{--
                         LA FICHA del artículo marcado: todo lo que tenga relleno, y nada de lo que no.
 
+                        SOLO INFORMA. No pide cantidad ni descuento ni tiene botón de agregar: eso ya
+                        vive en el ticket, y tenerlo en los dos sitios eran dos verdades para el mismo
+                        dato. Su trabajo es que quien atiende sepa que esa es la pieza correcta antes
+                        de meterla, que es lo que no se podía hacer con una foto y un nombre.
+
                         Un artículo de colmado no enseña «Aplica a:» en blanco. Un rótulo sin valor no
                         es información, es un hueco que hace dudar de si el dato falta o el sistema
                         falla.
@@ -193,6 +204,7 @@
                                             </template>
                                         </p>
                                     </div>
+                                    <span class="pos-ficha-precio" x-text="rd(ficha.price)"></span>
                                     <button type="button" @click="ficha = null" class="pos-ficha-cerrar" aria-label="Cerrar la ficha">&times;</button>
                                 </div>
 
@@ -230,36 +242,6 @@
                                     <p class="pos-ficha-desc" x-text="ficha.description"></p>
                                 </template>
 
-                                <div class="pos-ficha-pie">
-                                    <label class="pos-campo">
-                                        <span>Cantidad</span>
-                                        <input type="number" min="0.001" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}"
-                                               x-model.number="fichaQty" @keydown.enter.prevent="agregarFicha()"
-                                               class="bmos-input">
-                                    </label>
-
-                                    {{-- El PRECIO NO SE PUEDE EDITAR, y no es un olvido: al cobrar, el
-                                         servidor lo vuelve a leer de la base e ignora lo que mande el
-                                         navegador. Una casilla editable aquí enseñaría 1.800 y cobraría
-                                         2.450 sin avisar a nadie. Para rebajar está el descuento. --}}
-                                    <label class="pos-campo">
-                                        <span>Precio</span>
-                                        <input type="text" :value="rd(ficha.price)" readonly tabindex="-1" class="bmos-input pos-solo-lectura">
-                                    </label>
-
-                                    @if ($opt['line_discount'])
-                                        <label class="pos-campo">
-                                            <span>Descuento</span>
-                                            <input type="number" min="0" step="0.01" x-model.number="fichaDesc"
-                                                   @keydown.enter.prevent="agregarFicha()" placeholder="0.00" class="bmos-input">
-                                        </label>
-                                    @endif
-
-                                    <button type="button" @click="agregarFicha()" :disabled="!ficha.sellable"
-                                            class="bmos-btn bmos-btn-primary pos-ficha-agregar">
-                                        <span x-text="ficha.sellable ? 'Agregar al ticket' : 'No se puede vender'"></span>
-                                    </button>
-                                </div>
                             </div>
                         </template>
                     </div>
@@ -304,13 +286,16 @@
                                             <p class="truncate text-sm font-medium text-slate-700" x-text="item.name"></p>
                                             <p class="text-xs text-slate-400"><span x-text="rd(item.price)"></span> c/u</p>
                                         </div>
+                                        {{-- La cantidad SE ESCRIBE SIEMPRE, no solo con los decimales
+                                             encendidos. Vender doce tornillos no debería costar once
+                                             pulsaciones de «+», y un colmado no tiene por qué activar
+                                             la venta por peso para poder teclear un doce. Lo que decide
+                                             esa opción es solo el paso. --}}
                                         <div class="flex items-center gap-1">
                                             <button type="button" @click="dec(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">−</button>
-                                            @if ($opt['decimal_qty'])
-                                                <input type="number" step="0.001" min="0" x-model.number="item.qty" class="w-14 rounded border-slate-200 px-1 py-0.5 text-center text-sm">
-                                            @else
-                                                <span class="w-6 text-center text-sm font-semibold" x-text="item.qty"></span>
-                                            @endif
+                                            <input type="number" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}" min="0"
+                                                   x-model.number="item.qty" aria-label="Cantidad"
+                                                   class="w-14 rounded border-slate-200 px-1 py-0.5 text-center text-sm">
                                             <button type="button" @click="inc(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">+</button>
                                         </div>
                                         <span class="w-16 text-right text-sm font-semibold" x-text="rd(lineNet(item))"></span>
@@ -471,8 +456,6 @@
                      */
                     marcado: -1,
                     ficha: null,
-                    fichaQty: 1,
-                    fichaDesc: '',
 
                     /*
                      * Qué columnas tienen algo que enseñar.
@@ -616,16 +599,29 @@
                         };
                     },
 
-                    /** Marca una fila y abre su ficha. */
+                    /** Marca una fila y enseña su ficha. No añade nada: solo informa. */
                     marcar(i) {
                         if (i < 0 || i >= this.results.length) return;
 
                         this.marcado = i;
                         this.ficha = this.results[i];
-                        // La cantidad vuelve a uno con cada artículo: arrastrar el «12» del anterior
-                        // es como se venden doce llaves cuando el cliente pidió una.
-                        this.fichaQty = 1;
-                        this.fichaDesc = '';
+                    },
+
+                    /**
+                     * Elegir una fila: al ticket, y su ficha queda a la vista.
+                     *
+                     * Las dos cosas juntas a propósito. Añadir es lo que se quiere el noventa por
+                     * ciento de las veces, y la ficha abierta sirve para comprobar, DESPUÉS y sin
+                     * haber perdido tiempo, que la pieza que entró es la correcta.
+                     */
+                    elegir(i) {
+                        this.marcar(i);
+
+                        const p = this.results[i];
+
+                        if (p && p.sellable) {
+                            this.add(p.id, p.name, p.price, p.image);
+                        }
                     },
 
                     /** Sube o baja por la lista con las flechas, sin salirse por los extremos. */
@@ -640,54 +636,15 @@
                     },
 
                     /**
-                     * Qué hace el Enter, según dónde se esté.
+                     * Enter: manda al ticket la fila marcada, o la primera si no hay ninguna.
                      *
-                     * Sin nada marcado abre el primero; con la ficha cerrada la reabre donde se quedó;
-                     * con la ficha abierta, agrega. Sin el caso del medio el Enter se quedaba muerto
-                     * justo después de agregar algo, que es cuando más se pulsa.
+                     * Un solo gesto, igual que el clic y que el lector. Antes hacía tres cosas
+                     * distintas según el estado y había que acordarse de cuál tocaba.
                      */
                     abrirMarcado() {
                         if (this.results.length === 0) return;
-                        if (this.marcado < 0) { this.marcar(0); return; }
-                        if (this.ficha === null) { this.marcar(this.marcado); return; }
 
-                        this.agregarFicha();
-                    },
-
-                    /**
-                     * Manda al ticket lo que hay en la ficha, con SU cantidad.
-                     *
-                     * Es la diferencia con tocar una tarjeta: allí siempre se añadía de uno en uno y
-                     * había que pulsar «+» once veces para vender doce tornillos.
-                     */
-                    agregarFicha() {
-                        const p = this.ficha;
-                        if (!p || !p.sellable) return;
-
-                        const cantidad = this.round(parseFloat(this.fichaQty) || 0);
-                        if (cantidad <= 0) return;
-
-                        this.add(p.id, p.name, p.price, p.image, cantidad, parseFloat(this.fichaDesc) || 0);
-
-                        /*
-                         * La ficha se cierra, pero LA BÚSQUEDA SE QUEDA.
-                         *
-                         * Borrarla parecía lo lógico —y así estaba— hasta que se cobró una venta de
-                         * verdad: en una ferretería se busca «tubo pvc» una vez y se meten tres
-                         * medidas distintas de la misma lista. Vaciándola había que teclear lo mismo
-                         * tres veces.
-                         *
-                         * El foco vuelve al buscador con el texto seleccionado: si lo siguiente es
-                         * otro artículo de esta lista, se baja con las flechas; y si es otra cosa, se
-                         * teclea encima sin tener que borrar nada.
-                         */
-                        /*
-                         * LA POSICIÓN SE CONSERVA. Volviendo a -1, la flecha abajo saltaba otra vez al
-                         * primero: quien acababa de meter el primer artículo de la lista y bajaba para
-                         * coger el segundo, metía el primero por duplicado.
-                         */
-                        this.ficha = null;
-                        this.$nextTick(() => this.$refs.buscarInput?.select());
+                        this.elegir(this.marcado < 0 ? 0 : this.marcado);
                     },
 
                     /**
@@ -716,17 +673,23 @@
                         return String(Math.round(v * 1000) / 1000);
                     },
 
-                    add(id, name, price, image = null, qty = 1, discount = 0) {
-                        const cantidad = this.round(parseFloat(qty) || 1);
+                    /*
+                     * Sin parámetros de cantidad ni de descuento, y eso es el arreglo.
+                     *
+                     * Los tuvo un rato, para que la ficha pudiera mandar «doce con quinientos de
+                     * descuento». El precio de eso era tener el descuento en dos sitios, y encima
+                     * agregar dos veces el mismo artículo pisaba lo que se hubiera escrito en el
+                     * ticket. Cantidad y descuento viven en la línea del ticket, y en ningún otro
+                     * sitio.
+                     */
+                    add(id, name, price, image = null) {
                         const it = this.cart.find(i => i.id === id);
 
-                        // Repetido, se SUMA en vez de reemplazar: quien escanea tres veces la misma
-                        // lata espera tres, y quien pide cuatro y luego dos más espera seis.
+                        // Repetido, se SUMA: quien escanea tres veces la misma lata espera tres.
                         if (it) {
-                            it.qty = this.round(it.qty + cantidad);
-                            if (discount > 0) it.discount = discount;
+                            it.qty = this.round(it.qty + 1);
                         } else {
-                            this.cart.push({ id, name, price: parseFloat(price), image, qty: cantidad, discount, note: '', serial: '', employeeId: '' });
+                            this.cart.push({ id, name, price: parseFloat(price), image, qty: 1, discount: 0, note: '', serial: '', employeeId: '' });
                         }
                     },
                     inc(i) { this.cart[i].qty = this.round((parseFloat(this.cart[i].qty) || 0) + 1); },

@@ -1185,7 +1185,6 @@ body {
 }
 
 .pos-ficha-cerrar {
-    margin-left: auto;
     font-size: 1.4rem;
     line-height: 1;
     color: #94a3b8;
@@ -1240,45 +1239,25 @@ body {
     line-height: 1.5;
 }
 
-.pos-ficha-pie {
-    margin-top: 0.9rem;
-    padding-top: 0.8rem;
-    border-top: 1px solid #f0f2f7;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.6rem;
-}
-
-.pos-campo {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    width: 7rem;
-}
-
-.pos-campo > span {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #94a3b8;
-}
-
 /*
- * El precio se ve, y NO se toca.
+ * El precio en la cabecera de la ficha.
  *
- * Al cobrar, el servidor lo vuelve a leer de la base e ignora lo que mande el navegador. Un campo
- * editable aquí enseñaría 1.800 y cobraría 2.450 sin avisar a nadie: se pinta como lo que es, un
- * dato, para que ni se intente.
+ * Aquí y no en un campo: estuvo un tiempo como un input de solo lectura dentro de un formulario, y
+ * un campo que no se puede escribir invita a intentarlo. Como cifra suelta se lee igual de bien y
+ * nadie espera poder cambiarla —que es lo correcto, porque al cobrar el servidor la relee de la
+ * base e ignora lo que mande el navegador—.
  */
-.pos-solo-lectura {
-    background: #f8fafc;
-    color: #64748b;
-    cursor: default;
+.pos-ficha-precio {
+    margin-left: auto;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #4f46e5;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
-.pos-ficha-agregar {
-    margin-left: auto;
+.pos-ficha-cerrar {
+    margin-left: 0.6rem;
 }
 
 /* ---------------------------------------------------------------- En el teléfono */
@@ -1389,13 +1368,11 @@ body {
         margin-bottom: 0.3rem;
     }
 
-    .pos-campo {
-        width: calc(50% - 0.3rem);
-    }
-
-    .pos-ficha-agregar {
-        width: 100%;
+    /* El precio baja a su propia línea: en 390 px no cabe al lado de un nombre largo. */
+    .pos-ficha-precio {
         margin-left: 0;
+        width: 100%;
+        order: 3;
     }
 }
 

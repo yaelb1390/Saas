@@ -12,6 +12,7 @@ use App\Modules\Cash\Models\CashRegister;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Cash\Services\CashService;
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
@@ -37,22 +38,96 @@ use Throwable;
  */
 final class PosController extends Controller
 {
-    public function openSession(Request $request, CashService $cash): RedirectResponse
+    public function openSession(Request $request, CashService $cash, CurrentCompany $current): RedirectResponse
     {
         $data = $request->validate([
             'opening_amount' => ['required', 'numeric', 'min:0'],
+
+            /*
+             * El almacén del que va a salir la mercancía de este turno.
+             *
+             * La regla acota a la empresa activa A MANO: `exists` consulta la tabla directamente, sin
+             * pasar por el CompanyScope, así que sin esto aceptaría el id de un almacén ajeno y una
+             * empresa acabaría descontando existencia de otra.
+             */
+            'warehouse_id' => [
+                'nullable', 'integer',
+                Rule::exists('warehouses', 'id')
+                    ->where('company_id', $current->id())
+                    ->where('is_active', true),
+            ],
         ]);
 
         $register = CashRegister::query()->where('is_active', true)->orderBy('id')->first()
             ?? CashRegister::create(['name' => 'Caja Principal', 'code' => 'CAJA-01', 'is_active' => true]);
 
         try {
-            $cash->open($register, (string) $data['opening_amount'], auth()->id());
+            $session = $cash->open($register, (string) $data['opening_amount'], auth()->id());
         } catch (CashSessionException $e) {
             return back()->with('pos_error', $e->getMessage());
         }
 
+        $this->fijarAlmacen($session, isset($data['warehouse_id']) ? (int) $data['warehouse_id'] : null, $register);
+
         return back()->with('pos_ok', 'Caja abierta correctamente.');
+    }
+
+    /**
+     * Cambia el almacén del turno sin cerrar la caja.
+     *
+     * Hace falta porque el almacén se elige al abrir y una jornada dura ocho horas: quien se equivoca
+     * a las nueve de la mañana no debería tener que cerrar el turno —y cuadrar el efectivo— para
+     * corregirlo. Lo ya cobrado no se toca: esas ventas salieron del almacén que estaba puesto
+     * entonces, y reescribirlas sería falsear el histórico.
+     */
+    public function changeWarehouse(Request $request, CurrentCompany $current): RedirectResponse
+    {
+        $data = $request->validate([
+            'warehouse_id' => [
+                'required', 'integer',
+                Rule::exists('warehouses', 'id')
+                    ->where('company_id', $current->id())
+                    ->where('is_active', true),
+            ],
+        ]);
+
+        if (! DbTable::tieneColumna('cash_sessions', 'warehouse_id')) {
+            return back()->with('pos_error', 'Elegir almacén todavía no está disponible en este servidor.');
+        }
+
+        $session = CashSession::query()->where('status', CashSessionStatus::Open)->latest('opened_at')->first();
+
+        if ($session === null) {
+            return back()->with('pos_error', 'No hay una caja abierta.');
+        }
+
+        $session->forceFill(['warehouse_id' => (int) $data['warehouse_id']])->save();
+
+        return back()->with('pos_ok', 'A partir de ahora se descuenta del almacén elegido.');
+    }
+
+    /**
+     * Deja apuntado en la sesión de dónde sale la mercancía.
+     *
+     * Si no se eligió ninguno se propone el de la sucursal de esa caja, y si la caja no tiene
+     * sucursal —hoy ninguna la tiene— el de por omisión. Así el turno queda con un almacén explícito
+     * aunque el cajero no toque nada, que es lo que permite dejar de adivinarlo al cobrar.
+     */
+    private function fijarAlmacen(CashSession $session, ?int $elegido, CashRegister $register): void
+    {
+        // La migración se aplica a mano y el despliegue no la corre: entre que sale el código y
+        // alguien migra, esta columna no existe y escribirla tumbaría la apertura de caja.
+        if (! DbTable::tieneColumna('cash_sessions', 'warehouse_id')) {
+            return;
+        }
+
+        $almacen = $elegido
+            ?? Warehouse::query()->where('branch_id', $register->branch_id)->where('is_active', true)->value('id')
+            ?? Warehouse::query()->where('is_default', true)->orderBy('id')->value('id');
+
+        if ($almacen !== null) {
+            $session->forceFill(['warehouse_id' => (int) $almacen])->save();
+        }
     }
 
     /**
@@ -190,7 +265,15 @@ final class PosController extends Controller
             return $this->fallo($request, 'No hay una caja abierta.');
         }
 
-        $warehouse = Warehouse::query()->where('is_default', true)->orderBy('id')->first();
+        /*
+         * DE DÓNDE SALE LA MERCANCÍA: del almacén de este turno, no del de por omisión.
+         *
+         * Antes estaba escrito a fuego, y con dos almacenes eso significaba que lo recibido en el
+         * segundo no se podía vender: el cobro lo buscaba en el principal, no lo encontraba y la
+         * venta se caía por existencia insuficiente. La pantalla de entradas sí pregunta a qué
+         * almacén entra, así que el sistema dejaba meter algo donde luego no se podía sacar.
+         */
+        $warehouse = $session->almacenDeSalida();
         if ($warehouse === null) {
             return $this->fallo($request, 'No hay un almacén configurado.');
         }

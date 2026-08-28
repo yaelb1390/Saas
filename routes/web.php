@@ -326,6 +326,10 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/catalogo', 'catalogo')->middleware('can:pos.operate')->name('catalogo');
         Route::post('/abrir-caja', 'openSession')->middleware('can:cash.open')->name('open');
         Route::post('/cobrar', 'checkout')->middleware('can:pos.operate')->name('checkout');
+
+        // Cambiar el almacén del turno sin cerrar la caja: una jornada dura ocho horas y quien se
+        // equivoca a las nueve no debería tener que cuadrar el efectivo para corregirlo.
+        Route::post('/almacen', 'changeWarehouse')->middleware('can:pos.operate')->name('warehouse');
         Route::post('/cerrar-caja', 'closeSession')->middleware('can:cash.close')->name('close');
     });
 

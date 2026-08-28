@@ -1,5 +1,23 @@
 <x-layouts.admin title="Punto de Venta" heading="Punto de Venta" subheading="Arma el ticket, cobra y descuenta stock en tiempo real">
-    @php $opt = $posConfig['options']; @endphp
+    @php
+        $opt = $posConfig['options'];
+        // Se resuelve UNA vez y con la misma regla que usa el cobro, para que lo que se ve en
+        // pantalla y lo que se descuenta no puedan discrepar nunca.
+        $almacenDelTurno = $openSession?->almacenDeSalida();
+
+        /*
+         * Las columnas de la rejilla: seis fijas más las que el negocio haya activado.
+         *
+         * Se cuenta aquí y no a ojo en cada `colspan`: son tres sitios que tienen que cuadrar —la
+         * fila en blanco, el aviso de ticket vacío y la cabecera— y desfasarlos rompe la tabla de una
+         * forma que solo se ve mirándola.
+         */
+        $columnasRejilla = 6
+            + (int) $opt['line_discount']
+            + (int) $opt['line_note']
+            + (int) $opt['serial']
+            + (int) $opt['attendant'];
+    @endphp
 
     <div class="mb-4 flex items-center justify-end gap-2 text-sm">
         <span class="text-slate-400">Modo:</span>
@@ -31,12 +49,26 @@
             <span class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 text-2xl">🔒</span>
             <p class="text-lg font-semibold text-slate-800">Caja cerrada</p>
             <p class="mb-4 text-sm text-slate-500">Abre una caja con su fondo inicial para empezar a vender.</p>
-            <form method="POST" action="{{ route('panel.pos.open') }}" class="flex items-end gap-3">
+            <form method="POST" action="{{ route('panel.pos.open') }}" class="flex flex-wrap items-end gap-3">
                 @csrf
                 <div class="flex-1 text-left">
                     <label class="bmos-field-label">Fondo de apertura</label>
                     <input type="number" name="opening_amount" step="0.01" min="0" value="1000" required class="bmos-input">
                 </div>
+
+                {{-- De qué almacén sale la mercancía del turno. Con UN solo almacén no se pregunta:
+                     no hay nada que decidir y un desplegable de un elemento solo estorba. --}}
+                @if (count($warehouses) > 1)
+                    <div class="flex-1 text-left">
+                        <label class="bmos-field-label">Almacén</label>
+                        <select name="warehouse_id" class="bmos-input">
+                            @foreach ($warehouses as $w)
+                                <option value="{{ $w->id }}">{{ $w->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+
                 <button type="submit" class="bmos-btn bmos-btn-primary">Abrir caja</button>
             </form>
         </div>
@@ -46,10 +78,47 @@
              @codigo-escaneado="barcode = $event.detail.codigo; scan()">
             {{-- Barra de sesión --}}
             <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <div class="flex items-center gap-2 text-sm">
+                {{-- flex-wrap: con el almacén dentro, la barra ya no cabe en un teléfono y sin
+                     salto de línea empujaba la página entera a lo ancho —medido: 456 px de contenido
+                     en una pantalla de 390—. Una página que se arrastra en horizontal deja el botón
+                     de cobrar fuera de la vista. --}}
+                <div class="flex flex-wrap items-center gap-2 text-sm">
                     <span class="bmos-badge badge-green">Caja abierta</span>
                     <span class="text-slate-500">Fondo: <b>{{ money($openSession->opening_amount) }}</b></span>
                     <span class="text-slate-400">· desde {{ $openSession->opened_at?->format('d/m H:i') }}</span>
+
+                    {{-- El almacén SIEMPRE se ve, aunque haya uno solo: quien cobra tiene que poder
+                         saber de dónde está saliendo la mercancía sin ir a buscarlo a otra pantalla.
+                         Con varios, además se puede cambiar sin cerrar el turno. --}}
+                    @if ($almacenDelTurno)
+                        <span class="pos-almacen-barra">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg>
+                            <b>{{ $almacenDelTurno->name }}</b>
+                        </span>
+
+                        @if (count($warehouses) > 1)
+                            <form method="POST" action="{{ route('panel.pos.warehouse') }}" class="inline-flex">
+                                @csrf
+                                {{--
+                                    autocomplete="off", y no es rutina.
+
+                                    El navegador restaura el valor de los desplegables al recargar, y
+                                    si restaura uno distinto del que pintó el servidor dispara
+                                    `change` — que aquí envía el formulario—. Resultado: el almacén del
+                                    turno cambiaría solo, sin que nadie lo tocara, y las ventas
+                                    siguientes saldrían de otro sitio sin aviso. Se vio una vez un
+                                    cambio de almacén que nadie hizo y esta es la explicación que
+                                    encaja.
+                                --}}
+                                <select name="warehouse_id" onchange="this.form.submit()" autocomplete="off"
+                                        class="pos-almacen-cambiar" aria-label="Cambiar el almacén del turno">
+                                    @foreach ($warehouses as $w)
+                                        <option value="{{ $w->id }}" @selected($w->id === $almacenDelTurno->id)>{{ $w->name }}</option>
+                                    @endforeach
+                                </select>
+                            </form>
+                        @endif
+                    @endif
                 </div>
                 <div x-data="{ open: false }" class="relative">
                     <button @click="open = !open" class="bmos-btn bmos-btn-ghost text-sm">Cerrar caja</button>
@@ -63,45 +132,178 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            {{-- Tres cuartos para el documento y uno para los totales, no dos tercios.
+                 Medido: con siete columnas la rejilla pide 662 px y en dos tercios el hueco eran 586,
+                 así que el PRECIO UNITARIO se quedaba escondido detrás de las columnas clavadas. La
+                 columna de totales no necesitaba ese ancho: son cuatro cifras y un botón. --}}
+            <div class="grid grid-cols-1 gap-5 lg:grid-cols-4">
                 {{-- Catálogo --}}
-                <div class="lg:col-span-2">
-                    {{-- Lector de código de barras.
+                <div class="lg:col-span-3">
+                    {{--
+                        LA REJILLA: el ticket es el documento, como en un sistema de escritorio.
 
-                         El lector de pistola es un teclado: escribe el código en el campo enfocado
-                         y pulsa Enter. Por eso no hace falta driver ni librería, solo un campo con
-                         el foco. Tecleado a mano funciona idéntico.
+                        VA FUERA DEL FORMULARIO DE COBRO, y eso no es casualidad de la maquetación.
+                        Dentro, el Enter del lector enviaría el formulario y cobraría una venta a
+                        medio armar. El formulario solo necesita el carrito serializado en su campo
+                        oculto, así que la rejilla puede vivir aquí y quedarse estructuralmente a
+                        salvo en vez de depender de que un `.prevent` no falle nunca.
+                    --}}
+                    <div class="bmos-card bmos-card-pad">
+                        <div class="pos-doc-cab">
+                            <span class="pos-doc-titulo">Ticket</span>
+                            <span class="pos-doc-cuenta" x-show="cart.length > 0" x-cloak
+                                  x-text="cart.length + (cart.length === 1 ? ' línea' : ' líneas')"></span>
+                        </div>
 
-                         Va FUERA del formulario de cobro a propósito: dentro, el Enter del lector
-                         enviaría el formulario y cobraría la venta a medio armar. --}}
-                    <div class="bmos-card bmos-card-pad mb-4">
-                        <label class="bmos-field-label" for="pos-scan">Escanear o teclear código</label>
-                        <input id="pos-scan" type="text" x-ref="scanInput" x-model="barcode"
-                               @keydown.enter.prevent="scan()"
-                               autofocus autocomplete="off"
-                               placeholder="Pasa el lector por el código y pulsa Enter"
-                               class="bmos-input font-mono">
+                        <div class="bmos-tabla-envoltura">
+                            <table class="bmos-table pos-rejilla">
+                                <thead>
+                                    <tr>
+                                        <th class="pos-rej-cant">Cant.</th>
+                                        <th class="pos-rej-clave">Clave</th>
+                                        <th>Descripción</th>
+                                        @if ($opt['line_discount'])
+                                            <th class="pos-num pos-rej-desc">Desc.</th>
+                                        @endif
+                                        @if ($opt['serial'])
+                                            <th class="pos-rej-texto">Nº serie</th>
+                                        @endif
+                                        @if ($opt['attendant'])
+                                            <th class="pos-rej-texto">Empleado</th>
+                                        @endif
+                                        @if ($opt['line_note'])
+                                            <th class="pos-rej-texto">Nota</th>
+                                        @endif
+                                        <th class="pos-num pos-rej-precio">Precio</th>
+                                        <th class="pos-num pos-rej-importe">Importe</th>
+                                        <th class="pos-rej-quitar"><span class="sr-only">Quitar</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="(item, i) in cart" :key="item.id">
+                                        <tr>
+                                            <td data-rotulo="Cant." class="pos-rej-cant">
+                                                {{-- La cantidad se escribe SIEMPRE. Lo que decide la opción de venta
+                                                     por peso es el paso, no si el campo existe: vender doce tornillos
+                                                     no puede costar once pulsaciones de «+». --}}
+                                                <input type="number" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}" min="0"
+                                                       x-model.number="item.qty" aria-label="Cantidad"
+                                                       class="pos-celda pos-num">
+                                            </td>
+                                            <td data-rotulo="Clave" class="pos-mono pos-rej-clave" x-text="item.sku || '—'"></td>
+                                            <td data-rotulo="Descripción" class="pos-recorta" :title="item.name">
+                                                <span class="pos-valor" x-text="item.name"></span>
+                                            </td>
+                                            @if ($opt['line_discount'])
+                                                <td data-rotulo="Desc." class="pos-rej-desc">
+                                                    <input type="number" step="0.01" min="0" x-model.number="item.discount"
+                                                           aria-label="Descuento" placeholder="0" class="pos-celda pos-num">
+                                                </td>
+                                            @endif
+                                            {{-- Serie, empleado y nota por línea. Estaban en el ticket de antes y se
+                                                 conservan: un negocio que vende equipos apunta el IMEI en cada venta, y
+                                                 perderlo al cambiar la pantalla lo dejaría sin poder identificar lo que
+                                                 vendió cuando alguien vuelva con una garantía. --}}
+                                            @if ($opt['serial'])
+                                                <td data-rotulo="Nº serie" class="pos-rej-texto">
+                                                    <input type="text" x-model="item.serial" aria-label="Nº de serie"
+                                                           placeholder="—" class="pos-celda">
+                                                </td>
+                                            @endif
+                                            @if ($opt['attendant'])
+                                                <td data-rotulo="Empleado" class="pos-rej-texto">
+                                                    <select x-model="item.employeeId" aria-label="Empleado de la línea" class="pos-celda">
+                                                        <option value="">—</option>
+                                                        @foreach ($employees as $emp)
+                                                            <option value="{{ $emp->id }}">{{ $emp->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </td>
+                                            @endif
+                                            @if ($opt['line_note'])
+                                                <td data-rotulo="Nota" class="pos-rej-texto">
+                                                    <input type="text" x-model="item.note" aria-label="Nota de la línea"
+                                                           placeholder="—" class="pos-celda">
+                                                </td>
+                                            @endif
+
+                                            {{-- El precio NO se escribe: al cobrar, el servidor lo relee de la base e
+                                                 ignora lo que mande el navegador. Un campo aquí mentiría en silencio. --}}
+                                            <td data-rotulo="Precio" class="pos-num pos-rej-precio" x-text="rd(item.price)"></td>
+                                            <td data-rotulo="Importe" class="pos-num pos-rej-total" x-text="rd(lineNet(item))"></td>
+                                            <td class="pos-rej-quitar">
+                                                <button type="button" @click="cart.splice(i, 1)" class="pos-quitar" aria-label="Quitar la línea">&times;</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+
+                                    {{--
+                                        LA FILA EN BLANCO, que es la captura matricial y también el destino del lector.
+
+                                        Sustituye a la caja de escaneo que había arriba en vez de sumarse a ella: el
+                                        lector de pistola es un teclado, escribe en el campo enfocado y pulsa Enter, así
+                                        que le da igual dónde esté el campo. Tener los dos habría sido, otra vez, dos
+                                        maneras de hacer lo mismo.
+                                    --}}
+                                    <tr class="pos-rej-nueva">
+                                        <td data-rotulo="Cant." class="pos-rej-cant">
+                                            <input type="number" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}" min="0"
+                                                   x-model.number="nuevaCant" @keydown.enter.prevent="$refs.scanInput.focus()"
+                                                   aria-label="Cantidad de la línea nueva" placeholder="1" class="pos-celda pos-num">
+                                        </td>
+                                        <td colspan="{{ $columnasRejilla - 1 }}">
+                                            {{--
+                                                UN SOLO CAMPO para las tres formas de meter un artículo.
+
+                                                Antes había una caja de búsqueda arriba y esta celda
+                                                aquí: la de arriba buscaba por nombre y esta exigía el
+                                                código exacto, así que teclear «bom» aquí no encontraba
+                                                nada y había que saber cuál de los dos campos usar.
+
+                                                Ahora el lector, la clave exacta y la búsqueda por
+                                                letras entran por el mismo sitio: se teclea, aparecen
+                                                debajo las coincidencias, y las flechas y el Enter
+                                                hacen el resto sin soltar el teclado.
+                                            --}}
+                                            <input id="pos-scan" type="text" x-ref="scanInput" x-model="barcode"
+                                                   @input.debounce.250ms="searchProducts()"
+                                                   @keydown.enter.prevent="scan()"
+                                                   @keydown.arrow-down.prevent="mover(1)"
+                                                   @keydown.arrow-up.prevent="mover(-1)"
+                                                   @keydown.escape="results = []; ficha = null; marcado = -1"
+                                                   autofocus autocomplete="off"
+                                                   placeholder="Pasa el lector, teclea la clave, o unas letras para buscar"
+                                                   class="pos-celda font-mono">
+                                        </td>
+                                    </tr>
+
+                                    <tr x-show="cart.length === 0" x-cloak>
+                                        <td colspan="{{ $columnasRejilla }}" class="pos-rej-vacio">
+                                            Pasa el lector, teclea la clave, o unas letras para buscar.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
                         <p x-show="scanError" x-cloak x-text="scanError"
                            class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700"></p>
 
-                        {{-- La cámara reutiliza el mismo scan(): para el servidor no hay diferencia
-                             entre un código leído con pistola, tecleado o visto por la cámara. --}}
+                        {{-- La cámara reutiliza el mismo scan(): para el servidor no hay diferencia entre
+                             un código leído con pistola, tecleado o visto por la cámara. --}}
                         <x-panel.camera-scanner />
                     </div>
 
-                    {{-- Búsqueda bajo demanda: el catálogo ya NO se carga entero al abrir la caja.
-                         El cajero escribe nombre o SKU y el servidor devuelve solo lo que coincide,
-                         así el POS es fluido aunque haya miles de productos. --}}
-                    <div class="mb-4">
-                        {{-- Las flechas y el Enter se atienden AQUÍ y no en la tabla: quien busca
-                             no suelta el teclado para ir a marcar una fila con el ratón. --}}
-                        <input type="search" x-ref="buscarInput" x-model="query" @input.debounce.300ms="searchProducts()"
-                               @keydown.arrow-down.prevent="mover(1)" @keydown.arrow-up.prevent="mover(-1)"
-                               @keydown.enter.prevent="abrirMarcado()" @keydown.escape="ficha = null"
-                               placeholder="Busca por nombre, SKU, código, Nº de parte o marca…" autocomplete="off"
-                               class="bmos-input">
-                    </div>
+                    {{-- Las sugerencias van DEBAJO de la rejilla, que es donde está la vista al teclear
+                         la clave. Arriba obligaban a mirar a otra parte de la pantalla. --}}
+                    <div class="mt-4">
+                        {{-- Con rótulo: una tabla que aparece sola debajo del ticket, sin decir de qué
+                             es, se confunde con parte del propio ticket. --}}
+                        <p x-show="results.length > 0" x-cloak class="pos-sug-titulo">
+                            Coincidencias
+                            <span x-text="'(' + results.length + ')'"></span>
+                            <span class="pos-sug-ayuda">Enter mete la primera · ↑↓ para elegir otra</span>
+                        </p>
 
                     {{--
                         LA TABLA, y no la rejilla de fotos que había antes.
@@ -246,13 +448,19 @@
                         </template>
                     </div>
 
-                    <p x-show="query.trim().length < 2 && !searching" class="py-8 text-center text-sm text-slate-400">
-                        Escribe al menos 2 letras para buscar, o pasa el lector por el código.
+                    {{-- Se miran los RESULTADOS y no lo tecleado: al meter una línea la celda de
+                         clave se limpia para el siguiente artículo, pero la lista se queda para poder
+                         añadir otro de la misma búsqueda sin volver a escribir. --}}
+                    <p x-show="results.length === 0 && !searching && barcode.trim().length < 2"
+                       class="py-6 text-center text-sm text-slate-400">
+                        Teclea unas letras en <b>Clave</b> y aquí aparece lo que empieza por ahí.
                     </p>
                     <p x-show="searching" x-cloak class="py-8 text-center text-sm text-slate-400">Buscando…</p>
-                    <p x-show="query.trim().length >= 2 && !searching && results.length === 0" x-cloak class="bmos-empty">
-                        Sin coincidencias para «<span x-text="query"></span>».
+                    <p x-show="results.length === 0 && !searching && barcode.trim().length >= 2" x-cloak class="bmos-empty">
+                        Sin coincidencias para «<span x-text="barcode"></span>».
                     </p>
+
+                    </div>
                 </div>
 
                 {{-- Ticket. `data-asis-evitar`: el asistente flotante se aparta de esta columna en
@@ -272,61 +480,6 @@
                         <input type="hidden" name="employee_id" :value="attendantId">
 
                         <x-panel.estado-conexion class="mb-3" />
-
-                        <p class="mb-3 font-semibold text-slate-800">Ticket</p>
-
-                        <div class="max-h-72 space-y-2 overflow-y-auto">
-                            <template x-for="(item, i) in cart" :key="item.id">
-                                <div class="rounded-lg bg-slate-50 p-2">
-                                    <div class="flex items-center gap-2">
-                                        <template x-if="item.image">
-                                            <img :src="item.image" :alt="item.name" class="h-9 w-9 shrink-0 rounded-md object-cover">
-                                        </template>
-                                        <div class="min-w-0 flex-1">
-                                            <p class="truncate text-sm font-medium text-slate-700" x-text="item.name"></p>
-                                            <p class="text-xs text-slate-400"><span x-text="rd(item.price)"></span> c/u</p>
-                                        </div>
-                                        {{-- La cantidad SE ESCRIBE SIEMPRE, no solo con los decimales
-                                             encendidos. Vender doce tornillos no debería costar once
-                                             pulsaciones de «+», y un colmado no tiene por qué activar
-                                             la venta por peso para poder teclear un doce. Lo que decide
-                                             esa opción es solo el paso. --}}
-                                        <div class="flex items-center gap-1">
-                                            <button type="button" @click="dec(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">−</button>
-                                            <input type="number" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}" min="0"
-                                                   x-model.number="item.qty" aria-label="Cantidad"
-                                                   class="w-14 rounded border-slate-200 px-1 py-0.5 text-center text-sm">
-                                            <button type="button" @click="inc(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">+</button>
-                                        </div>
-                                        <span class="w-16 text-right text-sm font-semibold" x-text="rd(lineNet(item))"></span>
-                                    </div>
-
-                                    {{-- Campos por línea según el perfil del negocio. --}}
-                                    @if ($opt['line_discount'] || $opt['line_note'] || $opt['serial'] || $opt['attendant'])
-                                        <div class="mt-2 grid grid-cols-2 gap-1.5">
-                                            @if ($opt['line_discount'])
-                                                <input type="number" step="0.01" min="0" x-model.number="item.discount" placeholder="Descuento" class="rounded border-slate-200 px-2 py-1 text-xs">
-                                            @endif
-                                            @if ($opt['serial'])
-                                                <input type="text" x-model="item.serial" placeholder="Nº serie / IMEI" class="rounded border-slate-200 px-2 py-1 text-xs">
-                                            @endif
-                                            @if ($opt['line_note'])
-                                                <input type="text" x-model="item.note" placeholder="Nota" class="col-span-2 rounded border-slate-200 px-2 py-1 text-xs">
-                                            @endif
-                                            @if ($opt['attendant'])
-                                                <select x-model="item.employeeId" class="col-span-2 rounded border-slate-200 px-2 py-1 text-xs">
-                                                    <option value="">— Empleado (línea) —</option>
-                                                    @foreach ($employees as $emp)
-                                                        <option value="{{ $emp->id }}">{{ $emp->name }}</option>
-                                                    @endforeach
-                                                </select>
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-                            </template>
-                            <p x-show="cart.length === 0" class="py-6 text-center text-sm text-slate-400">Toca un producto para agregarlo.</p>
-                        </div>
 
                         <div class="mt-3 border-t border-slate-100 pt-3 text-sm">
                             <div class="flex items-center justify-between text-slate-500">
@@ -446,7 +599,25 @@
                     /** Copia local del catálogo, para buscar y escanear sin línea. */
                     catalogoLocal: [],
                     globalDiscount: '', tip: '', attendant: '',
-                    query: '', results: [], searching: false,
+                    /*
+                     * Lo tecleado vive SOLO en `barcode`.
+                     *
+                     * Había además un `query` para la caja de búsqueda de arriba. Dos campos de texto
+                     * que buscaban lo mismo, y quien atendía tenía que saber cuál usar: uno aceptaba
+                     * nombres y el otro exigía el código exacto. Ahora es uno.
+                     */
+                    results: [], searching: false,
+
+                    /*
+                     * Para qué texto son las sugerencias que hay ahora en pantalla.
+                     *
+                     * Es lo que distingue «el dependiente tecleó bat y ya está viendo las batidas» de
+                     * «acaba de dispararse el lector y la lista es de la búsqueda anterior». Sin esta
+                     * marca, un disparo del lector con una lista vieja delante metería un artículo de
+                     * esa lista en vez del que se acaba de escanear.
+                     */
+                    resultsPara: '',
+
 
                     /*
                      * Qué fila está marcada, qué artículo se está mirando y con qué cantidad.
@@ -456,6 +627,16 @@
                      */
                     marcado: -1,
                     ficha: null,
+
+                    /*
+                     * La cantidad de la fila en blanco: «4», Tab, la clave, Enter.
+                     *
+                     * Es lo que distingue una captura matricial de una lista: quien despacha cuatro
+                     * metros de cable teclea el cuatro antes del código, no mete la línea y luego la
+                     * corrige. No es un segundo sitio para la cantidad —es la celda de la línea que
+                     * se está creando—; en cuanto la línea existe, manda su propia celda.
+                     */
+                    nuevaCant: '',
 
                     /*
                      * Qué columnas tienen algo que enseñar.
@@ -479,8 +660,8 @@
                      * cuando hay miles de productos, porque solo trae lo que el cajero busca.
                      */
                     async searchProducts() {
-                        const q = this.query.trim();
-                        if (q.length < 2) { this.results = []; this.trasBuscar(); this.searching = false; return; }
+                        const q = this.barcode.trim();
+                        if (q.length < 2) { this.results = []; this.resultsPara = ''; this.trasBuscar(); this.searching = false; return; }
 
                         this.searching = true;
                         try {
@@ -497,6 +678,7 @@
                             // seguir escribiendo.
                             this.results = this.buscarEnLocal(q);
                         } finally {
+                            this.resultsPara = q;
                             this.trasBuscar();
                             this.searching = false;
                         }
@@ -508,7 +690,44 @@
                      */
                     async scan() {
                         const code = this.barcode.trim();
-                        if (!code || this.busy) return;
+
+                        /*
+                         * SIN NADA TECLEADO, el Enter mete la fila marcada.
+                         *
+                         * Es el segundo Enter de «teclea, Enter marca, Enter mete», y también el que
+                         * se pulsa después de bajar con las flechas.
+                         *
+                         * El orden importa y costó un fallo: la comprobación de la fila marcada
+                         * estaba ANTES de mirar lo tecleado, así que con una fila marcada un disparo
+                         * del lector metía esa fila en vez del artículo escaneado. Un código exacto
+                         * gana siempre.
+                         */
+                        if (code === '') {
+                            if (this.marcado >= 0 && this.results[this.marcado]) {
+                                this.elegir(this.marcado);
+                            }
+
+                            return;
+                        }
+
+                        /*
+                         * SI LAS SUGERENCIAS SON DE ESTE TEXTO, se mete una y no se pregunta a nadie.
+                         *
+                         * El camino de antes pasaba siempre por el servidor para ver si lo tecleado
+                         * era un código exacto: medido, alrededor de un segundo de espera con la
+                         * respuesta ya en pantalla. En un mostrador eso se nota en cada línea.
+                         *
+                         * Y solo cuando la lista es DE ESTE TEXTO: si es de la búsqueda anterior, un
+                         * disparo del lector metería un artículo de aquella lista en vez del que se
+                         * acaba de escanear. Por eso no basta con mirar si hay sugerencias.
+                         */
+                        if (this.resultsPara === code && this.results.length > 0) {
+                            this.elegir(this.marcado >= 0 ? this.marcado : 0);
+
+                            return;
+                        }
+
+                        if (this.busy) return;
 
                         this.busy = true;
                         this.scanError = '';
@@ -529,13 +748,36 @@
                             const data = await res.json();
 
                             if (!data.found) {
-                                this.scanError = 'Código no encontrado: ' + code;
+                                /*
+                                 * No es un código, pero puede ser el principio de un nombre.
+                                 *
+                                 * Con sugerencias en pantalla se marca la primera y el siguiente
+                                 * Enter la mete: dos pulsaciones y sin tocar el ratón. Decir «código
+                                 * no encontrado» teniendo la lista delante sería absurdo.
+                                 */
+                                if (this.results.length > 0) {
+                                    /*
+                                     * UN SOLO ENTER, no dos.
+                                     *
+                                     * Se intentó que el primero marcara y el segundo metiera, y la
+                                     * regla se mordía la cola: al conservar lo tecleado, el segundo
+                                     * Enter repetía el mismo camino y volvía a marcar sin meter nada.
+                                     *
+                                     * Ahora entra la fila MARCADA si se eligió con las flechas, y la
+                                     * primera si no se tocó ninguna. Es lo que hace cualquier lista de
+                                     * sugerencias, y con lo que empieza por lo tecleado ordenado
+                                     * primero, la primera suele ser la que se quería.
+                                     */
+                                    this.elegir(this.marcado >= 0 ? this.marcado : 0);
+                                } else {
+                                    this.scanError = 'No hay nada que empiece por: ' + code;
+                                }
                             } else if (!data.product.sellable) {
                                 this.scanError = data.product.reason === 'no_stock'
                                     ? 'Sin existencia: ' + data.product.name
                                     : 'Producto inactivo: ' + data.product.name;
                             } else {
-                                this.add(data.product.id, data.product.name, data.product.price, data.product.image);
+                                this.add(data.product.id, data.product.name, data.product.price, data.product.image, data.product.sku, this.nuevaCant || 1);
                             }
                         } catch {
                             /*
@@ -551,13 +793,19 @@
                             );
 
                             if (local) {
-                                this.add(local.id, local.name, local.price, local.image);
+                                this.add(local.id, local.name, local.price, local.image, local.sku, this.nuevaCant || 1);
                             } else {
                                 this.scanError = 'Sin conexión y ese código no está en la copia guardada: ' + code;
                             }
                         } finally {
-                            // Limpiar y recuperar el foco es la mitad del valor: si el foco se pierde,
-                            // el siguiente disparo del lector se escribe en el vacío.
+                            /*
+                             * Se limpia lo tecleado y se recupera el foco.
+                             *
+                             * Lo segundo es la mitad del valor: si el foco se pierde, el siguiente
+                             * disparo del lector se escribe en el vacío. Y lo primero evita que la
+                             * clave siguiente se pegue a la anterior y salga «batDEMO-MALTA», que es
+                             * exactamente lo que pasó al probarlo.
+                             */
                             this.barcode = '';
                             this.busy = false;
                             this.$refs.scanInput.focus();
@@ -614,14 +862,36 @@
                      * ciento de las veces, y la ficha abierta sirve para comprobar, DESPUÉS y sin
                      * haber perdido tiempo, que la pieza que entró es la correcta.
                      */
+                    /**
+                     * Por qué no se puede vender esto, en palabras.
+                     *
+                     * Antes se ignoraba en silencio: se pulsaba Enter sobre una fila agotada y no
+                     * pasaba absolutamente nada. Quien atiende no sabe si el sistema se colgó, si no
+                     * le registró la tecla o si el artículo no se puede vender, y acaba pulsando otras
+                     * tres veces con el cliente delante.
+                     */
+                    porQueNo(p) {
+                        const nombre = p?.name ?? 'Ese artículo';
+
+                        if (p?.reason === 'no_stock') return 'Sin existencia: ' + nombre;
+                        if (p?.reason === 'unavailable') return 'Hoy no hay: ' + nombre;
+                        if (p?.reason === 'inactive') return 'Está inactivo: ' + nombre;
+
+                        return 'No se puede vender: ' + nombre;
+                    },
+
                     elegir(i) {
                         this.marcar(i);
 
                         const p = this.results[i];
 
                         if (p && p.sellable) {
-                            this.add(p.id, p.name, p.price, p.image);
+                            this.add(p.id, p.name, p.price, p.image, p.sku);
+
+                            return;
                         }
+
+                        this.scanError = this.porQueNo(p);
                     },
 
                     /** Sube o baja por la lista con las flechas, sin salirse por los extremos. */
@@ -633,18 +903,6 @@
                             : Math.min(this.results.length - 1, Math.max(0, this.marcado + paso));
 
                         this.marcar(siguiente);
-                    },
-
-                    /**
-                     * Enter: manda al ticket la fila marcada, o la primera si no hay ninguna.
-                     *
-                     * Un solo gesto, igual que el clic y que el lector. Antes hacía tres cosas
-                     * distintas según el estado y había que acordarse de cuál tocaba.
-                     */
-                    abrirMarcado() {
-                        if (this.results.length === 0) return;
-
-                        this.elegir(this.marcado < 0 ? 0 : this.marcado);
                     },
 
                     /**
@@ -674,23 +932,48 @@
                     },
 
                     /*
-                     * Sin parámetros de cantidad ni de descuento, y eso es el arreglo.
+                     * Lleva CLAVE y CANTIDAD, pero NO descuento, y la diferencia importa.
                      *
-                     * Los tuvo un rato, para que la ficha pudiera mandar «doce con quinientos de
-                     * descuento». El precio de eso era tener el descuento en dos sitios, y encima
-                     * agregar dos veces el mismo artículo pisaba lo que se hubiera escrito en el
-                     * ticket. Cantidad y descuento viven en la línea del ticket, y en ningún otro
-                     * sitio.
+                     * La clave, porque la rejilla la enseña en su columna: sin ella el documento no
+                     * dice qué artículo es más allá del nombre.
+                     *
+                     * La cantidad, porque es la de la fila en blanco —«4», Tab, la clave, Enter—, que
+                     * es la razón de ser de una captura matricial. En cuanto la línea existe, la
+                     * cantidad vive en su propia celda y en ningún otro sitio.
+                     *
+                     * El descuento NO vuelve. Lo tuvo cuando la ficha era un formulario, y costaba
+                     * caro: agregar dos veces el mismo artículo pisaba el descuento que se hubiera
+                     * escrito en el ticket. Ese campo tiene un solo dueño, que es la línea.
                      */
-                    add(id, name, price, image = null) {
+                    add(id, name, price, image = null, sku = null, qty = 1) {
+                        const cantidad = this.round(parseFloat(qty) || 1);
                         const it = this.cart.find(i => i.id === id);
 
                         // Repetido, se SUMA: quien escanea tres veces la misma lata espera tres.
                         if (it) {
-                            it.qty = this.round(it.qty + 1);
+                            it.qty = this.round(it.qty + cantidad);
                         } else {
-                            this.cart.push({ id, name, price: parseFloat(price), image, qty: 1, discount: 0, note: '', serial: '', employeeId: '' });
+                            this.cart.push({ id, name, sku, price: parseFloat(price), image, qty: cantidad, discount: 0, note: '', serial: '', employeeId: '' });
                         }
+
+                        /*
+                         * La fila en blanco queda limpia y con el foco, lista para la siguiente línea.
+                         * Sin esto, el lector escribiría en el vacío.
+                         *
+                         * Las SUGERENCIAS se quedan: en una ferretería se busca «tubo» una vez y se
+                         * meten tres medidas de la misma lista. Lo que se limpia es lo tecleado, para
+                         * que la siguiente clave no se escriba pegada a la anterior.
+                         */
+                        /*
+                         * Y la MARCA se suelta. Si se quedara puesta, el siguiente disparo del lector
+                         * —que llega con su propio código— podría meter la fila marcada en vez del
+                         * artículo escaneado. La lista se queda; lo que se suelta es la elección.
+                         */
+                        this.nuevaCant = '';
+                        this.barcode = '';
+                        this.scanError = '';
+                        this.marcado = -1;
+                        this.$nextTick(() => this.$refs.scanInput?.focus());
                     },
                     inc(i) { this.cart[i].qty = this.round((parseFloat(this.cart[i].qty) || 0) + 1); },
                     dec(i) {

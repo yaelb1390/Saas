@@ -22,41 +22,148 @@
         </div>
     @endunless
 
-    <div x-data="partsCounter('{{ route('panel.parts.search') }}')" class="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {{-- Buscador + resultados --}}
-        <div class="lg:col-span-2">
-            <div class="bmos-card bmos-card-pad mb-4">
-                <label class="bmos-field-label" for="parts-search">Buscar pieza</label>
-                <input id="parts-search" type="text" x-ref="searchInput" x-model="query" @input.debounce.300ms="search()"
-                       autofocus autocomplete="off"
-                       placeholder="Nombre, nº de parte, marca o vehículo (ej. «corolla», «filtro», «90915»)"
-                       class="bmos-input">
-                <p x-show="searchError" x-cloak x-text="searchError" class="mt-2 text-sm text-amber-700"></p>
+    <div x-data="partsCounter('{{ route('panel.parts.search') }}')" class="grid grid-cols-1 gap-5 lg:grid-cols-4">
+        {{-- El documento y, debajo, las coincidencias. --}}
+        <div class="lg:col-span-3">
+            {{--
+                LA REJILLA, la misma que en el Punto de Venta y con sus mismas clases.
+
+                Las dos pantallas pintaban el mismo `ProductLookupPresenter` de dos maneras distintas
+                —una lista de tarjetas aquí, una tabla allá— y esa era la duplicación de fondo: el
+                mismo dato con dos aspectos y dos comportamientos. Ahora comparten estilos y gestos.
+
+                VA FUERA DEL FORMULARIO DE FACTURAR: dentro, el Enter del lector lo enviaría y emitiría
+                un comprobante a medio armar, que con un NCF de por medio no se deshace con un clic.
+            --}}
+            <div class="bmos-card bmos-card-pad">
+                <div class="pos-doc-cab">
+                    <span class="pos-doc-titulo">Ticket</span>
+                    <span class="pos-doc-cuenta" x-show="cart.length > 0" x-cloak
+                          x-text="cart.length + (cart.length === 1 ? ' línea' : ' líneas')"></span>
+                </div>
+
+                <div class="bmos-tabla-envoltura">
+                    <table class="bmos-table pos-rejilla">
+                        <thead>
+                            <tr>
+                                <th class="pos-rej-cant">Cant.</th>
+                                <th class="pos-rej-clave">Clave</th>
+                                <th>Descripción</th>
+                                <th class="pos-num pos-rej-precio">Precio</th>
+                                <th class="pos-num pos-rej-importe">Importe</th>
+                                <th class="pos-rej-quitar"><span class="sr-only">Quitar</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(item, i) in cart" :key="item.id">
+                                <tr>
+                                    <td data-rotulo="Cant." class="pos-rej-cant">
+                                        <input type="number" step="1" min="0" x-model.number="item.qty"
+                                               aria-label="Cantidad" class="pos-celda pos-num">
+                                    </td>
+                                    <td data-rotulo="Clave" class="pos-mono pos-rej-clave" x-text="item.sku || '—'"></td>
+                                    <td data-rotulo="Descripción" class="pos-recorta" :title="item.name">
+                                        <span class="pos-valor" x-text="item.name"></span>
+                                    </td>
+                                    {{-- El precio no se escribe: al facturar, el servidor lo relee de la base. --}}
+                                    <td data-rotulo="Precio" class="pos-num pos-rej-precio" x-text="rd(item.price)"></td>
+                                    <td data-rotulo="Importe" class="pos-num pos-rej-total" x-text="rd(item.price * item.qty)"></td>
+                                    <td class="pos-rej-quitar">
+                                        <button type="button" @click="cart.splice(i, 1)" class="pos-quitar" aria-label="Quitar la línea">&times;</button>
+                                    </td>
+                                </tr>
+                            </template>
+
+                            {{-- La fila en blanco: aquí escribe el lector y aquí se teclea la clave o
+                                 unas letras. Sustituye a la caja de búsqueda que había arriba. --}}
+                            <tr class="pos-rej-nueva">
+                                <td data-rotulo="Cant." class="pos-rej-cant">
+                                    <input type="number" step="1" min="0" x-model.number="nuevaCant"
+                                           @keydown.enter.prevent="$refs.searchInput.focus()"
+                                           aria-label="Cantidad de la línea nueva" placeholder="1" class="pos-celda pos-num">
+                                </td>
+                                <td colspan="5">
+                                    <input id="parts-search" type="text" x-ref="searchInput" x-model="query"
+                                           @input.debounce.250ms="search()"
+                                           @keydown.enter.prevent="meter()"
+                                           @keydown.arrow-down.prevent="mover(1)"
+                                           @keydown.arrow-up.prevent="mover(-1)"
+                                           @keydown.escape="results = []; marcado = -1"
+                                           autofocus autocomplete="off"
+                                           placeholder="Pasa el lector, teclea la clave, o unas letras (ej. «corolla», «90915»)"
+                                           class="pos-celda font-mono">
+                                </td>
+                            </tr>
+
+                            <tr x-show="cart.length === 0" x-cloak>
+                                <td colspan="6" class="pos-rej-vacio">
+                                    Pasa el lector, teclea la clave, o unas letras para buscar.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p x-show="searchError" x-cloak x-text="searchError"
+                   class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700"></p>
             </div>
 
-            <div class="space-y-2">
-                <template x-for="p in results" :key="p.id">
-                    <button type="button" @click="add(p)" :disabled="!p.sellable"
-                            class="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50/40"
-                            :class="!p.sellable ? 'opacity-50 cursor-not-allowed' : ''">
-                        <div class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-slate-50 text-xl">🔧</div>
-                        <div class="min-w-0 flex-1">
-                            <p class="truncate font-semibold text-slate-800" x-text="p.name"></p>
-                            <p class="truncate text-xs text-slate-400">
-                                <span x-show="p.part_number" x-text="p.part_number"></span>
-                                <span x-show="p.brand" x-text="(p.part_number ? ' · ' : '') + p.brand"></span>
-                                <span x-show="p.vehicle" x-text="' · ' + p.vehicle"></span>
-                                <span x-show="p.location" x-text="' · 📍 ' + p.location"></span>
-                            </p>
-                        </div>
-                        <div class="text-right">
-                            <p class="font-bold text-indigo-600" x-text="parseFloat(p.price).toFixed(2)"></p>
-                            <span class="text-xs" :class="parseFloat(p.stock) < 5 ? 'text-amber-600' : 'text-slate-400'" x-text="Math.round(p.stock) + ' u.'"></span>
-                        </div>
-                    </button>
-                </template>
-                <p x-show="!results.length && query.trim() && !busy" x-cloak class="bmos-empty">Sin resultados para «<span x-text="query"></span>».</p>
-                <p x-show="!query.trim()" class="py-8 text-center text-sm text-slate-400">Escribe para buscar una pieza.</p>
+            {{-- Las coincidencias, debajo de la rejilla: donde está la vista al teclear. --}}
+            <div class="mt-4">
+                <p x-show="results.length > 0" x-cloak class="pos-sug-titulo">
+                    Coincidencias
+                    <span x-text="'(' + results.length + ')'"></span>
+                    <span class="pos-sug-ayuda">Enter mete la primera · ↑↓ para elegir otra</span>
+                </p>
+
+                <div x-show="results.length > 0" x-cloak class="bmos-tabla-envoltura">
+                    <table class="bmos-table pos-tabla">
+                        <thead>
+                            <tr>
+                                <th>Artículo</th>
+                                <th x-show="col.vehiculo">Aplica a</th>
+                                <th x-show="col.ubicacion">Ubicación</th>
+                                <th class="pos-num pos-col-exist">Existencia</th>
+                                <th class="pos-num pos-col-precio">Precio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(p, i) in results" :key="p.id">
+                                <tr class="pos-fila" :class="{ 'pos-fila--marcada': i === marcado, 'pos-fila--muerta': !p.sellable }"
+                                    @click="elegir(i)">
+                                    <td data-rotulo="Artículo">
+                                        <span class="pos-nombre" x-text="p.name"></span>
+                                        <span class="pos-sku">
+                                            <span x-text="p.sku"></span>
+                                            <template x-if="p.part_number">
+                                                <span><span class="pos-sep">·</span><span x-text="p.part_number"></span></span>
+                                            </template>
+                                            <template x-if="p.brand">
+                                                <span><span class="pos-sep">·</span><b x-text="p.brand"></b></span>
+                                            </template>
+                                        </span>
+                                    </td>
+                                    <td x-show="col.vehiculo" data-rotulo="Aplica a" class="pos-recorta" :title="p.vehicle || ''"><span class="pos-valor" x-text="p.vehicle || '—'"></span></td>
+                                    <td x-show="col.ubicacion" data-rotulo="Ubicación" class="pos-recorta" :title="p.location || ''"><span class="pos-valor" x-text="p.location || '—'"></span></td>
+                                    <td data-rotulo="Existencia" class="pos-num pos-col-exist">
+                                        <span class="bmos-badge" :class="Number(p.stock) < 5 ? 'badge-amber' : 'badge-blue'"
+                                              x-text="p.reason === 'no_stock' ? 'Agotado' : existencia(p)"></span>
+                                    </td>
+                                    <td data-rotulo="Precio" class="pos-num pos-precio pos-col-precio"><span class="pos-valor" x-text="rd(p.price)"></span></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p x-show="results.length === 0 && !busy && query.trim().length < 2"
+                   class="py-6 text-center text-sm text-slate-400">
+                    Teclea unas letras en <b>Clave</b> y aquí aparece lo que empieza por ahí.
+                </p>
+                <p x-show="busy" x-cloak class="py-6 text-center text-sm text-slate-400">Buscando…</p>
+                <p x-show="results.length === 0 && !busy && query.trim().length >= 2" x-cloak class="bmos-empty">
+                    Sin coincidencias para «<span x-text="query"></span>».
+                </p>
             </div>
         </div>
 
@@ -69,30 +176,20 @@
                 @csrf
                 <input type="hidden" name="cart" x-ref="cartInput">
 
-                <p class="mb-3 font-semibold text-slate-800">Ticket</p>
-
-                <div class="max-h-56 space-y-2 overflow-y-auto">
-                    <template x-for="(item, i) in cart" :key="item.id">
-                        <div class="flex items-center gap-2 rounded-lg bg-slate-50 p-2">
-                            <div class="min-w-0 flex-1">
-                                <p class="truncate text-sm font-medium text-slate-700" x-text="item.name"></p>
-                                <p class="text-xs text-slate-400"><span x-text="item.price.toFixed(2)"></span> c/u</p>
-                            </div>
-                            <div class="flex items-center gap-1">
-                                <button type="button" @click="dec(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">−</button>
-                                <span class="w-6 text-center text-sm font-semibold" x-text="item.qty"></span>
-                                <button type="button" @click="inc(i)" class="h-6 w-6 rounded bg-white text-slate-600 shadow-sm">+</button>
-                            </div>
-                            <span class="w-16 text-right text-sm font-semibold" x-text="(item.price*item.qty).toFixed(2)"></span>
-                        </div>
-                    </template>
-                    <p x-show="cart.length === 0" class="py-6 text-center text-sm text-slate-400">Busca y agrega una pieza.</p>
-                </div>
-
                 <div class="mt-3 border-t border-slate-100 pt-3">
                     <div class="flex items-center justify-between text-lg font-bold text-slate-800">
                         <span>Total</span><span x-text="total.toFixed(2)"></span>
                     </div>
+
+                    {{-- De qué almacén sale la mercancía. Con un solo almacén no se pregunta. --}}
+                    @if (count($warehouses) > 1)
+                        <label class="bmos-field-label" for="parts-almacen">Almacén</label>
+                        <select id="parts-almacen" name="warehouse_id" class="bmos-input">
+                            @foreach ($warehouses as $w)
+                                <option value="{{ $w->id }}">{{ $w->name }}</option>
+                            @endforeach
+                        </select>
+                    @endif
 
                     <label class="bmos-field-label mt-3">Tipo de comprobante (NCF)</label>
                     <select name="type" x-model="ncfType" class="bmos-input">
@@ -141,9 +238,34 @@
                 query: '', results: [], busy: false, searchError: '',
                 cart: [], paid: '', customer: '', customerId: '', taxId: '', ncfType: 'B02',
 
+                /*
+                 * Los mismos gestos que en el Punto de Venta: la fila marcada, la cantidad de la línea
+                 * nueva y las columnas que se adaptan a lo que traigan los resultados. Las dos
+                 * pantallas buscan contra el mismo presenter; que además se manejen igual es lo que
+                 * evita tener que aprenderse dos mostradores.
+                 */
+                marcado: -1,
+                nuevaCant: '',
+                resultsPara: '',
+                col: { vehiculo: false, ubicacion: false },
+
+                rd(n) {
+                    return 'RD$ ' + (parseFloat(n) || 0).toLocaleString('es-DO', {
+                        minimumFractionDigits: 2, maximumFractionDigits: 2,
+                    });
+                },
+
+                /** La existencia con su unidad, cuando la unidad dice algo. */
+                existencia(p) {
+                    const u = String(p.unit ?? '').trim().toLowerCase();
+                    const propia = u !== '' && u !== 'unidad' && u !== 'unidades';
+
+                    return String(Math.round((parseFloat(p.stock) || 0) * 1000) / 1000) + ' ' + (propia ? p.unit : 'u.');
+                },
+
                 async search() {
                     const q = this.query.trim();
-                    if (!q) { this.results = []; return; }
+                    if (q.length < 2) { this.results = []; this.resultsPara = ''; this.marcado = -1; return; }
                     this.busy = true; this.searchError = '';
                     try {
                         const res = await fetch(searchUrl + '?q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } });
@@ -153,18 +275,108 @@
                     } catch {
                         this.searchError = 'Sin conexión con el servidor. Inténtalo de nuevo.';
                     } finally {
+                        this.resultsPara = q;
+                        this.calcularColumnas();
+                        this.marcado = -1;
                         this.busy = false;
                     }
                 },
 
+                /** Una columna solo se pinta si algún resultado trae ese dato. */
+                calcularColumnas() {
+                    const alguno = (campo) => this.results.some((p) => {
+                        const v = p[campo];
+
+                        return v !== null && v !== undefined && String(v).trim() !== '';
+                    });
+
+                    this.col = { vehiculo: alguno('vehicle'), ubicacion: alguno('location') };
+                },
+
+                marcar(i) {
+                    if (i < 0 || i >= this.results.length) return;
+                    this.marcado = i;
+                },
+
+                mover(paso) {
+                    if (this.results.length === 0) return;
+                    const siguiente = this.marcado < 0
+                        ? 0
+                        : Math.min(this.results.length - 1, Math.max(0, this.marcado + paso));
+                    this.marcar(siguiente);
+                },
+
+                porQueNo(p) {
+                    const nombre = p?.name ?? 'Esa pieza';
+
+                    if (p?.reason === 'no_stock') return 'Sin existencia: ' + nombre;
+                    if (p?.reason === 'unavailable') return 'Hoy no hay: ' + nombre;
+                    if (p?.reason === 'inactive') return 'Está inactiva: ' + nombre;
+
+                    return 'No se puede vender: ' + nombre;
+                },
+
+                /**
+                 * Elegir una fila la manda al ticket, de un gesto.
+                 *
+                 * Y si no se puede vender, LO DICE. Antes se ignoraba en silencio y quien atiende no
+                 * sabía si el sistema se había colgado o si la pieza estaba agotada.
+                 */
+                elegir(i) {
+                    this.marcar(i);
+                    const pieza = this.results[i];
+
+                    if (pieza && pieza.sellable) {
+                        this.add(pieza);
+
+                        return;
+                    }
+
+                    this.searchError = this.porQueNo(pieza);
+                },
+
+                /**
+                 * El Enter de la celda de clave.
+                 *
+                 * Si las coincidencias son DE ESTE TEXTO se mete una y no se pregunta a nadie: la
+                 * respuesta ya está en pantalla y un viaje al servidor ahí se nota en cada línea. Si
+                 * son de la búsqueda anterior —o no hay— se busca primero, que es lo que pasa cuando
+                 * dispara el lector y el antirrebote todavía no ha saltado.
+                 */
+                async meter() {
+                    const q = this.query.trim();
+                    if (!q) return;
+
+                    if (this.resultsPara !== q) await this.search();
+
+                    if (this.results.length === 0) {
+                        this.searchError = 'No hay nada que empiece por: ' + q;
+
+                        return;
+                    }
+
+                    this.elegir(this.marcado >= 0 ? this.marcado : 0);
+                },
+
                 add(p) {
                     if (!p.sellable) return;
+                    const cantidad = Math.max(1, parseInt(this.nuevaCant, 10) || 1);
                     const it = this.cart.find(i => i.id === p.id);
-                    if (it) it.qty++;
-                    else this.cart.push({ id: p.id, name: p.name, price: parseFloat(p.price), qty: 1 });
+                    if (it) it.qty += cantidad;
+                    else this.cart.push({ id: p.id, sku: p.sku, name: p.name, price: parseFloat(p.price), qty: cantidad });
+
+                    /*
+                     * Se limpia lo tecleado y se suelta la marca, pero LAS COINCIDENCIAS SE QUEDAN: en
+                     * un mostrador de repuestos se busca «corolla» una vez y se meten tres piezas de
+                     * la misma lista. Soltar la marca evita que el siguiente disparo del lector meta
+                     * la fila marcada en vez de lo que se acaba de escanear.
+                     */
+                    this.nuevaCant = '';
+                    this.query = '';
+                    this.searchError = '';
+                    this.marcado = -1;
+                    this.$nextTick(() => this.$refs.searchInput?.focus());
                 },
-                inc(i) { this.cart[i].qty++; },
-                dec(i) { if (this.cart[i].qty > 1) this.cart[i].qty--; else this.cart.splice(i, 1); },
                 get total() { return this.cart.reduce((s, i) => s + i.price * i.qty, 0); },
                 get change() { const p = parseFloat(this.paid || 0); return Math.max(0, p - this.total); },
                 get requiresTaxId() {

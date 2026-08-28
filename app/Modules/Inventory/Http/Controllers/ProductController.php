@@ -22,7 +22,18 @@ final class ProductController extends Controller
     {
         $data = CreateProductData::fromArray($request->validated());
 
-        $warehouse = Warehouse::query()->where('is_default', true)->orderBy('id')->first();
+        /*
+         * EL ALMACÉN QUE SE ELIGIÓ, y el de por omisión solo como red.
+         *
+         * Estaba escrito a fuego: dabas de alta cien piezas para la sucursal y aparecían en el
+         * principal, sin decir nada. Es el mismo fallo que tenía el cobro, y con la misma
+         * consecuencia: el inventario deja de decir dónde está la mercancía.
+         */
+        $elegido = $request->integer('warehouse_id') ?: null;
+
+        $warehouse = ($elegido !== null ? Warehouse::find($elegido) : null)
+            ?? Warehouse::query()->where('is_default', true)->orderBy('id')->first();
+
         $initialStock = (string) ($request->input('initial_stock') ?? '0');
 
         $product = $products->create($data, $warehouse, $initialStock);

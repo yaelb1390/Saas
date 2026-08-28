@@ -52,20 +52,28 @@ it('rechaza año hasta menor que año desde', function (): void {
         ->assertSessionHasErrors('year_to');
 });
 
-it('el formulario oculta los datos de pieza salvo en el perfil repuestos', function (): void {
-    // Perfil por defecto (general): sin campos de pieza.
+it('los datos del VEHÍCULO solo salen en el perfil repuestos', function (): void {
+    /*
+     * Este test comprobaba que TODOS los detalles estuvieran escondidos salvo en repuestos, y ya no
+     * es así: marca, estante, referencia y descripción se piden a cualquier negocio que no sea de
+     * comida —una ferretería quiere apuntar en qué estante está un tubo—.
+     *
+     * Lo que sigue siendo exclusivo de repuestos es el VEHÍCULO: «Marca del vehículo» en una tienda
+     * de ropa es un campo que nadie va a rellenar nunca.
+     */
     $this->actingAs($this->owner)
         ->get(route('panel.products'))
         ->assertOk()
-        ->assertDontSee('Datos de la pieza');
+        ->assertDontSee('name="vehicle_make"', false)
+        // Y los demás detalles SÍ, aunque el perfil sea el general.
+        ->assertSee('name="brand"', false);
 
-    // Al cambiar el negocio a repuestos, sí aparecen.
     $this->company->update(['settings' => ['pos' => ['profile' => 'repuestos', 'options' => []]]]);
 
     $this->actingAs($this->owner)
         ->get(route('panel.products'))
         ->assertOk()
-        ->assertSee('Datos de la pieza');
+        ->assertSee('name="vehicle_make"', false);
 });
 
 it('la búsqueda difusa encuentra por nº de parte, marca y vehículo', function (): void {

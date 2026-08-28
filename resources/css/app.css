@@ -859,7 +859,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    /*
+     * Si no cabe en una línea, el rótulo y el importe se ponen uno encima del otro; lo que NO puede
+     * pasar es que se parta el número. Con el documento llevándose tres cuartos del ancho, la columna
+     * de totales se estrechó y «RD$ 175.00» salía como «RD$» y «175.00» debajo: un importe roto en
+     * dos se lee mal justo en el momento en que más importa leerlo bien.
+     */
+    flex-wrap: wrap;
+    gap: 0.15rem 0.75rem;
     width: 100%;
     min-height: var(--bmos-pos-alto);
     padding: 0.55rem 1rem;
@@ -886,7 +893,9 @@ body {
 .bmos-pos-cobrar-total {
     font-size: var(--bmos-pos-cifra);
     font-variant-numeric: tabular-nums;
-    overflow-wrap: anywhere;
+    /* Antes era `anywhere`, que es lo que dejaba partir la cifra entre el símbolo y el número. */
+    white-space: nowrap;
+    margin-left: auto;
 }
 
 /* Cambio a devolver: es la cifra que el cajero lee con el cliente delante y con prisa, así que se
@@ -984,12 +993,12 @@ body {
  * por el que se mira la lista.
  */
 .pos-tabla {
-    font-size: 0.78rem;
+    font-size: 0.86rem;
 }
 
 .pos-tabla thead th,
 .pos-tabla tbody td {
-    padding: 0.45rem 0.5rem;
+    padding: 0.6rem 0.55rem;
     white-space: nowrap;
 }
 
@@ -1000,8 +1009,9 @@ body {
  * siguen distinguiendo una fila de otra —que es para lo que está la tabla— y el valor entero se lee
  * en la ficha, que está justo debajo y trae todo.
  */
-.pos-tabla .pos-recorta {
-    max-width: 6.9rem;
+.pos-tabla .pos-recorta,
+.pos-rejilla .pos-recorta {
+    max-width: 6.5rem;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -1121,6 +1131,7 @@ body {
 .pos-nombre {
     display: block;
     font-weight: 600;
+    font-size: 0.95rem;
     color: #1e293b;
 }
 
@@ -1212,7 +1223,7 @@ body {
 }
 
 .pos-datos dd {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     color: #1e293b;
     font-weight: 600;
 }
@@ -1260,12 +1271,337 @@ body {
     margin-left: 0.6rem;
 }
 
+/* ==========================================================================
+   La rejilla del ticket: el documento
+
+   El ticket era una lista de tarjetitas. Ahora es una tabla que se escribe, como en un sistema de
+   escritorio: se teclea la cantidad y la clave en la fila en blanco y la línea se completa sola.
+   ========================================================================== */
+
+.pos-doc-cab {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 0.6rem;
+}
+
+.pos-doc-titulo {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.pos-doc-cuenta {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+/*
+ * MÁS GRANDE, pero creciendo sobre todo A LO ALTO.
+ *
+ * El tamaño de antes era de tabla de informe, no de mostrador: se lee de pie, a un brazo de
+ * distancia y con prisa. Se sube la letra y, sobre todo, el aire vertical —una fila más alta se
+ * acierta mejor con el dedo y con el ratón, y no cuesta un solo píxel de ancho—.
+ *
+ * El espacio horizontal se toca lo justo: cada píxel que se añade a los lados de ocho columnas son
+ * ochenta de tabla, y por ahí se cae el importe fuera del recuadro en un portátil.
+ */
+.pos-rejilla {
+    font-size: 0.92rem;
+}
+
+.pos-rejilla thead th,
+.pos-rejilla tbody td {
+    padding: 0.62rem 0.55rem;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.pos-rejilla thead th {
+    font-size: 0.76rem;
+}
+
+/*
+ * Las celdas que se escriben van SIN marco.
+ *
+ * Con el borde de un campo normal, una rejilla de ocho líneas parece un formulario de cuarenta
+ * casillas y no se distingue lo que se puede tocar de lo que no. Sin marco se lee como una tabla, y
+ * el marco aparece solo al entrar en la celda —que es cuando hace falta saber dónde estás—.
+ */
+.pos-celda {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: 0.3rem;
+    background: transparent;
+    padding: 0.25rem 0.35rem;
+    font-size: 0.92rem;
+    color: #1e293b;
+}
+
+.pos-celda:hover {
+    border-color: #e2e8f0;
+}
+
+.pos-celda:focus {
+    outline: none;
+    border-color: var(--bmos-primary, #4f46e5);
+    background: #fff;
+    box-shadow: 0 0 0 2px rgb(79 70 229 / 0.12);
+}
+
+.pos-rejilla .pos-rej-cant { width: 5rem; }
+.pos-rejilla .pos-rej-clave { width: 8rem; }
+/* Medido: con la letra más grande la rejilla pedía 700 px y el hueco de un portátil de 1280 son
+   668, así que el PRECIO se quedaba a medias —«RD$ 80» en vez de «RD$ 80.00»—, que parece un fallo.
+   El descuento y el empleado eran los que tenían holgura de sobra. */
+.pos-rejilla .pos-rej-desc { width: 4.4rem; }
+.pos-rejilla .pos-rej-texto { width: 6rem; }
+.pos-rejilla .pos-rej-precio { width: 6.4rem; }
+.pos-rejilla .pos-rej-importe { width: 6.8rem; }
+.pos-rejilla .pos-rej-quitar { width: 2.1rem; }
+
+/*
+ * EL IMPORTE SE QUEDA CLAVADO A LA DERECHA, con el botón de quitar.
+ *
+ * Medido: con tres líneas y el perfil que trae descuento y empleado, la rejilla pide 677 px y el
+ * hueco son 586. Lo que se caía por el borde era justo el IMPORTE, que es el número por el que se
+ * mira un ticket. Y estrechar columnas solo arregla el ancho que se midió: con otro perfil activo
+ * —serie, nota— vuelven a sobrar columnas y se cae otra vez.
+ */
+.pos-rejilla .pos-rej-quitar {
+    position: sticky;
+    right: 0;
+    background: #fff;
+}
+
+.pos-rejilla .pos-rej-importe,
+.pos-rejilla td.pos-rej-total {
+    position: sticky;
+    right: 2.1rem;
+    background: #fff;
+}
+
+/*
+ * EL PRECIO TAMBIÉN SE CLAVA.
+ *
+ * Estrechar las otras columnas no sirvió: la de descripción es flexible y se quedaba con el hueco
+ * que se liberaba, así que la tabla seguía pidiendo lo mismo —medido: 700 px pasó a 698— y el precio
+ * seguía apareciendo como «RD$ 80» con el resto debajo de las columnas fijas.
+ *
+ * Clavarlo es lo que de verdad lo arregla, y es la misma regla que ya se aplicó al importe: el dinero
+ * no se esconde. Lo que se arrastra es lo de en medio, que es texto y se puede ir a buscar.
+ */
+.pos-rejilla .pos-rej-precio {
+    position: sticky;
+    right: 8.9rem;
+    background: #fff;
+}
+
+.pos-rejilla thead .pos-rej-precio {
+    background: #f8f9fc;
+}
+
+.pos-rejilla tbody tr:hover .pos-rej-precio {
+    background: #fafbff;
+}
+
+.pos-rej-nueva .pos-rej-precio {
+    background: #f8fafc;
+}
+
+.pos-rejilla thead .pos-rej-importe,
+.pos-rejilla thead .pos-rej-quitar {
+    background: #f8f9fc;
+}
+
+.pos-rejilla tbody tr:hover .pos-rej-total,
+.pos-rejilla tbody tr:hover .pos-rej-quitar {
+    background: #fafbff;
+}
+
+/* La fila en blanco tiene su propio fondo; las celdas clavadas lo siguen o se ve un corte. */
+.pos-rej-nueva .pos-rej-importe,
+.pos-rej-nueva .pos-rej-quitar {
+    background: #f8fafc;
+}
+
+/* Una sombra fina marca dónde acaba lo que se arrastra. En ::after: el ::before lo usa el rótulo
+   de la tarjeta en el teléfono, y siendo el mismo pseudo-elemento se pisarían. */
+.pos-rejilla .pos-rej-precio::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 6px;
+    transform: translateX(-6px);
+    background: linear-gradient(to right, rgb(15 23 42 / 0.06), transparent);
+    pointer-events: none;
+}
+
+.pos-rej-total {
+    font-weight: 700;
+    color: #1e293b;
+    font-variant-numeric: tabular-nums;
+}
+
+/* La fila en blanco: es donde escribe el lector, así que se marca sin gritar. */
+.pos-rej-nueva td {
+    background: #f8fafc;
+    border-top: 1px dashed #cbd5e1;
+}
+
+/* El documento ocupa sitio aunque esté casi vacío: en una pantalla de 1700 px, tres líneas
+   flotando arriba del todo no parecen un ticket, parecen un error. */
+.pos-rejilla {
+    min-height: 12rem;
+}
+
+.pos-rej-vacio {
+    text-align: center;
+    color: #94a3b8;
+    padding: 1.4rem 0.5rem;
+    font-size: 0.82rem;
+}
+
+.pos-quitar {
+    color: #cbd5e1;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0 0.2rem;
+}
+
+.pos-quitar:hover {
+    color: #e11d48;
+}
+
+/* El rótulo de las sugerencias, con la ayuda de teclado al lado: quien atiende no debería tener
+   que descubrir por su cuenta que las flechas y el Enter funcionan. */
+.pos-sug-titulo {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.pos-sug-ayuda {
+    margin-left: auto;
+    font-weight: 400;
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+/* ---------------------------------------------------------------- El almacén del turno */
+
+/*
+ * De qué almacén sale la mercancía, siempre a la vista en la barra de sesión.
+ *
+ * No es decoración: el mostrador descontaba antes del almacén de por omisión pasara lo que pasara, y
+ * quien cobraba no tenía forma de saber de dónde estaba saliendo lo que vendía.
+ */
+.pos-almacen-barra {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #475569;
+}
+
+.pos-almacen-barra svg {
+    width: 0.95rem;
+    height: 0.95rem;
+    color: #94a3b8;
+}
+
+.pos-almacen-cambiar {
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.4rem;
+    background: #fff;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.78rem;
+    color: #475569;
+}
+
 /* ---------------------------------------------------------------- En el teléfono */
 @media (max-width: 48rem) {
     /* Ocho columnas no se leen en 390 px. Cada fila pasa a ser una tarjeta con sus rótulos, que es
        la misma información sin obligar a arrastrar la tabla a un lado y a otro. */
-    .pos-tabla thead {
+    .pos-tabla thead,
+    .pos-rejilla thead {
         display: none;
+    }
+
+    /* La rejilla se deshace igual que la tabla de resultados: ocho columnas no caben en 390 px. */
+    .pos-rejilla,
+    .pos-rejilla tbody,
+    .pos-rejilla tr,
+    .pos-rejilla td {
+        display: block;
+        width: 100%;
+    }
+
+    .pos-rejilla tr {
+        border: 1px solid var(--bmos-border);
+        border-radius: 0.65rem;
+        background: #fff;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 0.7rem;
+    }
+
+    .pos-rejilla td {
+        border: 0;
+        padding: 0.15rem 0;
+        white-space: normal;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem;
+        min-width: 0;
+    }
+
+    .pos-rejilla td[data-rotulo]::before {
+        content: attr(data-rotulo);
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #94a3b8;
+        flex: none;
+    }
+
+    /* Los campos, a la derecha de su rótulo y sin desbordar la tarjeta. */
+    .pos-rejilla td .pos-celda {
+        width: auto;
+        flex: 1 1 auto;
+        text-align: right;
+    }
+
+    .pos-rejilla .pos-rej-importe,
+    .pos-rejilla .pos-rej-precio,
+    .pos-rejilla .pos-rej-quitar,
+    .pos-rejilla td.pos-rej-total {
+        position: static;
+        background: transparent;
+    }
+
+    .pos-rejilla .pos-rej-precio::after {
+        content: none;
+    }
+
+    .pos-rejilla .pos-recorta {
+        max-width: none;
+        overflow: visible;
+    }
+
+    .pos-rejilla .pos-rej-cant,
+    .pos-rejilla .pos-rej-clave,
+    .pos-rejilla .pos-rej-desc,
+    .pos-rejilla .pos-rej-texto,
+    .pos-rejilla .pos-rej-precio,
+    .pos-rejilla .pos-rej-importe,
+    .pos-rejilla .pos-rej-quitar {
+        width: auto;
     }
 
     .bmos-tabla-envoltura {

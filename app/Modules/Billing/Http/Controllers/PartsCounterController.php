@@ -38,6 +38,8 @@ final class PartsCounterController extends Controller
             // esta pantalla lo ignoraba.
             'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'tax_id']),
             'hasWarehouse' => Warehouse::query()->where('is_default', true)->exists(),
+            // Para poder decir de dónde sale la pieza. Con uno solo, la pantalla ni lo pregunta.
+            'warehouses' => Warehouse::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -54,7 +56,18 @@ final class PartsCounterController extends Controller
 
     public function invoice(IssuePartsInvoiceRequest $request, CounterInvoiceService $counter): RedirectResponse
     {
-        $warehouse = Warehouse::query()->where('is_default', true)->orderBy('id')->first();
+        /*
+         * EL ALMACÉN QUE SE ELIGIÓ, y el de por omisión solo como red.
+         *
+         * Estaba escrito a fuego, igual que lo estaba en el cobro del punto de venta y en el alta de
+         * producto: una pieza recibida en la sucursal no se podía facturar desde aquí, porque la
+         * buscaba en el principal y no la encontraba.
+         */
+        $elegido = $request->integer('warehouse_id') ?: null;
+
+        $warehouse = ($elegido !== null ? Warehouse::find($elegido) : null)
+            ?? Warehouse::query()->where('is_default', true)->orderBy('id')->first();
+
         if ($warehouse === null) {
             return back()->with('panel_error', 'No hay un almacén configurado.');
         }

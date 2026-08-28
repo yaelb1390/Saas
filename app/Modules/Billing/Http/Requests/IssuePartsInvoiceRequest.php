@@ -31,6 +31,20 @@ final class IssuePartsInvoiceRequest extends FormRequest
             'customer_tax_id' => ['nullable', 'string', 'max:20'],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'paid' => ['required', 'numeric', 'min:0'],
+
+            /*
+             * De qué almacén sale la pieza.
+             *
+             * Se acota a la empresa A MANO, igual que el cliente de aquí abajo: `exists` consulta la
+             * tabla sin pasar por el aislamiento por empresa, y sin esto se podría descontar
+             * existencia de la empresa de al lado.
+             */
+            'warehouse_id' => [
+                'nullable', 'integer',
+                Rule::exists('warehouses', 'id')
+                    ->where('company_id', app(CurrentCompany::class)->id())
+                    ->where('is_active', true),
+            ],
             // La regla «exists» no pasa por el CompanyScope: se acota a la empresa activa a mano.
             'customer_id' => [
                 'nullable', 'integer',

@@ -39,6 +39,18 @@ final class BusquedaTexto
     }
 
     /**
+     * El patrón de «empieza por», para poder ordenar lo que empieza antes que lo que solo contiene.
+     *
+     * Quien teclea «bom» en el mostrador está pensando en «Bomba», no en «Turbo bomba»: si las dos
+     * salen mezcladas hay que leerse la lista entera para encontrar lo que se buscaba. Con el prefijo
+     * primero, lo que se quería suele ser la primera fila y basta con pulsar Enter.
+     */
+    public static function prefijo(string $termino): string
+    {
+        return mb_strtolower(str_replace(['%', '_'], ['\%', '\_'], trim($termino))).'%';
+    }
+
+    /**
      * El trozo de SQL que hay que pegar detrás de un LIKE para que el escape funcione.
      *
      * PostgreSQL toma la barra invertida como carácter de escape por su cuenta; **SQLite no tiene

@@ -266,6 +266,16 @@ it('la pantalla del mostrador trae la tabla, la ficha y las columnas que se adap
         // pantalla y que el resto del sistema. No abre un formulario.
         ->toContain('@click="elegir(i)"')
         /*
+         * La rejilla: el ticket es el documento. La columna de la clave y la fila en blanco donde
+         * escribe el lector son lo que la distingue de una lista de tarjetas.
+         */
+        ->toContain('pos-rejilla')
+        ->toContain('item.sku')
+        ->toContain('x-model.number="nuevaCant"')
+        // El campo del lector vive AHÍ, no en una caja aparte: tenerlo en los dos sitios habría sido
+        // otra vez dos maneras de hacer lo mismo.
+        ->toContain('x-ref="scanInput"')
+        /*
          * El teclado. En un mostrador no se suelta el teclado para ir a marcar una fila con el
          * ratón, así que las flechas y el Enter no son un adorno: son el modo de trabajar.
          *
@@ -275,10 +285,11 @@ it('la pantalla del mostrador trae la tabla, la ficha y las columnas que se adap
          */
         ->toContain('@keydown.arrow-down.prevent="mover(1)"')
         ->toContain('@keydown.arrow-up.prevent="mover(-1)"')
-        ->toContain('@keydown.enter.prevent="abrirMarcado()"')
-        // Y la referencia que permite devolver el foco al buscador tras agregar, para que la
-        // siguiente búsqueda se teclee encima sin borrar nada.
-        ->toContain('x-ref="buscarInput"');
+        // El Enter lo atiende scan(): código exacto, sugerencia o aviso, según lo que haya.
+        ->toContain('@keydown.enter.prevent="scan()"')
+        // Teclear en la celda de clave BUSCA. Es lo que hace que «bom» encuentre las bombas en vez
+        // de dar «código no encontrado».
+        ->toContain('@input.debounce.250ms="searchProducts()"');
 });
 
 it('la ficha SOLO INFORMA: no pide cantidad, ni descuento, ni tiene botón de agregar', function (): void {
@@ -334,4 +345,99 @@ it('la cantidad del ticket se escribe SIN activar la venta por peso', function (
     // El campo existe, y su paso es de uno: quien vende unidades no debe poder teclear 2,5 tornillos.
     expect($html)->toContain('aria-label="Cantidad"')
         ->and($html)->toMatch('/step="1"[^>]*\n?[^>]*x-model\.number="item\.qty"|x-model\.number="item\.qty"/');
+});
+
+it('el campo del lector vive DENTRO de la rejilla, y fuera del formulario de cobro', function (): void {
+    /*
+     * Las dos mitades importan.
+     *
+     * DENTRO de la rejilla: el lector de pistola es un teclado y escribe en el campo enfocado, así
+     * que la celda de la clave es su destino natural. Tener además una caja de escaneo aparte serían
+     * dos sitios para lo mismo.
+     *
+     * FUERA del formulario de cobro: ahí el Enter del lector enviaría el formulario y cobraría una
+     * venta a medio armar. El formulario solo necesita el carrito en su campo oculto, así que la
+     * rejilla puede quedarse fuera y estar a salvo por estructura, no por que un `.prevent` no falle.
+     */
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño4',
+        'email' => 'dueno4@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    conCajaAbierta($this->company->id, $dueno);
+
+    $html = $this->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+
+    // El campo está una sola vez en toda la pantalla.
+    expect(substr_count($html, 'x-ref="scanInput"'))->toBe(1);
+
+    // Y cae antes de que empiece el formulario de cobro.
+    $campo = strpos($html, 'x-ref="scanInput"');
+    $formulario = strpos($html, 'action="'.route('panel.pos.checkout').'"');
+
+    expect($formulario)->not->toBeFalse()
+        ->and($campo)->toBeLessThan($formulario);
+});
+
+it('el almacén del turno se ve en la pantalla', function (): void {
+    /*
+     * Quien cobra tiene que poder saber de dónde sale lo que vende sin ir a otra pantalla. Antes no
+     * se podía: el mostrador descontaba del almacén de por omisión pasara lo que pasara, y eso no se
+     * decía en ninguna parte.
+     */
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño5',
+        'email' => 'dueno5@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    conCajaAbierta($this->company->id, $dueno);
+
+    $html = $this->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+
+    expect($html)->toContain('pos-almacen-barra')
+        ->and($html)->toContain(Warehouse::query()->where('is_default', true)->value('name'));
+});
+
+it('hay UN SOLO campo de texto para buscar y escanear', function (): void {
+    /*
+     * Había dos: una caja de búsqueda que aceptaba nombres y la celda de clave que exigía el código
+     * exacto. Quien atendía tenía que saber cuál usar, y teclear «bom» en la celda no encontraba nada
+     * aunque hubiera tres bombas en el catálogo.
+     *
+     * Se comprueba por AUSENCIA del segundo, que es lo único que impide que vuelva a colarse.
+     */
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño6',
+        'email' => 'dueno6@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    conCajaAbierta($this->company->id, $dueno);
+
+    $html = $this->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+
+    expect(substr_count($html, 'type="search"'))->toBe(0)
+        ->and(substr_count($html, 'x-ref="scanInput"'))->toBe(1)
+        ->and($html)->not->toContain('buscarInput');
+});
+
+it('lo que EMPIEZA por lo tecleado sale antes que lo que solo lo contiene', function (): void {
+    /*
+     * Quien teclea «bomb» está pensando en «Bomba», no en «Aceite para bomba».
+     *
+     * EL CASO ESTÁ ELEGIDO PARA QUE EL ALFABETO NO BASTE. Un primer intento usaba «Turbo bomba», que
+     * por orden alfabético ya caía al final: el test pasaba en verde con el orden por prefijo quitado
+     * y no protegía nada. «Aceite para bomba» empieza por A, así que ordenando por nombre saldría
+     * PRIMERO; solo el orden por prefijo lo manda al final.
+     */
+    Product::create(['sku' => 'Z-1', 'name' => 'Aceite para bomba hidráulica', 'price' => '900']);
+    Product::create(['sku' => 'Z-2', 'name' => 'Bombillo LED', 'price' => '120']);
+
+    $nombres = collect(app(ProductLookupPresenter::class)->search('bomb'))->pluck('name')->all();
+
+    expect($nombres)->toHaveCount(3)
+        // Lo que empieza por «bomb», delante. Y del beforeEach viene «Bomba de agua».
+        ->and($nombres[0])->toStartWith('Bomb')
+        ->and($nombres[1])->toStartWith('Bomb')
+        // Lo que solo la contiene, al final, aunque el alfabeto lo pondría el primero.
+        ->and($nombres[2])->toBe('Aceite para bomba hidráulica');
 });

@@ -6,7 +6,6 @@ namespace App\Modules\POS\Services;
 
 use App\Modules\Cash\Enums\CashSessionStatus;
 use App\Modules\Cash\Models\CashSession;
-use App\Modules\Core\Models\Warehouse;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\Stock;
 use App\Modules\Inventory\Support\OptionResolver;
@@ -110,16 +109,24 @@ final class OfflineSaleSyncService
      */
     private function registrar(string $uuid, array $venta): array
     {
-        $warehouse = Warehouse::query()->where('is_default', true)->orderBy('id')->first();
-
-        if ($warehouse === null) {
-            throw new RuntimeException('No hay un almacén configurado.');
-        }
-
         $session = $this->sesionDeCaja($venta);
 
         if ($session === null) {
             throw new RuntimeException('No se encuentra la caja en la que se cobró.');
+        }
+
+        /*
+         * Sale del almacén DEL TURNO EN QUE SE COBRÓ, no del de ahora.
+         *
+         * Una venta sin conexión puede subirse tres días después, con otro turno abierto y quizá
+         * contra otro almacén. Descontarla del actual movería existencia de un sitio del que nunca
+         * salió esa mercancía, y dejaría descuadrados los dos. La sesión ya se resuelve arriba
+         * —hacía falta para el arqueo—, así que el dato correcto estaba a mano desde el principio.
+         */
+        $warehouse = $session->almacenDeSalida();
+
+        if ($warehouse === null) {
+            throw new RuntimeException('No hay un almacén configurado.');
         }
 
         [$lines, $avisos] = $this->lineas((array) ($venta['lines'] ?? []), (int) $warehouse->id);

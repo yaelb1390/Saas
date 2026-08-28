@@ -50,9 +50,30 @@ final class StoreProductRequest extends FormRequest
                 Rule::exists('categories', 'id')->where('company_id', $companyId),
             ],
             'unit' => ['nullable', 'string', 'max:50'],
+
+            /*
+             * La descripción faltaba aquí.
+             *
+             * El controlador guarda solo lo VALIDADO, así que un campo sin regla se descarta en
+             * silencio: se escribiría en el formulario y no llegaría a la base. La misma trampa que
+             * ya se había corregido en el formulario de editar.
+             */
+            'description' => ['nullable', 'string', 'max:1000'],
             'cost' => ['nullable', 'numeric', 'min:0'],
             'price' => ['nullable', 'numeric', 'min:0'],
             'initial_stock' => ['nullable', 'numeric', 'min:0'],
+
+            /*
+             * A qué almacén entra ese stock inicial.
+             *
+             * La regla se acota a la empresa A MANO: `exists` consulta la tabla directamente, sin
+             * pasar por el aislamiento por empresa, así que sin esto aceptaría el id de un almacén
+             * ajeno y una empresa acabaría metiendo existencia en la de al lado.
+             */
+            'warehouse_id' => [
+                'nullable', 'integer',
+                Rule::exists('warehouses', 'id')->where('company_id', $companyId)->where('is_active', true),
+            ],
             // Desmarcar «controla stock» convierte el producto en un servicio (no descuenta stock).
             'track_stock' => ['nullable', 'boolean'],
             // Foto del producto (opcional).

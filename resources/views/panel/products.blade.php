@@ -73,6 +73,21 @@
                         <x-panel.field name="unit" label="Unidad" value="unidad" />
                         <x-panel.field name="initial_stock" label="Stock inicial" type="number" step="1" value="0" />
                     </div>
+
+                    {{-- EN QUÉ ALMACÉN entra ese stock inicial.
+                         Se creaba siempre en el de por omisión, escrito a fuego: dabas de alta cien
+                         piezas para la sucursal y aparecían en el principal. Con un solo almacén no se
+                         pregunta, que no hay nada que decidir. --}}
+                    @if (count($warehouses) > 1)
+                        <div>
+                            <label class="bmos-field-label" for="crear-almacen">Almacén del stock inicial</label>
+                            <select id="crear-almacen" name="warehouse_id" class="bmos-input">
+                                @foreach ($warehouses as $w)
+                                    <option value="{{ $w->id }}">{{ $w->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     <label class="flex items-center gap-2 text-sm text-slate-600">
                         {{-- Truco Laravel: el hidden envía 0 y el checkbox 1; al marcar, gana el 1. --}}
                         <input type="hidden" name="track_stock" value="0">
@@ -80,21 +95,32 @@
                         Controla stock (desmárcalo si es un servicio)
                     </label>
 
+                    {{-- Los detalles: para todos menos los de comida. Una empanada no tiene marca ni
+                         estante; una ferretería sí, y hasta ahora no tenía dónde apuntarlos. --}}
                     @if ($showPartFields)
-                    <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Datos de la pieza (opcional)</p>
+                    <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Detalles del artículo (opcional)</p>
                     <div class="grid grid-cols-2 gap-3">
-                        <x-panel.field name="part_number" label="Nº de parte / OEM" placeholder="90915-YZZE1" />
-                        <x-panel.field name="brand" label="Marca" placeholder="Bosch, NGK..." />
+                        <x-panel.field name="brand" label="Marca" placeholder="Bosch, Truper, Nike..." />
+                        <x-panel.field name="location" label="Almacén / estante" placeholder="Pasillo 3 / Est. B" />
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <x-panel.field name="vehicle_make" label="Marca del vehículo" placeholder="Toyota" />
-                        <x-panel.field name="vehicle_model" label="Modelo" placeholder="Corolla" />
+                        <x-panel.field name="part_number" label="Nº de parte / referencia" placeholder="90915-YZZE1" />
+                        <x-panel.field name="description" label="Descripción" placeholder="Lo que conviene saber al venderlo" />
                     </div>
-                    <div class="grid grid-cols-3 gap-3">
-                        <x-panel.field name="year_from" label="Año desde" type="number" placeholder="2015" />
-                        <x-panel.field name="year_to" label="Año hasta" type="number" placeholder="2020" />
-                        <x-panel.field name="location" label="Ubicación" placeholder="Pasillo 3 / Est. B" />
-                    </div>
+
+                    {{-- El vehículo, solo donde se venden piezas: «Marca del vehículo» en una tienda de
+                         ropa es un campo que nadie va a rellenar nunca, y cada campo de más en un alta
+                         es una razón más para no darla. --}}
+                    @if ($showVehicleFields)
+                        <div class="grid grid-cols-2 gap-3">
+                            <x-panel.field name="vehicle_make" label="Marca del vehículo" placeholder="Toyota" />
+                            <x-panel.field name="vehicle_model" label="Modelo" placeholder="Corolla" />
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <x-panel.field name="year_from" label="Año desde" type="number" placeholder="2015" />
+                            <x-panel.field name="year_to" label="Año hasta" type="number" placeholder="2020" />
+                        </div>
+                    @endif
                     @endif
                 </x-panel.create-modal>
                 @endcan
@@ -251,7 +277,7 @@
                                         @endcan
                                         @can('products.manage')
                                         <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
-                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">
+                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), description: @js($product->description), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4.5 w-4.5" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                         </button>
                                         <x-panel.confirm-action
@@ -342,21 +368,29 @@
                         Controla stock (desmárcalo si es un servicio)
                     </label>
 
+                    {{-- Los mismos criterios que en el alta: si un campo se puede escribir al crear y
+                         no al editar, el dato entra una vez y ya no hay forma de corregirlo. --}}
                     @if ($showPartFields)
-                    <p class="pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Datos de la pieza (opcional)</p>
+                    <p class="pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Detalles del artículo (opcional)</p>
                     <div class="grid grid-cols-2 gap-3">
-                        <div><label class="bmos-field-label">Nº de parte / OEM</label><input name="part_number" x-model="row.part_number" class="bmos-input"></div>
                         <div><label class="bmos-field-label">Marca</label><input name="brand" x-model="row.brand" class="bmos-input"></div>
+                        <div><label class="bmos-field-label">Almacén / estante</label><input name="location" x-model="row.location" class="bmos-input"></div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div><label class="bmos-field-label">Marca del vehículo</label><input name="vehicle_make" x-model="row.vehicle_make" class="bmos-input"></div>
-                        <div><label class="bmos-field-label">Modelo</label><input name="vehicle_model" x-model="row.vehicle_model" class="bmos-input"></div>
+                        <div><label class="bmos-field-label">Nº de parte / referencia</label><input name="part_number" x-model="row.part_number" class="bmos-input"></div>
+                        <div><label class="bmos-field-label">Descripción</label><input name="description" x-model="row.description" class="bmos-input"></div>
                     </div>
-                    <div class="grid grid-cols-3 gap-3">
-                        <div><label class="bmos-field-label">Año desde</label><input name="year_from" type="number" x-model="row.year_from" class="bmos-input"></div>
-                        <div><label class="bmos-field-label">Año hasta</label><input name="year_to" type="number" x-model="row.year_to" class="bmos-input"></div>
-                        <div><label class="bmos-field-label">Ubicación</label><input name="location" x-model="row.location" class="bmos-input"></div>
-                    </div>
+
+                    @if ($showVehicleFields)
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="bmos-field-label">Marca del vehículo</label><input name="vehicle_make" x-model="row.vehicle_make" class="bmos-input"></div>
+                            <div><label class="bmos-field-label">Modelo</label><input name="vehicle_model" x-model="row.vehicle_model" class="bmos-input"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="bmos-field-label">Año desde</label><input name="year_from" type="number" x-model="row.year_from" class="bmos-input"></div>
+                            <div><label class="bmos-field-label">Año hasta</label><input name="year_to" type="number" x-model="row.year_to" class="bmos-input"></div>
+                        </div>
+                    @endif
                     @endif
                     <div class="flex justify-end gap-2 pt-3">
                         <button type="button" @click="open=false" class="bmos-btn bmos-btn-ghost">Cancelar</button>

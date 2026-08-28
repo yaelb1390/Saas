@@ -59,6 +59,16 @@ final class PanelController extends Controller
             // (panel.pos.search). Así el POS escala a miles de productos sin traerlos todos.
             'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'openSession' => CashSession::query()->where('status', 'open')->latest('opened_at')->first(),
+
+            /*
+             * Los almacenes de la empresa, para poder elegir de cuál sale la mercancía.
+             *
+             * Hasta ahora el mostrador descontaba siempre del de por omisión, así que una empresa con
+             * dos almacenes podía RECIBIR mercancía en el segundo —la pantalla de entradas sí lo
+             * pregunta— y luego no venderla desde ahí. Con uno solo la lista trae un elemento y el
+             * selector ni se pinta.
+             */
+            'warehouses' => Warehouse::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'posConfig' => $company !== null ? PosProfile::for($company) : ['profile' => PosProfile::DEFAULT, 'options' => PosProfile::defaults(PosProfile::DEFAULT)],
             'employees' => Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
 
@@ -91,7 +101,26 @@ final class PanelController extends Controller
             'lowStockFilter' => request('filter') === 'low_stock',
             'categories' => Category::query()->orderBy('name')->get(),
             // Los datos de pieza de vehículo solo tienen sentido en un negocio de repuestos.
-            'showPartFields' => $company !== null && PosProfile::for($company)['profile'] === 'repuestos',
+            /*
+             * Los detalles del artículo: para TODOS menos los de comida.
+             *
+             * Antes solo los veía el perfil «repuestos», así que una ferretería o un colmado no tenían
+             * dónde apuntar la marca ni el estante —campos que existen en la base desde siempre y que
+             * el mostrador ya enseña en la ficha—. Se daban de alta productos sin esos datos porque no
+             * había forma de escribirlos, no porque no hicieran falta.
+             */
+            'showPartFields' => $company !== null && PosProfile::pideDetalles(PosProfile::for($company)['profile']),
+
+            // Los del vehículo son otra cosa: solo tienen sentido donde se venden piezas.
+            'showVehicleFields' => $company !== null && PosProfile::pideVehiculo(PosProfile::for($company)['profile']),
+
+            /*
+             * Los almacenes, para poder decir DÓNDE entra el stock inicial.
+             *
+             * Se creaba siempre en el de por omisión, escrito a fuego —el mismo fallo que tenía el
+             * cobro—: dabas de alta cien piezas para la sucursal y aparecían en el principal.
+             */
+            'warehouses' => Warehouse::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 

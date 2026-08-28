@@ -63,6 +63,23 @@ final class EloquentProductRepository implements ProductRepositoryInterface
              * se había quedado atrás.
              */
             ->with('stock.warehouse')
+            /*
+             * LO QUE EMPIEZA POR LO TECLEADO VA PRIMERO.
+             *
+             * Antes se ordenaba solo por nombre, así que teclear «bom» en el mostrador podía sacar
+             * «Turbo bomba» por encima de «Bomba de agua» —van por orden alfabético, no por lo que
+             * se estaba buscando— y había que leerse la lista para encontrar lo obvio.
+             *
+             * Con `case when` y no con `ilike`: los tests corren sobre SQLite y esto funciona igual
+             * en las dos bases. Una consulta que solo se puede probar en producción no vale de nada.
+             */
+            ->orderByRaw(
+                'case when lower(sku) like ?'.BusquedaTexto::ESCAPE
+                .' or lower(name) like ?'.BusquedaTexto::ESCAPE
+                .' or lower(part_number) like ?'.BusquedaTexto::ESCAPE
+                .' then 0 else 1 end',
+                array_fill(0, 3, BusquedaTexto::prefijo($term)),
+            )
             ->orderBy('name')
             ->limit($limit)
             ->get();

@@ -44,6 +44,10 @@ final class PosProfile
      */
     private const TYPES = [
         'general' => ['label' => 'General', 'hint' => 'Comercio estándar'],
+        // Comida rápida, heladería y cafetería. Es el único tipo al que NO se le piden los detalles
+        // del artículo —número de parte, marca, estante—: una empanada no tiene ninguno de esos, y
+        // pedirlos en cada alta es un formulario el doble de largo para no rellenar nada.
+        'comida' => ['label' => 'Comida rápida', 'hint' => 'Restaurante, heladería, cafetería'],
         'ropa' => ['label' => 'Ropa y calzado', 'hint' => 'Tienda de ropa'],
         'repuestos' => ['label' => 'Repuestos', 'hint' => 'Piezas de vehículo'],
         'salon' => ['label' => 'Salón / Uñas', 'hint' => 'Belleza y servicios'],
@@ -57,11 +61,36 @@ final class PosProfile
      */
     private const PRESETS = [
         'general' => ['line_discount', 'global_discount'],
+        // Para llevar o para comer aquí, y la nota por línea: «sin cebolla» se apunta cincuenta veces
+        // al día en un mostrador de comida.
+        'comida' => ['order_type', 'line_note', 'global_discount'],
         'ropa' => ['line_discount', 'global_discount'],
         'repuestos' => ['line_discount', 'line_note'],
         'salon' => ['tip', 'attendant', 'services', 'line_note'],
         'tecnologia' => ['serial', 'line_note', 'line_discount'],
     ];
+
+    /**
+     * ¿A este negocio se le piden los detalles del artículo?
+     *
+     * A todos menos a los de comida. Un colmado o una ferretería sí quieren apuntar la marca y en qué
+     * estante está; un puesto de empanadas no tiene ni marca ni estante que apuntar.
+     */
+    public static function pideDetalles(string $type): bool
+    {
+        return $type !== 'comida';
+    }
+
+    /**
+     * ¿Y los datos del vehículo al que aplica la pieza?
+     *
+     * Solo repuestos. «Marca del vehículo» en una tienda de ropa es un campo que nadie va a rellenar
+     * nunca, y cada campo de más en un alta es una razón más para no darla de alta.
+     */
+    public static function pideVehiculo(string $type): bool
+    {
+        return $type === 'repuestos';
+    }
 
     /**
      * @return array<string, array{label: string, hint: string}>

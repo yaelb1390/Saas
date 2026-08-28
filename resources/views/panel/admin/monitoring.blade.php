@@ -88,7 +88,8 @@
                 'tendencia' => $frenteAAyer('fallidos', false, 'Intentos de entrada fallidos')],
         ]" />
 
-        <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_18rem_16rem]">
+        {{-- Cuatro tarjetas desde que existe la de «Estado de las empresas». En pantallas medianas van de dos en dos; la serie se queda con lo que sobre, que es la que de verdad necesita ancho. --}}
+        <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_16rem_16rem_15rem]">
             {{-- La serie. Es lo que convierte números en tendencia: un pico del martes salta a la
                  vista sin leer una sola fila. --}}
             <div class="bmos-card bmos-card-pad">
@@ -137,6 +138,50 @@
                     @endif
             </div>
 
+            {{--
+                Lo que le impide vender a alguien AHORA MISMO.
+
+                Va antes que las suscripciones a propósito: una empresa que no puede cobrar tiene un
+                problema hoy; una que vence en diez días, la semana que viene. Y las tres primeras
+                señales no aparecían en ninguna pantalla —se descubrían cuando el cobro fallaba con un
+                cliente delante—.
+
+                Cada línea solo se pinta si tiene a alguien detrás: una lista de ceros no es un panel
+                de control, es ruido que se deja de leer.
+            --}}
+            @php
+                $bloqueos = collect([
+                    ['n' => $avisos['sin_almacen'], 'texto' => 'sin almacén: no pueden cobrar', 'tono' => 'text-rose-700 bg-rose-50'],
+                    ['n' => $avisos['sin_ncf'], 'texto' => 'sin NCF disponible: no pueden facturar', 'tono' => 'text-rose-700 bg-rose-50'],
+                    ['n' => $avisos['sin_productos'], 'texto' => 'sin productos que vender', 'tono' => 'text-rose-700 bg-rose-50'],
+                    ['n' => $avisos['caja_abierta'], 'texto' => 'con la caja sin cerrar', 'tono' => 'text-amber-800 bg-amber-50'],
+                    ['n' => $avisos['nunca_vendio'], 'texto' => 'que nunca han vendido', 'tono' => 'text-amber-800 bg-amber-50'],
+                    ['n' => $avisos['sin_vender'], 'texto' => 'sin vender hace semanas', 'tono' => 'text-amber-800 bg-amber-50'],
+                    ['n' => $avisos['pasada_de_plan'], 'texto' => 'pasadas de su plan', 'tono' => 'text-violet-700 bg-violet-50'],
+                    ['n' => $avisos['bot_sin_info'], 'texto' => 'con el bot encendido y sin información', 'tono' => 'text-amber-800 bg-amber-50'],
+                ])->where('n', '>', 0);
+            @endphp
+
+            <div class="bmos-card bmos-card-pad">
+                    <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Estado de las empresas</p>
+
+                    @forelse ($bloqueos as $b)
+                        <p class="mb-1.5 rounded-lg px-3 py-2 text-xs font-medium {{ $b['tono'] }}">
+                            <b>{{ $b['n'] }}</b>
+                            {{ $b['n'] === 1 ? 'empresa' : 'empresas' }} {{ $b['texto'] }}
+                        </p>
+                    @empty
+                        <div class="py-4 text-center">
+                            <p class="text-2xl font-bold text-emerald-600">{{ count($salud_empresas) }}</p>
+                            <p class="mt-0.5 text-xs text-slate-400">todas pueden vender y ninguna está parada</p>
+                        </div>
+                    @endforelse
+
+                    @if ($bloqueos->isNotEmpty())
+                        <p class="mt-2 text-xs text-slate-400">El detalle, en la pestaña «Empresas».</p>
+                    @endif
+            </div>
+
             <div class="bmos-card bmos-card-pad">
                     <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Suscripciones</p>
                     @forelse ($salud['por_vencer'] as $v)
@@ -182,6 +227,14 @@
                         Errores
                         @if ($errores->isNotEmpty())
                             <span class="bmos-pestana-num">{{ $errores->count() }}</span>
+                        @endif
+                    </button>
+                    <button type="button" class="bmos-pestana" :class="pestana === 'empresas' && 'is-activa'"
+                            @click="pestana = 'empresas'">
+                        Empresas
+                        @php $conAviso = collect($salud_empresas)->filter(fn ($e) => $e['sin_almacen'] || $e['sin_ncf'] || $e['caja_abierta'] || $e['sin_productos'] || $e['nunca_vendio'] || $e['sin_vender'] || $e['pasada_de_plan'] || $e['bot_sin_info'])->count(); @endphp
+                        @if ($conAviso > 0)
+                            <span class="bmos-pestana-num">{{ $conAviso }}</span>
                         @endif
                     </button>
                     <button type="button" class="bmos-pestana" :class="pestana === 'actividad' && 'is-activa'"
@@ -292,6 +345,97 @@
                         Agrupados por huella: el mismo fallo repetido es una fila con su contador, no cien filas.
                     </p>
                 @endif
+            </div>
+
+            {{--
+                ------------------------------------------------------------------ Empresas
+
+                Una fila por empresa con su estado. Es lo que faltaba: todo lo demás de esta pantalla
+                responde «¿cómo está la plataforma?», y para saber cómo le va a un cliente concreto
+                había que ir a mirar sus datos uno por uno.
+
+                Las señales van como etiquetas y no como columnas: son ocho, casi siempre están
+                vacías, y ocho columnas de guiones no dicen nada. Así solo se ve lo que pasa.
+            --}}
+            <div x-show="pestana === 'empresas'" x-cloak>
+                <div class="bmos-tabla-envoltura">
+                    <table class="bmos-table">
+                        <thead>
+                            <tr>
+                                <th>Empresa</th>
+                                <th>Plan</th>
+                                <th>Última venta</th>
+                                <th>Último acceso</th>
+                                <th>Qué le pasa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($salud_empresas as $e)
+                                <tr>
+                                    <td>
+                                        <span class="font-medium text-slate-700">{{ $e['nombre'] }}</span>
+                                        @unless ($e['activa'])
+                                            <span class="bmos-badge badge-rose ml-1">Inactiva</span>
+                                        @endunless
+                                        <span class="block text-xs text-slate-400">
+                                            {{ $e['usuarios'] }}
+                                            {{ $e['usuarios'] === 1 ? 'usuario' : 'usuarios' }}@if ($e['limite_usuarios']) de {{ $e['limite_usuarios'] }}@endif
+                                            ·
+                                            {{ $e['sucursales'] }}
+                                            {{ $e['sucursales'] === 1 ? 'sucursal' : 'sucursales' }}
+                                        </span>
+                                    </td>
+                                    <td class="text-sm text-slate-500">{{ $e['plan'] ?? '—' }}</td>
+                                    {{-- La fecha Y el «hace cuánto»: la fecha sola obliga a contar
+                                         días de cabeza, que es justo lo que se quiere saber. --}}
+                                    <td class="text-sm">
+                                        @if ($e['ultima_venta'])
+                                            <span class="text-slate-600">{{ $e['ultima_venta']->format('d/m/Y') }}</span>
+                                            <span class="block text-xs text-slate-400">{{ $e['ultima_venta']->diffForHumans() }}</span>
+                                        @else
+                                            <span class="text-slate-400">nunca</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-sm">
+                                        @if ($e['ultimo_acceso'])
+                                            <span class="text-slate-600">{{ $e['ultimo_acceso']->format('d/m/Y') }}</span>
+                                            <span class="block text-xs text-slate-400">{{ $e['ultimo_acceso']->diffForHumans() }}</span>
+                                        @else
+                                            <span class="text-slate-400">sin registro</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @php
+                                            // Lo que IMPIDE vender primero, y en rojo. Lo demás informa.
+                                            $avisos = collect([
+                                                ['sí' => $e['sin_almacen'], 'texto' => 'Sin almacén: no puede cobrar', 'tono' => 'badge-rose'],
+                                                ['sí' => $e['sin_ncf'], 'texto' => 'Sin NCF disponible', 'tono' => 'badge-rose'],
+                                                ['sí' => $e['sin_productos'], 'texto' => 'Sin productos', 'tono' => 'badge-rose'],
+                                                ['sí' => $e['caja_abierta'], 'texto' => 'Caja sin cerrar', 'tono' => 'badge-amber'],
+                                                ['sí' => $e['nunca_vendio'], 'texto' => 'Nunca vendió', 'tono' => 'badge-amber'],
+                                                ['sí' => $e['sin_vender'], 'texto' => 'Sin vender hace semanas', 'tono' => 'badge-amber'],
+                                                ['sí' => $e['pasada_de_plan'], 'texto' => 'Pasada de su plan', 'tono' => 'badge-violet'],
+                                                ['sí' => $e['bot_sin_info'], 'texto' => 'Bot sin información', 'tono' => 'badge-amber'],
+                                                ['sí' => $e['descuadres'] > 0, 'texto' => $e['descuadres'].' descuadre'.($e['descuadres'] === 1 ? '' : 's').' de caja', 'tono' => 'badge-gray'],
+                                                ['sí' => $e['sin_precio'] > 0, 'texto' => $e['sin_precio'].' sin precio', 'tono' => 'badge-gray'],
+                                            ])->where('sí', true);
+                                        @endphp
+
+                                        @forelse ($avisos as $aviso)
+                                            <span class="bmos-badge {{ $aviso['tono'] }} mb-1 mr-1">{{ $aviso['texto'] }}</span>
+                                        @empty
+                                            <span class="text-sm text-emerald-600">Todo en orden</span>
+                                        @endforelse
+                                    </td>
+                                </tr>
+                            @endforeach
+
+                            @if (count($salud_empresas) === 0)
+                                <tr><td colspan="5" class="py-6 text-center text-sm text-slate-400">No hay empresas todavía.</td></tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {{-- ----------------------------------------------------------------- Actividad --}}

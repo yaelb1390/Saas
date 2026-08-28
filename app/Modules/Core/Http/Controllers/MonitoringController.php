@@ -8,7 +8,9 @@ use App\Modules\Core\Models\Audit;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\ErrorEvent;
 use App\Modules\Core\Models\SystemEvent;
+use App\Modules\Core\Services\CompanyHealthService;
 use App\Modules\Core\Services\PlatformHealthService;
+use App\Modules\Core\Support\BusquedaTexto;
 use App\Modules\Core\Support\DbTable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Contracts\View\View;
@@ -48,9 +50,18 @@ final class MonitoringController extends Controller
         'webhook' => 'Webhooks',
     ];
 
-    public function __invoke(PlatformHealthService $salud): View
+    public function __invoke(PlatformHealthService $salud, CompanyHealthService $empresas): View
     {
         return view('panel.admin.monitoring', [
+            /*
+             * El estado de CADA empresa, que es lo que no había.
+             *
+             * Todo lo demás de esta pantalla responde «¿cómo está la plataforma?». Para saber si a un
+             * cliente concreto le va bien había que ir a mirar sus datos uno por uno, y para
+             * enterarse de que se estaba yendo, esperar a que cancelara.
+             */
+            'salud_empresas' => $empresas->porEmpresa(),
+            'avisos' => $empresas->resumenDeAvisos(),
             'registro' => $this->registro(),
             'familias' => self::FAMILIAS,
             'salud' => $salud->resumen(),
@@ -132,7 +143,15 @@ final class MonitoringController extends Controller
             )
             // Buscar por texto: sirve para «¿quién intentó entrar con este correo?», que es la
             // pregunta que se hace cuando algo huele mal.
-            ->when(request('busca'), fn ($q, $texto) => $q->where('message', 'like', '%'.$texto.'%'))
+            /*
+             * Sin que importen las mayúsculas. Era un `like` a secas, y en PostgreSQL —la base de
+             * este proyecto— eso distingue: buscar «error» en el registro no encontraba «Error».
+             * Justo en la pantalla a la que se viene cuando algo va mal.
+             */
+            ->when(
+                request('busca'),
+                fn ($q, $texto) => $q->whereRaw('lower(message) like ?'.BusquedaTexto::ESCAPE, [BusquedaTexto::patron((string) $texto)]),
+            )
             ->latest('created_at')
             ->cursorPaginate(30, ['*'], 'reg')
             ->withQueryString();

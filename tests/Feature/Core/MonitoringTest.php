@@ -7,11 +7,14 @@ use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Models\Audit;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\ErrorEvent;
+use App\Modules\Core\Models\SystemEvent;
+use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Services\PlatformHealthService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 /*
  * El monitoreo de la plataforma.
@@ -182,4 +185,65 @@ it('enseña el estado de los servicios externos', function (): void {
         ->assertSee('Servicios externos')
         ->assertSee('Inteligencia Artificial')
         ->assertSee('WhatsApp');
+});
+
+// ------------------------------------------------------------------------- La búsqueda del registro
+
+it('buscar «error» encuentra «Error»', function (): void {
+    /*
+     * Era un `like` a secas. En PostgreSQL —la base de este proyecto— eso distingue mayúsculas, así
+     * que buscar «error» no encontraba «Error de conexión». Y justo en la pantalla a la que se viene
+     * cuando algo va mal.
+     *
+     * SE COMPRUEBA SOBRE EL SQL, no sobre el resultado: los tests corren en SQLite y ahí `LIKE` ya
+     * ignora las mayúsculas por sí solo, así que un test que solo mirara las filas devueltas pasaría
+     * en verde con el fallo puesto. Es el mismo agujero que dejó pasar este error meses.
+     */
+    SystemEvent::olvidarSiHayTabla();
+    SystemEvent::create(['type' => 'app.fallo', 'level' => SystemEvent::GRAVE, 'message' => 'Error de conexión']);
+
+    $sql = [];
+    DB::listen(function ($c) use (&$sql): void {
+        $sql[] = $c->sql;
+    });
+
+    $r = $this->actingAs($this->super)
+        ->get(route('platform.monitoring', ['busca' => 'error', 'pestana' => 'registro']));
+
+    $r->assertOk()->assertSee('Error de conexión');
+
+    $bajaAMinusculas = collect($sql)
+        ->filter(fn (string $q): bool => str_contains($q, 'system_events'))
+        ->contains(fn (string $q): bool => str_contains($q, 'lower(message) like'));
+
+    expect($bajaAMinusculas)
+        ->toBeTrue('La búsqueda del registro no baja el texto a minúsculas: en PostgreSQL distinguiría mayúsculas.');
+});
+
+// ------------------------------------------------------------------------- La pestaña «Empresas»
+
+it('la pestaña de empresas enseña a cada una con lo que le pasa', function (): void {
+    /*
+     * Los tests del servicio comprueban las señales; este comprueba que LLEGAN A LA PANTALLA. Sin él,
+     * el cálculo podría ser perfecto y la pestaña salir vacía —o no salir— sin que nada se pusiera
+     * rojo: es justo el fallo que ya me comí al reescribir una vista.
+     */
+    Warehouse::withoutGlobalScopes()
+        ->where('company_id', $this->segunda->id)->update(['is_default' => false]);
+
+    $r = $this->actingAs($this->super)->get(route('platform.monitoring'))->assertOk();
+
+    $r->assertSee('Primera')
+        ->assertSee('Segunda')
+        // El aviso de la empresa rota, con el motivo escrito para quien lo lea sin saber del código.
+        ->assertSee('Sin almacén: no puede cobrar')
+        ->assertSee('Qué le pasa');
+});
+
+it('la empresa a la que no le pasa nada sale en orden, no en blanco', function (): void {
+    // Una celda vacía se lee como «no se pudo calcular». Es un panel de control: el silencio tiene
+    // que decir «está bien», y decirlo con todas las letras.
+    $this->actingAs($this->super)->get(route('platform.monitoring'))
+        ->assertOk()
+        ->assertSee('Todo en orden');
 });

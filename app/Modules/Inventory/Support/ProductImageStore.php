@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Support;
 
+use App\Modules\Core\Support\ImagenRecuadrada;
 use App\Modules\Inventory\Models\Product;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
@@ -74,66 +75,15 @@ final class ProductImageStore
     }
 
     /**
-     * Normaliza la foto a un lienzo VERTICAL 3:4 de fondo blanco y devuelve JPEG.
+     * Recuadra a lienzo VERTICAL 3:4.
      *
-     * Se recuadra al guardar y no al mostrar porque las fotos llegan con proporciones dispares y en
-     * la rejilla del punto de venta eso obligaba a elegir entre dos males: recortar el producto
-     * (`cover`) o dejar franjas de fondo (`contain`). Normalizando en la subida, todas las fichas
-     * quedan iguales y ninguna foto pierde nada. Es además el sitio barato: se hace una vez por
-     * imagen, no en cada visita.
-     *
-     * Nunca amplía: una foto pequeña se centra en un lienzo de su tamaño en vez de estirarse y
-     * salir pixelada.
-     *
-     * Devuelve el original si GD no está disponible o no puede leer la imagen.
+     * El recuadrado en sí vive en `ImagenRecuadrada`, compartido con la foto del patio de
+     * vehículos, que usa 4:3 horizontal. Aquí solo se dice la proporción: un producto de mostrador
+     * —una botella, un vaso, un cono— es más alto que ancho, y en un lienzo cuadrado quedaba con
+     * franjas a los lados.
      */
     private function resize(string $bytes): string
     {
-        if (! function_exists('imagecreatefromstring') || ! function_exists('imagejpeg')) {
-            return $bytes;
-        }
-
-        $src = @imagecreatefromstring($bytes);
-
-        if ($src === false) {
-            return $bytes;
-        }
-
-        $w = imagesx($src);
-        $h = imagesy($src);
-
-        // Alto del lienzo: el mínimo que permite que la foto quepa entera en proporción 3:4, con
-        // tope. Se parte del mayor entre el alto real y el que exigiría el ancho, así una foto ya
-        // vertical apenas gana margen y una apaisada lo gana arriba y abajo.
-        $alto = (int) min(self::MAX_SIDE, max($h, (int) ceil($w * self::RATIO_H / self::RATIO_W)));
-        $ancho = max(1, (int) round($alto * self::RATIO_W / self::RATIO_H));
-
-        // La imagen se escala para caber dentro del lienzo conservando su proporción. Nunca amplía.
-        $scale = min(1.0, $ancho / $w, $alto / $h);
-        $nw = max(1, (int) round($w * $scale));
-        $nh = max(1, (int) round($h * $scale));
-
-        $dst = imagecreatetruecolor($ancho, $alto);
-
-        // Fondo blanco: aplana transparencias (PNG/WEBP) al pasar a JPEG y da el mismo lienzo a
-        // todas las fichas.
-        imagefilledrectangle($dst, 0, 0, $ancho, $alto, imagecolorallocate($dst, 255, 255, 255));
-
-        // Centrada, para que el producto quede en el medio de la ficha.
-        imagecopyresampled(
-            $dst, $src,
-            (int) (($ancho - $nw) / 2), (int) (($alto - $nh) / 2),
-            0, 0,
-            $nw, $nh, $w, $h,
-        );
-
-        ob_start();
-        imagejpeg($dst, null, 82);
-        $out = (string) ob_get_clean();
-
-        imagedestroy($src);
-        imagedestroy($dst);
-
-        return $out !== '' ? $out : $bytes;
+        return ImagenRecuadrada::recuadrar($bytes, self::RATIO_W, self::RATIO_H, self::MAX_SIDE);
     }
 }

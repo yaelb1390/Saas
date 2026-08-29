@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Loans\Services;
 
+use App\Modules\Core\Support\PlanDeCuotas;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\Loans\DTOs\CreateLoanData;
@@ -47,7 +48,9 @@ final class LoanService
 
             $total = bcadd($principal, $interest, self::SCALE);
             $count = max(1, $data->installmentsCount);
-            $installment = bcdiv($total, (string) $count, self::SCALE);
+            // La misma división que usa el calendario: si aquí se redondeara distinto, la cuota que
+            // se le enseña al cliente no coincidiría con la de su calendario de pagos.
+            $installment = PlanDeCuotas::importeDeCuota($total, $count);
 
             $loan = new Loan([
                 'company_id' => $companyId,
@@ -72,7 +75,7 @@ final class LoanService
             ]);
             $loan->save();
 
-            $this->generateSchedule($loan, $principal, $interest, $count, $installment, $data);
+            $this->generateSchedule($loan, $principal, $interest, $count, $data);
 
             LoanDisbursed::dispatch($loan);
 
@@ -215,47 +218,41 @@ final class LoanService
     }
 
     /**
-     * Genera las N cuotas. El capital y el interés se reparten por igual; la ÚLTIMA cuota absorbe
-     * los centavos del redondeo para que la suma cuadre exactamente con el total.
+     * Genera las N cuotas.
+     *
+     * El reparto lo hace `PlanDeCuotas`, que es matemática pura y compartida: el dealer de vehículos
+     * financia con las mismas cuentas, y tener dos copias del reparto de capital e interés sería
+     * tener dos sitios donde corregir el mismo error. Aquí solo se guardan las filas.
      */
     private function generateSchedule(
         Loan $loan,
         string $principal,
         string $interest,
         int $count,
-        string $installment,
         CreateLoanData $data,
     ): void {
-        $capitalEach = bcdiv($principal, (string) $count, self::SCALE);
-        $interestEach = bcdiv($interest, (string) $count, self::SCALE);
+        $plan = PlanDeCuotas::calcular(
+            $principal,
+            $interest,
+            $count,
+            Carbon::parse($data->startDate),
+            // La frecuencia la sabe el préstamo, no el calculador: aquí se cobra hasta a diario y
+            // en el dealer no, y no tiene sentido que una clase de Core opine sobre eso.
+            fn (Carbon $desde): Carbon => $loan->frequency->advance($desde),
+        );
 
-        $due = Carbon::parse($data->startDate);
-
-        for ($n = 1; $n <= $count; $n++) {
-            if ($n < $count) {
-                $principalPortion = $capitalEach;
-                $interestPortion = $interestEach;
-                $amount = $installment;
-            } else {
-                // Última cuota: lo que reste, para que capital e interés sumen exacto.
-                $principalPortion = bcsub($principal, bcmul($capitalEach, (string) ($count - 1), self::SCALE), self::SCALE);
-                $interestPortion = bcsub($interest, bcmul($interestEach, (string) ($count - 1), self::SCALE), self::SCALE);
-                $amount = bcadd($principalPortion, $interestPortion, self::SCALE);
-            }
-
+        foreach ($plan as $cuota) {
             $loan->installments()->create([
                 'company_id' => $loan->company_id,
-                'number' => $n,
-                'due_date' => $due->copy(),
-                'amount' => $amount,
-                'principal_portion' => $principalPortion,
-                'interest_portion' => $interestPortion,
+                'number' => $cuota['number'],
+                'due_date' => $cuota['due_date'],
+                'amount' => $cuota['amount'],
+                'principal_portion' => $cuota['principal_portion'],
+                'interest_portion' => $cuota['interest_portion'],
                 'late_fee' => '0',
                 'paid_amount' => '0',
                 'status' => InstallmentStatus::Pending,
             ]);
-
-            $due = $loan->frequency->advance($due);
         }
     }
 

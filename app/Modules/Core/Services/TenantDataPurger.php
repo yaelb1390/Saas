@@ -78,6 +78,21 @@ final class TenantDataPurger
         'loan_payments',
         'loan_installments',
         'loans',
+        /*
+         * Dealer de vehículos.
+         *
+         * El orden importa más aquí que en otros sitios: los tratos apuntan a `vehicles` con
+         * `restrict` —y DOS veces, porque el carro recibido en parte de pago también es un
+         * vehículo—, así que borrar las unidades antes que los tratos reventaría la purga entera y
+         * dejaría a la empresa limpiada a medias.
+         *
+         * Los tratos van además antes que `customers`, que se borra más abajo.
+         */
+        'vehicle_deal_payments',
+        'vehicle_installments',
+        'vehicle_deals',
+        'vehicle_jobs',
+        'vehicles',
         // Facturación
         'invoice_items',
         'invoices',

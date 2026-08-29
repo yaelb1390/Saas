@@ -111,6 +111,22 @@ final class RoleProvisioner
         // RRHH
         'hr.view',
         'hr.manage',
+        /*
+         * Dealer de vehículos. Tres pares y no uno solo, a propósito:
+         *
+         * `vehicles.manage` es el que abre el COSTO y el margen. Quien solo atiende ve la unidad y
+         * su precio; lo que costó comprarla y prepararla es del dueño. Es la misma línea que ya se
+         * trazó en el punto de venta.
+         *
+         * `vehicle_jobs.*` va aparte para que el que anota lo que le hizo al carro no tenga que
+         * poder venderlo, y `vehicle_deals.*` porque cerrar un trato mueve dinero.
+         */
+        'vehicles.view',
+        'vehicles.manage',
+        'vehicle_deals.view',
+        'vehicle_deals.manage',
+        'vehicle_jobs.view',
+        'vehicle_jobs.manage',
         // Reportes
         'reports.view',
     ];
@@ -180,6 +196,12 @@ final class RoleProvisioner
             'loan_applications.manage',
             'hr.view',
             'hr.manage',
+            'vehicles.view',
+            'vehicles.manage',
+            'vehicle_deals.view',
+            'vehicle_deals.manage',
+            'vehicle_jobs.view',
+            'vehicle_jobs.manage',
             'reports.view',
         ],
         // Cajero: SOLO la caja / punto de venta. Puede operar el POS (que internamente crea la

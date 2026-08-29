@@ -31,6 +31,9 @@ use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
+use App\Modules\Dealer\Http\Controllers\VehicleController;
+use App\Modules\Dealer\Http\Controllers\VehicleDealController;
+use App\Modules\Dealer\Http\Controllers\VehicleJobController;
 use App\Modules\Delivery\Http\Controllers\DeliveryController;
 use App\Modules\Delivery\Http\Controllers\DriverPortalController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
@@ -504,6 +507,51 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/prestamos/{loan}/pagos', [LoanController::class, 'payment'])->name('panel.loans.payments.store');
         Route::post('/panel/prestamos/{loan}/cuotas/{installment}/mora', [LoanController::class, 'setFee'])->name('panel.loans.installments.fee');
         Route::post('/panel/prestamos/{loan}/anular', [LoanController::class, 'cancel'])->name('panel.loans.cancel');
+    });
+
+    /*
+     * Dealer de vehículos.
+     *
+     * Tres permisos y no uno solo: `vehicles.*` es el patio —y el que abre el COSTO y el margen—,
+     * `vehicle_deals.*` mueve dinero, y `vehicle_jobs.*` es el taller. El mecánico que anota un
+     * cambio de gomas no tiene por qué poder vender el carro.
+     */
+    Route::middleware('module:dealer')->group(function (): void {
+        Route::middleware('can:vehicles.view')->group(function (): void {
+            Route::get('/panel/vehiculos', [VehicleController::class, 'index'])->name('panel.vehicles');
+            // Las filas de la rejilla. Mismo permiso que la pantalla: el JSON decide por sí mismo
+            // si incluye el costo, así que ver la lista no es ver los costos.
+            Route::get('/panel/vehiculos/datos', [VehicleController::class, 'datos'])->name('panel.vehicles.data');
+            // La ficha de una unidad: lo que no cabe en la tabla. Se pide solo al abrirla.
+            Route::get('/panel/vehiculos/{vehicle}/ficha', [VehicleController::class, 'ficha'])->name('panel.vehicles.ficha');
+            /*
+             * La foto. Va por aquí y no por una URL pública del disco a propósito: así pasa por el
+             * ámbito de empresa —la unidad de otro negocio ni se resuelve— y por el permiso. Una
+             * dirección pública sería adivinable y filtraría fotos entre empresas.
+             */
+            Route::get('/panel/vehiculos/{vehicle}/foto', [VehicleController::class, 'foto'])->name('panel.vehicles.photo');
+        });
+
+        Route::post('/panel/vehiculos', [VehicleController::class, 'store'])
+            ->middleware('can:vehicles.manage')->name('panel.vehicles.store');
+
+        Route::get('/panel/vehiculos/tratos', [VehicleDealController::class, 'index'])
+            ->middleware('can:vehicle_deals.view')->name('panel.vehicle-deals');
+
+        Route::middleware('can:vehicle_deals.manage')->group(function (): void {
+            Route::post('/panel/vehiculos/tratos', [VehicleDealController::class, 'store'])->name('panel.vehicle-deals.store');
+            Route::post('/panel/vehiculos/tratos/{deal}/cerrar', [VehicleDealController::class, 'close'])->name('panel.vehicle-deals.close');
+            Route::post('/panel/vehiculos/tratos/{deal}/anular', [VehicleDealController::class, 'cancel'])->name('panel.vehicle-deals.cancel');
+            Route::post('/panel/vehiculos/tratos/{deal}/abonos', [VehicleDealController::class, 'payment'])->name('panel.vehicle-deals.payments.store');
+        });
+
+        Route::get('/panel/vehiculos/taller', [VehicleJobController::class, 'index'])
+            ->middleware('can:vehicle_jobs.view')->name('panel.vehicle-jobs');
+
+        Route::middleware('can:vehicle_jobs.manage')->group(function (): void {
+            Route::post('/panel/vehiculos/taller', [VehicleJobController::class, 'store'])->name('panel.vehicle-jobs.store');
+            Route::post('/panel/vehiculos/taller/{job}/hecho', [VehicleJobController::class, 'complete'])->name('panel.vehicle-jobs.complete');
+        });
     });
 
     /*

@@ -22,6 +22,36 @@ window.loadChart = async () => {
 };
 
 /**
+ * AG Grid, cargado BAJO DEMANDA, por el mismo motivo que Chart.js.
+ *
+ * Es la rejilla del patio de vehículos y pesa bastante más que todo lo demás junto. Solo la abre un
+ * dealer; un colmado no verá esa pantalla en su vida y no tiene por qué descargarla al entrar.
+ *
+ * Se usa la edición Community, que es MIT y gratuita para uso comercial. Agrupar filas,
+ * maestro/detalle y Excel son de pago: sin licencia pintan una marca de agua encima de la tabla, y
+ * esto es un producto que se vende.
+ *
+ * SE REGISTRAN LAS PIEZAS SUELTAS Y NO `AllCommunityModule`. Con el paquete entero el trozo pesaba
+ * 1,36 MB; con solo lo que se usa baja a la mitad larga. La diferencia la paga el dealer que abre la
+ * pantalla con datos móviles, así que se mide y se recorta en vez de meterlo todo por comodidad.
+ *
+ * Si algún día hace falta una función que no esté aquí, AG Grid avisa en consola diciendo QUÉ módulo
+ * falta: no se rompe en silencio.
+ *
+ * El registro se hace UNA vez: repetirlo en cada visita llenaría la consola de avisos.
+ */
+window.loadAgGrid = async () => {
+    if (!window.agGrid) {
+        // Se importa NUESTRO fichero, no el paquete: ahí dentro las importaciones son nombradas y
+        // estáticas, que es lo único que permite a Rollup dejar fuera lo que no se usa. Importar el
+        // paquete aquí directamente se traía el bulto entero; está medido.
+        window.agGrid = await import('./ag-grid.js');
+    }
+
+    return window.agGrid;
+};
+
+/**
  * Escáner por cámara, cargado bajo demanda.
  *
  * Vive aquí y no en el <script> de la vista porque el navegador no sabe resolver un import de

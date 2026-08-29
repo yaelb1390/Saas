@@ -63,6 +63,14 @@
             ['panel.loans', 'Préstamos', 'loans', 'loans.view', 'loans'],
             ['panel.purchase-invoices', 'Compras (606)', 'receipt', 'purchase_invoices.view', 'billing'],
         ],
+        // El patio de un dealer. Sección propia y no dentro de «Inventario» porque un vehículo no es
+        // un producto: es una pieza única con su chasis y su costo, y quien lleva un dealer no busca
+        // sus carros donde busca los tornillos.
+        'Vehículos' => [
+            ['panel.vehicles', 'Patio', 'cube', 'vehicles.view', 'dealer'],
+            ['panel.vehicle-deals', 'Ventas y apartados', 'receipt', 'vehicle_deals.view', 'dealer'],
+            ['panel.vehicle-jobs', 'Taller', 'wrench', 'vehicle_jobs.view', 'dealer'],
+        ],
         'Equipo' => [
             ['panel.employees', 'RRHH', 'id', 'hr.view', 'hr'],
         ],

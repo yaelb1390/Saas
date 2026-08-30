@@ -10,6 +10,10 @@
     @endif
     @include('partials.pwa-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Respaldo para `npm run dev`: ahí Vite inyecta el CSS por JavaScript y llegaría tarde.
+         En producción esta regla ya viaja en app.css; aquí va en el <head> y no al final del
+         <body>, que es donde estaba y por lo que se veían los modales al recargar. --}}
+    <style>[x-cloak]{display:none!important}</style>
 </head>
 <body class="h-full bmos-auth-body">
     <div class="bmos-auth">
@@ -113,7 +117,6 @@
             <p class="bmos-auth-copy text-center text-xs text-slate-400">© {{ date('Y') }} BM Business OS</p>
         </div>
     </div>
-    <style>[x-cloak]{display:none!important}</style>
     @include('partials.ios-install-hint')
     @include('partials.pwa-install-banner')
 </body>

@@ -22,36 +22,40 @@
                 el panel y esta pantalla no los usaba, y por eso se veía más pobre que sus vecinas.
             --}}
             <div class="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <div class="bmos-stat">
+                <div class="bmos-stat bmos-stat-patio">
                     <div class="bmos-stat-icon tone-indigo">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"/></svg>
                     </div>
                     <p class="bmos-stat-label">En el patio</p>
                     <p class="bmos-stat-value">{{ $resumen['total'] }}</p>
+                    <p class="bmos-stat-pie">unidades registradas</p>
                 </div>
 
-                <div class="bmos-stat">
+                <div class="bmos-stat bmos-stat-patio">
                     <div class="bmos-stat-icon tone-emerald">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                     </div>
                     <p class="bmos-stat-label">Disponibles</p>
                     <p class="bmos-stat-value text-emerald-600">{{ $resumen['disponibles'] }}</p>
+                    <p class="bmos-stat-pie">listas para vender</p>
                 </div>
 
-                <div class="bmos-stat">
+                <div class="bmos-stat bmos-stat-patio">
                     <div class="bmos-stat-icon tone-amber">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                     </div>
                     <p class="bmos-stat-label">Apartados</p>
                     <p class="bmos-stat-value text-amber-600">{{ $resumen['apartados'] }}</p>
+                    <p class="bmos-stat-pie">con inicial entregado</p>
                 </div>
 
-                <div class="bmos-stat">
+                <div class="bmos-stat bmos-stat-patio">
                     <div class="bmos-stat-icon tone-sky">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797-2.101c.727-.198 1.453.164 1.453.925V19.5a2.25 2.25 0 0 1-2.25 2.25H2.25V18.75Zm0 0a2.25 2.25 0 0 0 2.25 2.25h.75m-3-2.25V6.75A2.25 2.25 0 0 1 4.5 4.5h15a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-.75m-9-6a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0Z"/></svg>
                     </div>
                     <p class="bmos-stat-label">Vendidos</p>
                     <p class="bmos-stat-value text-sky-600">{{ $resumen['vendidos'] }}</p>
+                    <p class="bmos-stat-pie">ya entregados</p>
                 </div>
             </div>
 
@@ -78,11 +82,30 @@
                      x-init="dibujar()">
                     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
                         <div>
-                            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Cómo está el patio</p>
-                            <div class="h-44"><canvas x-ref="estados"></canvas></div>
+                            <p class="bmos-gtitulo">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4 text-indigo-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z"/>
+                                </svg>
+                                Cómo está el patio
+                            </p>
+                            <div class="bmos-anillo">
+                                <canvas x-ref="estados"></canvas>
+                                {{-- El total va en el agujero: es la cifra que se busca al mirar un
+                                     reparto, y así no hay que sumar la leyenda de cabeza. --}}
+                                <div class="bmos-anillo-centro">
+                                    <b>{{ $resumen['total'] }}</b>
+                                    <span>{{ $resumen['total'] === 1 ? 'unidad' : 'unidades' }}</span>
+                                </div>
+                            </div>
                         </div>
                         <div>
-                            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Unidades por marca</p>
+                            <p class="bmos-gtitulo">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4 text-indigo-400">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
+                                </svg>
+                                Unidades por marca
+                            </p>
                             <div class="h-44"><canvas x-ref="marcas"></canvas></div>
                         </div>
                     </div>
@@ -141,12 +164,19 @@
                         </div>
 
                         <div class="flex items-end">
-                            {{-- Con contorno y no con `bmos-btn-ghost`: aquel es texto a secas —vale
-                                 para una acción secundaria dentro de una fila— y aquí, suelto al
-                                 final de una hilera de desplegables, no parecía pulsable. --}}
-                            <button type="button" @click="limpiar()"
-                                    class="bmos-btn w-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                            {{--
+                                Con contorno propio y no con `bmos-btn-ghost`, que es texto a secas.
+
+                                La primera versión llevaba borde fino y fondo blanco —los mismos que
+                                `.bmos-input`— y al final de una hilera de desplegables se leía como
+                                UN CAMPO DE TEXTO VACÍO, no como un botón. Ahora lleva fondo gris,
+                                icono y el texto en negrita.
+                            --}}
+                            <button type="button" @click="limpiar()" class="bmos-btn-limpiar"
                                     x-bind:disabled="!hayFiltros()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                                </svg>
                                 Limpiar filtros
                             </button>
                         </div>
@@ -155,15 +185,25 @@
 
                 {{-- ---------------------------------------------------------------- La rejilla --}}
                 <div class="bmos-card">
-                    <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 p-4">
-                        <p class="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5 text-indigo-500">
+                    {{--
+                        La barra de la tabla.
+
+                        El rótulo y el conteo van APILADOS, no en fila: puestos uno al lado del otro
+                        competían por la misma línea y el conteo se leía como parte del título. Con
+                        el icono en su cuadro de color, el bloque se identifica de un vistazo aunque
+                        la página vaya scrolleada.
+                    --}}
+                    <div class="bmos-tabla-barra">
+                        <span class="bmos-tabla-icono">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"/>
                             </svg>
-                            Inventario de vehículos
-                        </p>
+                        </span>
 
-                        <span class="text-sm text-slate-400" x-text="cuantas"></span>
+                        <div class="min-w-0">
+                            <p class="bmos-tabla-titulo">Inventario de vehículos</p>
+                            <p class="bmos-tabla-conteo" x-text="cuantas"></p>
+                        </div>
 
                         <div class="ms-auto flex flex-wrap items-center gap-2">
                             {{--
@@ -187,6 +227,9 @@
                             {{-- Exportar a CSV es de la edición gratuita. El de Excel es de pago y no
                                  se usa: sin licencia pinta una marca de agua sobre la tabla. --}}
                             <button type="button" @click="exportar()" class="bmos-btn bmos-btn-ghost">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+                                </svg>
                                 Exportar CSV
                             </button>
 
@@ -246,11 +289,9 @@
                                     </div>
 
                                     <div class="mt-4">
-                                        <label class="bmos-field-label">Foto</label>
-                                        <input type="file" name="photo" accept="image/*" class="bmos-input">
-                                        <p class="mt-1 text-xs text-slate-400">
-                                            Una por unidad. Se recorta sola a formato horizontal.
-                                        </p>
+                                        <x-panel.zona-archivos
+                                            name="photo" label="Foto" accept="image/*" unidad="foto" genero="f"
+                                            hint="Una por unidad. Se recorta sola a formato horizontal." />
                                     </div>
 
                                     <div class="mt-4">
@@ -278,7 +319,18 @@
 
                     {{-- La rejilla se OCULTA, no se destruye, al pasar a galería: volver a crearla
                          cada vez perdería el orden y los filtros que el usuario tuviera puestos. --}}
-                    <div x-ref="rejilla" x-show="!cargando && !fallo && vista === 'tabla'" class="bmos-rejilla"></div>
+                    {{--
+                        La rejilla va dentro de un envoltorio que RECORTA.
+
+                        `.bmos-card` redondea sus esquinas pero no recorta su contenido, y la rejilla
+                        es un bloque de esquinas rectas que llega hasta el borde: por abajo asomaba
+                        fuera del marco. El recorte se le pone AQUÍ y no a `.bmos-card`, porque
+                        recortar todas las tarjetas del panel cortaría desplegables y menús en las
+                        otras once pantallas.
+                    --}}
+                    <div x-show="!cargando && !fallo && vista === 'tabla'" class="bmos-rejilla-marco">
+                        <div x-ref="rejilla" class="bmos-rejilla"></div>
+                    </div>
 
                     {{-- La galería: la misma información, mirada por la foto. --}}
                     <div x-show="!cargando && !fallo && vista === 'galeria'" x-cloak class="p-4">
@@ -317,11 +369,22 @@
                 </div>
 
                 {{-- ------------------------------------------------------------- Ficha lateral --}}
+                {{--
+                    La ficha, ANCHA y centrada.
+
+                    Antes era un cajón lateral de 448 px con la foto arriba: en ese ancho, una foto de
+                    carro —que se guarda apaisada 4:3— salía diminuta, y los datos quedaban en una
+                    columna larguísima que había que recorrer entera.
+
+                    Ahora ocupa el centro en dos columnas: la foto grande a la izquierda con su
+                    galería debajo, y a la derecha TODO lo de la unidad. En un teléfono las dos
+                    columnas se apilan solas.
+                --}}
                 <div x-show="ficha" x-cloak
-                     class="fixed inset-0 z-50 flex justify-end bg-slate-900/40"
+                     class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 sm:p-6"
                      @keydown.escape.window="ficha = null">
                     <div @click.outside="ficha = null" x-transition
-                         class="h-full w-full max-w-md overflow-y-auto bg-white shadow-2xl">
+                         class="max-h-full w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
                         <template x-if="ficha">
                             <div>
                                 <div class="flex items-start justify-between gap-3 border-b border-slate-100 p-5">
@@ -337,16 +400,49 @@
                                     </button>
                                 </div>
 
-                                <div class="p-5">
-                                    <template x-if="ficha.foto">
-                                        <img :src="ficha.foto" alt="" class="mb-4 w-full rounded-xl border border-slate-100 object-cover">
-                                    </template>
+                                <div class="grid grid-cols-1 gap-6 p-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+                                    {{-- ------------------------------------------------ La foto --}}
+                                    <div>
+                                        {{--
+                                            Lienzo apaisado 4:3, el mismo en que se recuadran las fotos
+                                            al subirlas. Fijo y no según la imagen: con proporción libre,
+                                            cada unidad abriría la ficha de un alto distinto y el panel
+                                            daría un salto al cambiar de carro.
+                                        --}}
+                                        <div class="bmos-ficha-foto">
+                                            <template x-if="fotoGrande()">
+                                                <img :src="fotoGrande()" alt="" x-transition.opacity>
+                                            </template>
+                                            <template x-if="!fotoGrande()">
+                                                <span class="bmos-ficha-sinfoto"></span>
+                                            </template>
 
-                                    <div class="mb-4 flex flex-wrap items-center gap-2">
-                                        <span class="bmos-badge" :class="tonoDe(ficha.estado)" x-text="ficha.estado_texto"></span>
-                                        <span class="text-lg font-semibold text-slate-800" x-text="pesos(ficha.precio)"></span>
+                                            <span class="bmos-badge bmos-ficha-estado"
+                                                  :class="tonoDe(ficha.estado)" x-text="ficha.estado_texto"></span>
+                                        </div>
+
+                                        {{-- La galería debajo: se pulsa una y pasa a verse grande.
+                                             No cambia la principal —eso se hace en su pestaña—, solo
+                                             lo que se está mirando. --}}
+                                        <div x-show="detalle && detalle.fotos.length > 1" class="mt-3 flex flex-wrap gap-2">
+                                            <template x-for="f in (detalle ? detalle.fotos : [])" :key="f.id">
+                                                <button type="button" @click="verFoto = f.url"
+                                                        class="bmos-ficha-mini" :class="fotoGrande() === f.url && 'es-activa'">
+                                                    <img :src="f.url" alt="" loading="lazy">
+                                                </button>
+                                            </template>
+                                        </div>
+
+                                        <div class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                            <span class="text-2xl font-bold text-slate-800" x-text="pesos(ficha.precio)"></span>
+                                            <span x-show="ficha.dias !== null" class="text-xs text-slate-400">
+                                                lleva <span x-text="ficha.dias"></span> días en el patio
+                                            </span>
+                                        </div>
                                     </div>
 
+                                    {{-- ----------------------------------------------- Los datos --}}
+                                    <div>
                                     <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                                         <template x-for="d in detalles()" :key="d[0]">
                                             <div>
@@ -468,12 +564,17 @@
                                             <form method="POST" x-bind:action="'{{ url('panel/vehiculos') }}/' + ficha.id + '/fotos'"
                                                   enctype="multipart/form-data" class="mt-4">
                                                 @csrf
-                                                <label class="bmos-field-label">Añadir fotos</label>
-                                                <input type="file" name="photos[]" accept="image/*" multiple class="bmos-input">
-                                                <p class="mt-1 text-xs text-slate-400">
-                                                    Se recortan solas a formato horizontal. Máximo 20 por unidad.
-                                                </p>
-                                                <button class="bmos-btn bmos-btn-primary mt-2">Subir</button>
+                                                <x-panel.zona-archivos
+                                                    name="photos[]" label="Añadir fotos"
+                                                    accept="image/*" multiple unidad="foto" genero="f"
+                                                    hint="Se recortan solas a formato horizontal. Máximo 20 por unidad." />
+
+                                                <button class="bmos-btn bmos-btn-primary mt-3">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" class="h-4 w-4">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+                                                    </svg>
+                                                    Subir
+                                                </button>
                                             </form>
                                         @endcan
                                     </div>
@@ -515,11 +616,10 @@
                                                         @endforeach
                                                     </select>
                                                 </div>
-                                                <div>
-                                                    <label class="bmos-field-label">Archivo</label>
-                                                    <input type="file" name="document" accept=".pdf,image/*" class="bmos-input">
-                                                    <p class="mt-1 text-xs text-slate-400">PDF o imagen, hasta 15 MB.</p>
-                                                </div>
+                                                <x-panel.zona-archivos
+                                                    name="document" label="Archivo" accept=".pdf,image/*"
+                                                    hint="PDF o imagen, hasta 15 MB." />
+
                                                 <button class="bmos-btn bmos-btn-primary">Guardar documento</button>
                                             </form>
                                         </div>
@@ -575,15 +675,34 @@
                                         </div>
                                     @endcan
 
-                                    <div class="mt-6 flex flex-wrap gap-2">
+                                    {{--
+                                        Las dos acciones de la ficha, separadas del contenido por una
+                                        línea: sueltas debajo del historial parecían un párrafo más.
+
+                                        «Anotar gasto» ya no va con `bmos-btn-ghost` —texto a secas—:
+                                        al lado de un botón sólido no se leía como algo pulsable, el
+                                        mismo problema que ya se arregló en «Limpiar filtros».
+                                    --}}
+                                    <div class="bmos-ficha-acciones">
                                         @can('vehicle_deals.manage')
-                                            <a href="{{ route('panel.vehicle-deals') }}" class="bmos-btn bmos-btn-primary">Apartar o vender</a>
+                                            <a href="{{ route('panel.vehicle-deals') }}" class="bmos-btn bmos-btn-primary">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z"/>
+                                                </svg>
+                                                Apartar o vender
+                                            </a>
                                         @endcan
                                         @can('vehicle_jobs.manage')
                                             <a :href="'{{ route('panel.vehicle-jobs') }}?vehiculo=' + ficha.id"
-                                               class="bmos-btn bmos-btn-ghost">Anotar gasto</a>
+                                               class="bmos-btn bmos-btn-suave">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z"/>
+                                                </svg>
+                                                Anotar gasto
+                                            </a>
                                         @endcan
                                     </div>
+                                    </div>{{-- fin de la columna de datos --}}
                                 </div>
                             </div>
                         </template>
@@ -638,11 +757,20 @@
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            // El agujero grande deja sitio y hace que se lea como un resumen y no
-                            // como una tarta de porcentajes.
-                            cutout: '62%',
+                            /*
+                             * El agujero deja sitio al total, que se pinta encima en HTML.
+                             *
+                             * Se sube al 72 %: con el 62 % el anillo quedaba grueso y el número del
+                             * centro no respiraba.
+                             */
+                            cutout: '72%',
                             plugins: {
-                                legend: { position: 'right', labels: { boxWidth: 10, font: { size: 12 } } },
+                                legend: {
+                                    // Abajo y no a un lado: a la derecha se quedaba pegada al borde
+                                    // de la tarjeta con el anillo perdido en el centro.
+                                    position: 'bottom',
+                                    labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, pointStyle: 'circle', padding: 14, font: { size: 12 } },
+                                },
                             },
                         },
                     });
@@ -658,8 +786,9 @@
                             datasets: [{
                                 data: nombres.map((m) => marcas[m]),
                                 backgroundColor: '#6366f1',
-                                borderRadius: 5,
-                                barThickness: 16,
+                                hoverBackgroundColor: '#4f46e5',
+                                borderRadius: 6,
+                                barThickness: 14,
                             }],
                         },
                         options: {
@@ -691,6 +820,7 @@
                 filas: [],       // lo último que trajo el servidor, para la galería
                 temporizador: null,
                 ficha: null,     // la fila que se está mirando
+                verFoto: null,   // cuál de la galería se ve en grande
                 detalle: null,   // gastos, fotos, historial y trato, pedidos aparte
                 documentos: [],  // se piden solo al abrir su pestaña: llevan datos personales
                 pestana: 'fotos',
@@ -794,8 +924,23 @@
                     return '{{ url('panel/vehiculos') }}/' + this.ficha.id + '/documentos/' + id;
                 },
 
+                /**
+                 * La foto grande: la elegida de la galería, o la principal de la fila.
+                 *
+                 * Se resuelve aquí y no en la plantilla para que la miniatura activa y la imagen
+                 * grande lean SIEMPRE lo mismo. Con la comprobación repetida en dos sitios, el día
+                 * que cambie una se desincronizan y el recuadro azul marca una foto que no es la que
+                 * se está viendo.
+                 */
+                fotoGrande() {
+                    return this.verFoto || (this.ficha ? this.ficha.foto : null);
+                },
+
                 async abrirFicha(fila) {
                     this.ficha = fila;
+                    // Se vuelve a la principal al abrir otra unidad: si no, quedaría seleccionada
+                    // una foto del carro anterior.
+                    this.verFoto = null;
                     this.detalle = null;
                     this.documentos = [];
                     this.pestana = 'fotos';
@@ -837,6 +982,35 @@
                     const dinero = (p) => this.pesos(p.value);
 
                     /*
+                     * El importe, con la moneda en tono menor.
+                     *
+                     * En una columna de cifras el «RD$» se repite en todas las filas y no aporta
+                     * nada al comparar: puesto al mismo peso que el número, compite con él. Aquí
+                     * queda como etiqueta gris y pequeña, y la vista cae directa en la cantidad.
+                     *
+                     * El `valueFormatter` se conserva porque es lo que usa la exportación a CSV;
+                     * este renderizador solo cambia cómo se ve en pantalla.
+                     */
+                    const dineroCelda = (p) => {
+                        if (p.value === null || p.value === undefined || p.value === '') return '';
+
+                        const caja = document.createElement('span');
+                        caja.className = 'bmos-importe';
+
+                        const moneda = document.createElement('i');
+                        moneda.textContent = 'RD$';
+
+                        const cifra = document.createElement('b');
+                        cifra.textContent = Number(p.value).toLocaleString('es-DO', {
+                            minimumFractionDigits: 2, maximumFractionDigits: 2,
+                        });
+
+                        caja.append(moneda, cifra);
+
+                        return caja;
+                    };
+
+                    /*
                      * Las columnas se CONSTRUYEN, no se declaran una vez.
                      *
                      * El ancho de la ventana decide cuáles caben legibles, y eso cambia cuando
@@ -847,7 +1021,7 @@
                     const construir = (ancho) => {
                     const columnas = [
                         {
-                            headerName: 'Foto', field: 'foto', width: 92, sortable: false, filter: false,
+                            headerName: 'Foto', field: 'foto', width: 112, sortable: false, filter: false,
                             cellClass: 'bmos-celda-foto',
                             // Se devuelve un nodo y no una cadena de HTML: así el navegador no tiene
                             // que interpretar texto que viene de la base de datos.
@@ -873,7 +1047,16 @@
                         {
                             field: 'precio', headerName: 'Precio', flex: 1.3, minWidth: 135,
                             filter: 'agNumberColumnFilter',
-                            valueFormatter: dinero, cellClass: 'bmos-celda-dinero',
+                            /*
+                             * SIN `type: 'rightAligned'`.
+                             *
+                             * Lo probé para alinear también la cabecera y salió peor: AG Grid empuja
+                             * el rótulo a la derecha y el icono de filtro a la izquierda, y con estas
+                             * anchuras «Precio» y «Estado» se montaban uno encima del otro y «Margen»
+                             * quedaba cortado. Las celdas se alinean con su clase, que no toca la
+                             * cabecera.
+                             */
+                            valueFormatter: dinero, cellRenderer: dineroCelda, cellClass: 'bmos-celda-dinero',
                         },
                         {
                             field: 'estado_texto', headerName: 'Estado', flex: 0.9, minWidth: 105, sortable: true,
@@ -882,7 +1065,10 @@
                             cellClass: 'bmos-celda-estado',
                             cellRenderer: (p) => {
                                 const s = document.createElement('span');
-                                s.className = 'bmos-badge ' + this.tonoDe(p.data.estado);
+                                // Con punto delante: en una columna de píldoras todas del mismo
+                                // tamaño, el color de fondo solo se distingue comparándolas entre
+                                // sí. El punto lo dice en la propia fila.
+                                s.className = 'bmos-badge is-punto ' + this.tonoDe(p.data.estado);
                                 s.textContent = p.value;
 
                                 return s;
@@ -899,8 +1085,13 @@
                      *
                      * Lo que se cae de la tabla NO se pierde: está entero en la ficha, a un clic del
                      * ojo. Es mejor eso que una tabla completa que obliga a arrastrar una barra.
+                     *
+                     * Los cortes subieron 50 px al modernizar la tabla: la foto pasó de 92 a 112
+                     * —antes se montaba sobre el chasis— y el relleno de celda de 16 a 18. Son unos
+                     * 45 px más de contenido, y con los cortes viejos a 1400 px reaparecía la barra
+                     * horizontal que todo esto existe para evitar. Medido, no estimado.
                      */
-                    if (ancho >= 1270) {
+                    if (ancho >= 1320) {
                         // El chasis es el primero en caerse: ocupa mucho, se busca desde arriba y
                         // para reconocer la unidad ya están la foto, la marca y el modelo.
                         columnas.splice(1, 0, {
@@ -909,7 +1100,7 @@
                         });
                     }
 
-                    if (ancho >= 1100) {
+                    if (ancho >= 1150) {
                         // La antigüedad es de las primeras en caerse: es información para decidir,
                         // no para atender, y en pantalla pequeña se atiende.
                         columnas.push({
@@ -940,25 +1131,35 @@
                                 const tono = p.value > 120 ? 'es-vieja' : (p.value > 60 ? 'es-media' : 'es-nueva');
                                 caja.classList.add(tono);
 
-                                const barra = document.createElement('span');
-                                barra.className = 'bmos-antiguedad-barra';
-                                // Se topa al 100 %: a partir de medio año la barra ya está llena y
-                                // lo que importa es el número.
-                                barra.style.width = Math.min(100, Math.round((p.value / 180) * 100)) + '%';
+                                /*
+                                 * El relleno va DENTRO de la píldora, de fondo, no como una barra
+                                 * suelta debajo.
+                                 *
+                                 * Antes eran dos piezas separadas —número arriba, barra de 4 px
+                                 * abajo— y a esa barra había que bajar la vista para leerla. Como
+                                 * fondo de la propia píldora, el número y su proporción se leen en
+                                 * el mismo golpe de vista y la celda deja de tener el hueco muerto
+                                 * que separaba las dos piezas.
+                                 */
+                                const relleno = document.createElement('span');
+                                relleno.className = 'bmos-antiguedad-relleno';
+                                // Se topa al 100 %: a partir de medio año ya está lleno y lo que
+                                // importa es el número.
+                                relleno.style.width = Math.min(100, Math.round((p.value / 180) * 100)) + '%';
 
                                 const txt = document.createElement('span');
                                 txt.className = 'bmos-antiguedad-dias';
                                 txt.textContent = p.value + ' d';
 
+                                caja.appendChild(relleno);
                                 caja.appendChild(txt);
-                                caja.appendChild(barra);
 
                                 return caja;
                             },
                         },);
                     }
 
-                    if (ancho >= 1160) {
+                    if (ancho >= 1210) {
                         columnas.push({
                             field: 'cliente', headerName: 'Cliente', flex: 1, minWidth: 100,
                             valueFormatter: (p) => p.value || '—',
@@ -977,25 +1178,29 @@
                      * miran en la ficha, que las tiene enteras y con el desglose. En un monitor
                      * ancho salen las dos.
                      */
-                    if (puedeGestionar && ancho >= 1510) {
+                    if (puedeGestionar && ancho >= 1565) {
                         columnas.push(
-                            { field: 'costo_real', headerName: 'Costo real', flex: 1.1, minWidth: 120, valueFormatter: dinero, cellClass: 'bmos-celda-dinero' },
+                            { field: 'costo_real', headerName: 'Costo real', flex: 1.1, minWidth: 120, valueFormatter: dinero, cellRenderer: dineroCelda, cellClass: 'bmos-celda-dinero' },
                         );
                     }
 
                     // El margen aguanta más: es LA cifra de la pantalla, así que se conserva hasta
                     // que de verdad no cabe.
-                    if (puedeGestionar && ancho >= 1390) {
+                    if (puedeGestionar && ancho >= 1445) {
                         columnas.push({
                             field: 'margen', headerName: 'Margen', flex: 1.1, minWidth: 115,
-                            valueFormatter: dinero, cellClass: 'bmos-celda-dinero',
+                            valueFormatter: dinero, cellRenderer: dineroCelda, cellClass: 'bmos-celda-dinero',
                             // Un margen negativo es dinero perdido: tiene que saltar a la vista.
                             cellClassRules: { 'bmos-celda-perdida': (p) => Number(p.value) < 0 },
                         });
                     }
 
                     columnas.push({
-                        headerName: '', field: 'id', width: 58, minWidth: 58, sortable: false, filter: false, pinned: 'right',
+                        // Sin agarradera de ancho: es una columna de un icono de 58 px fijos, no hay
+                        // nada que ensanchar. Además, junto al borde de la columna fijada dibujaba
+                        // una segunda rayita pegada a la suya y las dos juntas parecían un glifo.
+                        headerName: '', field: 'id', width: 58, minWidth: 58, sortable: false, filter: false,
+                        resizable: false, pinned: 'right',
                         cellClass: 'bmos-celda-acciones',
                         cellRenderer: (p) => {
                             const b = document.createElement('button');
@@ -1027,8 +1232,18 @@
                          */
                         // Alto de fila con aire para que quepa la miniatura. El tema por defecto es
                         // de 42 px y con una foto dentro quedaba aplastada.
-                        rowHeight: 64,
-                        headerHeight: 46,
+                        /*
+                         * Pulsar la FILA abre la ficha, no solo el ojo.
+                         *
+                         * El botón se queda porque es lo que anuncia que la fila se puede abrir —sin
+                         * él nadie adivina que hay algo debajo—, pero obligar a acertarle a un icono
+                         * de 32 px cuando el resto de la fila no hace nada es pedirle puntería a
+                         * quien solo quiere ver el carro.
+                         */
+                        onRowClicked: (e) => this.abrirFicha(e.data),
+                        rowClass: 'bmos-fila-pulsable',
+                        rowHeight: 68,
+                        headerHeight: 44,
                         pagination: true,
                         paginationPageSize: 15,
                         paginationPageSizeSelector: [15, 30, 60],
@@ -1044,18 +1259,41 @@
                         theme: ag.themeQuartz.withParams({
                             accentColor: '#4f46e5',
                             borderColor: '#eef1f6',
-                            headerBackgroundColor: '#f8fafc',
-                            headerTextColor: '#475569',
+                            /*
+                             * Cabecera BLANCA, no gris.
+                             *
+                             * La banda gris sobre una tarjeta blanca metía una segunda superficie
+                             * en la misma caja y partía la tarjeta en dos. Con el mismo blanco del
+                             * fondo, lo que separa la cabecera de las filas es una sola línea, y
+                             * los rótulos en versalitas —el CSS los pone así— ya se distinguen de
+                             * los datos sin necesidad de fondo.
+                             */
+                            headerBackgroundColor: '#ffffff',
+                            headerTextColor: '#8894ab',
                             headerFontWeight: 600,
-                            headerFontSize: 12,
+                            headerFontSize: 11,
                             // Heredada del panel: con la suya propia la rejilla cantaba al lado de
                             // las demás tablas.
                             fontFamily: 'inherit',
                             fontSize: 14,
                             foregroundColor: '#334155',
-                            rowHoverColor: '#f8faff',
+                            rowHoverColor: '#f6f8ff',
                             selectedRowBackgroundColor: '#eef2ff',
-                            cellHorizontalPadding: 14,
+                            cellHorizontalPadding: 18,
+                            /*
+                             * SIN filas alternas.
+                             *
+                             * Las llevaba para no perder el renglón con doce columnas, pero el
+                             * rayado y la línea entre filas hacen el mismo trabajo dos veces, y
+                             * juntos ensucian. Se queda la línea —más limpia— y el trabajo de
+                             * seguir la fila lo hace el resaltado al pasar el ratón, que además
+                             * señala la fila que de verdad se está mirando.
+                             */
+                            oddRowBackgroundColor: '#ffffff',
+                            headerRowBorder: { width: 1, color: '#e8ecf3' },
+                            rowBorder: { width: 1, color: '#f4f6fa' },
+                            // El marco lo pone la tarjeta: si la rejilla dibujara el suyo, se verían
+                            // dos bordes pegados.
                             wrapperBorder: false,
                             wrapperBorderRadius: 0,
                         }),
@@ -1100,7 +1338,7 @@
                      * casos: lo único que hay que rehacer es qué columnas existen, y eso solo cambia
                      * al cruzar un tramo.
                      */
-                    const tramo = (a) => [1100, 1160, 1270, 1390, 1510].filter((c) => a >= c).length;
+                    const tramo = (a) => [1150, 1210, 1320, 1445, 1565].filter((c) => a >= c).length;
                     let tramoActual = tramo(window.innerWidth);
 
                     window.addEventListener('resize', () => {

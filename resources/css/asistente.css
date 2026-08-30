@@ -133,7 +133,58 @@ body.con-banner .asis-panel {
 
 .asis-fila {
     display: flex;
+    /* Arriba y no centrados: con burbujas de varias líneas, un avatar centrado queda flotando a
+       media altura y deja de leerse como «esto lo dice él». */
+    align-items: flex-start;
+    gap: 0.45rem;
     margin-bottom: 0.6rem;
+}
+
+/* ---------- Avatares del hilo ---------- */
+.asis-avatar {
+    display: grid;
+    place-items: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-radius: 0.55rem;
+    /* Un pelo por debajo de la burbuja: la burbuja empieza con su borde superior y el avatar
+       cuadrado, alineado a ras, parecía más alto que ella. */
+    margin-top: 0.1rem;
+}
+
+/* El de la marca: fondo oscuro, que es donde vive el logotipo —blanco y azul— y donde se lee. */
+.asis-avatar--marca {
+    background: linear-gradient(140deg, #1e2338, #0f1220);
+}
+
+.asis-avatar--marca .bmos-logo-mini {
+    width: 74%;
+    height: auto;
+}
+
+/* El de quien pregunta: su inicial, con el mismo círculo de color que lo representa en el topbar.
+   La tabla `users` no guarda foto, así que esta ES su foto de perfil en el sistema. */
+.asis-avatar--mio {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.68rem;
+    border-radius: 999px;
+}
+
+/* En las filas propias el avatar va a la derecha de la burbuja. Se mueve con `order` y no cambiando
+   el orden del HTML: así el marcado queda igual para los dos casos y no hay que duplicar la fila. */
+.asis-fila--mia .asis-avatar {
+    order: 2;
+}
+
+.asis-avatar--grande {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.6rem;
+    margin-top: 0;
 }
 
 /*

@@ -27,6 +27,10 @@
     @endif
     @include('partials.pwa-head', ['manifest' => 'manifest-pos.json'])
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Respaldo para `npm run dev`: ahí Vite inyecta el CSS por JavaScript y llegaría tarde.
+         En producción esta regla ya viaja en app.css; aquí va en el <head> y no al final del
+         <body>, que es donde estaba y por lo que se veían los modales al recargar. --}}
+    <style>[x-cloak]{display:none!important}</style>
 </head>
 <body class="h-full bg-slate-100">
 <div class="bmos-kiosk" x-data="kiosko()">
@@ -76,7 +80,5 @@
     </main>
 </div>
 
-{{-- Obligatorio: la pantalla usa x-cloak para no enseñar lo oculto durante la carga de Alpine. --}}
-<style>[x-cloak]{display:none!important}</style>
 </body>
 </html>

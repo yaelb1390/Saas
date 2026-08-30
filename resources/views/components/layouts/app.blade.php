@@ -7,6 +7,9 @@
     <title>{{ $title ?? 'BM Business OS' }}</title>
     @include('partials.pwa-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Respaldo para `npm run dev`: ahí Vite inyecta el CSS por JavaScript y llegaría tarde.
+         En producción esta regla ya viaja en app.css. Esta plantilla no la tenía por ningún lado. --}}
+    <style>[x-cloak]{display:none!important}</style>
 </head>
 <body class="h-full bg-gray-50 text-gray-900 antialiased">
     <div class="min-h-full">

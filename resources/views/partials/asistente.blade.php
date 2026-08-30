@@ -11,6 +11,20 @@
     Sólo se incluye si la empresa tiene el asistente encendido, pero eso NO es la seguridad: el
     endpoint lo vuelve a comprobar, porque esconder un botón no cierra una puerta.
 --}}
+@php
+    /*
+     * La inicial de quien pregunta, para su avatar en el hilo.
+     *
+     * Se calcula AQUÍ y no se toma de la plantilla que incluye este trozo: hoy solo lo incluye el
+     * panel, que la tiene, pero depender de una variable del padre convierte este partial en algo
+     * que revienta en silencio el día que se incluya desde otro sitio.
+     *
+     * No hay foto que poner: la tabla `users` no guarda ninguna, y el panel representa a la persona
+     * con su inicial en un círculo de color (el mismo avatar del topbar). Se usa ese.
+     */
+    $inicialUsuario = strtoupper(mb_substr(auth()->user()?->name ?? 'U', 0, 1));
+@endphp
+
 <div x-data="asistenteDeAyuda('{{ route('panel.assistant.ask') }}', '{{ route('panel.assistant.reset') }}')"
      x-cloak>
 
@@ -28,11 +42,10 @@
     {{-- La ventana --}}
     <div class="asis-panel" x-show="abierto" x-transition.opacity :style="`right:${derecha}px`">
         <div class="asis-cabecera">
-            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-indigo-600 text-white">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M8 10.5h8M8 14h5m-9 7 3.5-3.5H18a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v14Z"/>
-                </svg>
+            {{-- La marca, no un icono genérico de chat: quien abre esto tiene que ver de quién es el
+                 asistente que le está hablando. --}}
+            <span class="asis-avatar asis-avatar--marca asis-avatar--grande">
+                <x-panel.logo-bmia-mini />
             </span>
             <div class="min-w-0 flex-1">
                 <p class="asis-titulo">Asistente</p>
@@ -69,6 +82,15 @@
 
             <template x-for="(m, i) in mensajes" :key="i">
                 <div class="asis-fila" :class="m.mio ? 'asis-fila--mia' : ''">
+                    {{-- Quién dice cada cosa, con su cara. En un hilo largo el color de la burbuja
+                         se pierde al desplazar, y el avatar sigue diciéndolo en cada línea.
+                         Los dos van en el DOM y se enseña el que toca; en las filas propias el CSS
+                         los manda al otro lado con `order`. --}}
+                    <span class="asis-avatar asis-avatar--marca" x-show="!m.mio">
+                        <x-panel.logo-bmia-mini />
+                    </span>
+                    <span class="asis-avatar asis-avatar--mio" x-show="m.mio">{{ $inicialUsuario }}</span>
+
                     <div>
                         <div class="asis-burbuja" x-text="m.texto"></div>
                         {{-- El artículo del que salió, para que se pueda comprobar. Un asistente que
@@ -85,8 +107,15 @@
                 </div>
             </template>
 
+            {{-- Mientras piensa, con su avatar también: si no, los puntitos aparecen descolgados a la
+                 izquierda y la fila baila cuando llega la respuesta y sí lo lleva. --}}
             <div class="asis-fila" x-show="pensando">
-                <div class="asis-burbuja asis-pensando"><span></span><span></span><span></span></div>
+                <span class="asis-avatar asis-avatar--marca">
+                    <x-panel.logo-bmia-mini />
+                </span>
+                <div>
+                    <div class="asis-burbuja asis-pensando"><span></span><span></span><span></span></div>
+                </div>
             </div>
         </div>
 

@@ -17,6 +17,21 @@
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
+/*
+ * Lo que Alpine va a ocultar, oculto DESDE EL PRIMER PIXEL.
+ *
+ * Esta regla vivía como <style> en la última línea del <body> de cada plantilla, y ahí llega tarde:
+ * el navegador pinta según va leyendo, así que todo lo marcado con `x-cloak` —modales, diálogos, el
+ * menú del avatar, el visor de la cámara— se veía apilado en pantalla hasta que el parser alcanzaba
+ * esa última línea. Eso era el fogonazo al recargar.
+ *
+ * Aquí va dentro de la hoja que las plantillas piden en el <head>, que el navegador bloquea hasta
+ * tenerla: cuando se pinta el primer trozo de página, la regla ya está en vigor.
+ */
+[x-cloak] {
+    display: none !important;
+}
+
 /* ============================================================
    BM Business OS — Sistema de diseño corporativo
    ============================================================ */
@@ -136,25 +151,6 @@ body {
     font-size: 1.05rem;
 }
 
-.bmos-brand-logo {
-    display: grid;
-    place-items: center;
-    width: 2.2rem;
-    height: 2.2rem;
-    border-radius: 0.7rem;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    box-shadow: 0 6px 16px -4px rgba(99, 102, 241, 0.6);
-    color: #fff;
-    font-weight: 800;
-}
-
-.bmos-brand-logo-img {
-    width: 2.4rem;
-    height: 2.4rem;
-    object-fit: contain;
-    flex-shrink: 0;
-}
-
 /* Cabecera con solo el logo (sin texto): centrado y a mayor tamaño. */
 .bmos-brand--logo-only {
     justify-content: center;
@@ -162,9 +158,14 @@ body {
     padding-bottom: 1.4rem;
 }
 
-.bmos-brand--logo-only .bmos-brand-logo-img {
-    width: auto;
-    height: 3rem;
+/* Símbolo BMIA de la cabecera de la barra. */
+.bmos-logo-mark {
+    display: block;
+    width: 156px;
+    height: auto;
+    /* El halo se recrea aquí y no dentro del SVG: así se ajusta o se quita sin tocar el dibujo,
+       y no se arrastra el fondo oscuro que llevaría una imagen con el brillo ya horneado. */
+    filter: drop-shadow(0 0 14px rgba(59, 130, 246, 0.35));
 }
 
 .bmos-nav {
@@ -1724,6 +1725,18 @@ body {
     line-height: 1.2;
 }
 
+/* Variante con punto delante. En una columna entera de píldoras, el fondo de color solo se
+   distingue comparando unas con otras; el punto da la señal dentro de la propia fila. Toma el
+   color del texto, así sirve para cualquiera de los tonos sin repetirlos aquí. */
+.bmos-badge.is-punto::before {
+    content: '';
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 999px;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
 .badge-green {
     background: #ecfdf5;
     color: #047857;
@@ -1777,6 +1790,19 @@ body {
 
 .bmos-btn-ghost:hover {
     color: var(--bmos-text);
+}
+
+/* Acción secundaria que SÍ se ve como botón. `bmos-btn-ghost` es texto suelto y, puesto al lado de
+   uno sólido, se lee como una nota al pie en vez de como algo pulsable. Con su fondo gris tiene
+   cuerpo propio sin llegar a competir con la acción principal. */
+.bmos-btn-suave {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.bmos-btn-suave:hover {
+    background: #e2e8f0;
+    color: #0f172a;
 }
 
 /* ---------- Empty state ---------- */
@@ -4561,6 +4587,23 @@ a.bmos-destino:hover {
    que es la vía que la propia librería mantiene. Aquí solo se estilan clases NUESTRAS, puestas con
    `cellClass`. */
 
+/*
+ * El marco de la rejilla.
+ *
+ * `.bmos-card` redondea sus esquinas pero NO recorta su contenido —y no puede hacerlo: recortar
+ * todas las tarjetas del panel cortaría desplegables y menús en las otras once pantallas—. La
+ * rejilla es un bloque de esquinas rectas que llega hasta el borde, así que por abajo asomaba fuera
+ * del marco.
+ *
+ * El recorte y el redondeo se le ponen aquí, que es el único sitio que los necesita. El radio es el
+ * de la tarjeta menos su borde de 1 px: con el mismo valor queda un hilo de fondo visible en la
+ * curva.
+ */
+.bmos-rejilla-marco {
+    overflow: hidden;
+    border-radius: 0 0 calc(1rem - 1px) calc(1rem - 1px);
+}
+
 .bmos-rejilla {
     /* Alto propio: la rejilla hace su desplazamiento dentro y así nunca empuja la página a lo ancho,
        que es como se rompen estas pantallas en un teléfono. El mínimo evita que con dos filas quede
@@ -4570,16 +4613,67 @@ a.bmos-destino:hover {
     min-height: 24rem;
 }
 
+/*
+ * Retoques a la cabecera de AG Grid.
+ *
+ * El tema va por API de JavaScript y solo acepta los parámetros que él define: el aspecto de los
+ * rótulos y el momento en que aparece el botón de filtro no están entre ellos, así que se ajustan
+ * aquí. Se puede porque `themeCssLayer` mete el CSS de la rejilla en una capa y lo de fuera de
+ * capas —esto— gana sin pelear por especificidad.
+ */
+.bmos-rejilla .ag-header-cell-text {
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+/*
+ * El botón de filtro, solo al pasar por encima.
+ *
+ * Visible en las doce columnas, el embudo se repetía en toda la cabecera y competía con los
+ * rótulos; encima, en esta pantalla los filtros de verdad —marca, año, estado, búsqueda— están en
+ * la tarjeta de arriba, así que el de columna es un extra. No se quita, se guarda: aparece al
+ * apuntar la columna, al llegar con el teclado y siempre que ESA columna tenga filtro puesto, que
+ * es cuando hace falta verlo sin buscarlo.
+ */
+.bmos-rejilla .ag-header-cell-filter-button {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.bmos-rejilla .ag-header-cell:hover .ag-header-cell-filter-button,
+.bmos-rejilla .ag-header-cell:focus-within .ag-header-cell-filter-button,
+.bmos-rejilla .ag-header-cell-filtered .ag-header-cell-filter-button {
+    opacity: 1;
+}
+
+/* Las columnas de los extremos, despegadas del borde de la tarjeta: con el mismo relleno que las
+   de en medio, la primera y la última quedaban lamiendo el filo del marco. */
+.bmos-rejilla .ag-header-cell:first-child,
+.bmos-rejilla .ag-cell:first-child {
+    padding-left: 1.35rem;
+}
+
+/* La foto crece un pelo al apuntar su fila. Es la señal de que la fila entera se puede abrir. */
+.bmos-rejilla .ag-row .bmos-miniatura img {
+    transition: transform 0.25s ease;
+}
+
+.bmos-rejilla .ag-row-hover .bmos-miniatura img {
+    transform: scale(1.08);
+}
+
 /* La miniatura. Lienzo fijo: las fotos ya vienen recuadradas en 4:3 desde la subida, pero un hueco
    de tamaño fijo evita que las filas bailen mientras cargan. */
 .bmos-miniatura {
     display: grid;
     place-items: center;
-    width: 68px;
-    height: 48px;
+    width: 72px;
+    height: 50px;
     overflow: hidden;
-    border: 1px solid var(--bmos-border, #e2e5ee);
-    border-radius: 0.55rem;
+    /* Con anillo en vez de borde: el borde se come un píxel del lienzo y deja la foto con un marco
+       gris alrededor; el anillo se dibuja por fuera y la imagen llega hasta el filo. */
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.06);
+    border-radius: 0.65rem;
     background: #f1f5f9;
 }
 
@@ -4620,14 +4714,44 @@ a.bmos-destino:hover {
 
 /* El dinero, a la derecha y con cifras de ancho fijo, para que las columnas de importes se puedan
    comparar de un vistazo sin que los dígitos bailen. */
+/* En flex, y no solo con `justify-content`: la celda es un bloque, y ahí esa propiedad no hace
+   nada. Se notó al meter el importe en dos piezas —una caja en línea dentro de un renglón tan alto
+   como la fila se apoya en la línea base y quedaba 14 px por encima del resto de la fila—. */
 .bmos-celda-dinero {
+    display: flex;
+    align-items: center;
     justify-content: flex-end;
     text-align: right;
     font-variant-numeric: tabular-nums;
     font-weight: 500;
 }
 
-/* Margen negativo: dinero perdido. Tiene que saltar a la vista. */
+/* El importe en dos piezas: la moneda como etiqueta menor y la cifra con el peso. Repetido en cada
+   fila, un «RD$» del mismo tamaño que el número le roba la mirada a lo que se viene a comparar. */
+.bmos-importe {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    /* Propio, sin heredar el de la fila: la rejilla pone un interlineado tan alto como la fila y
+       eso inflaba esta caja hasta 41 px. */
+    line-height: 1.2;
+}
+
+.bmos-importe i {
+    font-style: normal;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #a3aec2;
+}
+
+.bmos-importe b {
+    font-weight: 600;
+    color: #1e293b;
+}
+
+/* Margen negativo: dinero perdido. Tiene que saltar a la vista, y aquí quien lleva el color es la
+   cifra —la etiqueta de moneda se queda tenue—. */
+.bmos-celda-perdida .bmos-importe b,
 .bmos-celda-perdida {
     color: #e11d48;
 }
@@ -4664,6 +4788,164 @@ a.bmos-destino:hover {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* ---------- Zona para elegir archivos ---------- */
+/* Borde de trazos: es la convención de «aquí se sueltan cosas», y de paso distingue este control de
+   los campos de texto, que llevan borde continuo. */
+.bmos-zona {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.95rem 1.05rem;
+    cursor: pointer;
+    border: 1.5px dashed #d5dbea;
+    border-radius: 0.85rem;
+    background: #fbfcfe;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.bmos-zona:hover {
+    border-color: #a5b4fc;
+    background: #f8f9ff;
+}
+
+/* Mientras se arrastra algo por encima. Sin esta respuesta no se sabe si la zona acepta el archivo
+   hasta soltarlo. */
+.bmos-zona.is-dentro {
+    border-color: #4f46e5;
+    background: #eef2ff;
+}
+
+/* Ya con algo elegido: el trazo se vuelve continuo, que es la señal de «esto ya está resuelto». */
+.bmos-zona.is-lleno {
+    border-style: solid;
+    border-color: #c7d2fe;
+    background: #f8f9ff;
+}
+
+/* El foco del teclado se pinta sobre la zona, no sobre el input escondido: si no, quien navega con
+   el tabulador no ve dónde está parado. */
+.bmos-zona:focus-within {
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
+}
+
+.bmos-zona-icono {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    flex-shrink: 0;
+    border-radius: 0.7rem;
+    background: #eef2ff;
+    color: #4f46e5;
+}
+
+.bmos-zona-icono svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.bmos-zona-texto {
+    min-width: 0;
+}
+
+.bmos-zona-texto b {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.bmos-zona-texto small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+/* El nombre del archivo elegido puede ser larguísimo: se corta en vez de empujar la zona a lo ancho
+   y desmontar la columna de la ficha. */
+.bmos-zona-elegido {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #4338ca !important;
+}
+
+/* El input de verdad: oculto a la vista pero VIVO. Ni `display:none` ni `visibility:hidden`, que lo
+   sacarían del orden de tabulación y dejarían la zona inalcanzable con el teclado. */
+.bmos-zona-campo {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.bmos-zona-quitar {
+    margin-top: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #94a3b8;
+    transition: color 0.15s;
+}
+
+.bmos-zona-quitar:hover {
+    color: #e11d48;
+}
+
+/* ---------- Pie de acciones de la ficha ---------- */
+.bmos-ficha-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #eef1f6;
+}
+
+/* ---------- Barra de la tarjeta de tabla ---------- */
+.bmos-tabla-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.35rem;
+    border-bottom: 1px solid #f1f4f9;
+}
+
+.bmos-tabla-icono {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    border-radius: 0.7rem;
+    background: #eef2ff;
+    color: #4f46e5;
+}
+
+.bmos-tabla-icono svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.bmos-tabla-titulo {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: #1e293b;
+}
+
+/* El conteo, bajo el título y no a su lado: en la misma línea se leía como una coletilla del
+   rótulo en vez de como el dato que es. */
+.bmos-tabla-conteo {
+    font-size: 0.78rem;
+    color: #94a3b8;
 }
 
 /* ---------- Conmutador tabla / galería ---------- */
@@ -4757,51 +5039,56 @@ a.bmos-destino:hover {
     align-items: center;
 }
 
+/* Una píldora que además es medidor: el ancho teñido de dentro dice qué proporción de medio año
+   lleva parada la unidad, y el número va encima. Ancho fijo para que dos filas se comparen por el
+   relleno; si cada píldora midiera lo que su texto, la proporción no querría decir nada. */
 .bmos-antiguedad {
     position: relative;
-    width: 100%;
-    padding-bottom: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    width: 4.6rem;
+    height: 1.6rem;
+    padding: 0 0.55rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #f1f5f9;
 }
 
+.bmos-antiguedad-relleno {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    border-radius: 999px;
+}
+
+/* Sobre el relleno, no debajo: sin esto el fondo teñido tapa el número. */
 .bmos-antiguedad-dias {
-    display: block;
-    font-size: 0.78rem;
+    position: relative;
+    font-size: 0.76rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: #475569;
 }
 
-/* La barra va bajo el número, sobre un carril gris que da la referencia: sin él, una barra corta y
-   una larga no se comparan, solo se ven. */
-.bmos-antiguedad-barra {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    height: 4px;
-    border-radius: 999px;
-    background: #94a3b8;
-}
+.bmos-antiguedad.es-nueva .bmos-antiguedad-relleno { background: #d1fae5; }
+.bmos-antiguedad.es-media .bmos-antiguedad-relleno { background: #fef3c7; }
+.bmos-antiguedad.es-vieja .bmos-antiguedad-relleno { background: #ffe4e6; }
 
-.bmos-antiguedad::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 100%;
-    height: 4px;
-    border-radius: 999px;
-    background: #eef1f6;
-    z-index: -1;
-}
+.bmos-antiguedad.es-nueva .bmos-antiguedad-dias { color: #047857; }
+.bmos-antiguedad.es-media .bmos-antiguedad-dias { color: #b45309; }
 
-.bmos-antiguedad.es-nueva .bmos-antiguedad-barra { background: #10b981; }
-.bmos-antiguedad.es-media .bmos-antiguedad-barra { background: #f59e0b; }
-.bmos-antiguedad.es-vieja .bmos-antiguedad-barra { background: #e11d48; }
-
-/* Un carro parado más de cuatro meses es dinero quieto: el número también se pone en rojo, para que
-   no dependa solo del color de una barra de cuatro píxeles. */
+/* Un carro parado más de cuatro meses es dinero quieto: el número se pone en rojo, para que no
+   dependa solo de un fondo teñido. */
 .bmos-antiguedad.es-vieja .bmos-antiguedad-dias {
-    color: #e11d48;
-    font-weight: 600;
+    color: #be123c;
+}
+
+/* Sin fecha de entrada no hay medidor que pintar: un guion tenue y sin píldora, que un recuadro
+   vacío se lee como un fallo de carga. */
+.bmos-antiguedad.is-desconocida {
+    width: auto;
+    background: none;
 }
 
 .bmos-antiguedad.is-desconocida::before {
@@ -4916,4 +5203,327 @@ a.bmos-destino:hover {
     color: #fff;
     font-size: 0.62rem;
     font-weight: 600;
+}
+
+/* ============================================================================
+   Tarjetas de resumen del patio
+   ============================================================================
+
+   Variante y NO un cambio en `.bmos-stat`: esa clase la comparten once pantallas más, y tocarla
+   para arreglar una sola las movería todas. */
+
+.bmos-stat-patio {
+    position: relative;
+    padding-right: 4.25rem;
+}
+
+/* El icono, a la derecha y a la altura del número.
+   Encima del rótulo dejaba un hueco muerto entre él y la cifra que hacía que la tarjeta pareciera a
+   medio hacer. A la derecha, la mirada baja del rótulo al número sin saltos. */
+.bmos-stat-patio .bmos-stat-icon {
+    position: absolute;
+    top: 1.15rem;
+    right: 1.15rem;
+    margin-bottom: 0;
+}
+
+/* Qué significa el número. Sin esto, «8» a secas obliga a mirar el rótulo de arriba para saber si
+   son unidades, pesos o días. */
+.bmos-stat-pie {
+    margin-top: 0.2rem;
+    color: #94a3b8;
+    font-size: 0.72rem;
+}
+
+/* Una línea de color arriba: distingue las cuatro tarjetas de un vistazo, sin depender solo del
+   color del icono, que es pequeño. */
+.bmos-stat-patio::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 1rem;
+    right: 1rem;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: currentColor;
+    opacity: 0.85;
+}
+
+.bmos-stat-patio:nth-child(1) { color: #6366f1; }
+.bmos-stat-patio:nth-child(2) { color: #10b981; }
+.bmos-stat-patio:nth-child(3) { color: #f59e0b; }
+.bmos-stat-patio:nth-child(4) { color: #0ea5e9; }
+
+/* El color de la barra no debe teñir el texto de dentro. */
+.bmos-stat-patio .bmos-stat-label,
+.bmos-stat-patio .bmos-stat-pie {
+    color: #94a3b8;
+}
+
+.bmos-stat-patio .bmos-stat-value {
+    color: var(--bmos-text, #0f172a);
+}
+
+@media (max-width: 420px) {
+    /* En un teléfono el icono se come el sitio del número: se quita y queda la barra de color. */
+    .bmos-stat-patio {
+        padding-right: 1.25rem;
+    }
+
+    .bmos-stat-patio .bmos-stat-icon {
+        display: none;
+    }
+}
+
+/* ---------- La tarjeta de los gráficos ---------- */
+.bmos-gráfico-rotulo,
+.bmos-gtitulo {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    color: #475569;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* El lienzo del anillo, acotado. Sin tope crecía hasta ocupar media tarjeta y dejaba la leyenda
+   perdida en la otra punta. */
+.bmos-anillo {
+    position: relative;
+    height: 11rem;
+    max-width: 22rem;
+    margin-inline: auto;
+}
+
+/* El total, en el agujero del anillo: es la cifra que se busca al mirar un gráfico de reparto, y
+   ponerla dentro ahorra tener que sumar la leyenda. */
+.bmos-anillo-centro {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    pointer-events: none;
+}
+
+.bmos-anillo-centro b {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #0f172a;
+}
+
+.bmos-anillo-centro span {
+    font-size: 0.7rem;
+    color: #94a3b8;
+}
+
+/* ---------- «Limpiar filtros» ---------- */
+.bmos-btn-limpiar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.72rem 0.9rem;
+    border-radius: 0.75rem;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 0.87rem;
+    font-weight: 600;
+    transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.bmos-btn-limpiar svg {
+    width: 0.85rem;
+    height: 0.85rem;
+}
+
+.bmos-btn-limpiar:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+/* Apagado, no invisible: si desapareciera, la fila de filtros quedaría descuadrada. */
+.bmos-btn-limpiar:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ============================================================================
+   La ficha del vehículo
+   ============================================================================ */
+
+/* Toda la fila abre la ficha: el cursor lo anuncia. */
+.bmos-fila-pulsable {
+    cursor: pointer;
+}
+
+/*
+ * La foto grande, en lienzo APAISADO 4:3.
+ *
+ * El mismo en que se recuadran al subirlas. Fijo y no según la imagen: con proporción libre, cada
+ * unidad abriría la ficha de un alto distinto y el panel daría un salto al pasar de un carro a otro.
+ */
+.bmos-ficha-foto {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border: 1px solid var(--bmos-border, #e2e5ee);
+    border-radius: 0.9rem;
+    background: #f1f5f9;
+}
+
+.bmos-ficha-foto img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.bmos-ficha-sinfoto {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+}
+
+.bmos-ficha-sinfoto::after {
+    content: '';
+    width: 44px;
+    height: 44px;
+    background: #cbd5e1;
+    -webkit-mask: var(--bmos-icono-imagen) center / contain no-repeat;
+    mask: var(--bmos-icono-imagen) center / contain no-repeat;
+}
+
+/* El estado, sobre la foto: es lo primero que se mira al abrir. */
+.bmos-ficha-estado {
+    position: absolute;
+    top: 0.7rem;
+    left: 0.7rem;
+}
+
+/* Las miniaturas de la galería. */
+.bmos-ficha-mini {
+    width: 4.5rem;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border: 2px solid transparent;
+    border-radius: 0.5rem;
+    background: #f1f5f9;
+    opacity: 0.7;
+    transition: opacity 0.15s, border-color 0.15s;
+}
+
+.bmos-ficha-mini img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.bmos-ficha-mini:hover {
+    opacity: 1;
+}
+
+/* La que se está viendo: borde y sin atenuar. Dos señales y no una, porque un borde fino sobre una
+   foto oscura casi no se distingue. */
+.bmos-ficha-mini.es-activa {
+    border-color: #4f46e5;
+    opacity: 1;
+}
+
+/* ============================================================================
+   Esconder el menú lateral
+   ============================================================================
+
+   En las pantallas de cobro los 264 px del menú son 264 px que no ven los artículos, y quien atiende
+   no navega entre módulos mientras despacha. */
+
+/*
+ * Con fondo y color propios, no un icono gris suelto.
+ *
+ * En su primera versión era un trazo gris sobre la barra blanca: se perdía. Este botón cambia el
+ * ancho de TODA la pantalla, así que tiene que verse como algo que se pulsa, no como un adorno.
+ *
+ * Los estilos son SOLO de esta clase: no hereda ni modifica ninguna compartida, de modo que ningún
+ * otro botón del panel cambia por esto.
+ */
+.bmos-plegar {
+    display: none; /* en móvil no: ahí el menú ya vive detrás del botón de al lado */
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.7rem;
+    border: 1px solid #e0e7ff;
+    background: #eef2ff;
+    color: #4f46e5;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+@media (min-width: 1024px) {
+    .bmos-plegar {
+        display: grid;
+    }
+}
+
+.bmos-plegar:hover {
+    border-color: #c7d2fe;
+    background: #e0e7ff;
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.15);
+}
+
+/* Se ve dónde está el foco al llegar con el tabulador. */
+.bmos-plegar:focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+}
+
+/*
+ * Encendido: el menú está escondido.
+ *
+ * Relleno y en blanco, no un tono más del mismo azul. Sin un estado claramente distinto, quien llega
+ * a una pantalla sin menú —porque se recuerda entre sesiones— no sabe si lo escondió él o si el
+ * sistema se rompió.
+ */
+.bmos-plegar.es-activo {
+    border-color: #4f46e5;
+    background: #4f46e5;
+    color: #fff;
+}
+
+.bmos-plegar.es-activo:hover {
+    border-color: #4338ca;
+    background: #4338ca;
+}
+
+/*
+ * La columna se cierra a cero y la barra se retira del todo.
+ *
+ * `display: none` además del ancho cero: con solo el ancho, el contenido de la barra seguiría ahí
+ * desbordando la celda, y sus enlaces seguirían recibiendo el tabulador —un menú invisible por el
+ * que se puede navegar a ciegas es peor que un menú a la vista—.
+ */
+/*
+ * UNA sola columna, no «0 1fr».
+ *
+ * Con `0 1fr` y la barra en `display: none`, la barra sale del flujo de la rejilla y el contenido
+ * pasa a ocupar la PRIMERA columna, que es la de cero: medido, el contenido se quedaba en 40 px en
+ * vez de ensancharse a 1500. Es justo lo contrario de lo que se pedía, y a ojo no se nota porque el
+ * contenido interior sigue pintándose y desborda.
+ */
+.bmos-shell.is-plegado {
+    grid-template-columns: 1fr;
+}
+
+.bmos-shell.is-plegado .bmos-sidebar {
+    display: none;
+}
+
+/* Y el degradado que pinta la columna oscura, que va en la rejilla y no en la barra. */
+@media (min-width: 1024px) {
+    .bmos-shell.is-plegado {
+        background: none;
+    }
 }

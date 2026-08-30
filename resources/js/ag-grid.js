@@ -23,6 +23,7 @@ import {
     ModuleRegistry,
     NumberFilterModule,
     PaginationModule, // el pie de «Mostrando 1 a 15 de 47»
+    RowStyleModule, // `rowClass`: el cursor que dice que la fila se puede pulsar
     TextFilterModule,
     themeQuartz,
     ValidationModule, // dice en consola QUÉ módulo falta si algo no está registrado
@@ -33,6 +34,7 @@ ModuleRegistry.registerModules([
     TextFilterModule,
     NumberFilterModule,
     PaginationModule,
+    RowStyleModule,
     CsvExportModule,
     CellStyleModule,
     ColumnAutoSizeModule,

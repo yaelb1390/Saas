@@ -52,6 +52,43 @@ window.loadAgGrid = async () => {
 };
 
 /**
+ * El armazón del panel: el cajón del móvil y el plegado del menú.
+ *
+ * El plegado se RECUERDA en el navegador. Quien vende no esconde el menú una vez: lo esconde porque
+ * quiere la pantalla entera para los artículos, y volver a mostrarlo en cada pantalla o en cada
+ * recarga sería pelearse con el sistema todo el día.
+ *
+ * Se guarda por navegador y no en la cuenta a propósito: es una preferencia de ESTE equipo. La misma
+ * cajera en la tableta del mostrador y en su portátil quiere cosas distintas.
+ *
+ * @returns {object} el estado para `x-data`
+ */
+window.armazonDelPanel = () => ({
+    open: false,      // el cajón, solo en móvil
+    plegado: false,   // el menú escondido, solo en escritorio
+
+    init() {
+        // Con try/catch: en una ventana privada o con las cookies bloqueadas, leer el almacenamiento
+        // LANZA, y un panel que no arranca por una preferencia de aspecto sería absurdo.
+        try {
+            this.plegado = localStorage.getItem('bmos.menu.plegado') === '1';
+        } catch (e) {
+            this.plegado = false;
+        }
+    },
+
+    plegar() {
+        this.plegado = !this.plegado;
+
+        try {
+            localStorage.setItem('bmos.menu.plegado', this.plegado ? '1' : '0');
+        } catch (e) {
+            // Que no se recuerde es un incordio; que reviente al pulsar, un fallo.
+        }
+    },
+});
+
+/**
  * Escáner por cámara, cargado bajo demanda.
  *
  * Vive aquí y no en el <script> de la vista porque el navegador no sabe resolver un import de

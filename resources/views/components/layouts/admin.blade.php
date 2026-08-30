@@ -136,9 +136,14 @@
          Google Fonts: se elimina la latencia externa y el render no espera a un tercero. --}}
     @include('partials.pwa-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Respaldo para `npm run dev`: ahí Vite inyecta el CSS por JavaScript y llegaría tarde.
+         En producción esta regla ya viaja en app.css; aquí va en el <head> y no al final del
+         <body>, que es donde estaba y por lo que se veían los modales al recargar. --}}
+    <style>[x-cloak]{display:none!important}</style>
 </head>
 <body class="h-full">
-<div class="bmos-shell" x-data="{ open: false }" @keydown.escape.window="open = false">
+<div class="bmos-shell" x-data="armazonDelPanel()" :class="{ 'is-plegado': plegado }"
+     @keydown.escape.window="open = false">
     {{-- Fondo oscuro tras el cajón en móvil: al tocarlo se cierra. Sin esto, el menú abierto
          tapaba el contenido sin forma clara de cerrarlo. Solo aparece en pantallas pequeñas. --}}
     <div x-show="open" x-cloak x-transition.opacity @click="open = false"
@@ -148,12 +153,7 @@
          siempre se ve. Ya no se usan hidden/lg:flex aquí para no chocar con el CSS propio. --}}
     <aside class="bmos-sidebar" :class="{ 'is-open': open }">
         <div class="bmos-brand bmos-brand--logo-only">
-            @if (file_exists(public_path('images/bm-mark.png')))
-                <img src="{{ asset('images/bm-mark.png') }}?v={{ filemtime(public_path('images/bm-mark.png')) }}"
-                     alt="BM Business OS" class="bmos-brand-logo-img">
-            @else
-                <span class="bmos-brand-logo">BM</span>
-            @endif
+            <x-panel.logo-bmia />
         </div>
         {{-- Secciones plegables. Cada usuario deja abiertas las que usa y el navegador lo recuerda:
              sin persistir, cada clic recargaría la página y volvería a abrirlas todas, que es peor
@@ -193,6 +193,33 @@
                 <button class="lg:hidden text-slate-500" @click="open = !open" aria-label="Menú">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-6 h-6">
                         <path stroke-linecap="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                    </svg>
+                </button>
+
+                {{--
+                    Esconder el menú, solo en escritorio.
+
+                    En las pantallas de cobro los 264 px del menú son 264 px que no ven los artículos,
+                    y quien atiende no navega entre módulos mientras despacha: entra a vender y se
+                    queda ahí. Plegarlo le da una columna más de productos.
+
+                    En móvil no aparece: ahí el menú YA está escondido detrás del botón de al lado, y
+                    dos controles para lo mismo solo confunden.
+
+                    Se recuerda entre pantallas y recargas: esconderlo en cada pantalla sería pelearse
+                    con el sistema toda la jornada.
+                --}}
+                <button type="button" class="bmos-plegar" :class="plegado && 'es-activo'" @click="plegar()"
+                        :aria-pressed="plegado ? 'true' : 'false'"
+                        :title="plegado ? 'Mostrar el menú' : 'Esconder el menú y ganar espacio'"
+                        :aria-label="plegado ? 'Mostrar el menú' : 'Esconder el menú'">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                        {{-- Dos iconos y no uno girado: la flecha dice hacia dónde se va a mover,
+                             y un mismo icono volteado se lee peor que dos distintos. --}}
+                        <path x-show="!plegado" stroke-linecap="round" stroke-linejoin="round"
+                              d="M3.75 6.75h16.5M3.75 12H12m-8.25 5.25h16.5M18 9l-3 3 3 3"/>
+                        <path x-show="plegado" stroke-linecap="round" stroke-linejoin="round"
+                              d="M3.75 6.75h16.5M3.75 12h8.25m-8.25 5.25h16.5M15 9l3 3-3 3"/>
                     </svg>
                 </button>
                 @if ($isSuper)
@@ -307,6 +334,5 @@
         </main>
     </div>
 </div>
-<style>[x-cloak]{display:none!important}</style>
 </body>
 </html>

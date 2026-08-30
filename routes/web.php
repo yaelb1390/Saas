@@ -33,7 +33,9 @@ use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\CRM\Http\Controllers\CustomerController;
 use App\Modules\Dealer\Http\Controllers\VehicleController;
 use App\Modules\Dealer\Http\Controllers\VehicleDealController;
+use App\Modules\Dealer\Http\Controllers\VehicleDocumentController;
 use App\Modules\Dealer\Http\Controllers\VehicleJobController;
+use App\Modules\Dealer\Http\Controllers\VehiclePhotoController;
 use App\Modules\Delivery\Http\Controllers\DeliveryController;
 use App\Modules\Delivery\Http\Controllers\DriverPortalController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
@@ -522,6 +524,10 @@ Route::middleware(['auth'])->group(function (): void {
             // Las filas de la rejilla. Mismo permiso que la pantalla: el JSON decide por sí mismo
             // si incluye el costo, así que ver la lista no es ver los costos.
             Route::get('/panel/vehiculos/datos', [VehicleController::class, 'datos'])->name('panel.vehicles.data');
+            // Exportar y agrupar en el SERVIDOR: las dos cosas son de la edición de pago de AG Grid,
+            // y hechas aquí abarcan el inventario filtrado entero y no solo lo que se descargó.
+            Route::get('/panel/vehiculos/exportar', [VehicleController::class, 'exportar'])->name('panel.vehicles.export');
+            Route::get('/panel/vehiculos/agrupar', [VehicleController::class, 'agrupar'])->name('panel.vehicles.group');
             // La ficha de una unidad: lo que no cabe en la tabla. Se pide solo al abrirla.
             Route::get('/panel/vehiculos/{vehicle}/ficha', [VehicleController::class, 'ficha'])->name('panel.vehicles.ficha');
             /*
@@ -534,6 +540,40 @@ Route::middleware(['auth'])->group(function (): void {
 
         Route::post('/panel/vehiculos', [VehicleController::class, 'store'])
             ->middleware('can:vehicles.manage')->name('panel.vehicles.store');
+
+        Route::put('/panel/vehiculos/{vehicle}', [VehicleController::class, 'update'])
+            ->middleware('can:vehicles.manage')->name('panel.vehicles.update');
+
+        /*
+         * La galería.
+         *
+         * Ver las fotos va con `vehicles.view`: enseñarle el carro a un cliente es justo lo que hace
+         * quien atiende. Cambiarlas exige administrar.
+         */
+        Route::middleware('can:vehicles.view')->group(function (): void {
+            Route::get('/panel/vehiculos/{vehicle}/fotos', [VehiclePhotoController::class, 'index'])->name('panel.vehicles.photos');
+            Route::get('/panel/vehiculos/{vehicle}/fotos/{photo}', [VehiclePhotoController::class, 'show'])->name('panel.vehicles.photos.show');
+        });
+
+        Route::middleware('can:vehicles.manage')->group(function (): void {
+            Route::post('/panel/vehiculos/{vehicle}/fotos', [VehiclePhotoController::class, 'store'])->name('panel.vehicles.photos.store');
+            Route::post('/panel/vehiculos/{vehicle}/fotos/orden', [VehiclePhotoController::class, 'reordenar'])->name('panel.vehicles.photos.order');
+            Route::post('/panel/vehiculos/{vehicle}/fotos/{photo}/principal', [VehiclePhotoController::class, 'principal'])->name('panel.vehicles.photos.primary');
+            Route::delete('/panel/vehiculos/{vehicle}/fotos/{photo}', [VehiclePhotoController::class, 'destroy'])->name('panel.vehicles.photos.destroy');
+        });
+
+        /*
+         * Los documentos, TODOS con `vehicles.manage`, incluido verlos.
+         *
+         * Aquí dentro va la matrícula con los datos del titular, la factura con el precio real y el
+         * contrato con la cédula del comprador. Enseñar el carro es una cosa; abrir sus papeles, otra.
+         */
+        Route::middleware('can:vehicles.manage')->group(function (): void {
+            Route::get('/panel/vehiculos/{vehicle}/documentos', [VehicleDocumentController::class, 'index'])->name('panel.vehicles.documents');
+            Route::post('/panel/vehiculos/{vehicle}/documentos', [VehicleDocumentController::class, 'store'])->name('panel.vehicles.documents.store');
+            Route::get('/panel/vehiculos/{vehicle}/documentos/{document}', [VehicleDocumentController::class, 'show'])->name('panel.vehicles.documents.show');
+            Route::delete('/panel/vehiculos/{vehicle}/documentos/{document}', [VehicleDocumentController::class, 'destroy'])->name('panel.vehicles.documents.destroy');
+        });
 
         Route::get('/panel/vehiculos/tratos', [VehicleDealController::class, 'index'])
             ->middleware('can:vehicle_deals.view')->name('panel.vehicle-deals');

@@ -5,17 +5,22 @@ declare(strict_types=1);
 namespace App\Modules\Dealer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Core\Models\Audit;
 use App\Modules\Core\Models\Branch;
 use App\Modules\Core\Support\BusquedaTexto;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Dealer\DTOs\CreateVehicleData;
 use App\Modules\Dealer\Enums\DealStatus;
+use App\Modules\Dealer\Enums\DocumentType;
+use App\Modules\Dealer\Enums\ExpenseType;
 use App\Modules\Dealer\Enums\VehicleStatus;
 use App\Modules\Dealer\Http\Requests\StoreVehicleRequest;
 use App\Modules\Dealer\Models\Vehicle;
 use App\Modules\Dealer\Models\VehicleDeal;
 use App\Modules\Dealer\Services\VehicleService;
 use App\Modules\Dealer\Support\VehicleImageStore;
+use App\Support\SimpleXlsx;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,6 +28,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * El patio de vehículos.
@@ -56,6 +62,8 @@ final class VehicleController extends Controller
             'marcas' => $faltaMigrar ? collect() : Vehicle::query()->distinct()->orderBy('make')->pluck('make')->filter()->values(),
             'anios' => $faltaMigrar ? collect() : Vehicle::query()->distinct()->orderByDesc('year')->pluck('year')->filter()->values(),
             'porMarca' => $faltaMigrar ? collect() : $this->porMarca(),
+            'tiposDocumento' => DocumentType::cases(),
+            'tiposGasto' => ExpenseType::cases(),
         ]);
     }
 
@@ -74,23 +82,9 @@ final class VehicleController extends Controller
 
         $puedeGestionar = Gate::allows('vehicles.manage');
 
-        $consulta = $vehiculos->paraLaRejilla();
-
-        foreach (['estado' => 'status', 'marca' => 'make', 'anio' => 'year'] as $param => $columna) {
-            if ($request->filled($param)) {
-                $consulta->where($columna, (string) $request->query($param));
-            }
-        }
-
-        if ($request->filled('q')) {
-            // Sin distinguir mayúsculas: en PostgreSQL un `like` a secas no encontraría «Toyota»
-            // buscando «toyota», y aquí se teclea en minúsculas siempre.
-            BusquedaTexto::enCualquiera(
-                $consulta,
-                ['code', 'vin', 'make', 'model', 'plate', 'color'],
-                (string) $request->query('q'),
-            );
-        }
+        // El MISMO filtrado que usan la exportación y el agrupado. Con tres copias, el día que
+        // alguien añada un filtro a una sola, el Excel traería otra cosa que la pantalla.
+        $consulta = $this->filtrar($vehiculos->paraLaRejilla(), $request);
 
         /*
          * Se manda todo de una vez y con tope, porque el modelo de filas de AG Grid Community es del
@@ -132,19 +126,44 @@ final class VehicleController extends Controller
             ? $vehicle->deals()->where('status', '!=', DealStatus::Cancelled->value)->latest('id')->first()
             : null;
 
-        $trabajos = DbTable::existe('vehicle_jobs')
+        /*
+         * Los gastos SOLO si se pueden ver.
+         *
+         * En qué se gastó el dinero de una unidad es información de costo, igual que el margen: un
+         * vendedor no tiene por qué saber que este carro llevó 90.000 de pintura. Se devuelve la
+         * lista vacía, no una lista con los costos en blanco.
+         */
+        $trabajos = $puedeGestionar && DbTable::existe('vehicle_jobs')
             ? $vehicle->jobs()->latest('id')->get()->map(fn ($t): array => [
                 'descripcion' => $t->description,
+                'tipo' => $t->type->label(),
+                'tono' => $t->type->badgeClass(),
                 'quien' => $t->performed_by,
                 'fecha' => $t->performed_at?->format('d/m/Y'),
                 'estado' => $t->status->label(),
-                // El costo de un trabajo ES un costo: mismo criterio que en la tabla.
-                'costo' => $puedeGestionar ? (float) $t->cost : null,
+                'costo' => (float) $t->cost,
             ])->all()
             : [];
 
+        $fotos = DbTable::existe('vehicle_photos')
+            ? $vehicle->photos()->get()->map(fn ($f): array => [
+                'id' => $f->id,
+                'url' => $f->url(),
+                'principal' => (bool) $f->is_primary,
+            ])->all()
+            : [];
+
+        // Los papeles llevan cédulas y precios pactados: se piden por su propia ruta, que exige
+        // administrar. Aquí solo va cuántos hay, para que la pestaña sepa si tiene algo que enseñar.
+        $documentos = $puedeGestionar && DbTable::existe('vehicle_documents')
+            ? $vehicle->documents()->count()
+            : 0;
+
         return response()->json([
             'trabajos' => $trabajos,
+            'fotos' => $fotos,
+            'documentos' => $documentos,
+            'historial' => $puedeGestionar ? $this->historial($vehicle) : [],
             'trato' => $trato === null ? null : [
                 'codigo' => $trato->code,
                 'cliente' => $trato->customer_name,
@@ -202,6 +221,146 @@ final class VehicleController extends Controller
         ));
 
         return back()->with('panel_success', "«{$vehiculo->nombre()}» quedó registrado como {$vehiculo->code}.");
+    }
+
+    /**
+     * Corrige los datos de una unidad.
+     *
+     * Faltaba, y era el hueco más grave: un chasis mal tecleado o un precio equivocado no se podían
+     * arreglar. Reutiliza el mismo Form Request que el alta, cuyas reglas ya ignoran la propia
+     * unidad al comprobar que el chasis no se repite.
+     */
+    public function update(StoreVehicleRequest $request, Vehicle $vehicle, VehicleService $vehiculos): RedirectResponse
+    {
+        $vehiculos->update($vehicle, $request->validated());
+
+        return back()->with('panel_success', "«{$vehicle->nombre()}» quedó actualizado.");
+    }
+
+    /**
+     * El inventario en Excel o CSV.
+     *
+     * Baja lo que hay FILTRADO, no lo que se ve en pantalla. Es la diferencia que importa: exportar
+     * desde el navegador daría solo las quince filas de la página actual, y quien exporta quiere el
+     * inventario.
+     *
+     * Usa `SimpleXlsx`, el mismo generador que ya emplean Ventas, Inventario y Facturación: un
+     * .xlsx de verdad armado con ZipArchive, sin una sola dependencia. Agrupar y exportar a Excel
+     * desde la rejilla son de la edición de pago de AG Grid; esto los sustituye sin pagar.
+     */
+    public function exportar(Request $request, VehicleService $vehiculos): SymfonyResponse
+    {
+        abort_unless(DbTable::existe('vehicles'), 404);
+
+        $puedeGestionar = Gate::allows('vehicles.manage');
+        $unidades = $this->filtrar($vehiculos->paraLaRejilla(), $request)->get();
+        $clientes = $this->clientesPorUnidad($unidades->pluck('id')->all());
+
+        $cabeceras = ['Código', 'Chasis', 'Marca', 'Modelo', 'Año', 'Color', 'Km', 'Placa', 'Estado', 'Cliente', 'Precio'];
+
+        // El costo solo va si se puede ver. Un fichero que se descarga y circula por correo es peor
+        // sitio todavía para filtrar el margen que una pantalla.
+        if ($puedeGestionar) {
+            $cabeceras = [...$cabeceras, 'Costo de compra', 'Preparación', 'Costo real', 'Margen'];
+        }
+
+        $filas = $unidades->map(function (Vehicle $v) use ($puedeGestionar, $clientes): array {
+            $fila = [
+                $v->code, $v->vin, $v->make, $v->model, $v->year, $v->color,
+                $v->mileage, $v->plate, $v->status->label(), $clientes[$v->id] ?? '',
+                (float) $v->asking_price,
+            ];
+
+            if ($puedeGestionar) {
+                $fila = [...$fila, (float) $v->purchase_cost, (float) $v->gastos(), (float) $v->costoReal(), (float) $v->margen()];
+            }
+
+            return $fila;
+        });
+
+        if ($request->query('formato') === 'xlsx') {
+            $ruta = SimpleXlsx::write($cabeceras, $filas);
+
+            return response()->download($ruta, 'patio.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        }
+
+        return response()->streamDownload(function () use ($cabeceras, $filas): void {
+            $salida = fopen('php://output', 'w');
+            fwrite($salida, 'ï»¿'); // para que Excel abra los acentos bien
+            fputcsv($salida, $cabeceras);
+            foreach ($filas as $fila) {
+                fputcsv($salida, $fila);
+            }
+            fclose($salida);
+        }, 'patio.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * Agrupa el patio por marca, año o estado.
+     *
+     * En el SERVIDOR y no en la rejilla: agrupar filas es de la edición de pago de AG Grid, y hacerlo
+     * aquí además agrupa el inventario ENTERO —no solo lo que se descargó—, que es lo que se quiere
+     * cuando se pregunta «¿de qué tengo más?».
+     */
+    public function agrupar(Request $request, VehicleService $vehiculos): JsonResponse
+    {
+        if (! DbTable::existe('vehicles')) {
+            return response()->json(['grupos' => []]);
+        }
+
+        $por = match ((string) $request->query('por')) {
+            'anio' => 'year',
+            'estado' => 'status',
+            default => 'make',
+        };
+
+        $puedeGestionar = Gate::allows('vehicles.manage');
+
+        $grupos = $this->filtrar(Vehicle::query(), $request)
+            ->groupBy($por)
+            ->selectRaw($por.' as clave, count(*) as unidades, sum(asking_price) as precio')
+            ->orderByDesc('unidades')
+            ->get()
+            ->map(fn ($g): array => [
+                'clave' => $g->clave === null || $g->clave === '' ? 'Sin anotar' : (string) $g->clave,
+                'unidades' => (int) $g->unidades,
+                // El valor del grupo es dinero del inventario: mismo criterio que en la tabla.
+                'precio' => $puedeGestionar ? (float) $g->precio : null,
+            ])
+            ->all();
+
+        return response()->json(['grupos' => $grupos, 'por' => $por]);
+    }
+
+    /**
+     * Aplica los filtros de la pantalla a una consulta.
+     *
+     * Extraído para que la rejilla, la exportación y el agrupado filtren EXACTAMENTE igual. Con tres
+     * copias, el día que alguien añada un filtro a una sola, el Excel traería otra cosa que la
+     * pantalla y nadie sabría cuál de las dos miente.
+     *
+     * @param  Builder<Vehicle>  $consulta
+     * @return Builder<Vehicle>
+     */
+    private function filtrar(Builder $consulta, Request $request): Builder
+    {
+        foreach (['estado' => 'status', 'marca' => 'make', 'anio' => 'year'] as $param => $columna) {
+            if ($request->filled($param)) {
+                $consulta->where($columna, (string) $request->query($param));
+            }
+        }
+
+        if ($request->filled('q')) {
+            BusquedaTexto::enCualquiera(
+                $consulta,
+                ['code', 'vin', 'make', 'model', 'plate', 'color'],
+                (string) $request->query('q'),
+            );
+        }
+
+        return $consulta;
     }
 
     /**
@@ -286,6 +445,88 @@ final class VehicleController extends Controller
         }
 
         return $fila;
+    }
+
+    /**
+     * El historial de la unidad, LEÍDO DE LA AUDITORÍA.
+     *
+     * Sin tabla propia: el sistema ya guarda de cada cambio quién lo hizo, cuándo, desde qué IP, el
+     * valor anterior y el nuevo —justo lo que hace falta—. Una tabla de historial paralela sería una
+     * segunda verdad que hay que acordarse de escribir, y el día que alguien no lo haga faltaría el
+     * cambio justo que se está buscando.
+     *
+     * Solo se enseñan los campos que le importan a una persona: quién tocó el precio o el estado, no
+     * que se recalculó una marca de tiempo.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function historial(Vehicle $vehicle): array
+    {
+        if (! DbTable::existe('audits')) {
+            return [];
+        }
+
+        $interesan = [
+            'status' => 'Estado',
+            'asking_price' => 'Precio de venta',
+            'min_price' => 'Precio mínimo',
+            'purchase_cost' => 'Costo de compra',
+            'mileage' => 'Kilometraje',
+            'vin' => 'Chasis',
+            'plate' => 'Placa',
+            'color' => 'Color',
+        ];
+
+        return Audit::query()
+            ->where('auditable_type', Vehicle::class)
+            ->where('auditable_id', $vehicle->id)
+            ->with('user:id,name')
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->flatMap(function (Audit $a) use ($interesan): array {
+                $nuevos = (array) $a->new_values;
+                $viejos = (array) $a->old_values;
+
+                $lineas = [];
+
+                foreach ($nuevos as $campo => $nuevo) {
+                    if (! isset($interesan[$campo])) {
+                        continue;
+                    }
+
+                    $lineas[] = [
+                        'campo' => $interesan[$campo],
+                        'antes' => $this->legible($campo, $viejos[$campo] ?? null),
+                        'despues' => $this->legible($campo, $nuevo),
+                        'quien' => $a->user?->name ?? 'el sistema',
+                        'cuando' => $a->created_at?->format('d/m/Y H:i'),
+                    ];
+                }
+
+                return $lineas;
+            })
+            ->take(30)
+            ->values()
+            ->all();
+    }
+
+    /** Traduce un valor guardado a algo que una persona lea: «available» no le dice nada a nadie. */
+    private function legible(string $campo, mixed $valor): string
+    {
+        if ($valor === null || $valor === '') {
+            return '—';
+        }
+
+        if ($campo === 'status') {
+            return VehicleStatus::tryFrom((string) $valor)?->label() ?? (string) $valor;
+        }
+
+        if (in_array($campo, ['asking_price', 'min_price', 'purchase_cost'], true)) {
+            return 'RD$ '.number_format((float) $valor, 2);
+        }
+
+        return (string) $valor;
     }
 
     /**

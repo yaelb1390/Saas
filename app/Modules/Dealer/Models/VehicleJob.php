@@ -7,6 +7,7 @@ namespace App\Modules\Dealer\Models;
 use App\Models\User;
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
+use App\Modules\Dealer\Enums\ExpenseType;
 use App\Modules\Dealer\Enums\JobStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,7 @@ class VehicleJob extends Model implements Auditable, HasCompany
     protected $fillable = [
         'company_id',
         'vehicle_id',
+        'type',
         'description',
         'cost',
         'performed_by',
@@ -42,6 +44,7 @@ class VehicleJob extends Model implements Auditable, HasCompany
     {
         return [
             'status' => JobStatus::class,
+            'type' => ExpenseType::class,
             'cost' => 'decimal:2',
             'performed_at' => 'date',
         ];

@@ -53,6 +53,8 @@ class Vehicle extends Model implements Auditable, HasCompany
         'transmission',
         'plate',
         'photo_path',
+        'min_price',
+        'vehicle_type',
         'purchase_cost',
         'asking_price',
         'status',
@@ -70,6 +72,7 @@ class Vehicle extends Model implements Auditable, HasCompany
             // pasar —el fallo aparecería justo donde nadie mira—.
             'purchase_cost' => 'decimal:2',
             'asking_price' => 'decimal:2',
+            'min_price' => 'decimal:2',
             'acquired_at' => 'date',
             'year' => 'integer',
             'mileage' => 'integer',
@@ -86,9 +89,27 @@ class Vehicle extends Model implements Auditable, HasCompany
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Los gastos de la unidad: reparaciones, importación, transporte, papeles.
+     *
+     * Se llama `jobs` todavía porque nació como «trabajos de taller», y renombrar la relación
+     * obligaría a tocar cada sitio que la usa sin ganar nada. Lo que importa es que aquí está TODO lo
+     * que se gastó: es de donde sale el costo real.
+     */
     public function jobs(): HasMany
     {
         return $this->hasMany(VehicleJob::class);
+    }
+
+    /** La galería, ya ordenada como el dealer la dejó. */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(VehiclePhoto::class)->orderBy('position');
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(VehicleDocument::class)->latest('id');
     }
 
     public function deals(): HasMany

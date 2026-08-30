@@ -92,6 +92,12 @@ final class TenantDataPurger
         'vehicle_installments',
         'vehicle_deals',
         'vehicle_jobs',
+        // Las fotos y los papeles, ANTES que las unidades de las que cuelgan. Los ficheros en sí
+        // quedan en el disco: esta purga vacía la base de datos, y borrar archivos es otra operación
+        // con otro riesgo. Lo que no puede pasar es que sobrevivan las FILAS apuntando a un vehículo
+        // que ya no existe.
+        'vehicle_photos',
+        'vehicle_documents',
         'vehicles',
         // Facturación
         'invoice_items',

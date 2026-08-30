@@ -7,8 +7,10 @@ namespace App\Modules\Dealer\Services;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Dealer\DTOs\CreateJobData;
 use App\Modules\Dealer\DTOs\CreateVehicleData;
+use App\Modules\Dealer\Enums\ExpenseType;
 use App\Modules\Dealer\Enums\JobStatus;
 use App\Modules\Dealer\Enums\VehicleStatus;
+use App\Modules\Dealer\Events\VehicleExpenseRecorded;
 use App\Modules\Dealer\Models\Vehicle;
 use App\Modules\Dealer\Models\VehicleJob;
 use App\Modules\Dealer\Support\VehicleImageStore;
@@ -62,6 +64,48 @@ final class VehicleService
         });
     }
 
+    /**
+     * Corrige los datos de una unidad.
+     *
+     * Faltaba, y era el hueco más grave del módulo: hasta ahora un chasis mal tecleado o un precio
+     * equivocado no se podían arreglar. El código NO se toca —es el identificador con el que el
+     * dealer se refiere a la unidad— y el estado tampoco: ese lo mueven los tratos, no un formulario.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    public function update(Vehicle $vehicle, array $datos): Vehicle
+    {
+        return DB::transaction(function () use ($vehicle, $datos): Vehicle {
+            $vehicle->fill([
+                'branch_id' => $datos['branch_id'] ?? null,
+                'vin' => $this->limpiarVin($datos['vin'] ?? null),
+                'make' => trim((string) $datos['make']),
+                'model' => trim((string) $datos['model']),
+                'year' => $datos['year'] ?? null,
+                'trim' => $datos['trim'] ?? null,
+                'vehicle_type' => $datos['vehicle_type'] ?? null,
+                'color' => $datos['color'] ?? null,
+                'mileage' => $datos['mileage'] ?? null,
+                'fuel' => $datos['fuel'] ?? null,
+                'transmission' => $datos['transmission'] ?? null,
+                'plate' => $datos['plate'] ?? null,
+                'purchase_cost' => $this->normalize((string) ($datos['purchase_cost'] ?? '0')),
+                'asking_price' => $this->normalize((string) ($datos['asking_price'] ?? '0')),
+                'min_price' => isset($datos['min_price']) && $datos['min_price'] !== ''
+                    ? $this->normalize((string) $datos['min_price'])
+                    : null,
+                'acquired_at' => $datos['acquired_at'] ?? null,
+                'notes' => $datos['notes'] ?? null,
+            ]);
+
+            // El rastro lo escribe la auditoría sola al guardar: guarda quién, cuándo, el valor
+            // anterior y el nuevo. De ahí sale el historial de la ficha, sin tabla propia.
+            $vehicle->save();
+
+            return $vehicle;
+        });
+    }
+
     /** Anota un trabajo de preparación. Su costo entra en el costo real de la unidad. */
     public function addJob(CreateJobData $data): VehicleJob
     {
@@ -71,9 +115,10 @@ final class VehicleService
         // unidad ajena, no existe y no hay nada que decidir.
         $vehicle = Vehicle::query()->findOrFail($data->vehicleId);
 
-        return VehicleJob::create([
+        $gasto = VehicleJob::create([
             'company_id' => $companyId,
             'vehicle_id' => $vehicle->id,
+            'type' => ExpenseType::tryFrom($data->type) ?? ExpenseType::Reparacion,
             'description' => trim($data->description),
             'cost' => $this->normalize($data->cost),
             'performed_by' => $data->performedBy,
@@ -82,6 +127,17 @@ final class VehicleService
             'notes' => $data->notes,
             'user_id' => auth()->id(),
         ]);
+
+        /*
+         * El gasto sale de la caja igual que cualquier otro.
+         *
+         * Va por evento y no llamando a Finanzas aquí, para que el patio no dependa de ese módulo:
+         * un dealer que no lo tenga contratado registra sus gastos igual, solo que nadie escucha. Es
+         * el mismo camino que usan los préstamos.
+         */
+        VehicleExpenseRecorded::dispatch($gasto);
+
+        return $gasto;
     }
 
     /**

@@ -42,7 +42,10 @@ final class StoreVehicleRequest extends FormRequest
             'vin' => [
                 'nullable', 'string', 'max:32',
                 Rule::unique('vehicles', 'vin')
-                    ->where(fn ($q) => $q->where('company_id', $companyId)->whereNull('deleted_at')),
+                    ->where(fn ($q) => $q->where('company_id', $companyId)->whereNull('deleted_at'))
+                    // Al EDITAR, la unidad no choca consigo misma. Sin esto, guardar una ficha sin
+                    // tocar el chasis daría «ya tienes un vehículo con ese chasis»: el suyo.
+                    ->ignore($this->route('vehicle')?->id),
             ],
             'trim' => ['nullable', 'string', 'max:60'],
             'color' => ['nullable', 'string', 'max:40'],
@@ -58,6 +61,14 @@ final class StoreVehicleRequest extends FormRequest
             ],
             'acquired_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            /*
+             * El precio mínimo: el suelo de la negociación.
+             *
+             * No se exige que sea menor que el precio de venta. Un dealer puede poner los dos iguales
+             * —«este no se negocia»— y forzarlo solo obligaría a inventar un número.
+             */
+            'min_price' => ['nullable', 'numeric', 'min:0'],
+            'vehicle_type' => ['nullable', 'string', 'max:40'],
             /*
              * La foto. Se limita el tamaño ANTES de tocarla: sin tope, una foto de móvil moderno
              * son diez megas y el recuadrado con GD se come la memoria del proceso.
@@ -78,6 +89,7 @@ final class StoreVehicleRequest extends FormRequest
             'vin.unique' => 'Ya tienes registrado un vehículo con ese chasis.',
             'year.max' => 'Ese año no puede ser.',
             'branch_id.exists' => 'Esa sucursal no es de tu empresa.',
+            'vin.unique' => 'Ya tienes otro vehículo con ese chasis.',
             'photo.image' => 'Ese archivo no es una imagen.',
             'photo.max' => 'La foto pesa demasiado; no puede pasar de 8 MB.',
         ];

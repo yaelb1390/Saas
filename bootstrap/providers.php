@@ -5,6 +5,7 @@ use App\Modules\Billing\Providers\BillingServiceProvider;
 use App\Modules\Cash\Providers\CashServiceProvider;
 use App\Modules\Core\Providers\CoreServiceProvider;
 use App\Modules\CRM\Providers\CrmServiceProvider;
+use App\Modules\Dealer\Providers\DealerServiceProvider;
 use App\Modules\Delivery\Providers\DeliveryServiceProvider;
 use App\Modules\Finance\Providers\FinanceServiceProvider;
 use App\Modules\HR\Providers\HrServiceProvider;
@@ -33,6 +34,7 @@ return [
     AiServiceProvider::class,
     DeliveryServiceProvider::class,
     FinanceServiceProvider::class,
+    DealerServiceProvider::class,
     LoansServiceProvider::class,
     HrServiceProvider::class,
     ReportsServiceProvider::class,

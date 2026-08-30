@@ -398,25 +398,182 @@
                                         </div>
                                     </template>
 
-                                    <div class="mt-5">
-                                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Taller</p>
-                                        <p x-show="detalle && detalle.trabajos.length === 0" class="text-sm text-slate-400">
-                                            No se le ha hecho nada todavía.
-                                        </p>
-                                        <template x-for="(t, i) in (detalle ? detalle.trabajos : [])" :key="i">
-                                            <div class="flex items-start justify-between gap-3 border-b border-slate-100 py-2 text-sm last:border-0">
-                                                <div>
-                                                    <p class="text-slate-700" x-text="t.descripcion"></p>
-                                                    <p class="text-xs text-slate-400">
-                                                        <span x-text="t.quien || 'sin anotar quién'"></span>
-                                                        <span x-show="t.fecha"> · <span x-text="t.fecha"></span></span>
-                                                        · <span x-text="t.estado"></span>
-                                                    </p>
-                                                </div>
-                                                <span x-show="t.costo !== null" class="shrink-0 text-slate-600" x-text="pesos(t.costo)"></span>
-                                            </div>
+                                    {{--
+                                        Pestañas.
+
+                                        Con todo en una columna, la galería y el historial dejaban la
+                                        ficha con tres pantallas de desplazamiento y el precio, el
+                                        estado y las cuentas fuera de la vista. Lo que se mira siempre
+                                        se queda arriba, fijo; lo que se consulta a ratos va por
+                                        pestañas.
+                                    --}}
+                                    <div class="mt-5 flex gap-1 border-b border-slate-100">
+                                        <template x-for="p in pestanasFicha()" :key="p[0]">
+                                            <button type="button" @click="pestana = p[0]"
+                                                    class="bmos-ficha-pestana" :class="pestana === p[0] && 'is-activa'">
+                                                <span x-text="p[1]"></span>
+                                                <span x-show="p[2] > 0" class="bmos-ficha-num" x-text="p[2]"></span>
+                                            </button>
                                         </template>
                                     </div>
+
+                                    {{-- ---------------------------------------------------- Fotos --}}
+                                    <div x-show="pestana === 'fotos'" class="mt-4">
+                                        <p x-show="!detalle || detalle.fotos.length === 0" class="py-6 text-center text-sm text-slate-400">
+                                            Esta unidad no tiene fotos todavía.
+                                        </p>
+
+                                        <div class="grid grid-cols-3 gap-2">
+                                            <template x-for="f in (detalle ? detalle.fotos : [])" :key="f.id">
+                                                <div class="bmos-galeria-foto" :class="f.principal && 'es-principal'">
+                                                    <img :src="f.url" alt="" loading="lazy">
+
+                                                    @can('vehicles.manage')
+                                                        <div class="bmos-galeria-acciones">
+                                                            {{-- Los formularios se pintan en el
+                                                                 SERVIDOR, con su token: el
+                                                                 JavaScript nunca fabrica un CSRF. --}}
+                                                            <form method="POST" x-bind:action="rutaFoto(f.id, 'principal')" x-show="!f.principal">
+                                                                @csrf
+                                                                <button class="bmos-galeria-btn" title="Poner como principal">★</button>
+                                                            </form>
+                                                            {{--
+                                                                La confirmación va por
+                                                                `window.confirmarAccion` y NO por el
+                                                                `confirm` del navegador: aquel trata
+                                                                igual archivar un cliente que destruir
+                                                                un plan, y el panel tiene un test que
+                                                                prohíbe usarlo en las vistas.
+
+                                                                `@submit.prevent` porque el diálogo
+                                                                es asíncrono: sin frenar el envío, el
+                                                                formulario se mandaría antes de que
+                                                                nadie contestara.
+                                                            --}}
+                                                            <form method="POST" x-bind:action="rutaFoto(f.id, '')"
+                                                                  @submit.prevent="borrarFoto($el)">
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                <button class="bmos-galeria-btn" title="Eliminar">✕</button>
+                                                            </form>
+                                                        </div>
+                                                    @endcan
+
+                                                    <span x-show="f.principal" class="bmos-galeria-marca">Principal</span>
+                                                </div>
+                                            </template>
+                                        </div>
+
+                                        @can('vehicles.manage')
+                                            <form method="POST" x-bind:action="'{{ url('panel/vehiculos') }}/' + ficha.id + '/fotos'"
+                                                  enctype="multipart/form-data" class="mt-4">
+                                                @csrf
+                                                <label class="bmos-field-label">Añadir fotos</label>
+                                                <input type="file" name="photos[]" accept="image/*" multiple class="bmos-input">
+                                                <p class="mt-1 text-xs text-slate-400">
+                                                    Se recortan solas a formato horizontal. Máximo 20 por unidad.
+                                                </p>
+                                                <button class="bmos-btn bmos-btn-primary mt-2">Subir</button>
+                                            </form>
+                                        @endcan
+                                    </div>
+
+                                    {{-- ----------------------------------------------- Documentos --}}
+                                    @can('vehicles.manage')
+                                        <div x-show="pestana === 'documentos'" class="mt-4">
+                                            <p x-show="documentos.length === 0" class="py-6 text-center text-sm text-slate-400">
+                                                Sin papeles guardados.
+                                            </p>
+
+                                            <template x-for="d in documentos" :key="d.id">
+                                                <div class="flex items-start justify-between gap-3 border-b border-slate-100 py-2.5 text-sm last:border-0">
+                                                    <div class="min-w-0">
+                                                        <span class="bmos-badge" :class="d.tono" x-text="d.tipo"></span>
+                                                        <a :href="d.url" target="_blank" rel="noopener"
+                                                           class="mt-1 block truncate text-slate-700 hover:text-indigo-600" x-text="d.nombre"></a>
+                                                        <p class="text-xs text-slate-400">
+                                                            <span x-text="d.tamano"></span> · <span x-text="d.fecha"></span>
+                                                        </p>
+                                                    </div>
+                                                    <form method="POST" x-bind:action="rutaDoc(d.id)"
+                                                          @submit.prevent="borrarDocumento($el, d.nombre)">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button class="bmos-accion" title="Eliminar">✕</button>
+                                                    </form>
+                                                </div>
+                                            </template>
+
+                                            <form method="POST" x-bind:action="'{{ url('panel/vehiculos') }}/' + ficha.id + '/documentos'"
+                                                  enctype="multipart/form-data" class="mt-4 space-y-3">
+                                                @csrf
+                                                <div>
+                                                    <label class="bmos-field-label">Qué documento es</label>
+                                                    <select name="type" class="bmos-input">
+                                                        @foreach ($tiposDocumento as $tipo)
+                                                            <option value="{{ $tipo->value }}">{{ $tipo->label() }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="bmos-field-label">Archivo</label>
+                                                    <input type="file" name="document" accept=".pdf,image/*" class="bmos-input">
+                                                    <p class="mt-1 text-xs text-slate-400">PDF o imagen, hasta 15 MB.</p>
+                                                </div>
+                                                <button class="bmos-btn bmos-btn-primary">Guardar documento</button>
+                                            </form>
+                                        </div>
+                                    @endcan
+
+                                    {{-- --------------------------------------------------- Gastos --}}
+                                    @can('vehicles.manage')
+                                        <div x-show="pestana === 'gastos'" class="mt-4">
+                                            <p x-show="!detalle || detalle.trabajos.length === 0" class="py-6 text-center text-sm text-slate-400">
+                                                No se le ha gastado nada todavía.
+                                            </p>
+
+                                            <template x-for="(t, i) in (detalle ? detalle.trabajos : [])" :key="i">
+                                                <div class="flex items-start justify-between gap-3 border-b border-slate-100 py-2 text-sm last:border-0">
+                                                    <div>
+                                                        <span class="bmos-badge" :class="t.tono" x-text="t.tipo"></span>
+                                                        <p class="mt-1 text-slate-700" x-text="t.descripcion"></p>
+                                                        <p class="text-xs text-slate-400">
+                                                            <span x-text="t.quien || 'sin anotar quién'"></span>
+                                                            <span x-show="t.fecha"> · <span x-text="t.fecha"></span></span>
+                                                            · <span x-text="t.estado"></span>
+                                                        </p>
+                                                    </div>
+                                                    <span class="shrink-0 text-slate-600" x-text="pesos(t.costo)"></span>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    @endcan
+
+                                    {{-- ------------------------------------------------ Historial --}}
+                                    @can('vehicles.manage')
+                                        <div x-show="pestana === 'historial'" class="mt-4">
+                                            {{-- Sale de la AUDITORÍA, no de una tabla propia: el
+                                                 sistema ya guarda quién cambió qué, cuándo y desde
+                                                 dónde. --}}
+                                            <p x-show="!detalle || detalle.historial.length === 0" class="py-6 text-center text-sm text-slate-400">
+                                                No se le ha cambiado nada desde que se registró.
+                                            </p>
+
+                                            <template x-for="(h, i) in (detalle ? detalle.historial : [])" :key="i">
+                                                <div class="border-b border-slate-100 py-2.5 text-sm last:border-0">
+                                                    <p class="text-slate-700">
+                                                        <span class="font-medium" x-text="h.campo"></span>:
+                                                        <span class="text-slate-400" x-text="h.antes"></span>
+                                                        <span class="text-slate-300">→</span>
+                                                        <span x-text="h.despues"></span>
+                                                    </p>
+                                                    <p class="text-xs text-slate-400">
+                                                        <span x-text="h.quien"></span> · <span x-text="h.cuando"></span>
+                                                    </p>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    @endcan
 
                                     <div class="mt-6 flex flex-wrap gap-2">
                                         @can('vehicle_deals.manage')
@@ -424,7 +581,7 @@
                                         @endcan
                                         @can('vehicle_jobs.manage')
                                             <a :href="'{{ route('panel.vehicle-jobs') }}?vehiculo=' + ficha.id"
-                                               class="bmos-btn bmos-btn-ghost">Ver su taller</a>
+                                               class="bmos-btn bmos-btn-ghost">Anotar gasto</a>
                                         @endcan
                                     </div>
                                 </div>
@@ -534,7 +691,9 @@
                 filas: [],       // lo último que trajo el servidor, para la galería
                 temporizador: null,
                 ficha: null,     // la fila que se está mirando
-                detalle: null,   // sus trabajos y su trato, pedidos aparte
+                detalle: null,   // gastos, fotos, historial y trato, pedidos aparte
+                documentos: [],  // se piden solo al abrir su pestaña: llevan datos personales
+                pestana: 'fotos',
 
                 hayFiltros() {
                     return !!(this.texto || this.marca || this.anio || this.estado);
@@ -583,17 +742,78 @@
                     ].filter((d) => d[1]);
                 },
 
+                /** Qué pestañas tiene sentido enseñar, con su contador. */
+                pestanasFicha() {
+                    const d = this.detalle;
+                    const tabs = [['fotos', 'Fotos', d ? d.fotos.length : 0]];
+
+                    if (puedeGestionar) {
+                        tabs.push(
+                            ['documentos', 'Documentos', d ? d.documentos : 0],
+                            ['gastos', 'Gastos', d ? d.trabajos.length : 0],
+                            ['historial', 'Historial', 0],
+                        );
+                    }
+
+                    return tabs;
+                },
+
+                rutaFoto(id, accion) {
+                    return '{{ url('panel/vehiculos') }}/' + this.ficha.id + '/fotos/' + id + (accion ? '/' + accion : '');
+                },
+
+                /**
+                 * Pregunta y, si dicen que sí, envía el formulario que ya pintó el servidor.
+                 *
+                 * El formulario con su token y su método viene del servidor: el JavaScript solo lo
+                 * envía. Nunca fabrica un CSRF, que es la misma regla que sigue el resto del panel.
+                 */
+                async borrarFoto(form) {
+                    if (await window.confirmarAccion({
+                        titulo: '¿Eliminar esta foto?',
+                        mensaje: 'Se quita de la galería de esta unidad.',
+                        confirmar: 'Eliminar',
+                    })) {
+                        form.submit();
+                    }
+                },
+
+                async borrarDocumento(form, nombre) {
+                    if (await window.confirmarAccion({
+                        titulo: '¿Eliminar «' + nombre + '»?',
+                        mensaje: 'El archivo se borra del sistema.',
+                        aviso: 'No se puede deshacer.',
+                        avisoGrave: true,
+                        confirmar: 'Eliminar',
+                    })) {
+                        form.submit();
+                    }
+                },
+
+                rutaDoc(id) {
+                    return '{{ url('panel/vehiculos') }}/' + this.ficha.id + '/documentos/' + id;
+                },
+
                 async abrirFicha(fila) {
                     this.ficha = fila;
                     this.detalle = null;
+                    this.documentos = [];
+                    this.pestana = 'fotos';
 
                     try {
                         const r = await fetch('/panel/vehiculos/' + fila.id + '/ficha', { headers: { Accept: 'application/json' } });
                         this.detalle = await r.json();
+
+                        // Los papeles van por su propia ruta, que exige administrar: si el servidor
+                        // los niega, la pestaña se queda vacía y no se rompe nada.
+                        if (puedeGestionar) {
+                            const rd = await fetch('/panel/vehiculos/' + fila.id + '/documentos', { headers: { Accept: 'application/json' } });
+                            if (rd.ok) this.documentos = (await rd.json()).documentos || [];
+                        }
                     } catch (e) {
                         // La ficha ya enseña lo esencial con lo que la rejilla tiene en memoria; si
                         // el detalle no llega, se queda sin taller pero no en blanco.
-                        this.detalle = { trabajos: [], trato: null };
+                        this.detalle = { trabajos: [], trato: null, fotos: [], documentos: 0, historial: [] };
                     }
                 },
 

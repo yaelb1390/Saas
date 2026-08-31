@@ -1,7 +1,7 @@
 {{-- Símbolo BMIA de la barra lateral.
 
      Va dibujado en SVG y no como PNG por dos motivos concretos: se ve nítido en cualquier
-     densidad de pantalla (la barra lo muestra a 156px, un mapa de bits ahí llega borroso en
+     densidad de pantalla (la barra lo muestra a 112px, un mapa de bits ahí llega borroso en
      pantallas retina) y su fondo es transparente, así que se apoya en el degradado del panel
      en lugar de recortar un rectángulo oscuro que nunca casaría con él.
 

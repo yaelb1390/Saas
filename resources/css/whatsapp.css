@@ -68,9 +68,31 @@
         padding-bottom: 0;
     }
 
-    /* Aquí sí cabe: la cabecera mide lo mismo pero la pantalla es mucho más alta. */
+    /*
+     * Aquí sí cabe: la cabecera mide lo mismo pero la pantalla es mucho más alta.
+     *
+     * `min-height` y NO `height`, que es lo que había.
+     *
+     * Con altura fija, el caso de la línea sin conectar se rompía: la tira de conexión despliega
+     * las instrucciones de Meta y el contenido pasa a pedir 956px dentro de una caja de 661
+     * —medido—. Como nada recorta, el sobrante se DERRAMA fuera del marco: el cuadro de escribir
+     * acababa 235px por debajo del borde de la consola y, al bajar la página, justo debajo de la
+     * burbuja del asistente, que le tapaba el botón de enviar.
+     *
+     * Que la bandeja no se comprima más allá de su suelo y la página se desplace es intencionado
+     * —está explicado en `.wa-shell`—; lo que no lo era es que el contenido se saliera de su caja.
+     * Con mínimo, la caja crece hasta lo que haga falta y lo de dentro sigue dentro.
+     */
     .wa-consola[data-alto='fijo'] {
-        height: calc(100dvh - var(--wa-arriba, 14rem) - var(--wa-abajo, 1rem));
+        min-height: calc(100dvh - var(--wa-arriba, 14rem) - var(--wa-abajo, 1rem));
+        /*
+         * El hueco de lo que flota abajo se reserva DEBAJO de la caja, no dentro.
+         *
+         * Dentro (padding) no serviría: lo que hay que despejar es el final del contenido, y el
+         * relleno interior no lo empuja. Como margen, queda siempre por debajo del cuadro de
+         * escribir, se desplace la página o no.
+         */
+        margin-bottom: var(--wa-abajo, 1rem);
     }
 }
 

@@ -161,7 +161,7 @@ body {
 /* Símbolo BMIA de la cabecera de la barra. */
 .bmos-logo-mark {
     display: block;
-    width: 156px;
+    width: 112px;
     height: auto;
     /* El halo se recrea aquí y no dentro del SVG: así se ajusta o se quita sin tocar el dibujo,
        y no se arrastra el fondo oscuro que llevaría una imagen con el brillo ya horneado. */

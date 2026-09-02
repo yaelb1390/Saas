@@ -824,6 +824,138 @@ body {
     }
 }
 
+/* ---------- Opciones del terminal: tipo de pedido y forma de pago ---------- */
+/*
+ * Cada opción con SU color, siempre, no solo la elegida.
+ *
+ * Antes las tres eran iguales —borde gris, texto gris— y lo único que cambiaba era que la elegida
+ * se ponía índigo. Así hay que leer las tres etiquetas cada vez para acertar. En un mostrador se
+ * cobra deprisa y sin mirar del todo: la mano va por posición y por color, y para eso el color
+ * tiene que estar puesto ANTES de elegir, no aparecer después.
+ *
+ * Lo elegido no se marca cambiando de tono —serían dos señales peleando— sino con el relleno:
+ * apagada es fondo claro con su color, elegida es ese mismo color macizo con el texto en blanco.
+ * Así el color dice QUÉ es y el relleno dice CUÁL está puesta.
+ *
+ * El tono lo declara el enum (`OrderType::tono()`, `PaymentMethod::tono()`), no la plantilla: es
+ * una propiedad del tipo de pedido o de la forma de pago, y los dos terminales la pintan igual.
+ */
+.bmos-pos-opcion {
+    /* Gris por defecto: si algún día un caso nuevo no declara tono, sale apagado pero legible, no
+       roto ni invisible. */
+    --op-suave: #f8fafc;
+    --op-borde: #e2e8f0;
+    --op-texto: #475569;
+    --op-fuerte: #475569;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 44px es el mínimo para acertar con el dedo; esta pantalla se usa en tableta. */
+    min-height: 44px;
+    padding: 0.3rem 0.2rem;
+    /*
+     * TODAS macizas, no solo la elegida.
+     *
+     * Antes las no elegidas eran un tinte pálido con el texto en color. Se ven mejor rellenas: el
+     * color pesa lo mismo en las tres y la vista las localiza a la primera, que es lo que se pide
+     * de un mostrador.
+     *
+     * El precio de esto es que el relleno ya no puede señalar cuál está puesta —lo están todas—,
+     * y eso hay que resolverlo aparte: lo hace el anillo de `.is-activa`. No es un adorno; en un
+     * cobro, confundir Efectivo con Tarjeta es cobrar por la vía equivocada.
+     */
+    border: 1px solid var(--op-fuerte);
+    border-radius: 0.6rem;
+    background: var(--op-fuerte);
+    color: #fff;
+    /*
+     * 11px y no 12: medido en el mostrador, que es donde menos sitio hay. Con la rejilla de tres, el
+     * botón mide 56px a 1280 de ventana, y a 12px «Efectivo» pide 48 —cabe raspando— mientras que a
+     * 11 pide 44 y respira. «Transferencia» no cabe de una línea a ninguna escala legible (67px aun
+     * a 10px), así que esa se parte en dos y las demás no.
+     */
+    font-size: 0.69rem;
+    font-weight: 600;
+    line-height: 1.15;
+    text-align: center;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+/*
+ * La etiqueta va envuelta, y no suelta dentro del botón, por una razón concreta.
+ *
+ * El texto pelado dentro de un contenedor flex es un hijo anónimo y no se le puede aplicar nada.
+ * Envuelto en un `<span>` sí, y hace falta: «Transferencia» mide 74px y el botón del mostrador
+ * tiene 47,6 de hueco a 1280 de ventana, así que O se parte O se derrama fuera.
+ *
+ * `anywhere` y no `break-word`: las dos parten la palabra al pintar, pero solo `anywhere` reduce el
+ * ancho MÍNIMO que el texto declara, y es ese mínimo el que decide si el span encoge. Con
+ * `break-word` el span se quedaba en sus 74px y seguía saliéndose —medido dos veces—.
+ *
+ * Que `anywhere` pueda partir por cualquier sitio no estropea las demás porque a 11px ya caben
+ * enteras: «Efectivo» pide 44 de los 47,6 que hay. Se parte solo lo que no cabe.
+ */
+.bmos-pos-opcion > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+}
+
+/*
+ * Todas llevan el color a plena intensidad, también las que no están elegidas.
+ *
+ * Probé a aclarar las no elegidas mezclándolas con blanco, para que la puesta destacara. Medido:
+ * «Transferencia» se quedaba en 3,83 de contraste con su texto blanco, por debajo del 4,5 que hace
+ * falta a este cuerpo de letra. Los tonos ya son los más oscuros de su gama —no hay margen para
+ * aclararlos—, así que la diferencia la marca el anillo y no el color.
+ */
+.bmos-pos-opcion:hover:not(.is-activa) {
+    filter: brightness(1.12);
+}
+
+/*
+ * La elegida: color pleno, anillo y relieve.
+ *
+ * El anillo va DENTRO (`inset`), separado por una franja blanca: se ve a la primera y no cambia el
+ * tamaño del botón, así que la fila no baila al cambiar de opción. Con las seis rellenas es lo
+ * único que dice cuál está puesta, así que se marca por tres vías a la vez —anillo, sombra y peso
+ * de letra— y no por una sola.
+ */
+.bmos-pos-opcion.is-activa {
+    box-shadow:
+        inset 0 0 0 2px #fff,
+        inset 0 0 0 4px var(--op-fuerte),
+        0 6px 14px -6px color-mix(in srgb, var(--op-fuerte) 75%, transparent);
+    font-weight: 800;
+}
+
+/* Los tonos. El «fuerte» es el que lleva texto blanco encima, así que va oscuro a propósito: con
+   los tonos medios (emerald-600 y compañía) el blanco se queda en 3:1 y no pasa el contraste. */
+.bmos-pos-opcion[data-tono='verde'] {
+    --op-suave: #ecfdf5; --op-borde: #a7f3d0; --op-texto: #047857; --op-fuerte: #047857;
+}
+
+.bmos-pos-opcion[data-tono='azul'] {
+    --op-suave: #eff6ff; --op-borde: #bfdbfe; --op-texto: #1d4ed8; --op-fuerte: #1d4ed8;
+}
+
+.bmos-pos-opcion[data-tono='cian'] {
+    --op-suave: #ecfeff; --op-borde: #a5f3fc; --op-texto: #0e7490; --op-fuerte: #0e7490;
+}
+
+.bmos-pos-opcion[data-tono='violeta'] {
+    --op-suave: #f5f3ff; --op-borde: #ddd6fe; --op-texto: #6d28d9; --op-fuerte: #6d28d9;
+}
+
+.bmos-pos-opcion[data-tono='ambar'] {
+    --op-suave: #fffbeb; --op-borde: #fde68a; --op-texto: #b45309; --op-fuerte: #b45309;
+}
+
+.bmos-pos-opcion[data-tono='gris'] {
+    --op-suave: #f8fafc; --op-borde: #e2e8f0; --op-texto: #475569; --op-fuerte: #475569;
+}
+
 /* Cierre del ticket: pago recibido, cambio y botón de cobrar.
    Los tres comparten altura, radio y escala tipográfica para que se lean como un solo bloque; si uno
    destacara sobre los otros, la vista saltaría al elemento equivocado en el momento de cobrar. */

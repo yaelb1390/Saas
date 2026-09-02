@@ -35,6 +35,28 @@ enum PaymentMethod: string
     }
 
     /**
+     * El color con el que se reconoce esta forma de pago.
+     *
+     * Vive aquí y no en la plantilla por lo mismo que `label()`: los dos terminales —mostrador y
+     * venta rápida— tienen que pintarla igual, y una forma de pago nueva tiene que decidir su
+     * color en un solo sitio.
+     *
+     * El verde del efectivo es el único con significado propio —es el dinero que entra en el
+     * cajón, lo mismo que decide `entersCashDrawer()`—; los otros solo tienen que distinguirse
+     * entre sí de un vistazo.
+     */
+    public function tono(): string
+    {
+        return match ($this) {
+            self::Cash => 'verde',
+            self::Card => 'azul',
+            self::Transfer => 'cian',
+            self::Check => 'ambar',
+            self::Credit => 'gris',
+        };
+    }
+
+    /**
      * Las que se ofrecen en el mostrador. Cheque y crédito quedan fuera: no son cobros al contado y
      * el punto de venta exige que el pago cubra el total.
      *

@@ -8,6 +8,12 @@
     la que había.
 --}}
 @php
+    use App\Modules\AI\Support\CatalogoDeModelos;
+
+    // Qué modelos ofrece cada proveedor. Sale del catálogo del módulo, que es el mismo que usa el
+    // controlador al guardar: si estuviera escrito aquí, formulario y servidor podrían discrepar.
+    $catalogo = CatalogoDeModelos::todos();
+
     $proveedores = [
         'gemini' => ['Gemini (Google)', 'Hace las dos cosas: redacta y también indexa documentos. Es el recomendado.'],
         'openai' => ['OpenAI', 'Redacta e indexa. Se paga por uso desde el primer día.'],
@@ -56,13 +62,15 @@
 
         <div class="bmos-card bmos-card-pad">
             <form method="POST" action="{{ route('platform.ai.update') }}" class="space-y-4"
-                  x-data="{ proveedor: @js($ajustes->provider) }">
+                  x-data="ajustesDeIa(@js($catalogo), @js($ajustes->provider), @js($ajustes->chat_model),
+                                      @js($ajustes->embedding_model), @js((int) $ajustes->embedding_dimensions))">
                 @csrf
                 @method('PUT')
 
                 <div>
                     <label class="bmos-field-label">Proveedor</label>
-                    <select name="provider" class="bmos-input" x-model="proveedor">
+                    {{-- Al cambiar de proveedor se rellenan modelos y dimensiones con los suyos. --}}
+                    <select name="provider" class="bmos-input" x-model="proveedor" @change="cambiarProveedor()">
                         @foreach ($proveedores as $clave => $datos)
                             <option value="{{ $clave }}" @selected($ajustes->provider === $clave)>{{ $datos[0] }}</option>
                         @endforeach
@@ -82,23 +90,74 @@
                         Se guarda cifrada y no se vuelve a mostrar.
                         <span x-show="proveedor === 'gemini'" x-cloak>Se saca gratis en <b>aistudio.google.com</b>.</span>
                     </p>
+
+                    {{-- Borrar la clave se pide a propósito, con su casilla. Antes bastaba con
+                         guardar el formulario con el campo vacío —cosa que pasa en cualquier
+                         guardado normal— y la IA se quedaba apagada para todas las empresas sin
+                         que nadie lo hubiera pedido. --}}
+                    @if (filled($ajustes->api_key))
+                        <label class="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                            <input type="checkbox" name="borrar_api_key" value="1" class="rounded border-slate-300">
+                            Borrar la clave guardada (apaga la IA para todas las empresas)
+                        </label>
+                    @endif
                 </div>
 
+                {{--
+                    Los modelos, elegidos de una lista y no escritos a mano.
+
+                    Con campos de texto libre nada impedía guardar un modelo de Gemini con el
+                    proveedor OpenAI: se guardaba sin protestar y fallaba después, al llamar, con un
+                    error del proveedor que no dice que la culpa sea de la combinación.
+
+                    Al cambiar de proveedor, los tres campos se rellenan con lo suyo. Las
+                    dimensiones también: son parte del modelo de embeddings, no un ajuste aparte, y
+                    dejarlas con el número del proveedor anterior es la forma más silenciosa de
+                    romper el buscador.
+
+                    «Otro» sigue existiendo porque los proveedores sacan modelos cada pocas semanas y
+                    una lista cerrada obligaría a tocar código para estrenar uno.
+                --}}
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-3" x-show="proveedor !== 'local'" x-cloak>
                     <div>
                         <label class="bmos-field-label">Modelo de chat</label>
-                        <input type="text" name="chat_model" class="bmos-input" value="{{ $ajustes->chat_model }}"
-                               placeholder="gemini-2.0-flash">
+                        {{-- El `$nextTick` no es adorno: Alpine fija el valor del desplegable ANTES
+                             de que `x-for` haya creado las opciones, así que el navegador no
+                             encuentra la guardada y cae en la única que ya existe —«Otro»—. El
+                             estado y lo que se envía eran correctos, pero en pantalla se leía
+                             «Otro» con el campo de escribir vacío. Se resincroniza tras pintar. --}}
+                        <select class="bmos-input" x-model="chatSel"
+                                x-init="$nextTick(() => $el.value = chatSel)">
+                            <template x-for="m in modelosChat()" :key="m">
+                                <option :value="m" x-text="m"></option>
+                            </template>
+                            <option value="__otro">Otro (escribirlo a mano)</option>
+                        </select>
+                        <input type="text" class="bmos-input mt-2 font-mono" x-model="chatLibre"
+                               x-show="chatSel === '__otro'" x-cloak placeholder="nombre exacto del modelo">
+                        {{-- Lo que viaja al servidor es esto, no los controles: así el contrato del
+                             formulario no cambia por haber puesto un desplegable delante. --}}
+                        <input type="hidden" name="chat_model" :value="chatEfectivo()">
                     </div>
+
                     <div x-show="proveedor !== 'anthropic'">
                         <label class="bmos-field-label">Modelo de embeddings</label>
-                        <input type="text" name="embedding_model" class="bmos-input" value="{{ $ajustes->embedding_model }}"
-                               placeholder="gemini-embedding-001">
+                        <select class="bmos-input" x-model="embSel"
+                                x-init="$nextTick(() => $el.value = embSel)">
+                            <template x-for="m in modelosEmbedding()" :key="m">
+                                <option :value="m" x-text="m"></option>
+                            </template>
+                            <option value="__otro">Otro (escribirlo a mano)</option>
+                        </select>
+                        <input type="text" class="bmos-input mt-2 font-mono" x-model="embLibre"
+                               x-show="embSel === '__otro'" x-cloak placeholder="nombre exacto del modelo">
+                        <input type="hidden" name="embedding_model" :value="embEfectivo()">
                     </div>
+
                     <div x-show="proveedor !== 'anthropic'">
                         <label class="bmos-field-label">Dimensiones</label>
                         <input type="number" name="embedding_dimensions" class="bmos-input"
-                               value="{{ $ajustes->embedding_dimensions }}" min="64" max="3072">
+                               x-model="dimensiones" min="64" max="3072">
                     </div>
                 </div>
 
@@ -141,4 +200,56 @@
             @endif
         </div>
     </div>
+
+    {{-- En línea y no en `@push`: el layout del panel no tiene `@stack('scripts')`, así que un push
+         se traga el guion en silencio. Es como lo hacen WhatsApp y el punto de venta. --}}
+    <script>
+        function ajustesDeIa(catalogo, proveedor, chatGuardado, embGuardado, dimsGuardadas) {
+            /*
+             * Un modelo guardado que no está en la lista NO se pierde ni se sustituye: se muestra
+             * como «Otro» con su nombre escrito. Puede ser un modelo nuevo que alguien puso a
+             * propósito, y machacarlo al abrir la pantalla sería cambiar la configuración de la
+             * plataforma sin que nadie lo pidiera.
+             */
+            const enLista = (lista, valor) => valor && lista.includes(valor);
+
+            return {
+                catalogo,
+                proveedor,
+                chatSel: enLista(catalogo[proveedor]?.chat ?? [], chatGuardado) ? chatGuardado : '__otro',
+                chatLibre: enLista(catalogo[proveedor]?.chat ?? [], chatGuardado) ? '' : (chatGuardado ?? ''),
+                embSel: enLista(catalogo[proveedor]?.embedding ?? [], embGuardado) ? embGuardado : '__otro',
+                embLibre: enLista(catalogo[proveedor]?.embedding ?? [], embGuardado) ? '' : (embGuardado ?? ''),
+                dimensiones: dimsGuardadas,
+
+                modelosChat() { return this.catalogo[this.proveedor]?.chat ?? []; },
+                modelosEmbedding() { return this.catalogo[this.proveedor]?.embedding ?? []; },
+
+                // Lo que de verdad se envía: el desplegable, o lo escrito a mano si se eligió «Otro».
+                chatEfectivo() { return this.chatSel === '__otro' ? this.chatLibre : this.chatSel; },
+                embEfectivo() { return this.embSel === '__otro' ? this.embLibre : this.embSel; },
+
+                /*
+                 * Al cambiar de proveedor se pone lo recomendado de ese proveedor.
+                 *
+                 * Se pisa lo que hubiera a propósito: los modelos de un proveedor no existen en
+                 * otro, así que conservarlos dejaría la pantalla en un estado que no funciona —que
+                 * es justo como estaba: proveedor OpenAI con modelos de Gemini—.
+                 */
+                cambiarProveedor() {
+                    const c = this.catalogo[this.proveedor] ?? { chat: [], embedding: [], dimensiones: null };
+
+                    this.chatSel = c.chat[0] ?? '__otro';
+                    this.chatLibre = '';
+                    this.embSel = c.embedding[0] ?? '__otro';
+                    this.embLibre = '';
+
+                    // Las dimensiones solo se tocan si el proveedor tiene las suyas: con Anthropic
+                    // no hay embeddings, y borrarlas perdería el número al que están indexados los
+                    // documentos que ya existen.
+                    if (c.dimensiones) this.dimensiones = c.dimensiones;
+                },
+            };
+        }
+    </script>
 </x-layouts.admin>

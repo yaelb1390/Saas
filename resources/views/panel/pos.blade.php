@@ -535,9 +535,11 @@
                                 <div class="grid grid-cols-3 gap-1.5">
                                     @foreach (\App\Modules\Sales\Enums\PaymentMethod::counterOptions() as $option)
                                         <button type="button" @click="method = '{{ $option->value }}'"
-                                                :class="method === '{{ $option->value }}' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500'"
-                                                class="min-h-[44px] rounded-lg border text-xs font-semibold transition">
-                                            {{ $option->label() }}
+                                                data-tono="{{ $option->tono() }}"
+                                                :aria-pressed="method === '{{ $option->value }}'"
+                                                :class="method === '{{ $option->value }}' && 'is-activa'"
+                                                class="bmos-pos-opcion">
+                                            <span>{{ $option->label() }}</span>
                                         </button>
                                     @endforeach
                                 </div>

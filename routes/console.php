@@ -33,3 +33,16 @@ Schedule::command('subscriptions:remind-expiring')->dailyAt('07:00')->withoutOve
  * (ver PurgeOldConversations), así que esta línea puede estar activa sin que se pierda ni un mensaje.
  */
 Schedule::command('conversaciones:purgar')->dailyAt('03:00')->withoutOverlapping();
+
+/*
+ * Poda la auditoría y el registro de sucesos, que son las dos tablas que más crecen y las únicas que
+ * crecen SIN que nadie las mire: una fila por cada cambio de cada modelo auditado.
+ *
+ * A las 04:00, después de la purga de conversaciones y antes del respaldo, para que la copia del día
+ * no se lleve lo que se va a borrar dos horas después. En Vercel lo dispara el cron (endpoint
+ * /tareas/purgar-registros); aquí queda para entornos con scheduler.
+ *
+ * La auditoría viene APAGADA de fábrica (cero días), así que esta línea puede estar activa sin que se
+ * pierda un solo registro del negocio: de serie solo se lleva los sucesos de más de 90 días.
+ */
+Schedule::command('registros:purgar')->dailyAt('04:00')->withoutOverlapping();

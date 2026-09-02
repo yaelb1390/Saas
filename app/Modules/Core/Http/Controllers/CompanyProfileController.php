@@ -7,12 +7,13 @@ namespace App\Modules\Core\Http\Controllers;
 use App\Modules\Core\Http\Requests\UpdateCompanyProfileRequest;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Support\CompanyLogoStore;
+use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
@@ -84,28 +85,23 @@ final class CompanyProfileController extends Controller
      * almacén privado que las fotos de producto: así el fichero no queda expuesto a quien adivine su
      * nombre, y de paso el aislamiento por empresa lo da la sesión.
      */
-    public function logo(Request $request): StreamedResponse
+    public function logo(Request $request): Response
     {
         $empresa = $this->empresa($request);
 
         abort_unless($empresa->hasLogo(), 404);
 
-        $disco = CompanyLogoStore::disk();
         $ruta = (string) $empresa->logo_path;
 
-        abort_unless($disco->exists($ruta), 404);
-
-        return response()->stream(
-            function () use ($disco, $ruta): void {
-                echo $disco->get($ruta);
-            },
-            200,
-            [
-                'Content-Type' => str_ends_with($ruta, '.png') ? 'image/png' : 'image/jpeg',
-                // Un año: la dirección lleva la marca de tiempo detrás, así que al cambiar el logo
-                // cambia la URL y la caché vieja deja de usarse sola.
-                'Cache-Control' => 'private, max-age=31536000',
-            ],
+        return EntregaDeArchivo::imagen(
+            CompanyLogoStore::disk(),
+            $ruta,
+            str_ends_with($ruta, '.png') ? 'image/png' : 'image/jpeg',
+            // Un año: la dirección lleva la marca de tiempo detrás, así que al cambiar el logo cambia
+            // la URL y la caché vieja deja de usarse sola. Esto vale para el FICHERO; si se acaba
+            // firmando, la entrega recorta sola lo que se guarda de la redirección, que no puede
+            // durar más que la firma.
+            EntregaDeArchivo::CACHE_ANIO,
         );
     }
 

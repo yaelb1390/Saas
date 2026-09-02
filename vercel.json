@@ -9,6 +9,9 @@
             "runtime": "vercel-php@0.7.4"
         }
     },
+    "crons": [
+        { "path": "/tareas/purgar-registros", "schedule": "0 4 * * *" }
+    ],
     "routes": [
         { "src": "/build/(.*)", "dest": "/build/$1" },
         { "src": "/images/(.*)", "dest": "/images/$1" },

@@ -72,7 +72,13 @@ it('sirve la foto leyéndola del mismo disco donde se guardó', function (): voi
     test()->actingAs($this->owner)
         ->get(route('panel.products.image', $product))
         ->assertOk()
-        ->assertHeader('Cache-Control', 'max-age=604800, public');
+        /*
+         * `private`, y antes decía `public`. Es un arreglo, no un ajuste del test: la foto de un
+         * producto es de UNA empresa y se sirve detrás de sesión, así que con `public` cualquier
+         * intermediario compartido —un proxy de oficina, una caché de operador— tenía permiso para
+         * guardarla y servírsela después a otro cliente que pidiera la misma dirección.
+         */
+        ->assertHeader('Cache-Control', 'max-age=604800, private');
 });
 
 it('sigue usando el disco del servidor por defecto', function (): void {

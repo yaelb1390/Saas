@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inventory\Http\Controllers;
 
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\Inventory\DTOs\CreateProductData;
 use App\Modules\Inventory\Http\Requests\StoreProductRequest;
 use App\Modules\Inventory\Http\Requests\UpdateProductRequest;
@@ -113,14 +114,6 @@ final class ProductController extends Controller
     {
         abort_unless($product->hasImage(), 404);
 
-        $disk = ProductImageStore::disk();
-        $path = (string) $product->image_path;
-
-        abort_unless($disk->exists($path), 404);
-
-        return response($disk->get($path), 200, [
-            'Content-Type' => $disk->mimeType($path) ?: 'image/jpeg',
-            'Cache-Control' => 'public, max-age=604800',
-        ]);
+        return EntregaDeArchivo::imagen(ProductImageStore::disk(), (string) $product->image_path);
     }
 }

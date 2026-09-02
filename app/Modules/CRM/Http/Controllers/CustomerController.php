@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\CRM\Http\Controllers;
 
+use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\CRM\DTOs\CreateCustomerData;
 use App\Modules\CRM\Exceptions\CustomerPortalException;
 use App\Modules\CRM\Http\Requests\StoreCustomerDocumentRequest;
@@ -66,7 +67,12 @@ final class CustomerController extends Controller
 
         return response(base64_decode($document->content, true) ?: '', 200, [
             'Content-Type' => $document->mime,
-            'Content-Disposition' => 'inline; filename="'.addslashes($document->name).'"',
+            // `nombreSeguro` y no `addslashes`: aquél escapa la comilla pero deja pasar el salto de
+            // línea, que es justo con lo que se parte una cabecera en dos y se cuela otra inyectada.
+            // El nombre lo escribe quien sube el fichero, así que no es de fiar.
+            'Content-Disposition' => 'inline; filename="'.EntregaDeArchivo::nombreSeguro((string) $document->name).'"',
+            // Papeles con datos personales: ni se guardan ni pasan por intermediarios.
+            'Cache-Control' => 'private, max-age=0, no-store',
         ]);
     }
 

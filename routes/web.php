@@ -845,6 +845,14 @@ Route::get('/tareas/purgar-pruebas', [TrialMaintenanceController::class, 'purgeT
 // Avisa por correo a las suscripciones de pago por vencer (sin sesión; protegido por CRON_SECRET).
 Route::get('/tareas/avisar-vencimientos', [TrialMaintenanceController::class, 'remindExpiring'])->name('tasks.remind-expiring');
 
+// Poda la auditoría y el registro de sucesos, las dos tablas que crecen solas y que hasta ahora no
+// borraba nadie (sin sesión; protegido por CRON_SECRET).
+Route::get('/tareas/purgar-registros', [TrialMaintenanceController::class, 'purgeRecords'])->name('tasks.purge-records');
+
+// Ejecuta los trabajos que haya en cola y vuelve. Es lo que permite sacar los envíos de WhatsApp y
+// las respuestas de IA de la petición del cliente (sin sesión; protegido por CRON_SECRET).
+Route::get('/tareas/drenar-cola', [TrialMaintenanceController::class, 'drainQueue'])->name('tasks.drain-queue');
+
 // Previsualización de correos (SOLO local): abre el HTML del correo en el navegador para revisar el
 // diseño sin tener que registrarse. Nunca se activa en producción.
 if (app()->environment('local')) {

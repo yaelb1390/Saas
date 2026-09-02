@@ -126,4 +126,24 @@ return [
         'table' => 'failed_jobs',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Drenaje de la cola en serverless
+    |--------------------------------------------------------------------------
+    |
+    | En Vercel no hay dónde tener un trabajador escuchando, así que la cola la vacía una llamada HTTP
+    | a /tareas/drenar-cola. Esto es cuánto puede durar cada una de esas llamadas.
+    |
+    | 25 segundos por debajo del tope de la función a propósito. Si la plataforma corta a mitad de un
+    | trabajo, ese trabajo se queda reservado y no se reintenta hasta que vence su plazo: parece
+    | perdido durante minutos. Terminando por nuestra cuenta antes, se sale siempre por la puerta.
+    |
+    | Al subirlo hay que mirar ANTES el tope de la función en Vercel, no después.
+    |
+    */
+    'drenaje' => [
+        'segundos' => (int) env('QUEUE_DRAIN_SECONDS', 25),
+        'intentos' => (int) env('QUEUE_DRAIN_TRIES', 3),
+    ],
+
 ];

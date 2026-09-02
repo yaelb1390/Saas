@@ -148,13 +148,55 @@ Esto crea también las tablas `cache`, `sessions` y `jobs` (necesarias para los 
 
 ## Scheduler y colas en serverless
 
-- **Scheduler:** añade en `vercel.json` un cron que golpee una ruta que ejecute `schedule:run`
-  (requiere plan Pro para frecuencia < 1 día). Alternativa: un cron externo (cron-job.org) que
-  llame a un endpoint protegido.
-- **Colas:** con `QUEUE_CONNECTION=database`, un cron periódico que ejecute
-  `queue:work --stop-when-empty` procesa los jobs. Alternativa serverless real: Upstash QStash
-  empujando a un endpoint HTTP. Si prefieres lo más simple al inicio: `QUEUE_CONNECTION=sync`
-  (los envíos de WhatsApp corren dentro de la petición; ojo con el límite de tiempo de la función).
+En serverless no hay ningún proceso que viva entre peticiones, así que lo que en un servidor normal
+hace `schedule:work` aquí lo tiene que provocar una llamada HTTP. Ya existen cuatro direcciones de
+mantenimiento, todas protegidas con el mismo secreto compartido (`CRON_SECRET`), que Vercel Cron
+manda solo en la cabecera `Authorization: Bearer …`:
+
+| Dirección | Qué hace | Cada cuánto |
+|---|---|---|
+| `/tareas/purgar-pruebas` | Borra los datos de las pruebas caducadas hace >24 h | diario |
+| `/tareas/avisar-vencimientos` | Avisa por correo de las suscripciones por vencer | diario |
+| `/tareas/purgar-registros` | Poda la auditoría y los sucesos del sistema | diario |
+| `/tareas/drenar-cola` | Ejecuta los trabajos en cola y vuelve | cada minuto |
+
+### Solo una de las cuatro está activada
+
+`vercel.json` no tenía bloque `crons`, así que hasta ahora **no se ejecutaba ninguna**. Está puesta
+la poda de registros, que es la que evita que la base se llene sola. Las otras dos diarias están
+escritas y probadas desde hace tiempo pero siguen **sin activar**, a propósito, porque encenderlas
+tiene efectos hacia fuera y esa decisión es tuya:
+
+```json
+{ "path": "/tareas/purgar-pruebas", "schedule": "0 6 * * *" },
+{ "path": "/tareas/avisar-vencimientos", "schedule": "0 7 * * *" }
+```
+
+- **`purgar-pruebas` BORRA datos de verdad**: los de las cuentas de prueba caducadas hace más de 24 h.
+  Es justo lo que se diseñó que hiciera, pero desde el día que se active deja de haber vuelta atrás.
+- **`avisar-vencimientos` MANDA CORREOS a clientes reales.** Mientras siga apagada no sale ni uno, y
+  eso probablemente te esté costando renovaciones; pero encender el envío a tu lista de clientes no
+  es algo que deba hacer yo sin que lo sepas.
+
+Sobre el plan: en Hobby caben **100** tareas por proyecto, así que el número no es problema. Lo que
+Hobby limita es la **frecuencia** —una vez al día como mucho, y con ±59 min de imprecisión—; una
+expresión más frecuente **falla en el despliegue**. Por eso la de la cola, que es por minuto, no está
+puesta: en Hobby no llegaría a desplegar.
+
+### La cola
+
+Hoy va en `QUEUE_CONNECTION=sync`, que quiere decir que **no hay cola**: mandar el WhatsApp,
+contestar con IA y transcribir un audio ocurren DENTRO de la petición, con el cliente esperando a que
+respondan OpenAI y Evolution API, una detrás de otra.
+
+Para sacarlos de ahí hacen falta las dos cosas **a la vez**:
+
+1. `QUEUE_CONNECTION=database` en las variables de Vercel.
+2. Un cron por minuto a `/tareas/drenar-cola` (solo Pro), o un servicio externo que golpee esa
+   dirección —QStash, cron-job.org— con la cabecera del secreto.
+
+**Cambiar solo la primera es peor que no cambiar nada**: los trabajos se encolan y no los ejecuta
+nadie, así que los mensajes dejan de enviarse sin dar ningún error. Van juntas o no va ninguna.
 
 ## Pasos de despliegue
 

@@ -25,18 +25,42 @@ use Throwable;
  */
 final class TrialMaintenanceController extends Controller
 {
+    /**
+     * Las dos tareas que tienen efectos hacia fuera admiten `?simular=1`.
+     *
+     * POR QUÉ. Una BORRA datos de negocio y la otra MANDA CORREOS a clientes reales, y ninguna de las
+     * dos había corrido nunca en producción: la primera vez se encuentran con todo lo acumulado desde
+     * el principio. En serverless no hay consola donde mirar antes cuánto es eso, así que la única
+     * forma de verlo es pidiéndoselo a la propia dirección.
+     *
+     * El simulacro va detrás del MISMO secreto que la tarea de verdad: enseña nombres de empresas y
+     * correos de clientes, así que no es menos delicado que ejecutarla.
+     */
     public function purgeTrials(Request $request): JsonResponse
     {
         $this->assertCron($request);
 
-        return $this->ejecutar('trials:purge', 'Purga de pruebas caducadas');
+        return $this->ejecutar('trials:purge', 'Purga de pruebas caducadas', $this->simulacro($request));
     }
 
     public function remindExpiring(Request $request): JsonResponse
     {
         $this->assertCron($request);
 
-        return $this->ejecutar('subscriptions:remind-expiring', 'Aviso de suscripciones por vencer');
+        return $this->ejecutar('subscriptions:remind-expiring', 'Aviso de suscripciones por vencer', $this->simulacro($request));
+    }
+
+    /**
+     * `--simular` si lo pide la dirección.
+     *
+     * Vercel Cron llama sin parámetros, así que la tarea programada hace SIEMPRE el trabajo de
+     * verdad; el simulacro solo sale si alguien lo pide a mano.
+     *
+     * @return array<string, mixed>
+     */
+    private function simulacro(Request $request): array
+    {
+        return $request->boolean('simular') ? ['--simular' => true] : [];
     }
 
     /**

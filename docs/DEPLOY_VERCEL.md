@@ -160,28 +160,44 @@ manda solo en la cabecera `Authorization: Bearer …`:
 | `/tareas/purgar-registros` | Poda la auditoría y los sucesos del sistema | diario |
 | `/tareas/drenar-cola` | Ejecuta los trabajos en cola y vuelve | cada minuto |
 
-### Solo una de las cuatro está activada
+### Las tres diarias están activadas
 
-`vercel.json` no tenía bloque `crons`, así que hasta ahora **no se ejecutaba ninguna**. Está puesta
-la poda de registros, que es la que evita que la base se llene sola. Las otras dos diarias están
-escritas y probadas desde hace tiempo pero siguen **sin activar**, a propósito, porque encenderlas
-tiene efectos hacia fuera y esa decisión es tuya:
-
-```json
-{ "path": "/tareas/purgar-pruebas", "schedule": "0 6 * * *" },
-{ "path": "/tareas/avisar-vencimientos", "schedule": "0 7 * * *" }
-```
-
-- **`purgar-pruebas` BORRA datos de verdad**: los de las cuentas de prueba caducadas hace más de 24 h.
-  Es justo lo que se diseñó que hiciera, pero desde el día que se active deja de haber vuelta atrás.
-- **`avisar-vencimientos` MANDA CORREOS a clientes reales.** Mientras siga apagada no sale ni uno, y
-  eso probablemente te esté costando renovaciones; pero encender el envío a tu lista de clientes no
-  es algo que deba hacer yo sin que lo sepas.
+`vercel.json` no tenía bloque `crons`, así que hasta hace poco **no se ejecutaba ninguna**: las
+pruebas caducadas no se purgaban y los avisos de vencimiento no salían, desde el primer día.
 
 Sobre el plan: en Hobby caben **100** tareas por proyecto, así que el número no es problema. Lo que
 Hobby limita es la **frecuencia** —una vez al día como mucho, y con ±59 min de imprecisión—; una
 expresión más frecuente **falla en el despliegue**. Por eso la de la cola, que es por minuto, no está
 puesta: en Hobby no llegaría a desplegar.
+
+### ANTES DEL PRIMER DESPLIEGUE CON ESTO PUESTO
+
+Dos de las tres tienen efectos que no se deshacen, y **ninguna había corrido nunca**: la primera vez
+se encuentran con todo lo acumulado desde el principio, no con lo de un día.
+
+- **`purgar-pruebas` BORRA datos.** No tiene tope de antigüedad: se lleva los de TODAS las pruebas
+  marcadas para purgar desde siempre, de una vez. La cuenta se conserva; los datos de negocio no.
+- **`avisar-vencimientos` MANDA CORREOS a clientes reales.** Esta va más acotada —solo suscripciones
+  activas de pago dentro del umbral de aviso, y marca `renewal_reminded_at` para no repetir—, así que
+  no puede provocar una avalancha.
+
+**Mira primero a quién le va a tocar.** Las dos aceptan `?simular=1`, que hace el recorrido entero y
+lo cuenta sin borrar ni enviar nada. Va detrás del mismo secreto que la tarea de verdad:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+     "https://TU-DOMINIO/tareas/purgar-pruebas?simular=1"
+
+curl -H "Authorization: Bearer $CRON_SECRET" \
+     "https://TU-DOMINIO/tareas/avisar-vencimientos?simular=1"
+```
+
+El simulacro **no toca las marcas** (`purge_at`, `renewal_reminded_at`), y eso no es un detalle: si
+las tocara, la corrida de verdad se saltaría justo a quien acabas de mirar y esa empresa se quedaría
+sin purgar —o ese cliente sin su aviso— para siempre, sin que nadie lo notara. Hay un test por cada
+una de las dos vigilando exactamente eso.
+
+Vercel Cron llama sin parámetros, así que la tarea programada hace siempre el trabajo de verdad.
 
 ### La cola
 

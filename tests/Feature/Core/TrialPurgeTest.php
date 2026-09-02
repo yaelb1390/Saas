@@ -111,3 +111,63 @@ it('el endpoint de cron se bloquea si no hay secreto configurado', function (): 
 
     $this->withHeader('Authorization', 'Bearer loquesea')->get('/tareas/purgar-pruebas')->assertForbidden();
 });
+
+/*
+ * EL SIMULACRO.
+ *
+ * Existe porque esta tarea NUNCA se había ejecutado en producción: al encenderla, la primera pasada
+ * se encuentra con todas las pruebas vencidas desde el principio y se las lleva de golpe. En
+ * serverless no hay consola donde mirar antes cuántas son, así que la forma de verlo es pedírselo a
+ * la propia dirección con `?simular=1`.
+ */
+it('el simulacro dice a quién le borraría los datos, sin borrar nada', function (): void {
+    $company = trialCompany('Mirona', Carbon::now()->subHour());
+    seedCustomer($company, 'Cliente Que Se Queda');
+
+    Artisan::call('trials:purge', ['--simular' => true]);
+
+    expect(Artisan::output())->toContain('Mirona')
+        ->and(DB::table('customers')->where('company_id', $company->id)->count())->toBe(1);
+});
+
+/*
+ * Y ESTE ES EL QUE DE VERDAD IMPORTA.
+ *
+ * `purge_at` es la marca que dice «a esta hay que purgarla». Si el simulacro la dejara en NULL —que
+ * es lo que hace la purga de verdad al terminar—, la purga siguiente se saltaría justo a quien
+ * acabas de mirar, y esa prueba se quedaría con sus datos para siempre sin que nadie lo notara.
+ * Mirar no puede cambiar lo que se mira.
+ */
+it('el simulacro no desmarca la purga, o la de verdad se la saltaría después', function (): void {
+    $company = trialCompany('Mirona', Carbon::now()->subHour());
+    seedCustomer($company, 'Cliente');
+
+    Artisan::call('trials:purge', ['--simular' => true]);
+
+    expect(Subscription::where('company_id', $company->id)->value('purge_at'))->not->toBeNull();
+
+    // Y la de verdad, después, sí se la lleva.
+    Artisan::call('trials:purge');
+
+    expect(DB::table('customers')->where('company_id', $company->id)->count())->toBe(0);
+});
+
+it('el endpoint acepta el simulacro, y sin pedirlo borra de verdad', function (): void {
+    config(['services.cron.secret' => 'topsecret']);
+
+    $company = trialCompany('Por Endpoint', Carbon::now()->subHour());
+    seedCustomer($company, 'Cliente');
+
+    $this->withHeader('Authorization', 'Bearer topsecret')
+        ->get('/tareas/purgar-pruebas?simular=1')
+        ->assertOk();
+
+    expect(DB::table('customers')->where('company_id', $company->id)->count())->toBe(1);
+
+    // Sin el parámetro es la tarea de siempre: Vercel Cron llama así, sin nada detrás.
+    $this->withHeader('Authorization', 'Bearer topsecret')
+        ->get('/tareas/purgar-pruebas')
+        ->assertOk();
+
+    expect(DB::table('customers')->where('company_id', $company->id)->count())->toBe(0);
+});

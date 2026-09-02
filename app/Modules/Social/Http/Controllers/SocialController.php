@@ -20,6 +20,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 /**
  * Redes sociales: conectar las cuentas del negocio y publicar en todas a la vez.
@@ -53,6 +54,20 @@ final class SocialController extends Controller
                 $publicaciones = PostPresenter::paraPantalla($cliente->posts(), $cuentas);
             } catch (SocialException $e) {
                 $aviso = $e->getMessage();
+            } catch (Throwable $e) {
+                /*
+                 * `SocialException` la lanzamos nosotros cuando la API contesta mal. Cuando NO
+                 * contesta —plazo agotado, DNS que no resuelve— lo que sube es una excepción de la
+                 * capa HTTP, que no es nuestra y se colaba entera: la pantalla ENTERA daba un 500,
+                 * y con ella se caía publicar, que no depende de que Zernio conteste.
+                 *
+                 * Es el mismo agujero que tenía la pantalla de automatizaciones, y se veía en la
+                 * suite como un test que fallaba de vez en cuando tardando decenas de segundos —lo
+                 * que tarda una petición en rendirse—.
+                 */
+                report($e);
+
+                $aviso = 'No se pudo hablar con el servicio de redes. Vuelve a intentarlo en un momento.';
             }
         }
 

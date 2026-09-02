@@ -103,3 +103,43 @@ it('no reenvía el aviso en la segunda corrida (dedup)', function (): void {
     $this->artisan('subscriptions:remind-expiring');
     Mail::assertQueued(SubscriptionExpiringMail::class, 1); // sigue en 1: no reenvía
 });
+
+/*
+ * EL SIMULACRO.
+ *
+ * Esta tarea tampoco se había ejecutado nunca en producción, y lo que manda son correos a clientes de
+ * verdad. Antes de encenderla conviene poder ver a quién le va a escribir; en serverless eso solo se
+ * puede preguntar por la propia dirección, con `?simular=1`.
+ */
+it('el simulacro dice a quién avisaría, sin mandar ningún correo', function (): void {
+    Mail::fake();
+    activeSubCompany(3, 'mirona@co.test');
+
+    $this->artisan('subscriptions:remind-expiring', ['--simular' => true])->assertSuccessful();
+
+    // `assertNothingQueued` y no `assertNothingSent`: este correo es `ShouldQueue`, así que con
+    // `Mail::fake()` cae en el saco de ENCOLADOS. Comprobar el de enviados pasaría igual de verde
+    // aunque el simulacro estuviera encolando correos de verdad, que es justo lo que hay que impedir.
+    Mail::assertNothingQueued();
+});
+
+/*
+ * Y el que de verdad importa, gemelo del de la purga.
+ *
+ * `renewal_reminded_at` es lo que impide avisar dos veces en el mismo período. Si el simulacro lo
+ * marcara, ese cliente no recibiría el aviso NUNCA —justo lo contrario de para qué existe la tarea—,
+ * y encima el fallo sería invisible: nadie revisa los avisos que NO salieron.
+ */
+it('el simulacro no marca como avisada, o el cliente no recibiría nada nunca', function (): void {
+    Mail::fake();
+    $company = activeSubCompany(3, 'mirona@co.test');
+
+    $this->artisan('subscriptions:remind-expiring', ['--simular' => true])->assertSuccessful();
+
+    expect(Subscription::where('company_id', $company->id)->value('renewal_reminded_at'))->toBeNull();
+
+    // Y la de verdad, después, sí le escribe.
+    $this->artisan('subscriptions:remind-expiring')->assertSuccessful();
+
+    Mail::assertQueued(SubscriptionExpiringMail::class, 1);
+});

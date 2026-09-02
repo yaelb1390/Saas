@@ -29,11 +29,34 @@ enum OrderType: string
         };
     }
 
-    /** Clase de color, de las que existen en app.css. */
+    /**
+     * El color con el que se reconoce esta opción.
+     *
+     * Vive aquí y no en la plantilla por lo mismo que `label()`: es una propiedad del tipo de
+     * pedido, y los dos terminales —mostrador y venta rápida— tienen que pintarlo igual. Si se
+     * escribiera en cada vista, añadir un tipo obligaría a acordarse de tocar las dos.
+     *
+     * El violeta del envío no es libre: el bloque de la dirección de entrega ya es violeta en la
+     * venta rápida, así que el botón y el formulario que abre son del mismo color.
+     */
+    public function tono(): string
+    {
+        return match ($this) {
+            self::DineIn => 'ambar',
+            self::Takeaway => 'azul',
+            self::Delivery => 'violeta',
+        };
+    }
+
+    /**
+     * Clase de color para las insignias, de las que existen en app.css.
+     *
+     * Mismo color que `tono()` a propósito: un pedido con envío es violeta lo mire donde lo mire.
+     */
     public function badge(): string
     {
         return match ($this) {
-            self::DineIn => 'badge-gray',
+            self::DineIn => 'badge-amber',
             self::Takeaway => 'badge-blue',
             self::Delivery => 'badge-violet',
         };

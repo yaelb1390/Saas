@@ -41,8 +41,15 @@ final class CompanyLogoStore
      * número: el rollo se corta a una medida que se calcula sumando cabecera, líneas y pie, y si el
      * logo ocupa un espacio que ese cálculo no conoce, el recibo se parte en dos páginas. Pasó al
      * añadir el logo: el ticket de cinco artículos empezó a salir en dos hojas.
+     *
+     * 64 y no 48: con 48 los logos cuadrados —la mayoría de los emblemas de negocio, redondos o de
+     * escudo— salían muy pequeños, porque un logo cuadrado nunca llega a usar el ancho disponible y
+     * es el ALTO el único que decide su tamaño. Subirlo es lo que los agranda de verdad.
+     *
+     * No más: en el rollo térmico una imagen grande tarda en salir y, con mucho color, la impresora
+     * la deja en un borrón gris. 64pt son unos 22 mm de los 80 del papel.
      */
-    public const PDF_ALTO_PT = 48;
+    public const PDF_ALTO_PT = 64;
 
     /** Lo que hay que sumarle al alto del papel cuando la empresa tiene logo (imagen + su margen). */
     public const PDF_ESPACIO_PT = self::PDF_ALTO_PT + 10;

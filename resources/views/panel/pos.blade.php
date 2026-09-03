@@ -673,6 +673,23 @@
                             if (res.ok) {
                                 const data = await res.json();
                                 this.results = data.results || [];
+                            } else {
+                                /*
+                                 * UNA BÚSQUEDA QUE FALLA TIENE QUE DECIRLO.
+                                 *
+                                 * Antes este caso no hacía nada: la lista se quedaba como estaba
+                                 * —vacía— y en pantalla se leía igual que «no hay resultados». Un
+                                 * 403 por permisos o un 500 del servidor eran indistinguibles de un
+                                 * catálogo sin ese artículo, así que el cajero le decía a un cliente
+                                 * que no hay algo que sí está, y nadie lo reportaba como fallo.
+                                 *
+                                 * Se distingue el 403 porque tiene arreglo distinto: no es que el
+                                 * sistema esté roto, es que a este usuario le falta permiso.
+                                 */
+                                this.results = [];
+                                this.scanError = res.status === 403
+                                    ? 'Tu usuario no tiene permiso para buscar productos aquí. Pídeselo al dueño.'
+                                    : 'No se pudo buscar (error ' + res.status + '). Vuelve a intentarlo o recarga la página.';
                             }
                         } catch {
                             // Sin línea se busca en la copia local: es la diferencia entre poder

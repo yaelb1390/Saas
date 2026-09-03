@@ -19,12 +19,15 @@ use Illuminate\Console\Command;
  */
 final class PurgeExpiredTrials extends Command
 {
-    protected $signature = 'trials:purge';
+    protected $signature = 'trials:purge
+                            {--simular : Dice a quién le borraría los datos, sin borrar nada}';
 
     protected $description = 'Borra los datos de las pruebas vencidas hace más de 24 h (conservando la cuenta).';
 
     public function handle(TenantDataPurger $purger): int
     {
+        $simular = (bool) $this->option('simular');
+
         // Sin scope de empresa: recorremos todas las suscripciones marcadas para purga.
         $due = Subscription::query()
             ->with('company')
@@ -40,19 +43,38 @@ final class PurgeExpiredTrials extends Command
 
             if ($company === null) {
                 // Sin empresa (caso anómalo): solo desmarcamos para no reintentar indefinidamente.
-                $subscription->update(['purge_at' => null]);
+                if (! $simular) {
+                    $subscription->update(['purge_at' => null]);
+                }
+
+                continue;
+            }
+
+            $count++;
+
+            /*
+             * El simulacro NO borra Y NO desmarca.
+             *
+             * Lo segundo importa tanto como lo primero: dejar `purge_at` en NULL después de mirar haría
+             * que la purga de verdad se saltara justo a quien acabas de mirar, y esa prueba se
+             * quedaría con sus datos para siempre sin que nadie lo notara.
+             */
+            if ($simular) {
+                $vencio = $subscription->purge_at?->format('d/m/Y') ?? '?';
+                $this->line("Se borrarían los datos de «{$company->name}» (#{$company->id}), marcada el {$vencio}.");
 
                 continue;
             }
 
             $purger->purge($company);
             $subscription->update(['purge_at' => null]);
-            $count++;
 
             $this->line("Purgados los datos de prueba de «{$company->name}» (#{$company->id}).");
         }
 
-        $this->info("Pruebas purgadas: {$count}.");
+        $this->info($simular
+            ? "Se purgarían {$count} pruebas."
+            : "Pruebas purgadas: {$count}.");
 
         return self::SUCCESS;
     }

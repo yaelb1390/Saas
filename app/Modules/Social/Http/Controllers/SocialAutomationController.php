@@ -16,6 +16,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Throwable;
 
 /**
  * Respuestas automáticas: alguien comenta una palabra y el negocio le contesta solo, en público y por
@@ -48,6 +49,20 @@ final class SocialAutomationController extends Controller
                 ));
             } catch (SocialException $e) {
                 $aviso = $e->getMessage();
+            } catch (Throwable $e) {
+                /*
+                 * El mismo agujero que tenía la lista de publicaciones. `SocialException` la lanzamos
+                 * nosotros cuando la API contesta mal; pero cuando NO contesta —plazo agotado, DNS que
+                 * no resuelve— lo que sube es una excepción de la capa HTTP, que no es nuestra y se
+                 * colaba entera hasta dar un 500. Y «no contesta» es justo el caso para el que existe
+                 * este aviso.
+                 *
+                 * El mensaje no es el de la excepción: ahí vendría una cadena técnica con la URL
+                 * dentro. Al dueño se le dice lo único que le sirve, que vuelva a intentarlo.
+                 */
+                report($e);
+
+                $aviso = 'No se pudo hablar con el servicio de redes. Vuelve a intentarlo en un momento.';
             }
         }
 
@@ -61,7 +76,7 @@ final class SocialAutomationController extends Controller
             'cuentas' => $cuentas,
             // Para poder colgar la automatización de una publicación concreta. Si falla, se devuelve
             // vacío: quedarse sin la lista solo quita la opción de afinar, no impide crear nada.
-            'publicaciones' => $cliente->isConfigured() && $aviso === null ? $cliente->publishedPosts() : [],
+            'publicaciones' => $this->publicaciones($cliente, $aviso),
             'aviso' => $aviso,
             'coincidencias' => KeywordMatch::cases(),
             'disparadores' => AutomationTrigger::cases(),
@@ -290,6 +305,37 @@ final class SocialAutomationController extends Controller
         }
 
         return $resumen;
+    }
+
+    /**
+     * Las publicaciones ya subidas, para poder colgarles una automatización.
+     *
+     * EL COMENTARIO DE ARRIBA PROMETÍA ESTO Y EL CÓDIGO NO LO HACÍA: la llamada estaba fuera de
+     * cualquier `try`, así que un fallo o una lentitud de la API de Zernio no dejaba la lista vacía,
+     * tumbaba la pantalla entera con un 500. Y no es hipotético: se veía en la suite como un test que
+     * fallaba de vez en cuando tardando cien segundos, que es lo que tarda una petición en rendirse.
+     *
+     * Se atrapa `Throwable` y no solo `SocialException` a propósito. Un plazo agotado o un DNS que no
+     * resuelve no llegan como excepción del módulo, llegan como excepción de la capa HTTP; atrapar
+     * solo la nuestra es justamente lo que dejaba pasar el caso que rompía.
+     *
+     * `report()` para que quede en el registro: degradar en silencio también es mentir.
+     *
+     * @return array<int, mixed>
+     */
+    private function publicaciones(ZernioClient $cliente, ?string $aviso): array
+    {
+        if (! $cliente->isConfigured() || $aviso !== null) {
+            return [];
+        }
+
+        try {
+            return $cliente->publishedPosts();
+        } catch (Throwable $e) {
+            report($e);
+
+            return [];
+        }
     }
 
     private function cliente(CurrentCompany $currentCompany): ZernioClient

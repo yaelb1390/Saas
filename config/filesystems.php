@@ -55,6 +55,23 @@ return [
      */
     'company_logos' => env('COMPANY_LOGO_DISK', env('PRODUCT_IMAGE_DISK', 'local')),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Entregar los ficheros con una dirección firmada
+    |--------------------------------------------------------------------------
+    |
+    | Cuando el disco sabe firmar —S3, R2, Supabase Storage—, las rutas que sirven una foto o un
+    | documento no devuelven el fichero: devuelven un 302 a una dirección que caduca, y el navegador
+    | baja los bytes directamente del almacenamiento. Así no viajan dos veces —del almacén a la
+    | función y de la función al navegador— ni se pagan dos veces.
+    |
+    | Encendido de fábrica porque en un disco que no sabe firmar no hace nada: el disco local y el de
+    | los tests se sirven como siempre. El interruptor existe para poder apagarlo sin desplegar
+    | código si un día el almacenamiento firma mal.
+    |
+    */
+    'firmar_entregas' => (bool) env('FIRMAR_ENTREGAS', true),
+
     'disks' => [
 
         'local' => [

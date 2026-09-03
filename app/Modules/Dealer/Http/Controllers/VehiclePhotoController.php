@@ -6,6 +6,7 @@ namespace App\Modules\Dealer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Support\DbTable;
+use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\Dealer\Models\Vehicle;
 use App\Modules\Dealer\Models\VehiclePhoto;
 use App\Modules\Dealer\Support\VehicleImageStore;
@@ -116,15 +117,7 @@ final class VehiclePhotoController extends Controller
     {
         $foto = $this->suya($vehicle, $photo);
 
-        $disk = VehicleImageStore::disk();
-        $path = (string) $foto->path;
-
-        abort_unless($disk->exists($path), 404);
-
-        return response($disk->get($path), 200, [
-            'Content-Type' => $disk->mimeType($path) ?: 'image/jpeg',
-            'Cache-Control' => 'public, max-age=604800',
-        ]);
+        return EntregaDeArchivo::imagen(VehicleImageStore::disk(), (string) $foto->path);
     }
 
     /**

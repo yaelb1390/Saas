@@ -6,6 +6,7 @@ namespace App\Modules\Dealer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Core\Support\DbTable;
+use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\Dealer\Enums\DocumentType;
 use App\Modules\Dealer\Models\Vehicle;
 use App\Modules\Dealer\Models\VehicleDocument;
@@ -13,7 +14,7 @@ use App\Modules\Dealer\Support\VehicleDocumentStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Los papeles de una unidad.
@@ -91,20 +92,19 @@ final class VehicleDocumentController extends Controller
      * se usa nunca para escribir— pero al bajarlo hay que devolverle «matricula.pdf» y no
      * «01JB3K….pdf», que no le dice nada a nadie.
      */
-    public function show(Vehicle $vehicle, VehicleDocument $document): StreamedResponse
+    public function show(Vehicle $vehicle, VehicleDocument $document): Response
     {
         $doc = $this->suyo($vehicle, $document);
 
-        $disk = VehicleDocumentStore::disk();
-        $path = (string) $doc->path;
-
-        abort_unless($disk->exists($path), 404);
-
-        return $disk->response($path, (string) $doc->original_name, [
-            'Content-Type' => $doc->mime ?: 'application/octet-stream',
-            // Sin caché pública: son papeles con datos personales y pueden pasar por intermediarios.
-            'Cache-Control' => 'private, max-age=0, no-store',
-        ]);
+        // La entrega decide sola si firma o sirve, y en las dos ramas mantiene lo importante de aquí:
+        // sin caché —son papeles con datos personales que pasan por intermediarios— y con el nombre
+        // que le puso el usuario, no el identificador aleatorio con el que se guardó en el disco.
+        return EntregaDeArchivo::documento(
+            VehicleDocumentStore::disk(),
+            (string) $doc->path,
+            (string) $doc->original_name,
+            $doc->mime ?: 'application/octet-stream',
+        );
     }
 
     public function destroy(Vehicle $vehicle, VehicleDocument $document, VehicleDocumentStore $documentos): RedirectResponse

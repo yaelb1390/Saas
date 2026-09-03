@@ -22,12 +22,15 @@ use Throwable;
  */
 final class SendExpiringSubscriptionReminders extends Command
 {
-    protected $signature = 'subscriptions:remind-expiring';
+    protected $signature = 'subscriptions:remind-expiring
+                            {--simular : Dice a quién avisaría, sin mandar ningún correo}';
 
     protected $description = 'Avisa por correo a las suscripciones de pago que están por vencer (una vez por período).';
 
     public function handle(): int
     {
+        $simular = (bool) $this->option('simular');
+
         // Candidatas: activas, con período con fin y sin aviso enviado este período. Sin scope de empresa.
         $candidates = Subscription::query()
             ->with(['company', 'plan'])
@@ -58,7 +61,23 @@ final class SendExpiringSubscriptionReminders extends Command
 
             if (blank($to)) {
                 // Sin destinatario: se marca para no reintentar en cada corrida.
-                $subscription->update(['renewal_reminded_at' => now()]);
+                if (! $simular) {
+                    $subscription->update(['renewal_reminded_at' => now()]);
+                }
+
+                continue;
+            }
+
+            /*
+             * El simulacro no manda NI marca.
+             *
+             * No marcar es lo importante: `renewal_reminded_at` es lo que impide avisar dos veces en
+             * el mismo período, así que ponerlo tras un simulacro dejaría a ese cliente sin recibir
+             * el aviso NUNCA, que es exactamente lo contrario de para qué existe la tarea.
+             */
+            if ($simular) {
+                $sent++;
+                $this->line("Se avisaría a «{$company->name}» ({$to}), le quedan {$notice->days} días.");
 
                 continue;
             }
@@ -94,7 +113,9 @@ final class SendExpiringSubscriptionReminders extends Command
             $this->line("Aviso de vencimiento enviado a «{$company->name}» ({$to}).");
         }
 
-        $this->info("Avisos de vencimiento enviados: {$sent}.");
+        $this->info($simular
+            ? "Se avisaría a {$sent} suscripciones."
+            : "Avisos de vencimiento enviados: {$sent}.");
 
         return self::SUCCESS;
     }

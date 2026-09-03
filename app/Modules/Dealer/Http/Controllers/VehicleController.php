@@ -9,6 +9,7 @@ use App\Modules\Core\Models\Audit;
 use App\Modules\Core\Models\Branch;
 use App\Modules\Core\Support\BusquedaTexto;
 use App\Modules\Core\Support\DbTable;
+use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\Dealer\DTOs\CreateVehicleData;
 use App\Modules\Dealer\Enums\DealStatus;
 use App\Modules\Dealer\Enums\DocumentType;
@@ -186,15 +187,7 @@ final class VehicleController extends Controller
     {
         abort_unless($vehicle->hasPhoto(), 404);
 
-        $disk = VehicleImageStore::disk();
-        $path = (string) $vehicle->photo_path;
-
-        abort_unless($disk->exists($path), 404);
-
-        return response($disk->get($path), 200, [
-            'Content-Type' => $disk->mimeType($path) ?: 'image/jpeg',
-            'Cache-Control' => 'public, max-age=604800',
-        ]);
+        return EntregaDeArchivo::imagen(VehicleImageStore::disk(), (string) $vehicle->photo_path);
     }
 
     public function store(StoreVehicleRequest $request, VehicleService $vehiculos): RedirectResponse

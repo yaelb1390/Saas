@@ -8,6 +8,7 @@ use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Social\Enums\KeywordMatch;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -1105,4 +1106,34 @@ it('una sola automatización no se avisa de nada', function (): void {
     $this->actingAs($this->owner)->get(route('panel.social.automations'))
         ->assertOk()
         ->assertDontSee('Esta no va a responder');
+});
+
+/*
+ * CUANDO ZERNIO NO CONTESTA, LA PANTALLA AGUANTA.
+ *
+ * `SocialException` la lanzamos nosotros cuando la API responde mal. Cuando NO responde —plazo
+ * agotado, DNS que no resuelve— sube una `ConnectionException`, que no es nuestra: se colaba entera y
+ * las dos pantallas de redes daban un 500. No era teórico, se veía en esta misma suite como un test
+ * que fallaba de vez en cuando tardando cien segundos, y en producción se lo habría comido el dueño.
+ *
+ * Lo que se exige es lo mismo que ya prometían los comentarios del código: pantalla en pie, aviso
+ * explicando por qué, y lo que no depende de Zernio —publicar, crear— sigue disponible.
+ */
+it('si el servicio de redes no contesta, las automatizaciones se pintan con un aviso y no un 500', function () {
+    Http::fake(fn () => throw new ConnectionException('se agotó el plazo'));
+
+    $this->actingAs($this->owner)
+        ->get(route('panel.social.automations'))
+        ->assertOk()
+        ->assertSee('No se pudo hablar con el servicio de redes', false);
+});
+
+it('si el servicio de redes no contesta, la pantalla de redes tampoco revienta', function () {
+    Http::fake(fn () => throw new ConnectionException('se agotó el plazo'));
+
+    $this->actingAs($this->owner)
+        ->get(route('panel.social'))
+        ->assertOk()
+        // Publicar no depende de que Zernio conteste, así que no puede caerse con él.
+        ->assertSee('Tus cuentas');
 });

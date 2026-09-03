@@ -10,6 +10,7 @@ use App\Modules\Billing\Models\PurchaseInvoice;
 use App\Modules\Billing\Services\DgiiReportService;
 use App\Modules\Billing\Services\PurchaseInvoiceService;
 use App\Modules\Billing\Support\TaxIdKind;
+use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Support\SimpleXlsx;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -75,7 +76,10 @@ final class PurchaseInvoiceController extends Controller
 
         return response(base64_decode((string) $purchaseInvoice->file_content, true) ?: '', 200, [
             'Content-Type' => (string) $purchaseInvoice->file_mime,
-            'Content-Disposition' => 'inline; filename="'.addslashes((string) $purchaseInvoice->file_name).'"',
+            // `nombreSeguro` y no `addslashes`: aquél escapa la comilla pero deja pasar el salto de
+            // línea, que es con lo que se parte una cabecera en dos y se cuela otra inyectada.
+            'Content-Disposition' => 'inline; filename="'.EntregaDeArchivo::nombreSeguro((string) $purchaseInvoice->file_name).'"',
+            'Cache-Control' => 'private, max-age=0, no-store',
         ]);
     }
 

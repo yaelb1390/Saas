@@ -87,16 +87,67 @@ it('guardar sin tocar la clave la conserva', function (): void {
     expect(AiSetting::actual()->api_key)->toBe('AIzaSyLAQUEHABIA');
 });
 
-it('mandarla vacía apaga la IA', function (): void {
+/*
+ * EL TEST QUE FALTABA, Y POR CUYO HUECO SE COLÓ EL FALLO.
+ *
+ * El de aquí arriba —«guardar sin tocar la clave la conserva»— manda la petición SIN el campo
+ * `api_key`, y así pasaba también con el código roto. Pero un navegador no hace eso: un campo de
+ * contraseña vacío **se envía igualmente**, como cadena vacía. Esa es la petición de verdad, y era la
+ * que borraba la clave.
+ *
+ * Y `ai_settings` no tiene `company_id`: es UNA fila para toda la plataforma. Así que cambiar el
+ * modelo de chat, o subir el tope diario, dejaba sin IA a TODAS las empresas a la vez y sin decir
+ * una palabra. Este test manda el formulario como lo manda el navegador.
+ */
+it('la clave sobrevive a un guardado normal, que es como la manda el navegador', function (): void {
+    AiSetting::actual()->update(['provider' => 'gemini', 'api_key' => 'AIzaSyLAQUEHABIA']);
+
+    $this->actingAs($this->super)->put(route('platform.ai.update'), [
+        'provider' => 'gemini',
+        'chat_model' => 'gemini-2.0-flash',
+        'daily_limit' => 80,
+        'api_key' => '',   // el campo va vacío en el envío, no ausente
+    ]);
+
+    expect(AiSetting::actual()->api_key)->toBe('AIzaSyLAQUEHABIA')
+        ->and(AiSetting::actual()->configurado())->toBeTrue()
+        // Y lo que sí se venía a cambiar, se cambió.
+        ->and(AiSetting::actual()->chat_model)->toBe('gemini-2.0-flash')
+        ->and((int) AiSetting::actual()->daily_limit)->toBe(80);
+});
+
+/*
+ * Borrar sigue siendo posible, pero ahora hay que pedirlo. Quitar la clave apaga la IA de toda la
+ * plataforma: es una decisión, no algo que deba ocurrir por omisión.
+ */
+it('marcar la casilla sí borra la clave y apaga la IA', function (): void {
     AiSetting::actual()->update(['provider' => 'gemini', 'api_key' => 'AIzaSyLAQUEHABIA']);
 
     $this->actingAs($this->super)->put(route('platform.ai.update'), [
         'provider' => 'gemini',
         'api_key' => '',
+        'borrar_api_key' => '1',
     ]);
 
     expect(AiSetting::actual()->api_key)->toBeNull()
         ->and(AiSetting::actual()->configurado())->toBeFalse();
+});
+
+/*
+ * El caso raro pero posible: escribir una clave nueva Y dejar marcada la casilla de borrar. Manda lo
+ * que se escribió, porque teclear una clave es la intención más clara de las dos; quedarse sin nada
+ * sería el peor de los dos resultados.
+ */
+it('si escribes una clave nueva, gana sobre la casilla de borrar', function (): void {
+    AiSetting::actual()->update(['provider' => 'gemini', 'api_key' => 'AIzaSyLAVIEJA']);
+
+    $this->actingAs($this->super)->put(route('platform.ai.update'), [
+        'provider' => 'gemini',
+        'api_key' => 'AIzaSyLANUEVA',
+        'borrar_api_key' => '1',
+    ]);
+
+    expect(AiSetting::actual()->api_key)->toBe('AIzaSyLANUEVA');
 });
 
 // ------------------------------------------------------------------------------ Qué proveedor sale

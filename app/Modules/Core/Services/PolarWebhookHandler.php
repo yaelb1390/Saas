@@ -6,12 +6,15 @@ namespace App\Modules\Core\Services;
 
 use App\Models\User;
 use App\Modules\Core\Enums\SubscriptionStatus;
+use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Models\PolarWebhookEvent;
 use App\Modules\Core\Models\Subscription;
+use App\Modules\Core\Support\ModuleRegistry;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 /**
@@ -139,11 +142,93 @@ final class PolarWebhookHandler
 
         $this->link($subscription, $data);
 
+        $this->enviarRecibo($company, $plan, $subscription, $data);
+
         return $event->resolveAs(
             PolarWebhookEvent::RESULT_APPLIED,
             "Pago aplicado. Plan «{$plan->name}».",
             $company->id,
         );
+    }
+
+    /**
+     * El recibo del pago, al correo de quien paga.
+     *
+     * Va aquí y SOLO aquí: `order.paid` es el único evento donde entró dinero de verdad. Colgarlo de
+     * `subscription.active` mandaría un recibo por cada cambio de estado —una misma compra dispara
+     * varios eventos—, y el cliente recibiría tres correos por un pago.
+     *
+     * Polar manda su propio comprobante como comerciante registrado, pero llega en inglés y con su
+     * marca. Este es el de la empresa: en español, con el plan, lo que se pagó y hasta cuándo.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function enviarRecibo(Company $company, Plan $plan, Subscription $subscription, array $data): void
+    {
+        $owner = $company->ownerUser();
+        $to = $owner?->email ?? $company->email;
+
+        if (blank($to)) {
+            return;
+        }
+
+        /*
+         * `sendNow` y no `send`, aunque el correo sea `ShouldQueue`.
+         *
+         * En producción esto corre en Vercel, que no tiene worker de colas —solo funciones y crons—.
+         * Con `send`, el correo se encolaría y no lo recogería nadie: el cliente pagaría y no
+         * recibiría nada, sin ningún error visible. `sendNow` lo manda en el acto.
+         *
+         * Y envuelto en `rescue`: si el SMTP está caído, el webhook NO puede fallar. El pago ya está
+         * aplicado y Polar reintentaría el aviso; lo que no puede pasar es que un correo caído
+         * deshaga un cobro. El fallo se reporta para que quede rastro.
+         */
+        rescue(fn () => Mail::to($to)->sendNow(new SubscriptionConfirmedMail(
+            ownerName: (string) ($owner?->name ?? $company->name),
+            companyName: (string) $company->name,
+            planName: (string) $plan->name,
+            planPrice: $this->importePagado($data, $plan),
+            billingCycleLabel: $plan->billing_cycle->label(),
+            renewsAt: $subscription->current_period_end ?? now(),
+            moduleLabels: $this->etiquetasDeModulos($company->activeModules()),
+            loginUrl: route('login'),
+            supportWhatsapp: (string) config('platform.support_whatsapp'),
+            supportEmail: (string) config('platform.support_email'),
+        )), report: true);
+    }
+
+    /**
+     * Lo que de verdad se cobró, no lo que cuesta el plan en la tabla.
+     *
+     * No siempre coinciden: un descuento, un prorrateo o un impuesto cambian el importe, y un recibo
+     * que dice una cifra distinta de la que salió de la tarjeta es un problema de confianza. Polar
+     * manda los importes en la unidad menor de la moneda, así que se divide entre cien.
+     *
+     * Si el aviso no trae importe —no todos los eventos lo llevan— se cae al precio del plan, que es
+     * mejor que un recibo sin cifra.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function importePagado(array $data, Plan $plan): string
+    {
+        $bruto = $data['total_amount'] ?? $data['amount'] ?? null;
+
+        return is_numeric($bruto)
+            ? number_format((int) $bruto / 100, 2, '.', '')
+            : (string) $plan->price;
+    }
+
+    /**
+     * Los módulos contratados, con el nombre que ve una persona y no la clave interna.
+     *
+     * @param  array<int, string>  $claves
+     * @return array<int, string>
+     */
+    private function etiquetasDeModulos(array $claves): array
+    {
+        $todos = ModuleRegistry::all();
+
+        return array_values(array_map(static fn (string $clave): string => $todos[$clave] ?? $clave, $claves));
     }
 
     /**

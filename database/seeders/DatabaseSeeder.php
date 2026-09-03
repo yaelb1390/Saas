@@ -51,15 +51,29 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        // Planes de suscripción de arranque (configurables después desde el panel de plataforma).
+        /*
+         * Planes de suscripción de arranque (configurables después desde el panel de plataforma).
+         *
+         * LA PRUEBA GRATUITA ES SOLO DEL BÁSICO, y son 15 días.
+         *
+         * Los 15 no están escritos a mano: es el valor de `bmos.trial.days`, que es lo que usa el
+         * registro y lo que promete la pantalla de alta. Si aquí se pusiera otro número, un cliente
+         * que se registra tendría 15 días y el mismo plan activado a mano por un administrador le
+         * daría otros distintos, sin que nada avisara del desajuste.
+         *
+         * Los demás van a cero a propósito: `trial_days > 0` es justo lo que habilita la casilla de
+         * «con prueba» al activar una empresa a mano (ver CompanyAdminController). Con cero, esa
+         * puerta queda cerrada para Pro y Empresarial y la prueba no se puede regalar por descuido.
+         */
         Plan::query()->updateOrCreate(['slug' => 'basico'], [
             'name' => 'Básico', 'description' => 'Lo esencial para vender y controlar stock.',
-            'price' => '1500.00', 'billing_cycle' => 'monthly', 'trial_days' => 14,
+            'price' => '1500.00', 'billing_cycle' => 'monthly',
+            'trial_days' => (int) config('bmos.trial.days'),
             'modules' => ['pos', 'inventory', 'sales', 'reports'], 'max_users' => 3, 'is_active' => true,
         ]);
         Plan::query()->updateOrCreate(['slug' => 'pro'], [
             'name' => 'Pro', 'description' => 'Para negocios en crecimiento: CRM, facturación y WhatsApp.',
-            'price' => '3500.00', 'billing_cycle' => 'monthly', 'trial_days' => 14,
+            'price' => '3500.00', 'billing_cycle' => 'monthly', 'trial_days' => 0,
             'modules' => ['pos', 'inventory', 'sales', 'purchasing', 'crm', 'whatsapp', 'billing', 'finance', 'loans', 'reports'],
             'max_users' => 10, 'is_active' => true,
         ]);

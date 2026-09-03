@@ -5659,3 +5659,85 @@ a.bmos-destino:hover {
         background: none;
     }
 }
+
+/* ─── La rejilla editable del ticket (POS de mostrador) ──────────────────────────────────────────
+   Solo se ve de tablet para arriba; en teléfono manda la tabla de tarjetas de `.pos-rejilla`, que
+   una rejilla no sabe imitar. Ver el comentario de las dos maquetaciones en pos.blade.php. */
+
+.pos-rejilla-ag {
+    width: 100%;
+    /* Sin alto fijo: la rejilla usa `domLayout: 'autoHeight'` y crece con las líneas. El mínimo
+       evita que un ticket vacío quede como una tira de dos píxeles bajo la cabecera. */
+    min-height: 7rem;
+}
+
+/* El marco del ticket NO redondea abajo: debajo va pegada la fila de captura, y una esquina curva
+   en medio partiría en dos lo que se lee como una sola tabla. */
+.bmos-rejilla-marco:has(.pos-rejilla-ag) {
+    border-radius: 0;
+    border-bottom: 0;
+}
+
+.pos-ag-num {
+    /* Cifras alineadas por la derecha y en tabular: en una columna de importes, los números que no
+       cuadran de ancho hacen leer mal la suma. */
+    justify-content: flex-end;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.pos-ag-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+    color: #64748b;
+}
+
+.pos-ag-importe {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.pos-ag-quitar {
+    justify-content: center;
+    text-align: center;
+    padding: 0 !important;
+}
+
+/* ─── La fila de captura, pegada bajo la rejilla ─────────────────────────────────────────────────
+   Vive fuera de la tabla porque el campo del lector tiene que existir UNA sola vez y hay dos
+   maquetaciones. Se dibuja como si fuera la última fila. */
+
+.pos-captura {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    border: 1px solid #eef1f6;
+    border-radius: 0 0 calc(1rem - 1px) calc(1rem - 1px);
+    background: #fbfcfe;
+    overflow: hidden;
+}
+
+.pos-captura-cant {
+    width: 5.75rem;
+    flex: none;
+    border: 0;
+    border-right: 1px solid #eef1f6;
+    border-radius: 0;
+    background: transparent;
+    padding: 0.6rem 0.7rem;
+}
+
+.pos-captura-clave {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0.6rem 0.8rem;
+}
+
+.pos-captura-cant:focus,
+.pos-captura-clave:focus {
+    outline: 2px solid #c7d2fe;
+    outline-offset: -2px;
+}

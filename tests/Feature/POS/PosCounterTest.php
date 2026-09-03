@@ -441,3 +441,84 @@ it('lo que EMPIEZA por lo tecleado sale antes que lo que solo lo contiene', func
         // Lo que solo la contiene, al final, aunque el alfabeto lo pondría el primero.
         ->and($nombres[2])->toBe('Aceite para bomba hidráulica');
 });
+
+// ------------------------------------------------------------------ La rejilla editable del ticket
+
+/**
+ * Deja la pantalla del mostrador rendida y devuelve su HTML.
+ */
+function htmlDelMostrador(int $companyId, string $correo): string
+{
+    $dueno = withRole(User::create([
+        'company_id' => $companyId, 'name' => 'Dueño',
+        'email' => $correo, 'password' => 'secret-password',
+    ]), 'owner');
+
+    conCajaAbierta($companyId, $dueno);
+
+    return test()->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+}
+
+/*
+ * EL TEST QUE SUJETA EL DISEÑO DE LAS DOS MAQUETACIONES.
+ *
+ * El ticket se pinta de dos maneras —rejilla de tablet para arriba, tarjetas en teléfono— pero el
+ * campo del lector tiene que existir UNA sola vez. Si algún día alguien lo duplica dentro de cada
+ * maquetación, habrá dos elementos con el mismo `id` y el mismo `x-ref`: el lector de pistola
+ * escribirá en el que no se ve y las ventas se meterán en el vacío, sin un solo error en consola.
+ */
+it('el ticket trae las dos maquetaciones y el campo del lector una sola vez', function (): void {
+    $html = htmlDelMostrador($this->company->id, 'rejilla@mostrador.test');
+
+    expect($html)
+        ->toContain('x-ref="rejillaTicket"')          // la rejilla editable
+        ->toContain('bmos-tabla-envoltura md:hidden') // las tarjetas del teléfono
+        ->and(substr_count($html, 'id="pos-scan"'))->toBe(1)
+        ->and(substr_count($html, 'x-ref="scanInput"'))->toBe(1);
+});
+
+/*
+ * EL PRECIO NO SE EDITA, Y ESO ES UNA REGLA DE SEGURIDAD, NO UN DETALLE.
+ *
+ * Al cobrar, el servidor relee el precio de la base e ignora lo que mande el navegador. Una celda
+ * editable aquí dejaría teclear 1.00 en un artículo de 1000 y cobrar 1000 igual: la pantalla diría
+ * una cosa y el recibo otra. Si alguien añade `editable` a esa columna, este test cae.
+ */
+it('la columna del precio no se declara editable', function (): void {
+    $html = htmlDelMostrador($this->company->id, 'precio@mostrador.test');
+
+    // El trozo de la definición de esa columna, hasta que se cierra.
+    preg_match("/colId: 'price'.*?\},/s", $html, $m);
+
+    expect($m)->not->toBeEmpty()
+        ->and($m[0])->not->toContain('editable');
+});
+
+/*
+ * Qué columnas existen lo decide el perfil del negocio, en PHP, y viaja a la rejilla ya resuelto.
+ * Si eso se decidiera también en JavaScript habría dos sitios donde encenderlo y un día
+ * discreparían: la pantalla enseñaría el descuento por línea y el servidor lo ignoraría.
+ */
+it('las columnas opcionales viajan resueltas desde el perfil, no decididas en el navegador', function (): void {
+    $html = htmlDelMostrador($this->company->id, 'perfil@mostrador.test');
+
+    /*
+     * El objeto de configuración que recibe la rejilla, con una clave por opción del perfil.
+     *
+     * Las comillas van como `"` porque así las escribe la directiva `@js` de Laravel, que
+     * envuelve el objeto en un `JSON.parse`. Se comprueba tal cual sale al HTML y no una versión
+     * idealizada: un test que dé por hecho otro escapado pasaría o fallaría por el motivo equivocado.
+     */
+    // La barra invertida se arma por código a propósito: escrita a mano en el fuente es de las cosas
+    // que se pierden por el camino sin que nadie lo note, y el test pasaría a comprobar otra cosa.
+    $comilla = chr(92).'u0022';
+
+    expect($html)
+        ->toContain($comilla.'descuento'.$comilla)
+        ->toContain($comilla.'serie'.$comilla)
+        ->toContain($comilla.'empleado'.$comilla)
+        ->toContain($comilla.'nota'.$comilla)
+        ->toContain($comilla.'paso'.$comilla)
+        // Y que la rejilla lo LEE de ahí, en vez de decidirlo por su cuenta.
+        ->toContain('const c = this.rejillaConfig;');
+});

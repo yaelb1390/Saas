@@ -17,6 +17,27 @@
             + (int) $opt['line_note']
             + (int) $opt['serial']
             + (int) $opt['attendant'];
+
+        /*
+         * Lo que la rejilla editable necesita saber, resuelto aquí y no en JavaScript.
+         *
+         * Qué columnas existen lo decide el perfil del negocio, que vive en PHP. Repetir esa decisión
+         * en el navegador daría dos sitios donde encenderla y un día discreparían: una ferretería
+         * vería la columna de descuento y el servidor la ignoraría, o al revés.
+         *
+         * El PASO de la cantidad viaja igual: vender por peso no cambia si el campo existe, cambia
+         * cuánto salta.
+         */
+        $rejillaTicket = [
+            'descuento' => (bool) $opt['line_discount'],
+            'serie' => (bool) $opt['serial'],
+            'empleado' => (bool) $opt['attendant'],
+            'nota' => (bool) $opt['line_note'],
+            'paso' => $opt['decimal_qty'] ? 0.001 : 1,
+            'empleados' => collect($employees)
+                ->map(fn ($e) => ['id' => (string) $e->id, 'nombre' => (string) $e->name])
+                ->values()->all(),
+        ];
     @endphp
 
     <div class="mb-4 flex items-center justify-end gap-2 text-sm">
@@ -73,8 +94,8 @@
             </form>
         </div>
     @else
-        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}', '{{ route('panel.pos.search') }}', '{{ route('panel.pos.catalogo') }}', @js($negocio), @js($openSession?->id))"
-             x-init="arrancarSinLinea()"
+        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}', '{{ route('panel.pos.search') }}', '{{ route('panel.pos.catalogo') }}', @js($negocio), @js($openSession?->id), @js($rejillaTicket))"
+             x-init="arrancarSinLinea(); montarRejilla()"
              @codigo-escaneado="barcode = $event.detail.codigo; scan()">
             {{-- Barra de sesión --}}
             <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -155,7 +176,28 @@
                                   x-text="cart.length + (cart.length === 1 ? ' línea' : ' líneas')"></span>
                         </div>
 
-                        <div class="bmos-tabla-envoltura">
+                        {{--
+                            DOS MAQUETACIONES PARA EL MISMO TICKET, y una sola fuente de datos.
+
+                            De tablet para arriba manda la rejilla editable: se navega celda a celda
+                            con el teclado, como en cualquier sistema de facturación, y ahí es donde
+                            se cobra de verdad.
+
+                            En teléfono NO. La tabla de abajo se convierte en tarjetas —cada línea
+                            con sus rótulos, ver `data-rotulo` en el CSS— y eso una rejilla no lo sabe
+                            hacer: dejaría ocho columnas con barra horizontal en una pantalla de
+                            390 px. Se conserva tal cual estaba.
+
+                            Las dos leen del MISMO `cart` de Alpine, que sigue siendo el único dueño
+                            del ticket: la rejilla es un editor encima, no una segunda copia. Los
+                            totales, el envío del formulario y el modo sin conexión no se enteran de
+                            cuál de las dos está en pantalla.
+                        --}}
+                        <div class="bmos-rejilla-marco hidden md:block">
+                            <div x-ref="rejillaTicket" class="pos-rejilla-ag"></div>
+                        </div>
+
+                        <div class="bmos-tabla-envoltura md:hidden">
                             <table class="bmos-table pos-rejilla">
                                 <thead>
                                     <tr>
@@ -232,50 +274,12 @@
                                             <td data-rotulo="Precio" class="pos-num pos-rej-precio" x-text="rd(item.price)"></td>
                                             <td data-rotulo="Importe" class="pos-num pos-rej-total" x-text="rd(lineNet(item))"></td>
                                             <td class="pos-rej-quitar">
-                                                <button type="button" @click="cart.splice(i, 1)" class="pos-quitar" aria-label="Quitar la línea">&times;</button>
+                                                {{-- Por id y no por índice: el mismo camino que usa la rejilla, para
+                                                     que quitar una línea sea una sola cosa en el terminal. --}}
+                                                <button type="button" @click="quitarLinea(item.id)" class="pos-quitar" aria-label="Quitar la línea">&times;</button>
                                             </td>
                                         </tr>
                                     </template>
-
-                                    {{--
-                                        LA FILA EN BLANCO, que es la captura matricial y también el destino del lector.
-
-                                        Sustituye a la caja de escaneo que había arriba en vez de sumarse a ella: el
-                                        lector de pistola es un teclado, escribe en el campo enfocado y pulsa Enter, así
-                                        que le da igual dónde esté el campo. Tener los dos habría sido, otra vez, dos
-                                        maneras de hacer lo mismo.
-                                    --}}
-                                    <tr class="pos-rej-nueva">
-                                        <td data-rotulo="Cant." class="pos-rej-cant">
-                                            <input type="number" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}" min="0"
-                                                   x-model.number="nuevaCant" @keydown.enter.prevent="$refs.scanInput.focus()"
-                                                   aria-label="Cantidad de la línea nueva" placeholder="1" class="pos-celda pos-num">
-                                        </td>
-                                        <td colspan="{{ $columnasRejilla - 1 }}">
-                                            {{--
-                                                UN SOLO CAMPO para las tres formas de meter un artículo.
-
-                                                Antes había una caja de búsqueda arriba y esta celda
-                                                aquí: la de arriba buscaba por nombre y esta exigía el
-                                                código exacto, así que teclear «bom» aquí no encontraba
-                                                nada y había que saber cuál de los dos campos usar.
-
-                                                Ahora el lector, la clave exacta y la búsqueda por
-                                                letras entran por el mismo sitio: se teclea, aparecen
-                                                debajo las coincidencias, y las flechas y el Enter
-                                                hacen el resto sin soltar el teclado.
-                                            --}}
-                                            <input id="pos-scan" type="text" x-ref="scanInput" x-model="barcode"
-                                                   @input.debounce.250ms="searchProducts()"
-                                                   @keydown.enter.prevent="scan()"
-                                                   @keydown.arrow-down.prevent="mover(1)"
-                                                   @keydown.arrow-up.prevent="mover(-1)"
-                                                   @keydown.escape="results = []; ficha = null; marcado = -1"
-                                                   autofocus autocomplete="off"
-                                                   placeholder="Pasa el lector, teclea la clave, o unas letras para buscar"
-                                                   class="pos-celda font-mono">
-                                        </td>
-                                    </tr>
 
                                     <tr x-show="cart.length === 0" x-cloak>
                                         <td colspan="{{ $columnasRejilla }}" class="pos-rej-vacio">
@@ -284,6 +288,45 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+
+                        {{--
+                            LA FILA EN BLANCO, que es la captura matricial y también el destino del lector.
+
+                            Sustituye a la caja de escaneo que había arriba en vez de sumarse a ella: el lector de
+                            pistola es un teclado, escribe en el campo enfocado y pulsa Enter, así que le da igual
+                            dónde esté el campo. Tener los dos habría sido, otra vez, dos maneras de hacer lo mismo.
+
+                            AHORA VIVE FUERA DE LA TABLA, y no por gusto: hay DOS maquetaciones —la rejilla y las
+                            tarjetas— y este campo tiene que existir UNA sola vez. Duplicarlo dentro de cada una
+                            habría puesto dos elementos con el mismo `id` y el mismo `x-ref`, y el lector habría
+                            escrito en el que no se ve. Pegada debajo de la rejilla, sin separación, se sigue
+                            leyendo como su última fila.
+                        --}}
+                        <div class="pos-captura">
+                            <input type="number" step="{{ $opt['decimal_qty'] ? '0.001' : '1' }}" min="0"
+                                   x-model.number="nuevaCant" @keydown.enter.prevent="$refs.scanInput.focus()"
+                                   aria-label="Cantidad de la línea nueva" placeholder="1" class="pos-celda pos-num pos-captura-cant">
+                            {{--
+                                UN SOLO CAMPO para las tres formas de meter un artículo.
+
+                                Antes había una caja de búsqueda arriba y esta celda aquí: la de arriba buscaba por
+                                nombre y esta exigía el código exacto, así que teclear «bom» aquí no encontraba nada
+                                y había que saber cuál de los dos campos usar.
+
+                                Ahora el lector, la clave exacta y la búsqueda por letras entran por el mismo sitio:
+                                se teclea, aparecen debajo las coincidencias, y las flechas y el Enter hacen el resto
+                                sin soltar el teclado.
+                            --}}
+                            <input id="pos-scan" type="text" x-ref="scanInput" x-model="barcode"
+                                   @input.debounce.250ms="searchProducts()"
+                                   @keydown.enter.prevent="scan()"
+                                   @keydown.arrow-down.prevent="mover(1)"
+                                   @keydown.arrow-up.prevent="mover(-1)"
+                                   @keydown.escape="results = []; ficha = null; marcado = -1"
+                                   autofocus autocomplete="off"
+                                   placeholder="Pasa el lector, teclea la clave, o unas letras para buscar"
+                                   class="pos-celda font-mono pos-captura-clave">
                         </div>
 
                         <p x-show="scanError" x-cloak x-text="scanError"
@@ -575,9 +618,9 @@
         </div>
 
         <script>
-            function posTerminal(lookupUrl, searchUrl, catalogoUrl, negocio, sesionCaja) {
+            function posTerminal(lookupUrl, searchUrl, catalogoUrl, negocio, sesionCaja, rejillaConfig) {
                 return {
-                    negocio, sesionCaja,
+                    negocio, sesionCaja, rejillaConfig,
                     cart: [], paid: '', customer: '', customerId: '', invoice: false, method: 'cash',
                     barcode: '', scanError: '', busy: false,
 
@@ -992,6 +1035,11 @@
                         this.barcode = '';
                         this.scanError = '';
                         this.marcado = -1;
+
+                        // La rejilla se repinta al meter una línea: es un cambio de estructura, no
+                        // de una celda, y es el único momento en que el ticket manda sobre ella.
+                        this.refrescarRejilla();
+
                         this.$nextTick(() => this.$refs.scanInput?.focus());
                     },
                     inc(i) { this.cart[i].qty = this.round((parseFloat(this.cart[i].qty) || 0) + 1); },
@@ -1000,6 +1048,172 @@
                         if (q >= 1) this.cart[i].qty = q; else this.cart.splice(i, 1);
                     },
                     round(n) { return Math.round(n * 1000) / 1000; },
+
+                    // ── La rejilla editable del ticket ────────────────────────────────────────
+                    /*
+                     * LA REJILLA ES UN EDITOR, NO UN SEGUNDO TICKET.
+                     *
+                     * `cart` sigue siendo el único dueño: de él salen los totales, el campo que se
+                     * envía al cobrar y lo que se guarda sin conexión. La rejilla lee de ahí y
+                     * escribe ahí, y nada más del terminal sabe que existe.
+                     *
+                     * Por eso el flujo va en UN solo sentido en cada caso y no hay un vigilante que
+                     * los sincronice: al editar una celda se escribe en `cart` y NO se vuelve a
+                     * pintar la rejilla —ya lo hizo ella—; al meter o quitar una línea se repinta la
+                     * rejilla entera. Un `$watch` sobre `cart` habría cerrado el círculo y cada
+                     * pulsación habría redibujado la tabla debajo del cursor.
+                     */
+                    rejilla: null,
+
+                    async montarRejilla() {
+                        /*
+                         * Solo de tablet para arriba. En teléfono manda la tabla de tarjetas, que es
+                         * lo que cabe en 390 px; montar aquí la rejilla dejaría ocho columnas con
+                         * barra horizontal.
+                         */
+                        if (! window.matchMedia('(min-width: 768px)').matches) return;
+
+                        const marco = this.$refs.rejillaTicket;
+                        if (! marco) return;
+
+                        const ag = await window.loadAgGrid();
+
+                        this.rejilla = ag.createGrid(marco, {
+                            theme: ag.themeQuartz.withParams({
+                                accentColor: '#4f46e5',
+                                borderColor: '#eef1f6',
+                                headerBackgroundColor: '#ffffff',
+                                headerTextColor: '#8894ab',
+                                headerFontWeight: 600,
+                                headerFontSize: 11,
+                                fontFamily: 'inherit',
+                                fontSize: 14,
+                                foregroundColor: '#334155',
+                                rowHoverColor: '#f6f8ff',
+                            }),
+                            rowData: this.filasDelTicket(),
+                            columnDefs: this.columnasDelTicket(),
+                            // Por id de artículo: `add()` ya funde el repetido, así que no hay dos.
+                            getRowId: (p) => String(p.data.id),
+                            // El ticket crece con las líneas; una altura fija dejaría hueco o recorte.
+                            domLayout: 'autoHeight',
+                            // Un clic entra a editar. Quien cobra no puede necesitar dos.
+                            singleClickEdit: true,
+                            stopEditingWhenCellsLoseFocus: true,
+                            suppressCellFocus: false,
+                            defaultColDef: { sortable: false, resizable: false, suppressMovable: true },
+                            overlayNoRowsTemplate: '<span class="pos-rej-vacio">Pasa el lector, teclea la clave, o unas letras para buscar.</span>',
+                            onCellValueChanged: (e) => this.anotarCambio(e),
+                        });
+                    },
+
+                    /** Copias planas para la rejilla: lo que manda sigue siendo `cart`. */
+                    filasDelTicket() {
+                        return this.cart.map((i) => ({
+                            id: i.id, sku: i.sku, name: i.name, qty: i.qty, price: i.price,
+                            discount: i.discount, serial: i.serial, note: i.note, employeeId: i.employeeId,
+                        }));
+                    },
+
+                    columnasDelTicket() {
+                        const c = this.rejillaConfig;
+                        const cols = [
+                            {
+                                colId: 'qty', field: 'qty', headerName: 'Cant.', width: 92, editable: true,
+                                cellEditor: 'agNumberCellEditor',
+                                // El PASO lo decide el perfil: vender por peso no cambia si el campo
+                                // existe, cambia cuánto salta.
+                                cellEditorParams: { min: 0, step: c.paso, precision: c.paso < 1 ? 3 : 0 },
+                                cellClass: 'pos-ag-num',
+                            },
+                            { colId: 'sku', field: 'sku', headerName: 'Clave', width: 118, cellClass: 'pos-ag-mono' },
+                            { colId: 'name', field: 'name', headerName: 'Descripción', flex: 2, minWidth: 150 },
+                        ];
+
+                        if (c.descuento) {
+                            cols.push({
+                                colId: 'discount', field: 'discount', headerName: 'Desc.', width: 92, editable: true,
+                                cellEditor: 'agNumberCellEditor', cellEditorParams: { min: 0, precision: 2 },
+                                cellClass: 'pos-ag-num',
+                            });
+                        }
+
+                        if (c.serie) {
+                            cols.push({ colId: 'serial', field: 'serial', headerName: 'Nº serie', width: 128, editable: true, cellEditor: 'agTextCellEditor' });
+                        }
+
+                        if (c.empleado) {
+                            cols.push({
+                                colId: 'employeeId', field: 'employeeId', headerName: 'Empleado', width: 140, editable: true,
+                                // Lista cerrada: el empleado es una elección, no un texto libre.
+                                cellEditor: 'agSelectCellEditor',
+                                cellEditorParams: { values: ['', ...c.empleados.map((e) => e.id)] },
+                                valueFormatter: (p) => c.empleados.find((e) => e.id === String(p.value ?? ''))?.nombre ?? '—',
+                            });
+                        }
+
+                        if (c.nota) {
+                            cols.push({ colId: 'note', field: 'note', headerName: 'Nota', flex: 1, minWidth: 110, editable: true, cellEditor: 'agTextCellEditor' });
+                        }
+
+                        cols.push(
+                            /*
+                             * El PRECIO no se edita, y esto no es un olvido: al cobrar, el servidor lo
+                             * relee de la base e ignora lo que mande el navegador. Una celda editable
+                             * aquí dejaría teclear 1.00 en un artículo de 1000 y cobrar 1000 igual, sin
+                             * decir nada. La rejilla no abre esa puerta.
+                             */
+                            { colId: 'price', field: 'price', headerName: 'Precio', width: 108, cellClass: 'pos-ag-num', valueFormatter: (p) => this.rd(p.value) },
+                            {
+                                colId: 'importe', headerName: 'Importe', width: 118, cellClass: 'pos-ag-num pos-ag-importe',
+                                // Calculado, nunca guardado: un importe almacenado se queda viejo en
+                                // cuanto cambia la cantidad de al lado.
+                                valueGetter: (p) => this.lineNet(p.data),
+                                valueFormatter: (p) => this.rd(p.value),
+                            },
+                            {
+                                colId: 'quitar', headerName: '', width: 48, cellClass: 'pos-ag-quitar',
+                                cellRenderer: () => '<button type="button" class="pos-quitar" aria-label="Quitar la línea">&times;</button>',
+                                onCellClicked: (e) => this.quitarLinea(e.data.id),
+                            },
+                        );
+
+                        return cols;
+                    },
+
+                    /** Lo editado en la rejilla se escribe en `cart`, que es de donde salen los totales. */
+                    anotarCambio(e) {
+                        const linea = this.cart.find((i) => String(i.id) === String(e.data.id));
+                        if (! linea) return;
+
+                        const campo = e.colDef.field;
+
+                        // Los números se sanean aquí y no en la celda: un vacío o un texto tienen
+                        // que valer cero, no NaN, o el ticket entero se vuelve «NaN».
+                        if (campo === 'qty') {
+                            linea.qty = Math.max(0, this.round(parseFloat(e.newValue) || 0));
+                        } else if (campo === 'discount') {
+                            linea.discount = Math.max(0, parseFloat(e.newValue) || 0);
+                        } else {
+                            linea[campo] = e.newValue ?? '';
+                        }
+
+                        // El importe de ESA fila se recalcula; el resto de la rejilla no se toca.
+                        e.api.refreshCells({ rowNodes: [e.node], columns: ['importe'], force: true });
+                    },
+
+                    /** Quita una línea por id, valga la rejilla o las tarjetas del teléfono. */
+                    quitarLinea(id) {
+                        const i = this.cart.findIndex((x) => String(x.id) === String(id));
+                        if (i < 0) return;
+
+                        this.cart.splice(i, 1);
+                        this.refrescarRejilla();
+                    },
+
+                    refrescarRejilla() {
+                        this.rejilla?.setGridOption('rowData', this.filasDelTicket());
+                    },
 
                     // Importe neto de una línea: (precio × cantidad) − descuento, nunca negativo.
                     lineNet(item) {

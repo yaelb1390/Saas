@@ -14,23 +14,35 @@
  * Excel son de pago y no se usan: sin licencia pintan una marca de agua encima de la tabla.
  */
 import {
+    CellApiModule, // `startEditingCell`: al meter una línea, el cursor cae en su cantidad
     CellStyleModule, // pintar en rojo un margen negativo
+    ClientSideRowModelApiModule, // cambiar las filas sin volver a crear la rejilla
     ClientSideRowModelModule, // las filas viven en el navegador: ordena y filtra al vuelo
     ColumnAutoSizeModule,
     createGrid,
     CsvExportModule, // exportar a CSV; el de Excel es de pago
     LocaleModule, // los textos de la rejilla, en español
     ModuleRegistry,
+    NumberEditorModule, // cantidad y descuento del ticket
     NumberFilterModule,
     PaginationModule, // el pie de «Mostrando 1 a 15 de 47»
     RowStyleModule, // `rowClass`: el cursor que dice que la fila se puede pulsar
+    SelectEditorModule, // el empleado de la línea, que es una lista cerrada
+    TextEditorModule, // nº de serie y nota de la línea
     TextFilterModule,
     themeQuartz,
     ValidationModule, // dice en consola QUÉ módulo falta si algo no está registrado
 } from 'ag-grid-community';
 
+/*
+ * Los EDITORES son de la edición Community, comprobado contra el paquete instalado y no contra la
+ * documentación: `TextEditorModule`, `NumberEditorModule` y `SelectEditorModule` existen. Los que no
+ * están son `RowGroupingModule` y `ExcelExportModule`, que siguen siendo de pago.
+ */
 ModuleRegistry.registerModules([
     ClientSideRowModelModule,
+    ClientSideRowModelApiModule,
+    CellApiModule,
     TextFilterModule,
     NumberFilterModule,
     PaginationModule,
@@ -38,6 +50,9 @@ ModuleRegistry.registerModules([
     CsvExportModule,
     CellStyleModule,
     ColumnAutoSizeModule,
+    TextEditorModule,
+    NumberEditorModule,
+    SelectEditorModule,
     LocaleModule,
     ValidationModule,
 ]);

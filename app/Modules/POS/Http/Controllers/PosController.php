@@ -156,7 +156,20 @@ final class PosController extends Controller
     {
         $term = trim((string) $request->query('q', ''));
 
-        if (mb_strlen($term) < 2) {
+        /*
+         * DESDE LA PRIMERA LETRA.
+         *
+         * Antes hacían falta dos, y en un mostrador eso se nota: el dependiente teclea la inicial,
+         * no aparece nada, y no sabe si es que el artículo no está o que el sistema aún no ha
+         * buscado. La primera letra ya es una intención.
+         *
+         * Lo que hacía falta para poder bajarlo no era esta línea, era el tope: la respuesta se corta
+         * en 24 filas, así que una «a» no trae medio catálogo. Y el campo espera 250 ms desde la
+         * última pulsación, de modo que teclear una clave larga sigue siendo UNA consulta, no ocho.
+         *
+         * El vacío sigue sin buscar: eso no es una búsqueda corta, es no haber empezado.
+         */
+        if (mb_strlen($term) < 1) {
             return response()->json(['results' => []]);
         }
 

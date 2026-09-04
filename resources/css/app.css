@@ -5712,13 +5712,26 @@ a.bmos-destino:hover {
     align-items: stretch;
     gap: 0;
     border: 1px solid #eef1f6;
+    border-top: 0;
     border-radius: 0 0 calc(1rem - 1px) calc(1rem - 1px);
-    background: #fbfcfe;
+    /* Blanca como las filas, no tintada: es UNA FILA MÁS de la rejilla, la que está en blanco. Con
+       fondo propio se leía como un buscador aparte pegado debajo, que es justo lo que no es. */
+    background: #fff;
     overflow: hidden;
 }
 
+/*
+ * LA CANTIDAD MIDE LO QUE MIDE SU COLUMNA.
+ *
+ * 92 px es el ancho de la columna «Cant.» de la rejilla, declarado en `columnasDelTicket()`. Al
+ * coincidir, el cursor cae exactamente bajo esa columna y lo que se teclea a continuación empieza
+ * donde empieza «Clave»: por eso esto se siente como escribir DENTRO de la rejilla y no debajo.
+ *
+ * Si alguien cambia el ancho de aquella columna, tiene que cambiar este número. Son dos sitios, y no
+ * hay forma de que sea uno solo: uno lo declara AG Grid en JavaScript y el otro es CSS.
+ */
 .pos-captura-cant {
-    width: 5.75rem;
+    width: 92px;
     flex: none;
     border: 0;
     border-right: 1px solid #eef1f6;

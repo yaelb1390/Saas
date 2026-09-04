@@ -522,3 +522,109 @@ it('las columnas opcionales viajan resueltas desde el perfil, no decididas en el
         // Y que la rejilla lo LEE de ahí, en vez de decidirlo por su cuenta.
         ->toContain('const c = this.rejillaConfig;');
 });
+
+// ------------------------------------------------------------------ Teclear el artículo a mano
+
+/*
+ * TECLEAR A MANO NO TENÍA NI UN TEST, y es la mitad del trabajo del mostrador.
+ *
+ * El lector sí estaba cubierto. Pero un dependiente que no tiene el código —la etiqueta se despegó,
+ * el artículo se vende a granel, el cliente lo pide por su nombre— escribe unas letras, y de ahí
+ * salen las sugerencias. Ese camino entero estaba sin probar: se podía romper la búsqueda y la suite
+ * seguiría verde.
+ */
+it('teclear unas letras devuelve el artículo, con la misma forma que un escaneo', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'teclea@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'bomb']))
+        ->assertOk()
+        ->json('results');
+
+    expect($datos)->toHaveCount(1)
+        ->and($datos[0]['name'])->toBe('Bomba de agua')
+        ->and($datos[0]['sku'])->toBe('PRB-4471')
+        // La misma forma que devuelve el lector: el terminal pinta las dos igual.
+        ->and($datos[0])->toHaveKeys(['id', 'sku', 'name', 'price', 'stock']);
+});
+
+it('también encuentra por la clave, no solo por el nombre', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'clave@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'PRB-44']))
+        ->assertOk()
+        ->json('results');
+
+    expect($datos)->toHaveCount(1)
+        ->and($datos[0]['sku'])->toBe('PRB-4471');
+});
+
+/*
+ * DESDE LA PRIMERA LETRA.
+ *
+ * Antes hacían falta dos, y en un mostrador eso se nota: el dependiente teclea la inicial, no
+ * aparece nada, y no sabe si es que el artículo no está o que el sistema aún no ha buscado.
+ *
+ * Lo que permite bajarlo no es este umbral, es el TOPE: la respuesta se corta en 24 filas, así que
+ * una «b» no trae medio catálogo. Si alguien quita ese tope, esto deja de ser barato.
+ */
+it('busca desde la primera letra', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'unaletra@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'b']))
+        ->assertOk()
+        ->json('results');
+
+    expect($datos)->toHaveCount(1)
+        ->and($datos[0]['name'])->toBe('Bomba de agua');
+});
+
+/*
+ * El vacío sigue sin buscar: eso no es una búsqueda corta, es no haber empezado. Sin esta línea,
+ * abrir la pantalla dispararía una consulta que devuelve las primeras 24 filas del catálogo.
+ */
+it('el campo vacío no dispara ninguna búsqueda', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'vacio@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => '   ']))
+        ->assertOk()
+        ->assertJson(['results' => []]);
+});
+
+/*
+ * EL AISLAMIENTO. La búsqueda del mostrador devuelve un artículo a partir de un texto: si fallara,
+ * un negocio vería el catálogo del vecino —nombres, claves y precios— sin dejar rastro.
+ */
+it('lo tecleado nunca encuentra artículos de otra empresa', function (): void {
+    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'La Vecina'));
+    app(CurrentCompany::class)->set($otra->id);
+    Product::create(['sku' => 'AJENA-1', 'name' => 'Bomba ajena', 'price' => '100', 'cost' => '50']);
+    app(CurrentCompany::class)->set($this->company->id);
+
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'aislada@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'bomba']))
+        ->assertOk()
+        ->json('results');
+
+    expect(collect($datos)->pluck('name')->all())->not->toContain('Bomba ajena');
+});

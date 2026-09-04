@@ -494,12 +494,14 @@
                     {{-- Se miran los RESULTADOS y no lo tecleado: al meter una línea la celda de
                          clave se limpia para el siguiente artículo, pero la lista se queda para poder
                          añadir otro de la misma búsqueda sin volver a escribir. --}}
-                    <p x-show="results.length === 0 && !searching && barcode.trim().length < 2"
+                    {{-- Decía «teclea unas letras en Clave», y esa columna dejó de tener ese rótulo a la
+                         vista cuando la captura salió de la tabla: mandaba a un sitio que ya no se ve. --}}
+                    <p x-show="results.length === 0 && !searching && barcode.trim().length < 1"
                        class="py-6 text-center text-sm text-slate-400">
-                        Teclea unas letras en <b>Clave</b> y aquí aparece lo que empieza por ahí.
+                        Pasa el lector o teclea abajo: desde la primera letra aparece aquí lo que coincide.
                     </p>
                     <p x-show="searching" x-cloak class="py-8 text-center text-sm text-slate-400">Buscando…</p>
-                    <p x-show="results.length === 0 && !searching && barcode.trim().length >= 2" x-cloak class="bmos-empty">
+                    <p x-show="results.length === 0 && !searching && barcode.trim().length >= 1" x-cloak class="bmos-empty">
                         Sin coincidencias para «<span x-text="barcode"></span>».
                     </p>
 
@@ -706,7 +708,9 @@
                      */
                     async searchProducts() {
                         const q = this.barcode.trim();
-                        if (q.length < 2) { this.results = []; this.resultsPara = ''; this.trasBuscar(); this.searching = false; return; }
+                        // Desde la PRIMERA letra: el mismo umbral que el servidor. Con dos, teclear la
+                        // inicial no daba nada y no se sabía si era que el artículo no está.
+                        if (q.length < 1) { this.results = []; this.resultsPara = ''; this.trasBuscar(); this.searching = false; return; }
 
                         this.searching = true;
                         try {

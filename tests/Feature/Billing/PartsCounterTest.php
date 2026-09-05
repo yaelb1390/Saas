@@ -11,11 +11,14 @@ use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\CRM\Models\Customer;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Support\MasVendidos;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
@@ -383,4 +386,166 @@ it('el resumen desglosa subtotal, ITBIS y total', function (): void {
     expect($html)->toContain('Subtotal')
         ->toContain('ITBIS')
         ->toContain('bmos-mostrador-total');
+});
+
+// ------------------------------------------------------------------ El buscador de clientes
+
+/*
+ * EL AISLAMIENTO, que es lo que más importa aquí.
+ *
+ * Esta ruta devuelve nombres, RNC y teléfonos a partir de un texto. Si fallara, un negocio vería la
+ * cartera de clientes del vecino —con sus identificadores fiscales— tecleando dos letras, y sin
+ * dejar el menor rastro: nadie revisa los registros buscando búsquedas de clientes.
+ */
+it('el buscador de clientes nunca devuelve los de otra empresa', function (): void {
+    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'La Vecina'));
+    app(CurrentCompany::class)->set($otra->id);
+    Customer::create(['name' => 'Ramirez Ajeno', 'tax_id' => '131234567', 'is_active' => true]);
+    app(CurrentCompany::class)->set($this->company->id);
+
+    Customer::create(['name' => 'Ramirez Propio', 'tax_id' => '101010101', 'is_active' => true]);
+
+    /*
+     * Los nombres van SIN TILDE a propósito, y no por descuido.
+     *
+     * La búsqueda distingue acentos: `lower()` baja las mayúsculas pero no quita la tilde, así que
+     * teclear «ramirez» no encuentra «Ramírez». Es una limitación real y anotada aparte —en un país
+     * donde media clientela se apellida Peña o Ramírez, importa—, pero este test es del AISLAMIENTO
+     * entre empresas: con tildes fallaría por el motivo equivocado y taparía lo que viene a vigilar.
+     */
+    $datos = $this->actingAs($this->owner)
+        ->getJson(route('panel.parts.customers', ['q' => 'ramirez']))
+        ->assertOk()
+        ->json('results');
+
+    expect(collect($datos)->pluck('name')->all())
+        ->toContain('Ramirez Propio')
+        ->not->toContain('Ramirez Ajeno');
+});
+
+/*
+ * Se busca por las cuatro cosas por las que un cliente se identifica en el mostrador. La del
+ * teléfono no es un capricho: quien llama para recoger una pieza dice su número, no el nombre con el
+ * que lo dieron de alta hace tres años.
+ */
+it('encuentra al cliente por nombre, RNC, cedula y telefono', function (): void {
+    Customer::create([
+        'name' => 'Ferretería Peña', 'tax_id' => '131889977',
+        'cedula' => '00112345678', 'phone' => '8095551234', 'is_active' => true,
+    ]);
+
+    foreach (['ferret', '131889', '0011234', '80955'] as $termino) {
+        $datos = $this->actingAs($this->owner)
+            ->getJson(route('panel.parts.customers', ['q' => $termino]))
+            ->assertOk()
+            ->json('results');
+
+        expect($datos)->toHaveCount(1, "no encontró por «{$termino}»")
+            ->and($datos[0]['name'])->toBe('Ferretería Peña');
+    }
+});
+
+/*
+ * Archivar un cliente significaba justo esto: que deje de ofrecerse al facturar. El filtro estaba en
+ * el controlador y se ha movido al presenter; este test es el que garantiza que no se perdió por el
+ * camino al cambiar de sitio.
+ */
+it('un cliente archivado no se ofrece para facturar', function (): void {
+    Customer::create(['name' => 'Cliente Archivado', 'is_active' => false]);
+
+    $datos = $this->actingAs($this->owner)
+        ->getJson(route('panel.parts.customers', ['q' => 'archivado']))
+        ->assertOk()
+        ->json('results');
+
+    expect($datos)->toBeEmpty();
+});
+
+/*
+ * Para el crédito fiscal hace falta un identificador válido. Si el cliente tiene RNC se usa ese; si
+ * no, su cédula. La regla se resuelve en el servidor y no en el navegador para que no discrepe de la
+ * que aplica el comprobante.
+ */
+it('devuelve el RNC y, si no lo hay, la cedula', function (): void {
+    Customer::create(['name' => 'Con RNC', 'tax_id' => '131889977', 'cedula' => '00112345678', 'is_active' => true]);
+    Customer::create(['name' => 'Solo Cedula', 'cedula' => '00187654321', 'is_active' => true]);
+
+    $conRnc = $this->actingAs($this->owner)->getJson(route('panel.parts.customers', ['q' => 'Con RNC']))->json('results');
+    $soloCedula = $this->actingAs($this->owner)->getJson(route('panel.parts.customers', ['q' => 'Solo Cedula']))->json('results');
+
+    expect($conRnc[0]['tax_id'])->toBe('131889977')
+        ->and($soloCedula[0]['tax_id'])->toBe('00187654321');
+});
+
+/*
+ * LA GANANCIA DE RENDIMIENTO, y por eso se comprueba.
+ *
+ * La pantalla cargaba TODOS los clientes activos de la empresa en un desplegable, en cada visita.
+ * Si alguien vuelve a meter ese `foreach`, este test cae. Con dos mil clientes no es un detalle: es
+ * la diferencia entre que la pantalla abra o que el cajero espere.
+ */
+it('la pantalla ya no trae todos los clientes dentro del HTML', function (): void {
+    foreach (range(1, 30) as $i) {
+        Customer::create(['name' => "Cliente {$i}", 'is_active' => true]);
+    }
+
+    $html = $this->actingAs($this->owner)->get(route('panel.parts'))->assertOk()->getContent();
+
+    expect($html)->not->toContain('Cliente 17')
+        // Y en su lugar está el buscador.
+        ->toContain(route('panel.parts.customers'));
+});
+
+// ------------------------------------------------------------------ Productos rápidos
+
+/*
+ * Salen de las ventas REALES, no de una lista configurada. Una lista a mano se rellena el primer día
+ * y nadie vuelve a tocarla; lo que se despacha a diario lo dicen las ventas, y se adapta solo a cada
+ * negocio sin pedirle a nadie que configure nada.
+ */
+it('los productos rapidos salen de lo que mas se ha vendido', function (): void {
+    ncfSequence();
+
+    $poco = Product::create(['sku' => 'POCO-1', 'name' => 'Se vende poco', 'cost' => '10', 'price' => '20']);
+    app(StockService::class)->increase($poco, $this->warehouse, StockMovementType::Purchase, '50');
+
+    // El «Filtro» del beforeEach se vende 5; el otro, 1.
+    $this->actingAs($this->owner)->post(route('panel.parts.invoice'), [
+        'cart' => json_encode([
+            ['id' => $this->product->id, 'qty' => '5', 'discount' => '0'],
+            ['id' => $poco->id, 'qty' => '1', 'discount' => '0'],
+        ]),
+        'type' => NcfType::Consumo->value,
+        'paid' => '100000',
+    ])->assertRedirect();
+
+    Cache::flush();
+
+    $ids = app(MasVendidos::class)->ids(8);
+
+    expect($ids)->toHaveCount(2)
+        // Por cantidad despachada, no por número de tickets: en un mostrador se llevan diez tornillos
+        // de una vez y un filtro, y lo que hay que tener a mano es lo que más sale por la puerta.
+        ->and($ids[0])->toBe($this->product->id);
+});
+
+it('los productos rapidos nunca son los de otra empresa', function (): void {
+    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'La Vecina'));
+    app(CurrentCompany::class)->set($otra->id);
+    $ajeno = Product::create(['sku' => 'AJENO-1', 'name' => 'Pieza ajena', 'cost' => '1', 'price' => '2']);
+    app(CurrentCompany::class)->set($this->company->id);
+
+    Cache::flush();
+
+    expect(app(MasVendidos::class)->ids(8))->not->toContain($ajeno->id);
+});
+
+/*
+ * Sin ventas todavía no se pinta la sección: seis botones vacíos no ayudan a nadie, y un negocio que
+ * abre hoy no tiene por qué ver un hueco donde debería haber algo.
+ */
+it('sin ventas todavia no hay productos rapidos', function (): void {
+    Cache::flush();
+
+    expect(app(MasVendidos::class)->ids(8))->toBeEmpty();
 });

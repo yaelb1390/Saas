@@ -18,7 +18,7 @@ use App\Modules\Cash\Services\CashService;
 use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
-use App\Modules\CRM\Models\Customer;
+use App\Modules\CRM\Support\CustomerLookupPresenter;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
@@ -26,6 +26,7 @@ use App\Modules\Sales\DTOs\CreateSaleData;
 use App\Modules\Sales\DTOs\SaleLineData;
 use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Exceptions\InsufficientPaymentException;
+use App\Modules\Sales\Support\MasVendidos;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -41,15 +42,23 @@ use Throwable;
  */
 final class PartsCounterController extends Controller
 {
-    public function index(): View
+    public function index(ProductLookupPresenter $lookup, MasVendidos $masVendidos): View
     {
         $session = $this->turnoAbierto();
 
         return view('panel.parts-counter', [
             'ncfTypes' => NcfType::cases(),
-            // Un cliente archivado no debe ofrecerse al facturar: archivar significaba justo eso y
-            // esta pantalla lo ignoraba.
-            'customers' => Customer::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'tax_id']),
+            /*
+             * LOS CLIENTES YA NO VIAJAN CON LA PANTALLA.
+             *
+             * Se cargaban TODOS los activos en un desplegable, en cada visita. Con doscientos ya
+             * pesa; con dos mil, la pantalla tarda en abrir y el desplegable no sirve —nadie
+             * encuentra a nadie desplazando—. Ahora se buscan bajo demanda contra
+             * `panel.parts.customers`, igual que ya se hacía con el catálogo de piezas.
+             *
+             * El filtro de activos no se pierde: vive en `CustomerLookupPresenter`, que es donde
+             * ahora se decide a quién se puede facturar.
+             */
             'hasWarehouse' => Warehouse::query()->where('is_default', true)->exists(),
             // Para poder decir de dónde sale la pieza. Con uno solo, la pantalla ni lo pregunta.
             'warehouses' => Warehouse::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
@@ -71,11 +80,33 @@ final class PartsCounterController extends Controller
              * siguiente. Por eso se rotula como «próximo», no como «el suyo».
              */
             'siguienteNcf' => $this->siguienteNcfPorTipo(),
+            /*
+             * LOS PRODUCTOS RÁPIDOS salen de lo que de verdad se vende, no de una lista configurada.
+             *
+             * Una lista a mano se rellena el primer día y nadie vuelve a tocarla; las ventas se
+             * adaptan solas a cada negocio. Van con la MISMA forma que un resultado de búsqueda para
+             * que un botón rápido y una coincidencia entren al ticket por el mismo camino.
+             */
+            'rapidos' => $lookup->porIds($masVendidos->ids(8)),
             // La tasa viaja para poder desglosar en pantalla con la MISMA regla que usa el servidor.
             'itbis' => [
                 'tasa' => (float) config('billing.itbis_rate', '18'),
                 'incluido' => (bool) config('billing.prices_include_tax', true),
             ],
+        ]);
+    }
+
+    /**
+     * Busca clientes para el mostrador: por nombre, RNC, cédula o teléfono.
+     *
+     * Sustituye al desplegable que cargaba TODOS los clientes activos de la empresa en cada visita.
+     * Responde 200 siempre, también sin resultados, por el mismo motivo que la búsqueda de piezas:
+     * quien atiende tiene que poder distinguir «este cliente no está» de «el servidor falló».
+     */
+    public function customers(Request $request, CustomerLookupPresenter $lookup): JsonResponse
+    {
+        return response()->json([
+            'results' => $lookup->search((string) $request->query('q', ''), 15),
         ]);
     }
 

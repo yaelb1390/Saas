@@ -68,7 +68,7 @@
             @endcan
         </div>
     @else
-    <div x-data="partsCounter('{{ route('panel.parts.search') }}', @js($siguienteNcf), @js($itbis))">
+    <div x-data="partsCounter('{{ route('panel.parts.search') }}', '{{ route('panel.parts.customers') }}', @js($siguienteNcf), @js($itbis), @js($rapidos))">
         {{--
             CABECERA COMPACTA: quién cobra, por qué caja y con qué comprobante.
 
@@ -210,6 +210,36 @@
                    class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700"></p>
             </div>
 
+            {{--
+                PRODUCTOS RÁPIDOS: lo que más se despacha, a un toque.
+
+                Salen de las ventas reales del último mes, no de una lista configurada —esas se
+                rellenan el primer día y nadie vuelve a tocarlas—. Entran al ticket por el MISMO
+                camino que una coincidencia de búsqueda, porque llegan con la misma forma.
+
+                Si el negocio todavía no ha vendido nada, la sección no se pinta: seis botones vacíos
+                no ayudan a nadie.
+            --}}
+            <div class="mt-4" x-show="rapidos.length > 0" x-cloak>
+                <p class="pos-sug-titulo">
+                    Productos rápidos
+                    <span class="pos-sug-ayuda">Lo que más se vende este mes</span>
+                </p>
+
+                <div class="bmos-mostrador-rapidos">
+                    <template x-for="p in rapidos" :key="p.id">
+                        <button type="button" class="bmos-mostrador-rapido"
+                                :disabled="!p.sellable"
+                                :class="!p.sellable ? 'is-agotado' : ''"
+                                :title="p.sellable ? p.name : porQueNo(p)"
+                                @click="p.sellable ? add(p) : (searchError = porQueNo(p))">
+                            <span class="bmos-mostrador-rapido-nombre" x-text="p.name"></span>
+                            <span class="bmos-mostrador-rapido-precio" x-text="rd(p.price)"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
             {{-- Las coincidencias, debajo de la rejilla: donde está la vista al teclear. --}}
             <div class="mt-4">
                 <p x-show="results.length > 0" x-cloak class="pos-sug-titulo">
@@ -325,15 +355,55 @@
                         @endforeach
                     </select>
 
-                    <label class="bmos-field-label mt-3">Cliente (opcional)</label>
-                    <select name="customer_id" x-model="customerId" class="bmos-input">
-                        <option value="">Sin identificar</option>
-                        @foreach ($customers as $customerOption)
-                            <option value="{{ $customerOption->id }}" data-tax="{{ $customerOption->tax_id }}">{{ $customerOption->name }}</option>
-                        @endforeach
-                    </select>
-                    <input type="text" name="customer_name" x-model="customer" x-show="!customerId"
-                           placeholder="Consumidor final" class="bmos-input mt-2">
+                    {{--
+                        EL CLIENTE SE BUSCA, ya no se elige de una lista.
+
+                        El desplegable cargaba TODOS los clientes activos de la empresa en cada
+                        visita: con doscientos ya pesa, y con dos mil no sirve —nadie encuentra a
+                        nadie desplazando—. Se busca por nombre, RNC, cédula o teléfono, porque quien
+                        llama para recoger una pieza dice su número, no el nombre con el que lo
+                        dieron de alta.
+                    --}}
+                    <label class="bmos-field-label mt-3" for="parts-cliente">Cliente (opcional)</label>
+                    <input type="hidden" name="customer_id" :value="clienteElegido?.id ?? ''">
+
+                    {{-- Elegido: se enseña quién es y se puede soltar de un clic. --}}
+                    <div x-show="clienteElegido" x-cloak class="bmos-mostrador-cliente">
+                        <span>
+                            <b x-text="clienteElegido?.name"></b>
+                            <span class="bmos-mostrador-etq" x-show="clienteElegido?.tax_id" x-text="clienteElegido?.tax_id"></span>
+                        </span>
+                        <button type="button" class="pos-quitar" aria-label="Quitar el cliente"
+                                @click="soltarCliente()">&times;</button>
+                    </div>
+
+                    <div x-show="!clienteElegido" x-cloak class="relative">
+                        <input id="parts-cliente" type="text" x-model="clienteQuery"
+                               @input.debounce.250ms="buscarClientes()"
+                               @keydown.escape="clientes = []"
+                               autocomplete="off"
+                               placeholder="Nombre, RNC, cédula o teléfono…" class="bmos-input">
+
+                        <div x-show="clientes.length > 0" x-cloak class="bmos-mostrador-sug">
+                            <template x-for="c in clientes" :key="c.id">
+                                <button type="button" class="bmos-mostrador-sug-fila" @click="elegirCliente(c)">
+                                    <span x-text="c.name"></span>
+                                    <span class="bmos-mostrador-etq"
+                                          x-text="[c.tax_id, c.phone].filter(Boolean).join(' · ') || '—'"></span>
+                                </button>
+                            </template>
+                        </div>
+
+                        <p x-show="clienteQuery.trim().length > 0 && clientes.length === 0 && !buscandoCliente" x-cloak
+                           class="mt-1 text-xs text-slate-400">
+                            Sin coincidencias. Se facturará al nombre que escribas abajo.
+                        </p>
+
+                        {{-- Sin identificar: el nombre que se imprime, sin ficha en el CRM. Es la
+                             venta de mostrador de toda la vida y tiene que seguir siendo un paso. --}}
+                        <input type="text" name="customer_name" x-model="customer"
+                               placeholder="Consumidor final" class="bmos-input mt-2">
+                    </div>
 
                     <label class="bmos-field-label mt-3">RNC / Cédula <span x-show="requiresTaxId" class="text-rose-500">*</span></label>
                     <input type="text" name="customer_tax_id" x-model="taxId"
@@ -386,10 +456,49 @@
     @endif
 
     <script>
-        function partsCounter(searchUrl, siguienteNcf, itbis) {
+        function partsCounter(searchUrl, clientesUrl, siguienteNcf, itbis, rapidos) {
             return {
                 query: '', results: [], busy: false, searchError: '',
-                cart: [], paid: '', customer: '', customerId: '', taxId: '', ncfType: 'B02',
+                cart: [], paid: '', customer: '', taxId: '', ncfType: 'B02',
+
+                // ── El cliente, que ahora se busca en vez de elegirse de una lista ────────────
+                clienteQuery: '', clientes: [], buscandoCliente: false, clienteElegido: null,
+
+                async buscarClientes() {
+                    const q = this.clienteQuery.trim();
+                    if (q.length < 2) { this.clientes = []; return; }
+
+                    this.buscandoCliente = true;
+                    try {
+                        const res = await fetch(clientesUrl + '?q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } });
+                        this.clientes = res.ok ? ((await res.json()).results || []) : [];
+                    } catch {
+                        // Sin conexión no se puede buscar, pero SÍ se puede facturar a nombre suelto:
+                        // se deja la lista vacía y el campo de «Consumidor final» sigue ahí.
+                        this.clientes = [];
+                    } finally {
+                        this.buscandoCliente = false;
+                    }
+                },
+
+                elegirCliente(c) {
+                    this.clienteElegido = c;
+                    this.clientes = [];
+                    this.clienteQuery = '';
+
+                    /*
+                     * Se rellena el RNC/cédula del cliente, y esto ahorra el error más caro de la
+                     * pantalla: un crédito fiscal emitido con el identificador tecleado a mano y mal.
+                     * Se puede corregir encima; lo que no se hace es obligar a copiarlo.
+                     */
+                    if (c.tax_id) this.taxId = c.tax_id;
+                },
+
+                soltarCliente() {
+                    this.clienteElegido = null;
+                    this.clienteQuery = '';
+                    this.clientes = [];
+                },
 
                 /*
                  * La forma de pago, que decide si el cobro engorda el arqueo del turno.
@@ -415,6 +524,15 @@
                  * lo calcula siempre el servidor; esto solo es lo que se ve mientras se arma.
                  */
                 itbis,
+
+                /**
+                 * Los más vendidos del último mes, ya con forma de resultado de búsqueda.
+                 *
+                 * Esa forma común es lo que permite que un botón rápido y una coincidencia entren al
+                 * ticket por el MISMO camino: sin ella harían falta dos funciones de meter línea, y
+                 * el día que una cambie la otra se queda atrás sin que nadie lo note.
+                 */
+                rapidos,
 
                 /*
                  * Los mismos gestos que en el Punto de Venta: la fila marcada, la cantidad de la línea

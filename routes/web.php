@@ -748,6 +748,11 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/mostrador/abrir-caja', [PartsCounterController::class, 'openSession'])
             ->middleware('can:cash.open')->name('panel.parts.open-session');
 
+        // Buscar cliente por nombre, RNC, cédula o teléfono. Sustituye al desplegable que cargaba
+        // TODOS los clientes activos de la empresa en cada visita a la pantalla.
+        Route::get('/panel/mostrador/clientes', [PartsCounterController::class, 'customers'])
+            ->middleware('can:invoices.issue')->name('panel.parts.customers');
+
         Route::post('/panel/facturas/emitir', [InvoiceController::class, 'issue'])
             ->middleware('can:invoices.issue')->name('panel.invoices.issue');
         Route::post('/panel/facturas/{invoice}/anular', [InvoiceController::class, 'cancel'])

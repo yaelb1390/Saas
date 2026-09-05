@@ -441,3 +441,30 @@ it('lo que EMPIEZA por lo tecleado sale antes que lo que solo lo contiene', func
         // Lo que solo la contiene, al final, aunque el alfabeto lo pondría el primero.
         ->and($nombres[2])->toBe('Aceite para bomba hidráulica');
 });
+
+// ------------------------------------------------------------------ El ticket se desplaza solo
+
+/*
+ * Con muchos artículos la tabla crecía hacia abajo y empujaba el total y el botón de cobrar fuera de
+ * la vista: había que hacer scroll de la página entera para ver cuánto se le cobra al cliente que
+ * está delante esperando.
+ *
+ * El test solo puede fijar el ENGANCHE —qué contenedor lleva la clase—, porque el desplazamiento en
+ * sí lo hace el CSS y aquí no hay navegador. Pero es justo lo que se pierde sin avisar: en esta
+ * pantalla ya ha pasado que una reescritura se llevara piezas enteras sin dar un solo error.
+ */
+it('el ticket lleva su propio marco con desplazamiento', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'scroll@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    conCajaAbierta($this->company->id, $dueno);
+
+    $html = $this->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+
+    expect($html)->toContain('bmos-tabla-envoltura pos-ticket-scroll')
+        // Y la fila de captura sigue DENTRO de ese marco: es la que se clava abajo, y fuera de él
+        // el CSS que la mantiene a la vista no aplicaría.
+        ->toContain('pos-rej-nueva');
+});

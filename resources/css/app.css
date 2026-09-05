@@ -5659,3 +5659,42 @@ a.bmos-destino:hover {
         background: none;
     }
 }
+
+/* ─── El ticket del mostrador se desplaza por dentro ─────────────────────────────────────────────
+   Con muchos artículos la tabla crecía hacia abajo y empujaba el total y el botón de cobrar fuera
+   de la vista. Ahora las LÍNEAS se desplazan dentro de su marco y lo demás se queda quieto. */
+
+@media (min-width: 768px) {
+    .pos-ticket-scroll {
+        /* Sobre 24rem se ven unas ocho líneas, que es un ticket de mostrador normal. En pantallas
+           bajas manda el 46vh, para que el total siga cabiendo debajo sin desplazar la página. */
+        max-height: min(46vh, 24rem);
+        overflow-y: auto;
+    }
+
+    /* La cabecera no se va: sin ella, a mitad de la lista ya no se sabe qué columna es cuál. */
+    .pos-ticket-scroll .pos-rejilla thead th {
+        position: sticky;
+        top: 0;
+        /* Por encima de las celdas clavadas a la derecha, que también son `sticky`: sin este orden,
+           el precio y el importe se pintarían ENCIMA de la cabecera al desplazar. */
+        z-index: 3;
+        background: #f8f9fc;
+    }
+
+    /*
+     * Y LA FILA DE CAPTURA SE QUEDA ABAJO.
+     *
+     * Es la parte que de verdad importa de este cambio. Ese campo tiene el foco y es donde escribe el
+     * lector de pistola; si se fuera con el desplazamiento, a partir de la octava línea habría que
+     * bajar a buscarlo para meter el siguiente artículo. Clavada abajo, se teclea siempre en el mismo
+     * sitio, mire donde mire la lista.
+     */
+    .pos-ticket-scroll .pos-rejilla .pos-rej-nueva td {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        background: #fff;
+        box-shadow: 0 -1px 0 var(--bmos-border);
+    }
+}

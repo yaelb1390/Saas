@@ -155,7 +155,19 @@
                                   x-text="cart.length + (cart.length === 1 ? ' línea' : ' líneas')"></span>
                         </div>
 
-                        <div class="bmos-tabla-envoltura">
+                        {{--
+                            EL TICKET SE DESPLAZA POR DENTRO en vez de empujar la página.
+
+                            Con quince artículos distintos la tabla crecía hacia abajo y se llevaba
+                            por delante el total y el botón de cobrar: había que hacer scroll de la
+                            página entera para ver cuánto se le cobra al cliente que está esperando.
+
+                            Lo que se desplaza son las LÍNEAS. La cabecera se queda arriba y la fila
+                            de captura abajo —ver `.pos-ticket-scroll` en el CSS—: sin eso, a partir
+                            de la octava línea habría que bajar a buscar el campo donde se teclea, que
+                            es justo el que tiene el foco y donde escribe el lector.
+                        --}}
+                        <div class="bmos-tabla-envoltura pos-ticket-scroll">
                             <table class="bmos-table pos-rejilla">
                                 <thead>
                                     <tr>

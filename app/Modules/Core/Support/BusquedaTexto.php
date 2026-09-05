@@ -35,7 +35,7 @@ final class BusquedaTexto
      */
     public static function patron(string $termino): string
     {
-        return '%'.mb_strtolower(str_replace(['%', '_'], ['\%', '\_'], trim($termino))).'%';
+        return '%'.mb_strtolower(self::neutralizar($termino)).'%';
     }
 
     /**
@@ -47,17 +47,48 @@ final class BusquedaTexto
      */
     public static function prefijo(string $termino): string
     {
-        return mb_strtolower(str_replace(['%', '_'], ['\%', '\_'], trim($termino))).'%';
+        return mb_strtolower(self::neutralizar($termino)).'%';
+    }
+
+    /**
+     * Quita el poder de comodín a lo que escribió el usuario, con `!` por delante.
+     *
+     * EL SIGNO DE ADMIRACIÓN SE ESCAPA PRIMERO, y ese orden no es cosmético: si se hiciera después,
+     * el `!` que añaden los pasos anteriores se volvería a escapar y el patrón buscaría otra cosa.
+     */
+    private static function neutralizar(string $termino): string
+    {
+        return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], trim($termino));
     }
 
     /**
      * El trozo de SQL que hay que pegar detrás de un LIKE para que el escape funcione.
      *
-     * PostgreSQL toma la barra invertida como carácter de escape por su cuenta; **SQLite no tiene
-     * ninguno por omisión**, así que sin esto el `\%` de {@see patron()} no protegía nada ahí: quien
-     * buscara «%» acabaría buscando «cualquier cosa». Se declara y deja de depender de la base.
+     * Hace falta porque **SQLite no tiene carácter de escape por omisión**: sin esto, lo que
+     * {@see neutralizar()} protege no quedaría protegido ahí, y quien buscara «%» acabaría buscando
+     * «cualquier cosa».
+     *
+     * ─────────────────────────────────────────────────────────────────────────────────────────────
+     * POR QUÉ ES «!» Y NO LA BARRA INVERTIDA. Esto tumbó la búsqueda ENTERA en producción —el
+     * mostrador, el monitoreo y el buscador del bot de WhatsApp— mientras en local funcionaba
+     * perfectamente. El error era:
+     *
+     *     SQLSTATE[HY093]: Invalid parameter number: parameter was not defined
+     *
+     * En producción la conexión va con `DB_EMULATE_PREPARES=true`, que hace falta para el pooler de
+     * Supabase. En ese modo **PDO analiza el SQL él mismo** para sustituir los `?`, y su analizador
+     * sí trata la barra invertida como escape dentro de una cadena. Al llegar a `escape '\'` cree
+     * que la barra escapa la comilla de cierre, da la cadena por no terminada, y a partir de ahí
+     * deja de reconocer los `?` que vienen detrás: la cuenta de parámetros no cuadra y revienta.
+     *
+     * En local no se veía porque sin emulación quien analiza el SQL es PostgreSQL, y él sí lee
+     * `'\'` como una barra literal. Es decir: un fallo que solo existe en producción.
+     *
+     * `!` no significa nada dentro de una cadena SQL, así que ningún analizador se confunde. Y es
+     * SQL estándar: funciona igual en PostgreSQL y en SQLite.
+     * ─────────────────────────────────────────────────────────────────────────────────────────────
      */
-    public const ESCAPE = " escape '\\'";
+    public const ESCAPE = " escape '!'";
 
     /**
      * Añade a la consulta «alguna de estas columnas contiene el término».

@@ -22,7 +22,98 @@
         </div>
     @endunless
 
-    <div x-data="partsCounter('{{ route('panel.parts.search') }}')" class="grid grid-cols-1 gap-5 lg:grid-cols-4">
+    @if (! $openSession)
+        {{--
+            SIN TURNO NO SE FACTURA.
+
+            Antes sí se podía: la venta se registraba igual, pero se quedaba fuera de todo arqueo, y
+            el descuadre aparecía al contar el efectivo sin forma de saber de qué factura venía.
+
+            La apertura vive en una ruta propia del mostrador y no en la del punto de venta porque
+            aquella está detrás del módulo `pos`: una empresa que solo contrató Facturación se habría
+            quedado mirando una pantalla que le pide un turno que no puede abrir.
+        --}}
+        <div class="mx-auto max-w-md bmos-card bmos-card-pad text-center">
+            <span class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 text-2xl">🔒</span>
+            <p class="text-lg font-semibold text-slate-800">Caja cerrada</p>
+            <p class="mb-4 text-sm text-slate-500">
+                Facturar mueve dinero y existencias. Abre el turno con su fondo inicial para que el
+                cobro entre en el arqueo.
+            </p>
+
+            @can('cash.open')
+                <form method="POST" action="{{ route('panel.parts.open-session') }}" class="flex flex-wrap items-end gap-3">
+                    @csrf
+                    <div class="flex-1 text-left">
+                        <label class="bmos-field-label" for="parts-fondo">Fondo de apertura</label>
+                        <input id="parts-fondo" type="number" name="opening_amount" step="0.01" min="0" value="1000" required class="bmos-input">
+                    </div>
+
+                    {{-- Con un solo almacén no se pregunta: no hay nada que decidir. --}}
+                    @if (count($warehouses) > 1)
+                        <div class="flex-1 text-left">
+                            <label class="bmos-field-label" for="parts-almacen-apertura">Almacén</label>
+                            <select id="parts-almacen-apertura" name="warehouse_id" class="bmos-input">
+                                @foreach ($warehouses as $w)
+                                    <option value="{{ $w->id }}">{{ $w->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
+
+                    <button type="submit" class="bmos-btn bmos-btn-primary">Abrir caja</button>
+                </form>
+            @else
+                <p class="bmos-empty">Tu usuario no puede abrir caja. Pídeselo a quien lleve el turno.</p>
+            @endcan
+        </div>
+    @else
+    <div x-data="partsCounter('{{ route('panel.parts.search') }}', @js($siguienteNcf), @js($itbis))">
+        {{--
+            CABECERA COMPACTA: quién cobra, por qué caja y con qué comprobante.
+
+            Una sola línea a propósito. Lo que hace falta saber de un vistazo antes de teclear es que
+            el turno está abierto y qué NCF va a salir; todo lo demás roba altura al ticket, que es
+            donde se trabaja.
+        --}}
+        <div class="bmos-mostrador-cab">
+            <div class="bmos-mostrador-cab-izq">
+                <span class="bmos-badge badge-green is-punto">Caja abierta</span>
+                <span class="bmos-mostrador-dato">
+                    <span class="bmos-mostrador-etq">Caja</span>
+                    <b>{{ $openSession->cashRegister?->name ?? 'Principal' }}</b>
+                </span>
+                <span class="bmos-mostrador-dato">
+                    <span class="bmos-mostrador-etq">Cajero</span>
+                    <b>{{ $openSession->user?->name ?? auth()->user()?->name }}</b>
+                </span>
+                <span class="bmos-mostrador-dato">
+                    <span class="bmos-mostrador-etq">Fondo</span>
+                    <b>{{ money($openSession->opening_amount) }}</b>
+                </span>
+                @if ($almacenDelTurno = $openSession->almacenDeSalida())
+                    <span class="bmos-mostrador-dato">
+                        <span class="bmos-mostrador-etq">Almacén</span>
+                        <b>{{ $almacenDelTurno->name }}</b>
+                    </span>
+                @endif
+            </div>
+
+            <div class="bmos-mostrador-cab-der">
+                {{-- El NCF que saldría, no uno reservado: si otro terminal se adelanta será el
+                     siguiente. Y si el tipo elegido no tiene secuencia, se dice AQUÍ y no al final. --}}
+                <span class="bmos-mostrador-ncf" x-show="proximoNcf" x-cloak>
+                    <span class="bmos-mostrador-etq">Próximo NCF</span>
+                    <b class="bmos-mono" x-text="proximoNcf"></b>
+                </span>
+                <span class="bmos-mostrador-ncf is-grave" x-show="!proximoNcf" x-cloak>
+                    Sin secuencia activa para este comprobante
+                </span>
+                <span class="bmos-mostrador-dato">{{ now()->format('d/m/Y H:i') }}</span>
+            </div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-4">
         {{-- El documento y, debajo, las coincidencias. --}}
         <div class="lg:col-span-3">
             {{--
@@ -42,13 +133,14 @@
                           x-text="cart.length + (cart.length === 1 ? ' línea' : ' líneas')"></span>
                 </div>
 
-                <div class="bmos-tabla-envoltura">
+                <div class="bmos-tabla-envoltura pos-ticket-scroll">
                     <table class="bmos-table pos-rejilla">
                         <thead>
                             <tr>
                                 <th class="pos-rej-cant">Cant.</th>
                                 <th class="pos-rej-clave">Clave</th>
                                 <th>Descripción</th>
+                                <th class="pos-num pos-rej-desc">Desc.</th>
                                 <th class="pos-num pos-rej-precio">Precio</th>
                                 <th class="pos-num pos-rej-importe">Importe</th>
                                 <th class="pos-rej-quitar"><span class="sr-only">Quitar</span></th>
@@ -58,16 +150,26 @@
                             <template x-for="(item, i) in cart" :key="item.id">
                                 <tr>
                                     <td data-rotulo="Cant." class="pos-rej-cant">
-                                        <input type="number" step="1" min="0" x-model.number="item.qty"
+                                        {{-- Con decimales, y antes no: el `(int)` del servidor convertía medio
+                                             kilo en cero. La columna de la base ya era decimal(15,3); era esta
+                                             pantalla la que redondeaba. --}}
+                                        <input type="number" step="0.001" min="0" x-model.number="item.qty"
                                                aria-label="Cantidad" class="pos-celda pos-num">
                                     </td>
                                     <td data-rotulo="Clave" class="pos-mono pos-rej-clave" x-text="item.sku || '—'"></td>
                                     <td data-rotulo="Descripción" class="pos-recorta" :title="item.name">
                                         <span class="pos-valor" x-text="item.name"></span>
                                     </td>
+                                    {{-- El descuento es la vía para rebajar, y queda registrado COMO descuento:
+                                         en la venta se distingue de un precio de catálogo bajo, y por eso se
+                                         puede auditar después. Tocar el precio no dejaría rastro. --}}
+                                    <td data-rotulo="Desc." class="pos-rej-desc">
+                                        <input type="number" step="0.01" min="0" x-model.number="item.discount"
+                                               aria-label="Descuento de la línea" placeholder="0" class="pos-celda pos-num">
+                                    </td>
                                     {{-- El precio no se escribe: al facturar, el servidor lo relee de la base. --}}
                                     <td data-rotulo="Precio" class="pos-num pos-rej-precio" x-text="rd(item.price)"></td>
-                                    <td data-rotulo="Importe" class="pos-num pos-rej-total" x-text="rd(item.price * item.qty)"></td>
+                                    <td data-rotulo="Importe" class="pos-num pos-rej-total" x-text="rd(importe(item))"></td>
                                     <td class="pos-rej-quitar">
                                         <button type="button" @click="cart.splice(i, 1)" class="pos-quitar" aria-label="Quitar la línea">&times;</button>
                                     </td>
@@ -82,7 +184,7 @@
                                            @keydown.enter.prevent="$refs.searchInput.focus()"
                                            aria-label="Cantidad de la línea nueva" placeholder="1" class="pos-celda pos-num">
                                 </td>
-                                <td colspan="5">
+                                <td colspan="6">
                                     <input id="parts-search" type="text" x-ref="searchInput" x-model="query"
                                            @input.debounce.250ms="search()"
                                            @keydown.enter.prevent="meter()"
@@ -96,7 +198,7 @@
                             </tr>
 
                             <tr x-show="cart.length === 0" x-cloak>
-                                <td colspan="6" class="pos-rej-vacio">
+                                <td colspan="7" class="pos-rej-vacio">
                                     Pasa el lector, teclea la clave, o unas letras para buscar.
                                 </td>
                             </tr>
@@ -171,15 +273,40 @@
              taparlo; aquí están el total y el botón de facturar. --}}
         <div data-asis-evitar>
             <form method="POST" action="{{ route('panel.parts.invoice') }}" x-ref="form"
-                  @submit="$refs.cartInput.value = JSON.stringify(cart.map(i => ({ id: i.id, qty: i.qty })))"
-                  class="bmos-card bmos-card-pad">
+                  @submit="procesando = true; $refs.cartInput.value = JSON.stringify(cart.map(i => ({ id: i.id, qty: i.qty, discount: i.discount || 0 })))"
+                  class="bmos-card bmos-card-pad bmos-mostrador-resumen">
                 @csrf
                 <input type="hidden" name="cart" x-ref="cartInput">
+                <input type="hidden" name="payment_method" :value="metodo">
+
+                <div>
+                    {{--
+                        EL DESGLOSE, que antes no estaba: solo se veía el total.
+
+                        Sin él, quien factura no puede comprobar nada. Un cliente que pregunta cuánto
+                        es el ITBIS obligaba a sacar la calculadora, y un descuento mal tecleado no se
+                        distinguía de un precio bajo hasta ver el recibo impreso.
+
+                        Los números se calculan con la MISMA regla que `TaxCalculator` —la tasa viaja
+                        desde el servidor, no está escrita aquí—, pero lo que se emite lo calcula
+                        siempre el servidor: esto es lo que se ve mientras se arma el ticket.
+                    --}}
+                    <div class="bmos-mostrador-linea">
+                        <span>Subtotal</span><span x-text="rd(base)"></span>
+                    </div>
+                    <div class="bmos-mostrador-linea" x-show="descuento > 0" x-cloak>
+                        <span>Descuento</span><span class="text-rose-600" x-text="'− ' + rd(descuento)"></span>
+                    </div>
+                    <div class="bmos-mostrador-linea">
+                        <span>ITBIS <span class="bmos-mostrador-etq" x-text="'(' + itbis.tasa + '%)'"></span></span>
+                        <span x-text="rd(impuesto)"></span>
+                    </div>
+                    <div class="bmos-mostrador-total">
+                        <span>TOTAL</span><span x-text="rd(total)"></span>
+                    </div>
+                </div>
 
                 <div class="mt-3 border-t border-slate-100 pt-3">
-                    <div class="flex items-center justify-between text-lg font-bold text-slate-800">
-                        <span>Total</span><span x-text="total.toFixed(2)"></span>
-                    </div>
 
                     {{-- De qué almacén sale la mercancía. Con un solo almacén no se pregunta. --}}
                     @if (count($warehouses) > 1)
@@ -212,6 +339,25 @@
                     <input type="text" name="customer_tax_id" x-model="taxId"
                            placeholder="Obligatorio para Crédito Fiscal / Gubernamental" class="bmos-input">
 
+                    {{--
+                        FORMA DE PAGO. Antes no se preguntaba y todo entraba como efectivo: una
+                        factura cobrada con tarjeta inflaba el cajón y el cierre salía con un
+                        sobrante que nadie sabía explicar. El tono de cada botón lo decide el enum en
+                        PHP, para que no haya dos paletas que mantener.
+                    --}}
+                    <label class="bmos-field-label mt-3">Forma de pago</label>
+                    <div class="bmos-mostrador-pagos">
+                        @foreach ($paymentMethods as $method)
+                            <button type="button" class="bmos-pos-opcion"
+                                    data-tono="{{ $method->tono() }}"
+                                    :class="metodo === '{{ $method->value }}' ? 'is-activa' : ''"
+                                    :aria-pressed="metodo === '{{ $method->value }}'"
+                                    @click="metodo = '{{ $method->value }}'">
+                                {{ $method->label() }}
+                            </button>
+                        @endforeach
+                    </div>
+
                     <label class="bmos-field-label mt-3">Pago recibido</label>
                     <input type="number" name="paid" step="0.01" min="0" x-model="paid" placeholder="0.00" class="bmos-input">
                     <div class="mt-2 flex items-center justify-between text-sm">
@@ -220,23 +366,55 @@
                     </div>
 
                     <button type="submit" :disabled="!canInvoice"
-                            class="bmos-btn bmos-btn-primary mt-4 w-full justify-center"
+                            class="bmos-btn bmos-btn-primary bmos-mostrador-facturar mt-4 w-full justify-center"
                             :class="!canInvoice ? 'opacity-50 cursor-not-allowed' : ''">
-                        Facturar <span x-show="cart.length" x-text="'· ' + total.toFixed(2)"></span>
+                        <span x-show="!procesando">Facturar <span x-show="cart.length" x-text="'· ' + rd(total)"></span></span>
+                        <span x-show="procesando" x-cloak>Emitiendo…</span>
                     </button>
-                    <p x-show="requiresTaxId && !taxId.trim()" x-cloak class="mt-2 text-center text-xs text-amber-600">
-                        Este tipo de comprobante exige RNC/Cédula del cliente.
-                    </p>
+
+                    {{-- El porqué, siempre visible cuando el botón está apagado: adivinar por qué no
+                         se puede cobrar es lo que hace que alguien recargue la página y pierda el
+                         ticket entero. --}}
+                    <p x-show="motivoParaNoFacturar && cart.length > 0" x-cloak
+                       x-text="motivoParaNoFacturar"
+                       class="mt-2 text-center text-xs text-amber-600"></p>
                 </div>
             </form>
         </div>
+        </div>
     </div>
+    @endif
 
     <script>
-        function partsCounter(searchUrl) {
+        function partsCounter(searchUrl, siguienteNcf, itbis) {
             return {
                 query: '', results: [], busy: false, searchError: '',
                 cart: [], paid: '', customer: '', customerId: '', taxId: '', ncfType: 'B02',
+
+                /*
+                 * La forma de pago, que decide si el cobro engorda el arqueo del turno.
+                 *
+                 * Antes no se preguntaba y todo se registraba como efectivo: una factura cobrada con
+                 * tarjeta inflaba el cajón, y el cierre salía con un sobrante que nadie sabía de
+                 * dónde venía. El servidor vuelve a acotar el valor, no se fía de esto.
+                 */
+                metodo: 'cash',
+
+                /** Mientras se factura: evita el doble envío con el cliente delante. */
+                procesando: false,
+
+                /** Qué NCF saldría por cada tipo, resuelto en el servidor al abrir la pantalla. */
+                siguienteNcf,
+
+                /*
+                 * La tasa y si el precio ya la incluye, tal como los tiene el servidor.
+                 *
+                 * El desglose de pantalla usa la MISMA regla que `TaxCalculator`, y viaja desde PHP en
+                 * vez de estar escrito aquí: con la tasa duplicada, cambiarla en el `.env` habría
+                 * dejado la pantalla enseñando un ITBIS y la factura declarando otro. Lo que se emite
+                 * lo calcula siempre el servidor; esto solo es lo que se ve mientras se arma.
+                 */
+                itbis,
 
                 /*
                  * Los mismos gestos que en el Punto de Venta: la fila marcada, la cantidad de la línea
@@ -360,10 +538,15 @@
 
                 add(p) {
                     if (!p.sellable) return;
-                    const cantidad = Math.max(1, parseInt(this.nuevaCant, 10) || 1);
+                    /*
+                     * `parseFloat` y no `parseInt`: hay negocios que despachan por peso o por metro, y
+                     * con el entero «0,5» entraba como cero y se corregía a uno. El mínimo es un
+                     * milésimo, el mismo que usa el servidor al armar la línea.
+                     */
+                    const cantidad = Math.max(0.001, parseFloat(this.nuevaCant) || 1);
                     const it = this.cart.find(i => i.id === p.id);
-                    if (it) it.qty += cantidad;
-                    else this.cart.push({ id: p.id, sku: p.sku, name: p.name, price: parseFloat(p.price), qty: cantidad });
+                    if (it) it.qty = Math.round((it.qty + cantidad) * 1000) / 1000;
+                    else this.cart.push({ id: p.id, sku: p.sku, name: p.name, price: parseFloat(p.price), qty: cantidad, discount: 0 });
 
                     /*
                      * Se limpia lo tecleado y se suelta la marca, pero LAS COINCIDENCIAS SE QUEDAN: en
@@ -377,17 +560,60 @@
                     this.marcado = -1;
                     this.$nextTick(() => this.$refs.searchInput?.focus());
                 },
-                get total() { return this.cart.reduce((s, i) => s + i.price * i.qty, 0); },
+                /** Importe de una línea: (precio × cantidad) − descuento, nunca negativo. */
+                importe(i) {
+                    return Math.max(0, (parseFloat(i.price) || 0) * (parseFloat(i.qty) || 0) - (parseFloat(i.discount) || 0));
+                },
+
+                /** Lo que se cobra: la suma de las líneas ya con su descuento aplicado. */
+                get total() { return this.cart.reduce((s, i) => s + this.importe(i), 0); },
+
+                /** Lo que se rebajó en total, para poder enseñarlo como una línea del resumen. */
+                get descuento() {
+                    return this.cart.reduce((s, i) => s + (parseFloat(i.discount) || 0), 0);
+                },
+
+                /*
+                 * Base e ITBIS, con la misma regla que `TaxCalculator`.
+                 *
+                 * Con el precio ya impuesto incluido —lo habitual aquí— la base se saca hacia atrás
+                 * dividiendo, y el impuesto POR DIFERENCIA y no multiplicando: así base + ITBIS cuadra
+                 * al céntimo con el total y no aparece un descuadre de un centavo en el comprobante.
+                 */
+                get base() {
+                    const tasa = parseFloat(this.itbis?.tasa) || 0;
+                    if (tasa === 0) return this.total;
+
+                    return this.itbis.incluido ? this.total / (1 + tasa / 100) : this.total;
+                },
+                get impuesto() { return Math.max(0, this.total - this.base); },
+
+                /** El NCF que saldría con el tipo elegido, o null si ese tipo no puede emitir. */
+                get proximoNcf() { return this.siguienteNcf?.[this.ncfType] ?? null; },
+
                 get change() { const p = parseFloat(this.paid || 0); return Math.max(0, p - this.total); },
                 get requiresTaxId() {
                     const opt = this.$el?.querySelector(`select[name=type] option[value="${this.ncfType}"]`);
                     return opt?.dataset.requires === '1';
                 },
-                get canInvoice() {
-                    const paidOk = parseFloat(this.paid || 0) >= this.total && this.total > 0;
-                    const taxOk = !this.requiresTaxId || this.taxId.trim().length > 0;
-                    return this.cart.length > 0 && paidOk && taxOk;
+                /**
+                 * Por qué NO se puede facturar, en una frase, o null si sí se puede.
+                 *
+                 * Devuelve el motivo en vez de un booleano a propósito: un botón apagado sin decir
+                 * por qué obliga a adivinar, y quien está cobrando tiene un cliente delante. El
+                 * orden es el de lo que hay que arreglar primero.
+                 */
+                get motivoParaNoFacturar() {
+                    if (this.procesando) return 'Emitiendo la factura…';
+                    if (this.cart.length === 0) return 'Agrega al menos una pieza al ticket.';
+                    if (this.total <= 0) return 'El total tiene que ser mayor que cero.';
+                    if (!this.proximoNcf) return 'No hay secuencia activa para este tipo de comprobante.';
+                    if (this.requiresTaxId && !this.taxId.trim()) return 'Este comprobante exige el RNC o la cédula del cliente.';
+                    if (parseFloat(this.paid || 0) < this.total) return 'El pago recibido no cubre el total.';
+
+                    return null;
                 },
+                get canInvoice() { return this.motivoParaNoFacturar === null; },
             };
         }
     </script>

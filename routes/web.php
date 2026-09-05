@@ -735,6 +735,19 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/mostrador/facturar', [PartsCounterController::class, 'invoice'])
             ->middleware('can:invoices.issue')->name('panel.parts.invoice');
 
+        /*
+         * Abrir el turno DESDE EL MOSTRADOR, y no es un duplicado del punto de venta.
+         *
+         * Desde que facturar exige caja abierta, hacía falta poder abrirla aquí: la apertura del POS
+         * vive tras `module:pos`, así que una empresa que solo contrató Facturación se habría
+         * quedado mirando una pantalla que le pide un turno que no tiene forma de abrir.
+         *
+         * El permiso sigue siendo `cash.open`, el mismo que en el punto de venta: quien no puede
+         * abrir caja allí tampoco puede aquí.
+         */
+        Route::post('/panel/mostrador/abrir-caja', [PartsCounterController::class, 'openSession'])
+            ->middleware('can:cash.open')->name('panel.parts.open-session');
+
         Route::post('/panel/facturas/emitir', [InvoiceController::class, 'issue'])
             ->middleware('can:invoices.issue')->name('panel.invoices.issue');
         Route::post('/panel/facturas/{invoice}/anular', [InvoiceController::class, 'cancel'])

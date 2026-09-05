@@ -5698,3 +5698,120 @@ a.bmos-destino:hover {
         box-shadow: 0 -1px 0 var(--bmos-border);
     }
 }
+
+/* ─── Mostrador de repuestos: cabecera, resumen y formas de pago ─────────────────────────────────
+   Se apoya en lo que ya existe —`bmos-card`, `bmos-badge`, `bmos-pos-opcion`, `pos-rejilla`,
+   `pos-ticket-scroll`— y solo añade lo propio de esta pantalla. */
+
+/* La cabecera: una sola línea con el turno y el comprobante. Compacta a propósito: cada píxel que
+   ocupa aquí se lo quita al ticket, que es donde se trabaja. */
+.bmos-mostrador-cab {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    background: #fff;
+}
+
+.bmos-mostrador-cab-izq,
+.bmos-mostrador-cab-der {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.1rem;
+}
+
+.bmos-mostrador-dato {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 0.86rem;
+    color: #475569;
+}
+
+.bmos-mostrador-etq {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+}
+
+.bmos-mostrador-ncf {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: #eef2ff;
+    font-size: 0.86rem;
+    color: #3730a3;
+}
+
+/* Sin secuencia activa no se puede emitir, y eso hay que verlo ANTES de armar el ticket, no al
+   pulsar Facturar con el cliente delante. */
+.bmos-mostrador-ncf.is-grave {
+    background: #fef2f2;
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+/* El resumen se queda a la vista al desplazar: el total y el botón de facturar son lo que se mira
+   cada pocos segundos, y perseguirlos con la rueda es lo que hace lento un mostrador. */
+@media (min-width: 1024px) {
+    .bmos-mostrador-resumen {
+        position: sticky;
+        top: 1rem;
+    }
+}
+
+.bmos-mostrador-linea {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.22rem 0;
+    font-size: 0.9rem;
+    color: #475569;
+    font-variant-numeric: tabular-nums;
+}
+
+/* EL TOTAL MANDA. Es el número por el que se mira un ticket entero, así que se separa del desglose
+   con una línea y sube de tamaño y peso: la jerarquía la da el contraste, no el color. */
+.bmos-mostrador-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding-top: 0.6rem;
+    border-top: 2px solid #e2e8f0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+.bmos-mostrador-total > span:first-child {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+}
+
+/* Las formas de pago, con los mismos botones del terminal táctil y su mismo tono por enum. */
+.bmos-mostrador-pagos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.2rem, 1fr));
+    gap: 0.5rem;
+}
+
+.bmos-mostrador-facturar {
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+    font-size: 1rem;
+}

@@ -454,17 +454,209 @@ it('lo que EMPIEZA por lo tecleado sale antes que lo que solo lo contiene', func
  * pantalla ya ha pasado que una reescritura se llevara piezas enteras sin dar un solo error.
  */
 it('el ticket lleva su propio marco con desplazamiento', function (): void {
+    $html = htmlDelMostrador($this->company->id, 'scroll@mostrador.test');
+
+    /*
+     * EL MECANISMO CAMBIÓ DE SITIO, NO DE OBJETIVO.
+     *
+     * Este test nació porque con quince artículos el ticket crecía hacia abajo y se llevaba por
+     * delante el total y el botón de cobrar. Entonces lo que se acotaba era la tabla; ahora en
+     * escritorio manda la rejilla editable, que crece igual —usa `autoHeight`—, así que el que acota
+     * es SU marco. Si alguien le quita esa clase al fusionar, el fallo vuelve tal cual.
+     */
+    expect($html)->toContain('bmos-rejilla-marco pos-ticket-scroll')
+        /*
+         * Y la fila de captura queda FUERA del marco, justo debajo. Antes iba dentro y se clavaba
+         * con CSS; ahora no hace falta clavarla porque no está en lo que se desplaza. Es donde
+         * escribe el lector de pistola, y tiene que estar siempre en el mismo sitio: si se fuera con
+         * el desplazamiento, a partir de la octava línea habría que bajar a buscarla.
+         */
+        ->toContain('pos-captura');
+});
+
+// ------------------------------------------------------------------ La rejilla editable del ticket
+
+/**
+ * Deja la pantalla del mostrador rendida y devuelve su HTML.
+ */
+function htmlDelMostrador(int $companyId, string $correo): string
+{
     $dueno = withRole(User::create([
-        'company_id' => $this->company->id, 'name' => 'Dueño',
-        'email' => 'scroll@mostrador.test', 'password' => 'secret-password',
+        'company_id' => $companyId, 'name' => 'Dueño',
+        'email' => $correo, 'password' => 'secret-password',
     ]), 'owner');
 
-    conCajaAbierta($this->company->id, $dueno);
+    conCajaAbierta($companyId, $dueno);
 
-    $html = $this->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+    return test()->actingAs($dueno)->get(route('panel.pos'))->assertOk()->getContent();
+}
 
-    expect($html)->toContain('bmos-tabla-envoltura pos-ticket-scroll')
-        // Y la fila de captura sigue DENTRO de ese marco: es la que se clava abajo, y fuera de él
-        // el CSS que la mantiene a la vista no aplicaría.
-        ->toContain('pos-rej-nueva');
+/*
+ * EL TEST QUE SUJETA EL DISEÑO DE LAS DOS MAQUETACIONES.
+ *
+ * El ticket se pinta de dos maneras —rejilla de tablet para arriba, tarjetas en teléfono— pero el
+ * campo del lector tiene que existir UNA sola vez. Si algún día alguien lo duplica dentro de cada
+ * maquetación, habrá dos elementos con el mismo `id` y el mismo `x-ref`: el lector de pistola
+ * escribirá en el que no se ve y las ventas se meterán en el vacío, sin un solo error en consola.
+ */
+it('el ticket trae las dos maquetaciones y el campo del lector una sola vez', function (): void {
+    $html = htmlDelMostrador($this->company->id, 'rejilla@mostrador.test');
+
+    expect($html)
+        ->toContain('x-ref="rejillaTicket"')          // la rejilla editable
+        ->toContain('bmos-tabla-envoltura md:hidden') // las tarjetas del teléfono
+        ->and(substr_count($html, 'id="pos-scan"'))->toBe(1)
+        ->and(substr_count($html, 'x-ref="scanInput"'))->toBe(1);
+});
+
+/*
+ * EL PRECIO NO SE EDITA, Y ESO ES UNA REGLA DE SEGURIDAD, NO UN DETALLE.
+ *
+ * Al cobrar, el servidor relee el precio de la base e ignora lo que mande el navegador. Una celda
+ * editable aquí dejaría teclear 1.00 en un artículo de 1000 y cobrar 1000 igual: la pantalla diría
+ * una cosa y el recibo otra. Si alguien añade `editable` a esa columna, este test cae.
+ */
+it('la columna del precio no se declara editable', function (): void {
+    $html = htmlDelMostrador($this->company->id, 'precio@mostrador.test');
+
+    // El trozo de la definición de esa columna, hasta que se cierra.
+    preg_match("/colId: 'price'.*?\},/s", $html, $m);
+
+    expect($m)->not->toBeEmpty()
+        ->and($m[0])->not->toContain('editable');
+});
+
+/*
+ * Qué columnas existen lo decide el perfil del negocio, en PHP, y viaja a la rejilla ya resuelto.
+ * Si eso se decidiera también en JavaScript habría dos sitios donde encenderlo y un día
+ * discreparían: la pantalla enseñaría el descuento por línea y el servidor lo ignoraría.
+ */
+it('las columnas opcionales viajan resueltas desde el perfil, no decididas en el navegador', function (): void {
+    $html = htmlDelMostrador($this->company->id, 'perfil@mostrador.test');
+
+    /*
+     * El objeto de configuración que recibe la rejilla, con una clave por opción del perfil.
+     *
+     * Las comillas van como `"` porque así las escribe la directiva `@js` de Laravel, que
+     * envuelve el objeto en un `JSON.parse`. Se comprueba tal cual sale al HTML y no una versión
+     * idealizada: un test que dé por hecho otro escapado pasaría o fallaría por el motivo equivocado.
+     */
+    // La barra invertida se arma por código a propósito: escrita a mano en el fuente es de las cosas
+    // que se pierden por el camino sin que nadie lo note, y el test pasaría a comprobar otra cosa.
+    $comilla = chr(92).'u0022';
+
+    expect($html)
+        ->toContain($comilla.'descuento'.$comilla)
+        ->toContain($comilla.'serie'.$comilla)
+        ->toContain($comilla.'empleado'.$comilla)
+        ->toContain($comilla.'nota'.$comilla)
+        ->toContain($comilla.'paso'.$comilla)
+        // Y que la rejilla lo LEE de ahí, en vez de decidirlo por su cuenta.
+        ->toContain('const c = this.rejillaConfig;');
+});
+
+// ------------------------------------------------------------------ Teclear el artículo a mano
+
+/*
+ * TECLEAR A MANO NO TENÍA NI UN TEST, y es la mitad del trabajo del mostrador.
+ *
+ * El lector sí estaba cubierto. Pero un dependiente que no tiene el código —la etiqueta se despegó,
+ * el artículo se vende a granel, el cliente lo pide por su nombre— escribe unas letras, y de ahí
+ * salen las sugerencias. Ese camino entero estaba sin probar: se podía romper la búsqueda y la suite
+ * seguiría verde.
+ */
+it('teclear unas letras devuelve el artículo, con la misma forma que un escaneo', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'teclea@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'bomb']))
+        ->assertOk()
+        ->json('results');
+
+    expect($datos)->toHaveCount(1)
+        ->and($datos[0]['name'])->toBe('Bomba de agua')
+        ->and($datos[0]['sku'])->toBe('PRB-4471')
+        // La misma forma que devuelve el lector: el terminal pinta las dos igual.
+        ->and($datos[0])->toHaveKeys(['id', 'sku', 'name', 'price', 'stock']);
+});
+
+it('también encuentra por la clave, no solo por el nombre', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'clave@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'PRB-44']))
+        ->assertOk()
+        ->json('results');
+
+    expect($datos)->toHaveCount(1)
+        ->and($datos[0]['sku'])->toBe('PRB-4471');
+});
+
+/*
+ * DESDE LA PRIMERA LETRA.
+ *
+ * Antes hacían falta dos, y en un mostrador eso se nota: el dependiente teclea la inicial, no
+ * aparece nada, y no sabe si es que el artículo no está o que el sistema aún no ha buscado.
+ *
+ * Lo que permite bajarlo no es este umbral, es el TOPE: la respuesta se corta en 24 filas, así que
+ * una «b» no trae medio catálogo. Si alguien quita ese tope, esto deja de ser barato.
+ */
+it('busca desde la primera letra', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'unaletra@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'b']))
+        ->assertOk()
+        ->json('results');
+
+    expect($datos)->toHaveCount(1)
+        ->and($datos[0]['name'])->toBe('Bomba de agua');
+});
+
+/*
+ * El vacío sigue sin buscar: eso no es una búsqueda corta, es no haber empezado. Sin esta línea,
+ * abrir la pantalla dispararía una consulta que devuelve las primeras 24 filas del catálogo.
+ */
+it('el campo vacío no dispara ninguna búsqueda', function (): void {
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'vacio@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => '   ']))
+        ->assertOk()
+        ->assertJson(['results' => []]);
+});
+
+/*
+ * EL AISLAMIENTO. La búsqueda del mostrador devuelve un artículo a partir de un texto: si fallara,
+ * un negocio vería el catálogo del vecino —nombres, claves y precios— sin dejar rastro.
+ */
+it('lo tecleado nunca encuentra artículos de otra empresa', function (): void {
+    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'La Vecina'));
+    app(CurrentCompany::class)->set($otra->id);
+    Product::create(['sku' => 'AJENA-1', 'name' => 'Bomba ajena', 'price' => '100', 'cost' => '50']);
+    app(CurrentCompany::class)->set($this->company->id);
+
+    $dueno = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueño',
+        'email' => 'aislada@mostrador.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $datos = $this->actingAs($dueno)
+        ->getJson(route('panel.pos.search', ['q' => 'bomba']))
+        ->assertOk()
+        ->json('results');
+
+    expect(collect($datos)->pluck('name')->all())->not->toContain('Bomba ajena');
 });

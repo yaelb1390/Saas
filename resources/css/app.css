@@ -5961,3 +5961,257 @@ a.bmos-destino:hover {
 .bmos-mostrador-reparto-fila .bmos-input {
     padding: 0.45rem 0.6rem;
 }
+
+/* ─── El portal del repartidor ───────────────────────────────────────────────────────────────────
+   Es la pantalla que se usa en el peor sitio de todo el sistema: de pie en la calle, con una mano,
+   con prisa y con el sol dando en el cristal. Todo lo de aquí abajo sale de eso.
+
+   Antes esta vista no usaba ni una clase del sistema —solo Tailwind suelto—, así que además de verse
+   distinta al resto, heredaba del layout un ancho de escritorio y la tarjeta se estiraba de lado a
+   lado dejando media pantalla vacía. */
+
+.entregas {
+    /* Contiene el ancho SIN tocar el layout, que lo comparten más pantallas. En el móvil no se nota;
+       en un escritorio deja de haber una tarjeta de 1.200 px con tres líneas dentro. */
+    max-width: 34rem;
+    margin-inline: auto;
+}
+
+.entrega {
+    position: relative;
+    overflow: hidden;
+    background: var(--bmos-surface);
+    border: 1px solid var(--bmos-border);
+    border-radius: 1rem;
+    padding: 1.1rem 1.1rem 1.1rem 1.35rem;
+    box-shadow:
+        0 1px 2px rgba(16, 24, 40, 0.06),
+        0 6px 16px -10px rgba(16, 24, 40, 0.18);
+}
+
+/* El estado, como filo de color y no como etiqueta suelta en una esquina: se reconoce de un vistazo
+   sin leer, que es lo único que se puede hacer mientras se conduce. */
+.entrega::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 0.3rem;
+    background: var(--entrega-tono, #94a3b8);
+}
+
+.entrega[data-estado='assigned'] { --entrega-tono: #4f46e5; }
+.entrega[data-estado='in_transit'] { --entrega-tono: #0891b2; }
+.entrega[data-estado='pending'] { --entrega-tono: #94a3b8; }
+
+/* A DÓNDE HAY QUE IR: lo más grande de la tarjeta, porque es lo único que necesita mirar. */
+.entrega-direccion {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--bmos-text);
+    overflow-wrap: anywhere;
+}
+
+.entrega-cliente {
+    margin-top: 0.15rem;
+    font-size: 0.9rem;
+    color: var(--bmos-muted);
+}
+
+/* LA SEÑA («callejón blanco», «al lado del colmado»).
+
+   Va destacada y con rótulo, y no como un gris más pequeño al final. En República Dominicana la
+   dirección casi nunca basta y esto es lo que de verdad encuentra la casa: enterrarlo en letra
+   chica era esconder el dato más útil de la tarjeta. */
+.entrega-sena {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.7rem;
+    border: 1px dashed #fcd34d;
+    background: #fffbeb;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    color: #78350f;
+    overflow-wrap: anywhere;
+}
+
+.entrega-sena-rotulo {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #b45309;
+}
+
+/* Llamar · Waze · Google Maps, los tres iguales y del tamaño del pulgar. Ninguno manda sobre los
+   otros: cuál se usa depende de si la dirección se entiende o hay que preguntar. */
+.entrega-acciones {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.entrega-accion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 3.25rem;
+    padding: 0.45rem 0.3rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.7rem;
+    background: #f8f9fc;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.entrega-accion:active {
+    background: #eef1f8;
+}
+
+.entrega-accion svg {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+/* Guardar el punto es una acción de mantenimiento, no del reparto: discreta a propósito, para que no
+   compita con «Entregada». */
+.entrega-guardar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: 2.75rem;
+    margin-top: 0.5rem;
+    border: 1px dashed var(--bmos-border);
+    border-radius: 0.7rem;
+    background: transparent;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    touch-action: manipulation;
+}
+
+/* Ya guardada: se dice, y se deja de ofrecer como algo pendiente. Sin este acuse, el repartidor lo
+   pulsa en cada entrega sin saber nunca si sirvió de algo. */
+.entrega-guardar.is-guardada {
+    border-style: solid;
+    border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+/* Lo que pasa nueve de cada diez veces: entregada. Es el único a todo lo ancho y el único en verde. */
+.entrega-principal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.5rem;
+    width: 100%;
+    min-height: 3.5rem;
+    margin-top: 0.85rem;
+    padding: 0.6rem 1rem;
+    border-radius: 0.8rem;
+    background: linear-gradient(135deg, #059669, #10b981);
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 8px 20px -10px rgba(5, 150, 105, 0.8);
+    touch-action: manipulation;
+}
+
+.entrega-principal:active {
+    transform: scale(0.99);
+}
+
+/* El importe, UNA sola vez y aquí: antes salía como aviso arriba y otra vez dentro del botón, y dos
+   veces el mismo número hace dudar de si son dos cobros. */
+.entrega-principal-importe {
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: normal;
+    word-break: keep-all;
+}
+
+.entrega-secundarias {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.entrega-suave {
+    min-height: 3rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.7rem;
+    background: var(--bmos-surface);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    touch-action: manipulation;
+}
+
+.entrega-suave:active {
+    background: #f1f3f9;
+}
+
+/* Segundo paso: el motivo. Botones y no un desplegable, que en un móvil son dos toques y una lista
+   que tapa la pantalla entera. */
+.entrega-motivo {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.7rem;
+    background: var(--bmos-surface);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+    text-align: start;
+    touch-action: manipulation;
+}
+
+.entrega-motivo:active {
+    background: #f1f3f9;
+}
+
+/* Lo que lleva cobrado encima. Va arriba del todo porque es lo que le van a preguntar al llegar al
+   local, y porque saber que lleva tres mil pesos en el bolsillo cambia cómo conduce. */
+.entrega-encima {
+    border: 1px solid #fcd34d;
+    border-radius: 0.9rem;
+    background: #fffbeb;
+    padding: 0.9rem 1rem;
+}
+
+.entrega-encima-cifra {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #78350f;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Lo cerrado hoy: en pequeño, pero visible. Sin esto, pulsar el botón equivocado hace desaparecer la
+   entrega y no hay forma de enterarse hasta que llama el cliente. */
+.entrega-cerrada {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.8rem;
+    background: var(--bmos-surface);
+}

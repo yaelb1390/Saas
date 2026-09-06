@@ -31,7 +31,24 @@ final class PosProfile
         'serial' => 'Nº de serie / IMEI',
         'line_note' => 'Nota por línea',
         'decimal_qty' => 'Cantidad decimal (peso/medida)',
-        'services' => 'Servicios (sin stock)',
+        /*
+         * AQUÍ HABÍA UN «Servicios (sin stock)» QUE NO HACÍA NADA, y se quitó a propósito.
+         *
+         * Vender servicios ya funciona entero sin él: lo gobierna `products.track_stock`, que sí está
+         * conectado —no descuenta existencia al vender, no la devuelve al anular, no marca «Agotado»,
+         * y las entradas y los conteos lo saltan—. El interruptor no encendía ni apagaba nada: no
+         * tenía un solo consumidor en el proyecto.
+         *
+         * Y CONECTARLO HABRÍA SIDO PEOR. Lo único que podía hacer era esconder la casilla «lleva
+         * existencia» del formulario de productos; como el perfil «General» lo traía apagado, a todo
+         * negocio con un servicio ya dado de alta —un cobro de domicilio, una instalación— le habría
+         * desaparecido el campo sin poder volver a editarlo. Un arreglo que quita capacidad a quien
+         * ya la usa.
+         *
+         * Un interruptor que no hace nada es peor que no tenerlo: enseña que esta pantalla miente, y
+         * el día que se dude de uno que SÍ importa —los del descuento, que ahora se comprueban en el
+         * servidor— no habrá forma de saber de cuáles fiarse.
+         */
         // Comida: preguntar al cobrar si es para comer aquí, para llevar o con envío. Solo el envío
         // crea una entrega; los otros dos se anotan para saber después qué se vende de cada forma.
         'order_type' => 'Tipo de pedido (local / llevar / envío)',
@@ -66,7 +83,9 @@ final class PosProfile
         'comida' => ['order_type', 'line_note', 'global_discount'],
         'ropa' => ['line_discount', 'global_discount'],
         'repuestos' => ['line_discount', 'line_note'],
-        'salon' => ['tip', 'attendant', 'services', 'line_note'],
+        // El salón sigue vendiendo servicios: eso lo da de alta el producto con «lleva existencia»
+        // apagado, no un interruptor del terminal. Ver el comentario de OPTIONS.
+        'salon' => ['tip', 'attendant', 'line_note'],
         'tecnologia' => ['serial', 'line_note', 'line_discount'],
     ];
 

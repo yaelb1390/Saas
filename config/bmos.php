@@ -61,4 +61,24 @@ return [
         'sucesos' => (int) env('BMOS_RETENCION_SUCESOS', 90),
         'auditoria' => (int) env('BMOS_RETENCION_AUDITORIA', 0),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Descuentos
+    |--------------------------------------------------------------------------
+    |
+    | Cuánto puede rebajar quien NO tiene el permiso `sales.discount` —el cajero, típicamente—.
+    | Quien lo tiene rebaja sin límite.
+    |
+    | Diez por ciento de fábrica: cubre la rebaja de mostrador de toda la vida —quitar los pesos
+    | sueltos para redondear— sin dejar que se regale un artículo. Antes no había ni permiso ni
+    | tope: cualquiera podía aplicar un 100 % y el servidor lo aceptaba.
+    |
+    | Es el valor POR OMISIÓN: cada empresa puede fijar el suyo en sus ajustes, porque una
+    | ferretería y una cafetería no tienen el mismo margen.
+    |
+    */
+    'descuentos' => [
+        'tope_por_ciento' => (string) env('BMOS_DESCUENTO_TOPE', '10'),
+    ],
 ];

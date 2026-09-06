@@ -61,6 +61,15 @@ final class RoleProvisioner
         // así que es un permiso aparte y no se deduce de «ver ventas». Quien consulta el historial no
         // tiene por qué poder deshacerlo.
         'sales.void',
+        /*
+         * Rebajar sin tope.
+         *
+         * Hasta ahora no existía ningún permiso ni ningún límite: cualquiera con acceso al cobro
+         * podía aplicar el descuento que quisiera —incluido el 100 %— y el servidor lo aceptaba sin
+         * rechistar. Un descuento es dinero que sale del negocio, así que se trata como tal: quien
+         * tiene este permiso rebaja libre, y quien no, hasta el tope que fije la empresa.
+         */
+        'sales.discount',
         'pos.operate',
         // Facturación
         'invoices.view',
@@ -160,6 +169,8 @@ final class RoleProvisioner
             'sales.view',
             'sales.create',
             'sales.void',
+            // Rebajar sin tope. El cajero NO lo tiene: rebaja hasta el límite que fije la empresa.
+            'sales.discount',
             'quotes.view',
             'quotes.manage',
             'quotes.send',

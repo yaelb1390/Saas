@@ -17,9 +17,11 @@ use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Support\MasVendidos;
+use App\Modules\Sales\Support\TopeDeDescuento;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
@@ -548,4 +550,140 @@ it('sin ventas todavia no hay productos rapidos', function (): void {
     Cache::flush();
 
     expect(app(MasVendidos::class)->ids(8))->toBeEmpty();
+});
+
+// ------------------------------------------------------------------ El tope de descuento
+
+/**
+ * Un usuario que puede facturar pero NO puede rebajar sin tope.
+ *
+ * Con los roles de fábrica ese caso no se da en esta pantalla: `invoices.issue` solo lo tienen dueño
+ * y admin, y los dos tienen también `sales.discount`. El tope está pensado para roles a medida —y
+ * para el punto de venta, donde sí cobra el cajero—, así que aquí se construye a mano el usuario que
+ * lo sufre. Sin este montaje, el tope no se probaría nunca.
+ */
+function cajeroQueFactura(int $companyId): User
+{
+    $usuario = User::create([
+        'company_id' => $companyId, 'name' => 'Cajero que factura',
+        'email' => 'cajero.factura@mostrador.test', 'password' => 'secret-password',
+    ]);
+
+    app(PermissionRegistrar::class)->setPermissionsTeamId($companyId);
+    $usuario->givePermissionTo('invoices.issue');
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+    return $usuario;
+}
+
+/*
+ * EL TOPE SE COMPRUEBA EN EL SERVIDOR, no solo en pantalla.
+ *
+ * Hasta ahora no había ni permiso ni límite: cualquiera con acceso al cobro podía aplicar un 100 % y
+ * el servidor lo aceptaba sin rechistar. La pantalla avisa para no hacer perder el tiempo, pero quien
+ * manda es esto: una petición a mano con el descuento inflado tiene que encontrarse el mismo muro.
+ */
+it('sin permiso, un descuento por encima del tope se rechaza', function (): void {
+    ncfSequence();
+    $cajero = cajeroQueFactura($this->company->id);
+
+    // 250 de bruto; el tope de fábrica es el 10 %, o sea 25.
+    $respuesta = $this->actingAs($cajero)->post(route('panel.parts.invoice'), [
+        'cart' => ticketDe($this->product->id, '1', '100'),
+        'type' => NcfType::Consumo->value,
+        'paid' => '250',
+    ])->assertRedirect();
+
+    $respuesta->assertSessionHas('panel_error');
+
+    expect(Sale::count())->toBe(0)
+        ->and(Invoice::count())->toBe(0);
+});
+
+it('sin permiso, un descuento dentro del tope si pasa', function (): void {
+    ncfSequence();
+    $cajero = cajeroQueFactura($this->company->id);
+
+    $this->actingAs($cajero)->post(route('panel.parts.invoice'), [
+        'cart' => ticketDe($this->product->id, '1', '25'),   // justo el 10 % de 250
+        'type' => NcfType::Consumo->value,
+        'paid' => '225',
+    ])->assertRedirect()->assertSessionHas('panel_ok');
+
+    expect(Sale::query()->latest('id')->firstOrFail()->items->first()->discount)->toBe('25.00');
+});
+
+/*
+ * Quien tiene el permiso rebaja libre. Es la otra mitad de la regla: si el dueño no pudiera pasar del
+ * tope, el permiso no serviría de nada y habría que ir a los ajustes para cada excepción.
+ */
+it('con permiso se puede rebajar por encima del tope', function (): void {
+    ncfSequence();
+
+    // El dueño del `beforeEach` tiene `sales.discount` por su rol.
+    $this->actingAs($this->owner)->post(route('panel.parts.invoice'), [
+        'cart' => ticketDe($this->product->id, '1', '200'),
+        'type' => NcfType::Consumo->value,
+        'paid' => '50',
+    ])->assertRedirect()->assertSessionHas('panel_ok');
+
+    expect(Sale::query()->latest('id')->firstOrFail()->total)->toBe('50.00');
+});
+
+/*
+ * Cada empresa fija el suyo: una ferretería y una cafetería no tienen el mismo margen. El ajuste de
+ * la empresa manda sobre el valor de fábrica.
+ */
+it('la empresa puede fijar su propio tope', function (): void {
+    ncfSequence();
+    $cajero = cajeroQueFactura($this->company->id);
+
+    $this->company->update(['settings' => ['discount_max_percent' => '50']]);
+
+    // 100 de rebaja sobre 250 es el 40 %: pasaría del 10 % de fábrica, pero no del 50 % de la empresa.
+    $this->actingAs($cajero)->post(route('panel.parts.invoice'), [
+        'cart' => ticketDe($this->product->id, '1', '100'),
+        'type' => NcfType::Consumo->value,
+        'paid' => '150',
+    ])->assertRedirect()->assertSessionHas('panel_ok');
+
+    expect(Sale::count())->toBe(1);
+});
+
+/*
+ * EL TOPE SE MIDE CONTRA EL BRUTO, no contra lo ya rebajado.
+ *
+ * Si se midiera sobre el neto, el porcentaje se calcularía sobre un número que el propio descuento
+ * encoge, y el límite daría de sí cuanto más se rebaja: con un tope del 10 %, rebajar la mitad de la
+ * venta acabaría pasando la comprobación a base de rebajar más. Este test fija la base correcta.
+ */
+it('el tope se mide sobre el precio sin rebajar', function (): void {
+    $topes = app(TopeDeDescuento::class);
+    $cajero = cajeroQueFactura($this->company->id);
+    $this->actingAs($cajero);
+
+    // Bruto 1000, tope 10% => 100 de rebaja como máximo.
+    expect($topes->maximoEnDinero($cajero, '1000'))->toBe('100.00')
+        ->and($topes->excedido($cajero, '1000', '100'))->toBeFalse()
+        ->and($topes->excedido($cajero, '1000', '100.01'))->toBeTrue();
+});
+
+it('un tope disparatado en los ajustes se ignora', function (): void {
+    $topes = app(TopeDeDescuento::class);
+
+    // Un negativo dejaría el mostrador sin poder rebajar un peso; un 500 % abriría la mano del todo.
+    $this->company->update(['settings' => ['discount_max_percent' => '-5']]);
+    expect($topes->porcentaje())->toBe('10');
+
+    $this->company->update(['settings' => ['discount_max_percent' => '500']]);
+    expect($topes->porcentaje())->toBe('10');
+});
+
+it('la pantalla le dice al usuario hasta cuanto puede rebajar', function (): void {
+    $cajero = cajeroQueFactura($this->company->id);
+
+    $html = $this->actingAs($cajero)->get(route('panel.parts'))->assertOk()->getContent();
+
+    // Viaja el tope; con permiso viajaría `null` y la pantalla no avisaría de nada.
+    expect($html)->toContain('topeDescuento');
 });

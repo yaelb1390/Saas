@@ -27,6 +27,7 @@ use App\Modules\Sales\DTOs\SaleLineData;
 use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Exceptions\InsufficientPaymentException;
 use App\Modules\Sales\Support\MasVendidos;
+use App\Modules\Sales\Support\TopeDeDescuento;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -42,7 +43,7 @@ use Throwable;
  */
 final class PartsCounterController extends Controller
 {
-    public function index(ProductLookupPresenter $lookup, MasVendidos $masVendidos): View
+    public function index(ProductLookupPresenter $lookup, MasVendidos $masVendidos, TopeDeDescuento $topes): View
     {
         $session = $this->turnoAbierto();
 
@@ -88,6 +89,13 @@ final class PartsCounterController extends Controller
              * que un botón rápido y una coincidencia entren al ticket por el mismo camino.
              */
             'rapidos' => $lookup->porIds($masVendidos->ids(8)),
+            /*
+             * El tope de rebaja de QUIEN está cobrando, para poder avisarle antes de que lo intente.
+             *
+             * `null` significa sin límite —tiene `sales.discount`—, que no es lo mismo que un tope
+             * enorme: la pantalla tiene que poder decir «rebajas libre» en vez de un número.
+             */
+            'topeDescuento' => $topes->sinLimite(auth()->user()) ? null : (float) $topes->porcentaje(),
             // La tasa viaja para poder desglosar en pantalla con la MISMA regla que usa el servidor.
             'itbis' => [
                 'tasa' => (float) config('billing.itbis_rate', '18'),
@@ -212,7 +220,7 @@ final class PartsCounterController extends Controller
         ]);
     }
 
-    public function invoice(IssuePartsInvoiceRequest $request, CounterInvoiceService $counter): RedirectResponse
+    public function invoice(IssuePartsInvoiceRequest $request, CounterInvoiceService $counter, TopeDeDescuento $topes): RedirectResponse
     {
         /*
          * EL ALMACÉN QUE SE ELIGIÓ, y el de por omisión solo como red.
@@ -264,6 +272,34 @@ final class PartsCounterController extends Controller
 
         if ($lines === []) {
             return back()->with('panel_error', 'El ticket está vacío.');
+        }
+
+        /*
+         * EL TOPE DE DESCUENTO, comprobado AQUÍ y no solo en pantalla.
+         *
+         * La pantalla avisa para no hacer perder el tiempo, pero quien manda es esto: una petición a
+         * mano con el descuento inflado tiene que encontrarse el mismo muro que el navegador. Es la
+         * misma doctrina que el precio, que siempre se relee del catálogo.
+         *
+         * Se mide contra el BRUTO —lo que costaría sin rebajas— y no contra el neto: sobre lo ya
+         * rebajado, el porcentaje se calcularía sobre un número que el propio descuento encoge, y el
+         * tope daría de sí cuanto más se rebaja.
+         */
+        $bruto = '0';
+        $descuento = '0';
+
+        foreach ($lines as $line) {
+            $bruto = bcadd($bruto, bcmul($line->quantity, $line->unitPrice, 2), 2);
+            $descuento = bcadd($descuento, $line->discount, 2);
+        }
+
+        if ($topes->excedido($request->user(), $bruto, $descuento)) {
+            $maximo = $topes->maximoEnDinero($request->user(), $bruto);
+
+            return back()->withInput()->with(
+                'panel_error',
+                "Tu usuario puede rebajar hasta un {$topes->porcentaje()}% de la venta, es decir ".money($maximo).'. Pídeselo a quien lleve el negocio.',
+            );
         }
 
         try {

@@ -68,7 +68,7 @@
             @endcan
         </div>
     @else
-    <div x-data="partsCounter('{{ route('panel.parts.search') }}', '{{ route('panel.parts.customers') }}', @js($siguienteNcf), @js($itbis), @js($rapidos))">
+    <div x-data="partsCounter('{{ route('panel.parts.search') }}', '{{ route('panel.parts.customers') }}', @js($siguienteNcf), @js($itbis), @js($rapidos), @js($topeDescuento))">
         {{--
             CABECERA COMPACTA: quién cobra, por qué caja y con qué comprobante.
 
@@ -456,7 +456,7 @@
     @endif
 
     <script>
-        function partsCounter(searchUrl, clientesUrl, siguienteNcf, itbis, rapidos) {
+        function partsCounter(searchUrl, clientesUrl, siguienteNcf, itbis, rapidos, topeDescuento) {
             return {
                 query: '', results: [], busy: false, searchError: '',
                 cart: [], paid: '', customer: '', taxId: '', ncfType: 'B02',
@@ -533,6 +533,15 @@
                  * el día que una cambie la otra se queda atrás sin que nadie lo note.
                  */
                 rapidos,
+
+                /**
+                 * Hasta qué porcentaje puede rebajar este usuario, o null si no tiene tope.
+                 *
+                 * Es un AVISO, no la regla: quien manda es el servidor, que vuelve a comprobarlo al
+                 * facturar. Esto está para que nadie arme el ticket entero y se lleve el rechazo con
+                 * el cliente delante.
+                 */
+                topeDescuento,
 
                 /*
                  * Los mismos gestos que en el Punto de Venta: la fila marcada, la cantidad de la línea
@@ -721,10 +730,30 @@
                  * por qué obliga a adivinar, y quien está cobrando tiene un cliente delante. El
                  * orden es el de lo que hay que arreglar primero.
                  */
+                /*
+                 * El bruto: lo que costaría el ticket SIN rebajas. Es la base contra la que se mide
+                 * el tope; medirlo sobre el neto haría que el límite diera de sí cuanto más se rebaja.
+                 */
+                get bruto() {
+                    return this.cart.reduce((s, i) => s + (parseFloat(i.price) || 0) * (parseFloat(i.qty) || 0), 0);
+                },
+
+                /** El descuento máximo en dinero para este usuario, o null si no tiene tope. */
+                get maximoRebaja() {
+                    return this.topeDescuento === null ? null : this.bruto * this.topeDescuento / 100;
+                },
+
+                get descuentoExcedido() {
+                    return this.maximoRebaja !== null && this.descuento > this.maximoRebaja + 0.001;
+                },
+
                 get motivoParaNoFacturar() {
                     if (this.procesando) return 'Emitiendo la factura…';
                     if (this.cart.length === 0) return 'Agrega al menos una pieza al ticket.';
                     if (this.total <= 0) return 'El total tiene que ser mayor que cero.';
+                    if (this.descuentoExcedido) {
+                        return 'Puedes rebajar hasta ' + this.rd(this.maximoRebaja) + ' (' + this.topeDescuento + '% de la venta).';
+                    }
                     if (!this.proximoNcf) return 'No hay secuencia activa para este tipo de comprobante.';
                     if (this.requiresTaxId && !this.taxId.trim()) return 'Este comprobante exige el RNC o la cédula del cliente.';
                     if (parseFloat(this.paid || 0) < this.total) return 'El pago recibido no cubre el total.';

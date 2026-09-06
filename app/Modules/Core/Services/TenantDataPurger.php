@@ -109,6 +109,9 @@ final class TenantDataPurger
         'quotes',
         // Ventas (las opciones vendidas cuelgan de la línea: van antes)
         'sale_item_options',
+        // Antes que `sales`: son hijas suyas, y dejarlas atrás sería dejar filas de dinero apuntando
+        // a ventas que ya no existen.
+        'sale_payments',
         'sale_items',
         'sales',
         // Compras

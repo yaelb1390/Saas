@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Services;
 
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Support\TaxCalculator;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
 use App\Modules\Sales\DTOs\CreateSaleData;
-use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Events\SaleCompleted;
 use App\Modules\Sales\Exceptions\CustomerNotInCompanyException;
-use App\Modules\Sales\Exceptions\InsufficientPaymentException;
 use App\Modules\Sales\Models\Sale;
+use App\Modules\Sales\Support\RepartoDePagos;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -31,6 +31,7 @@ final class SaleService
     public function __construct(
         private readonly StockService $stock,
         private readonly TaxCalculator $tax,
+        private readonly RepartoDePagos $reparto,
     ) {}
 
     /**
@@ -54,25 +55,25 @@ final class SaleService
             // La propina se suma DESPUÉS del ITBIS: no forma parte de la base imponible.
             $tip = bccomp($data->tip, '0', self::SCALE) > 0 ? $data->tip : '0.00';
             $total = bcadd($amounts['total'], $tip, self::SCALE);
-            $paid = $data->paid ?? $total;
-
             /*
-             * El pago tiene que cubrir el total... salvo a crédito, que es precisamente «se cobra
-             * después»: un pedido a domicilio que paga el cliente en la puerta.
+             * CÓMO SE PAGA, resuelto en un solo sitio.
              *
-             * La excepción se ata a la forma de pago y no a un interruptor suelto para que no se
-             * pueda registrar por descuido una venta de mostrador a medio pagar. Y `entersCashDrawer()`
-             * ya devuelve false para crédito, así que ese dinero no toca el arqueo: el turno cuadra sin
-             * que haya que acordarse de nada.
+             * Sin reparto se toma el camino de siempre —`deUnaSolaVia` reproduce EXACTAMENTE la regla
+             * anterior, incluida la excepción del crédito y su mensaje— así que para todo lo que ya
+             * existía no cambia ni un número. Con reparto, el servidor imputa cada entrega contra lo
+             * pendiente y exige que la suma cuadre con el total.
+             *
+             * El pago tiene que cubrir el total salvo a crédito, que es precisamente «se cobra
+             * después»: un pedido a domicilio que paga el cliente en la puerta. La excepción se ata a
+             * la forma de pago y no a un interruptor suelto para que no se pueda registrar por
+             * descuido una venta de mostrador a medio pagar.
              */
-            if ($data->paymentMethod !== PaymentMethod::Credit && bccomp($paid, $total, self::SCALE) < 0) {
-                throw InsufficientPaymentException::for($total, $paid);
-            }
+            $desglose = $data->payments === []
+                ? $this->reparto->deUnaSolaVia($data->paymentMethod, $data->paid, $total)
+                : $this->reparto->repartir($data->payments, $total);
 
-            // A crédito no hay vuelto que dar: lo pendiente no es un cambio a favor del cliente.
-            $change = $data->paymentMethod === PaymentMethod::Credit
-                ? '0.00'
-                : bcsub($paid, $total, self::SCALE);
+            $paid = $desglose->entregado();
+            $change = $desglose->cambio();
 
             $customer = $this->resolveCustomer($data->customerId, $companyId);
 
@@ -94,7 +95,14 @@ final class SaleService
                 'discount_total' => $data->discountTotal,
                 'paid' => $paid,
                 'change' => $change,
-                'payment_method' => $data->paymentMethod->value,
+                /*
+                 * La vía de MAYOR IMPORTE, no un valor «mixto» inventado.
+                 *
+                 * Todos los `match` que ya existen sobre esta columna tienen una rama por omisión
+                 * —«Otras» en el 607—, así que un valor nuevo no fallaría: declararía mal cada venta
+                 * repartida, en silencio, que es peor. El desglose fino vive en `sale_payments`.
+                 */
+                'payment_method' => $desglose->metodoDominante()->value,
                 'completed_at' => now(),
                 'user_id' => auth()->id(),
                 'employee_id' => $data->employeeId,
@@ -145,6 +153,28 @@ final class SaleService
                 }
             }
 
+            /*
+             * EL DESGLOSE SE GUARDA, también cuando hay una sola forma de pago.
+             *
+             * Escribir siempre la fila es lo que permite que todo el lado lectura tenga UN camino en
+             * vez de dos, y deja el respaldo por cabecera solo para las ventas anteriores a esta
+             * tabla. La guarda de existencia está porque en producción las migraciones se aplican a
+             * mano: entre que sale este código y alguien migra, la venta se registra igual y el
+             * desglose se sintetiza como toda la vida.
+             */
+            if (DbTable::existe('sale_payments')) {
+                foreach ($desglose->pagos() as $pago) {
+                    $sale->payments()->create([
+                        'company_id' => $companyId,
+                        'method' => $pago->method,
+                        'amount' => $pago->amount,
+                        'tendered' => $pago->tendered,
+                        'reference' => $pago->reference,
+                    ]);
+                }
+            }
+
+            // Después de escribir las filas: quien escucha este evento va a leer el desglose.
             SaleCompleted::dispatch($sale);
 
             return $sale->load('items');

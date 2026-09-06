@@ -23,9 +23,11 @@ use App\Modules\Inventory\Exceptions\InsufficientStockException;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
 use App\Modules\Sales\DTOs\CreateSaleData;
+use App\Modules\Sales\DTOs\PaymentData;
 use App\Modules\Sales\DTOs\SaleLineData;
 use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Exceptions\InsufficientPaymentException;
+use App\Modules\Sales\Exceptions\PaymentSplitException;
 use App\Modules\Sales\Support\MasVendidos;
 use App\Modules\Sales\Support\TopeDeDescuento;
 use Illuminate\Contracts\View\View;
@@ -96,6 +98,15 @@ final class PartsCounterController extends Controller
              * enorme: la pantalla tiene que poder decir «rebajas libre» en vez de un número.
              */
             'topeDescuento' => $topes->sinLimite(auth()->user()) ? null : (float) $topes->porcentaje(),
+            /*
+             * Si se puede dividir el cobro, que depende de que la migración esté aplicada.
+             *
+             * En producción se aplican a mano: sin la tabla, la pantalla NO ofrece dividir. El
+             * controlador lo rechaza igualmente, pero eso es el cinturón — que el botón no aparezca
+             * es lo que evita que alguien arme el reparto y se lleve el rechazo con el cliente
+             * delante.
+             */
+            'puedeDividir' => DbTable::existe('sale_payments'),
             // La tasa viaja para poder desglosar en pantalla con la MISMA regla que usa el servidor.
             'itbis' => [
                 'tasa' => (float) config('billing.itbis_rate', '18'),
@@ -158,6 +169,47 @@ final class PartsCounterController extends Controller
         }
 
         return back()->with('panel_ok', 'Caja abierta. Ya puedes facturar.');
+    }
+
+    /**
+     * El cobro repartido entre varias vías, si lo hubo.
+     *
+     * Llega como JSON en un campo oculto, igual que el ticket. Lo que viaja es lo ENTREGADO por cada
+     * vía, no el reparto ya hecho: quien decide cuánto cubre la venta y cuánto es vuelto es el
+     * servidor. Si el reparto viniera del navegador, una petición a mano podría declarar «efectivo 0
+     * / tarjeta 1000» en una venta cobrada en billetes, y el arqueo saldría con un faltante de mil
+     * pesos que pagaría el cajero de su bolsillo.
+     *
+     * Se acota a las formas de mostrador y se descarta lo que no encaje, sin inventar nada: lo que
+     * no cuadre lo rechaza `RepartoDePagos` al sumar.
+     *
+     * @return array<int, PaymentData>
+     */
+    private function formasDePago(Request $request): array
+    {
+        $crudo = json_decode((string) $request->input('payments'), true);
+
+        if (! is_array($crudo) || $crudo === []) {
+            return [];
+        }
+
+        $pagos = [];
+
+        foreach ($crudo as $fila) {
+            $metodo = PaymentMethod::tryFrom((string) ($fila['method'] ?? ''));
+
+            if ($metodo === null || ! in_array($metodo, PaymentMethod::counterOptions(), true)) {
+                continue;
+            }
+
+            $pagos[] = new PaymentData(
+                method: $metodo,
+                amount: number_format(max(0, (float) ($fila['amount'] ?? 0)), 2, '.', ''),
+                reference: filled($fila['reference'] ?? null) ? (string) $fila['reference'] : null,
+            );
+        }
+
+        return $pagos;
     }
 
     /**
@@ -302,6 +354,26 @@ final class PartsCounterController extends Controller
             );
         }
 
+        $pagos = $this->formasDePago($request);
+
+        /*
+         * SIN LA TABLA, EL COBRO REPARTIDO SE RECHAZA — no se degrada.
+         *
+         * Es la única degradación de todo el proyecto que dice que no en vez de seguir a lo suyo, y
+         * es a propósito: aceptar un reparto sin dónde guardarlo obligaría a colapsarlo en una sola
+         * vía, o sea a meter el TOTAL ENTERO al cajón cuando la mitad se cobró con tarjeta. Un cobro
+         * rechazado con un aviso se repite en cinco segundos; un arqueo falso no se descubre hasta
+         * que alguien cuenta el dinero, y para entonces nadie sabe de qué venta viene.
+         *
+         * La pantalla tampoco ofrece dividir si la tabla no está: esto es el cinturón, no la vía.
+         */
+        if ($pagos !== [] && ! DbTable::existe('sale_payments')) {
+            return back()->withInput()->with(
+                'panel_error',
+                'El cobro dividido todavía no está disponible en este servidor. Cóbralo con una sola forma de pago.',
+            );
+        }
+
         try {
             $result = $counter->invoice(
                 data: new CreateSaleData(
@@ -314,9 +386,13 @@ final class PartsCounterController extends Controller
                      * hacía la pantalla cuando ni siquiera se preguntaba.
                      */
                     paymentMethod: $this->formaDePago($request),
-                    paid: (string) $request->input('paid'),
+                    // Null y no cadena vacía cuando no se pide: con el reparto, «cuánto se recibió»
+                    // lo responde la lista de pagos, y el DTO distingue «no se dijo» de «cero».
+                    paid: $request->filled('paid') ? (string) $request->input('paid') : null,
                     customerName: $request->filled('customer_name') ? (string) $request->input('customer_name') : null,
                     customerId: $request->filled('customer_id') ? (int) $request->input('customer_id') : null,
+                    // Vacío quiere decir «una sola vía» y manda `paymentMethod`, como toda la vida.
+                    payments: $pagos,
                 ),
                 type: NcfType::from((string) $request->input('type')),
                 customerTaxId: $request->filled('customer_tax_id') ? (string) $request->input('customer_tax_id') : null,
@@ -327,6 +403,10 @@ final class PartsCounterController extends Controller
             return back()->with('panel_error', 'El pago es menor que el total.');
         } catch (CashSessionException) {
             return back()->with('panel_error', 'No hay una caja abierta. Abre el turno para poder facturar.');
+        } catch (PaymentSplitException $e) {
+            // El reparto no cuadra, o alguien intentó dar vuelto por una tarjeta. Se dice tal cual:
+            // son cosas que quien cobra puede corregir en el acto.
+            return back()->withInput()->with('panel_error', $e->getMessage());
         } catch (InvoiceException|FiscalSequenceException $e) {
             // RNC obligatorio/ inválido, o sin secuencia de NCF activa del tipo elegido.
             return back()->withInput()->with('panel_error', $e->getMessage());

@@ -10,17 +10,20 @@ use App\Modules\Cash\Models\CashRegister;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
+use App\Modules\Sales\Enums\PaymentMethod;
 use App\Modules\Sales\Models\Sale;
 use App\Modules\Sales\Support\MasVendidos;
 use App\Modules\Sales\Support\TopeDeDescuento;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
@@ -686,4 +689,98 @@ it('la pantalla le dice al usuario hasta cuanto puede rebajar', function (): voi
 
     // Viaja el tope; con permiso viajaría `null` y la pantalla no avisaría de nada.
     expect($html)->toContain('topeDescuento');
+});
+
+// ------------------------------------------------------------------ El cobro repartido, de punta a punta
+
+/*
+ * Los tests finos del reparto viven en `tests/Feature/Sales/PagoMixtoTest.php` y en el unitario. Este
+ * comprueba lo que ninguno de esos puede: que el MOSTRADOR sepa mandarlo. Entre el formulario y el
+ * servicio hay un `json_decode`, un filtro por formas admitidas y un `number_format`, y ahí es donde
+ * se pierde un cobro sin que salte nada.
+ */
+it('el mostrador factura un cobro repartido y solo mete el efectivo al cajon', function (): void {
+    ncfSequence();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.parts.invoice'), [
+            'cart' => counterCart($this->product->id, 4),   // 4 x 250 = 1000
+            'type' => 'B02',
+            'payments' => json_encode([
+                ['method' => 'card', 'amount' => 400, 'reference' => 'AUTH-77'],
+                ['method' => 'cash', 'amount' => 600],
+            ]),
+        ])
+        ->assertSessionMissing('panel_error');
+
+    $venta = Sale::firstOrFail();
+
+    expect($venta->total)->toBe('1000.00')
+        ->and($venta->payments)->toHaveCount(2)
+        ->and($venta->desglose()->efectivo())->toBe('600.00')
+        // La referencia del datáfono llega hasta la fila: es lo que permite casar el cobro con el
+        // extracto del banco cuando algo no cuadra.
+        ->and($venta->payments->firstWhere('method', PaymentMethod::Card)->reference)->toBe('AUTH-77')
+        ->and(Invoice::count())->toBe(1);
+
+    // Y al cajón, solo los 600 en billetes.
+    $enCaja = DB::table('cash_movements')->where('cash_session_id', $this->turno->id)->sum('amount');
+    expect((float) $enCaja)->toBe(600.0);
+});
+
+/*
+ * LA DEGRADACIÓN QUE DICE QUE NO.
+ *
+ * En producción las migraciones se aplican a mano, así que entre que sale este código y alguien migra
+ * la tabla no existe. Aceptar el reparto ahí obligaría a colapsarlo en una sola vía: el TOTAL ENTERO
+ * al cajón de una venta cobrada mitad con tarjeta. Un cobro rechazado se repite en cinco segundos;
+ * un arqueo falso no se descubre hasta que alguien cuenta el dinero.
+ */
+it('sin la tabla de pagos el cobro repartido se rechaza con un aviso', function (): void {
+    ncfSequence();
+
+    Schema::drop('sale_payments');
+    DbTable::olvidar();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.parts.invoice'), [
+            'cart' => counterCart($this->product->id, 4),
+            'type' => 'B02',
+            'payments' => json_encode([
+                ['method' => 'card', 'amount' => 400],
+                ['method' => 'cash', 'amount' => 600],
+            ]),
+        ])
+        ->assertSessionHas('panel_error');
+
+    // Nada a medias: ni venta, ni factura, ni NCF gastado, ni movimiento de caja.
+    expect(Sale::count())->toBe(0)
+        ->and(Invoice::count())->toBe(0)
+        ->and(FiscalSequence::firstOrFail()->next_number)->toBe(1)
+        ->and(DB::table('cash_movements')->where('cash_session_id', $this->turno->id)->count())->toBe(0);
+});
+
+/*
+ * Pero con una sola forma de pago el mostrador tiene que seguir facturando sin la tabla, que es lo
+ * que hará el 100 % de las ventas hasta que alguien migre.
+ */
+it('sin la tabla de pagos el cobro de una sola forma sigue funcionando', function (): void {
+    ncfSequence();
+
+    Schema::drop('sale_payments');
+    DbTable::olvidar();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.parts.invoice'), [
+            'cart' => counterCart($this->product->id, 4),
+            'type' => 'B02',
+            'paid' => '1000',
+        ])
+        ->assertSessionMissing('panel_error');
+
+    expect(Sale::count())->toBe(1)
+        ->and(Invoice::count())->toBe(1);
+
+    $enCaja = DB::table('cash_movements')->where('cash_session_id', $this->turno->id)->sum('amount');
+    expect((float) $enCaja)->toBe(1000.0);
 });

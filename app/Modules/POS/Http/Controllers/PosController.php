@@ -19,6 +19,7 @@ use App\Modules\Inventory\Support\ProductLookupPresenter;
 use App\Modules\POS\DTOs\DeliveryOrderData;
 use App\Modules\POS\Exceptions\ProductUnavailableException;
 use App\Modules\POS\Services\CheckoutService;
+use App\Modules\POS\Support\AjustesDelTerminal;
 use App\Modules\POS\Support\CartResolver;
 use App\Modules\Sales\DTOs\CreateSaleData;
 use App\Modules\Sales\Enums\OrderType;
@@ -316,6 +317,9 @@ final class PosController extends Controller
         }
 
         try {
+            // Los interruptores del terminal, para que lo apagado no entre por la petición.
+            $ajustes = AjustesDelTerminal::activos();
+
             $sale = $checkout->checkout(
                 $session,
                 new CreateSaleData(
@@ -328,7 +332,23 @@ final class PosController extends Controller
                     customerName: $request->filled('customer_name') ? (string) $request->input('customer_name') : null,
                     customerId: $request->filled('customer_id') ? (int) $request->input('customer_id') : null,
                     tip: (string) max(0, (float) $request->input('tip', 0)),
-                    discountTotal: (string) max(0, (float) $request->input('discount_total', 0)),
+                    /*
+                     * EL DESCUENTO APAGADO NO ENTRA, aunque venga en la petición.
+                     *
+                     * El interruptor solo escondía el campo en la pantalla, así que apagarlo no
+                     * impedía nada: una pestaña abierta de antes del cambio, o una petición a mano,
+                     * metían la rebaja igual. Y un descuento es dinero que SALE del negocio sin que
+                     * nadie lo haya autorizado, que es lo que separa a este interruptor de los demás.
+                     *
+                     * Solo se comprueban los dos de descuento. Los otros —propina, nº de serie, nota,
+                     * empleado, tipo de pedido— son preferencias de PRESENTACIÓN: apagados quieren
+                     * decir «no lo preguntes en esta pantalla», no «este negocio no puede». Filtrarlos
+                     * aquí borraría datos legítimos que llegan por otras vías, y en el caso del tipo
+                     * de pedido dejaría sin entregas a todo negocio con el perfil «General», que lo
+                     * trae apagado. Si algún día han de ser política y no presentación, hay que
+                     * cambiar antes lo que traen encendido los perfiles.
+                     */
+                    discountTotal: $ajustes->importe('global_discount', $request->input('discount_total', 0)),
                     employeeId: $request->filled('employee_id') ? (int) $request->input('employee_id') : null,
                     orderType: $orderType,
                     clientUuid: $request->filled('client_uuid')

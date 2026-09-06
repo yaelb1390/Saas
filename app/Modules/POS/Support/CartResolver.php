@@ -39,6 +39,20 @@ final class CartResolver
         // línea sin volver a la base por cada una.
         $validEmployees = Employee::query()->pluck('id')->all();
 
+        /*
+         * EL DESCUENTO APAGADO NO ENTRA, aunque venga en el carrito.
+         *
+         * El interruptor solo escondía el campo en la pantalla, así que apagarlo no impedía nada:
+         * una pestaña abierta de antes del cambio, o un carrito editado a mano, metían la rebaja
+         * igual. Es la misma regla que ya rige el precio unas líneas más abajo.
+         *
+         * SOLO EL DESCUENTO. Los demás interruptores —nº de serie, nota, empleado, cantidad
+         * decimal— son preferencias de PRESENTACIÓN: apagados quieren decir «no lo preguntes en
+         * esta pantalla», no «este negocio no puede». Filtrarlos aquí borraría datos legítimos que
+         * llegan por otras vías. El descuento es distinto porque es dinero que SALE.
+         */
+        $ajustes = AjustesDelTerminal::activos();
+
         // Los productos del carrito, en una consulta: evita el N+1 de buscarlos uno a uno.
         $ids = array_values(array_filter(array_map(
             static fn (array $item): int => (int) ($item['id'] ?? 0),
@@ -71,15 +85,18 @@ final class CartResolver
 
             // Cantidad y descuento se sanean: cantidad > 0 y descuento nunca negativo.
             $employeeId = (int) ($item['employee_id'] ?? 0);
+            $employeeId = in_array($employeeId, $validEmployees, true) ? $employeeId : null;
 
             $lines[] = new SaleLineData(
                 productId: $product->id,
                 quantity: (string) max(0.001, (float) ($item['qty'] ?? 1)),
                 unitPrice: $this->options->unitPrice($product, $options),
-                discount: (string) max(0, (float) ($item['discount'] ?? 0)),
+                // El único que se comprueba: una rebaja es dinero que sale. Ver el comentario de
+                // arriba para por qué los demás campos no se filtran aquí.
+                discount: $ajustes->importe('line_discount', $item['discount'] ?? 0),
                 note: filled($item['note'] ?? null) ? (string) $item['note'] : null,
                 serial: filled($item['serial'] ?? null) ? (string) $item['serial'] : null,
-                employeeId: in_array($employeeId, $validEmployees, true) ? $employeeId : null,
+                employeeId: $employeeId,
                 options: $options,
             );
         }

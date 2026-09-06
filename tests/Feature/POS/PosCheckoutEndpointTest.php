@@ -180,3 +180,68 @@ it('rechaza el cobro si no hay stock suficiente', function (): void {
     expect(Sale::count())->toBe(0)
         ->and(Stock::where('product_id', $this->product->id)->firstOrFail()->quantity)->toBe('100.000');
 });
+
+// ------------------------------------------------------------------ Los interruptores del terminal
+
+/*
+ * QUE APAGAR EL DESCUENTO IMPIDA DESCONTAR DE VERDAD.
+ *
+ * Los interruptores del terminal solo escondían controles en la pantalla; ninguna de las tres
+ * pantallas de cobro los comprobaba al recibir la venta. Apagar «descuento» no impedía nada: bastaba
+ * una pestaña abierta de antes del cambio, una venta sin conexión sincronizada después, o una
+ * petición hecha a mano. Y un descuento es dinero que SALE del negocio sin que nadie lo autorice.
+ *
+ * Es la misma doctrina que ya rige el precio, que siempre se relee del catálogo: el navegador
+ * propone, el servidor decide.
+ *
+ * SE IGNORA, NO SE RECHAZA: casi nunca es un ataque, es una pantalla vieja. Devolver un error haría
+ * perder el ticket entero por un campo que el negocio ya no usa.
+ */
+it('con el descuento apagado, el que llega en la peticion se ignora', function (): void {
+    $this->company->update(['settings' => ['pos' => ['profile' => 'general', 'options' => [
+        'line_discount' => false,
+        'global_discount' => false,
+    ]]]]);
+
+    $this->actingAs($this->user)
+        ->post(route('panel.pos.checkout'), [
+            'cart' => json_encode([['id' => $this->product->id, 'qty' => 2, 'discount' => 10]]),
+            'paid' => '1000',
+            'discount_total' => '5',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('pos_receipt_id');
+
+    $sale = Sale::with('items')->firstOrFail();
+
+    // 2×50 sin una sola rebaja: ni la de línea ni la del ticket.
+    expect($sale->items->first()->discount)->toBe('0.00')
+        ->and($sale->items->first()->subtotal)->toBe('100.00')
+        ->and($sale->discount_total)->toBe('0.00')
+        ->and($sale->total)->toBe('100.00');
+});
+
+/*
+ * Y encendido, sigue descontando. Sin esta mitad, el test de arriba pasaría igual si alguien rompiera
+ * el descuento entero.
+ */
+it('con el descuento encendido sigue descontando', function (): void {
+    $this->company->update(['settings' => ['pos' => ['profile' => 'general', 'options' => [
+        'line_discount' => true,
+        'global_discount' => true,
+    ]]]]);
+
+    $this->actingAs($this->user)
+        ->post(route('panel.pos.checkout'), [
+            'cart' => json_encode([['id' => $this->product->id, 'qty' => 2, 'discount' => 10]]),
+            'paid' => '1000',
+            'discount_total' => '5',
+        ])
+        ->assertRedirect();
+
+    $sale = Sale::with('items')->firstOrFail();
+
+    expect($sale->items->first()->discount)->toBe('10.00')
+        ->and($sale->discount_total)->toBe('5.00')
+        ->and($sale->total)->toBe('85.00');
+});

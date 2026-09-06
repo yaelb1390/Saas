@@ -29,8 +29,9 @@
      x-cloak>
 
     {{-- El botón --}}
+    {{-- Mismo motivo que en la ventana: objeto y no texto, o el `display` de `x-show` se borra. --}}
     <button type="button" class="asis-boton" x-show="!abierto" @click="abrir()"
-            :style="`right:${derecha}px`"
+            :style="{ right: derecha + 'px' }"
             title="Pregúntame cómo se usa el sistema">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -40,7 +41,19 @@
     </button>
 
     {{-- La ventana --}}
-    <div class="asis-panel" x-show="abierto" x-transition.opacity :style="`right:${derecha}px`">
+    {{--
+        EL `:style` VA COMO OBJETO Y NO COMO TEXTO, y no es cosmético.
+
+        Alpine aplica un `:style` de texto con `el.setAttribute('style', ...)`, que REEMPLAZA el
+        atributo entero. Y `x-show` esconde escribiendo `display:none` en ese mismo atributo. Con las
+        dos cosas sobre el mismo elemento, cualquier reevaluación del `:style` —basta con que cambie
+        `derecha`, y cambia al redimensionar— borra el `display:none` y la ventana reaparece sola
+        aunque la hayan cerrado.
+
+        En forma de objeto, Alpine usa `setProperty` y solo toca `right`, así que el `display` de
+        `x-show` se queda donde estaba.
+    --}}
+    <div class="asis-panel" x-show="abierto" x-transition.opacity :style="{ right: derecha + 'px' }">
         <div class="asis-cabecera">
             {{-- La marca, no un icono genérico de chat: quien abre esto tiene que ver de quién es el
                  asistente que le está hablando. --}}

@@ -266,3 +266,32 @@ it('el botón de ayuda sale en todas las pantallas del panel', function (): void
 
     expect($html)->toContain(route('panel.help'));
 });
+
+// ------------------------------------------------------------------ La ventana flotante
+
+/*
+ * QUE EL BOTÓN DE CERRAR CIERRE DE VERDAD.
+ *
+ * Parece un test de maquetación y no lo es: es una trampa concreta de Alpine que ya rompió la
+ * ventana en producción.
+ *
+ * `x-show` esconde escribiendo `display:none` DENTRO del atributo `style`. Y un `:style` escrito
+ * como texto lo aplica con `setAttribute('style', ...)`, que reemplaza ese atributo ENTERO. Puestos
+ * en el mismo elemento se pisan: en cuanto el `:style` se reevalúa —basta con redimensionar la
+ * ventana, que recoloca el panel— el `display:none` desaparece y el asistente vuelve a aparecer
+ * aunque lo hayan cerrado. El usuario lo ve como «le doy a la X y no se cierra».
+ *
+ * En forma de objeto Alpine usa `setProperty` y solo toca `right`, así que el `display` sobrevive.
+ *
+ * Se comprueba el fichero y no el HTML servido porque lo que importa es la forma del enlace, y así
+ * el test no depende de que la empresa tenga el asistente contratado.
+ */
+it('la ventana del asistente no usa un :style de texto, que borraria el display de x-show', function (): void {
+    $vista = file_get_contents(resource_path('views/partials/asistente.blade.php'));
+
+    // Los dos elementos que llevan `x-show` y posición a la vez: la ventana y el botón.
+    expect(substr_count($vista, 'x-show'))->toBeGreaterThanOrEqual(2)
+        ->and($vista)->toContain(":style=\"{ right: derecha + 'px' }\"")
+        // La forma de texto, con acento grave, es la que rompe.
+        ->and($vista)->not->toContain(':style="`right:');
+});

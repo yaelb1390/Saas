@@ -58,12 +58,32 @@ final class CheckoutService
             //
             // Un pedido que paga el cliente en la puerta va a crédito, que tampoco entra: ese dinero
             // llega cuando el motorista liquida, y ahí es donde se anota.
-            if ($data->paymentMethod->entersCashDrawer()) {
+            /*
+             * EL IMPORTE SALE DEL DESGLOSE DE LA VENTA, no de lo que pidió quien llama.
+             *
+             * Con una sola forma de pago el número es idéntico al de antes —el total si es efectivo,
+             * cero si no—, así que esto no cambia ni un céntimo de lo ya existente. Lo que añade es
+             * el cobro repartido: si la mitad fue con tarjeta, al cajón entra solo la otra mitad.
+             *
+             * Y se SUSTITUYE la condición anterior, no se añade: con las dos ramas, una venta mixta
+             * con efectivo metería dos movimientos y el turno cerraría con un sobrante exactamente
+             * igual a la parte en efectivo.
+             *
+             * UN SOLO MOVIMIENTO y no uno por vía: el cajón solo entiende de efectivo, y —esto es lo
+             * que importa— anular una venta borra sus movimientos por referencia, así que uno solo se
+             * deshace con el código de anulación tal como está hoy, sin tocarlo.
+             */
+            $efectivo = $sale->desglose()->efectivo();
+
+            if (bccomp($efectivo, '0', 2) > 0) {
                 $this->cash->registerMovement(
                     $session,
                     CashMovementType::Sale,
-                    (string) $sale->total,
-                    ['reference' => $sale, 'notes' => "Cobro venta {$sale->code}"],
+                    $efectivo,
+                    [
+                        'reference' => $sale,
+                        'notes' => "Cobro venta {$sale->code}".($sale->desglose()->esMixto() ? ' (parte en efectivo)' : ''),
+                    ],
                 );
             }
 

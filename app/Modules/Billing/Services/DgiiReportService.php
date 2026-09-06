@@ -10,7 +10,9 @@ use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Models\PurchaseInvoice;
 use App\Modules\Billing\Support\TaxId;
 use App\Modules\Core\Models\Company;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Sales\Enums\PaymentMethod;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 
@@ -257,23 +259,79 @@ final class DgiiReportService
     private function paymentColumns(Invoice $invoice, string $total): array
     {
         $sale = $invoice->sale;
-        $method = $sale === null ? 'cash' : (string) $sale->payment_method;
-        $zero = $this->money(0);
 
         // Efectivo, Cheque/Transferencia, Tarjeta, Crédito, Bonos, Permuta, Otras.
-        $columns = array_fill(0, 7, $zero);
+        $importes = array_fill(0, 7, '0');
 
-        $index = match ($method) {
-            'cash' => 0,
-            'transfer', 'check' => 1,
-            'card' => 2,
-            'credit' => 3,
-            default => 6,
-        };
+        if ($sale === null) {
+            // Una factura sin venta detrás: se conserva lo de siempre, todo a efectivo.
+            $importes[0] = $total;
+        } else {
+            /*
+             * SE REPARTE, ya no se elige una sola columna.
+             *
+             * Antes se miraba `sales.payment_method` y el total entero se declaraba en esa columna.
+             * Con un cobro repartido eso sería declarar mal ante la DGII: mil pesos cobrados 600 en
+             * efectivo y 400 con tarjeta se habrían declarado como mil en efectivo.
+             *
+             * El desglose pasa por `Sale::desglose()`, que sabe sintetizar el de las ventas
+             * anteriores a que existiera el reparto: para todas ellas el resultado es byte a byte el
+             * mismo que antes.
+             */
+            foreach ($sale->desglose()->pagos() as $pago) {
+                $columna = match ($pago->method) {
+                    PaymentMethod::Cash => 0,
+                    PaymentMethod::Transfer, PaymentMethod::Check => 1,
+                    PaymentMethod::Card => 2,
+                    PaymentMethod::Credit => 3,
+                };
 
-        $columns[$index] = $this->money($total);
+                $importes[$columna] = bcadd($importes[$columna], $pago->amount, 2);
+            }
+        }
 
-        return $columns;
+        return array_map(fn (string $importe): string => $this->money($importe), $this->cuadrar($importes, $total));
+    }
+
+    /**
+     * Fuerza que las columnas 17 a 23 sumen EXACTAMENTE el total facturado.
+     *
+     * La DGII lo valida, y un céntimo de diferencia tumba el envío del mes entero. Puede aparecer por
+     * redondeo, o porque el total de la factura no coincida con el de la venta —hoy pasa cuando hay
+     * propina: la factura la incluye en el total pero no en base+ITBIS—.
+     *
+     * El resto se ajusta en la columna de MAYOR importe, que es donde menos se nota y donde no puede
+     * convertir un cero en un número: declarar un peso en «Bonos» porque ahí cuadraba sería peor que
+     * el descuadre.
+     *
+     * @param  array<int, string>  $importes
+     * @return array<int, string>
+     */
+    private function cuadrar(array $importes, string $total): array
+    {
+        $suma = '0';
+
+        foreach ($importes as $importe) {
+            $suma = bcadd($suma, $importe, 2);
+        }
+
+        $resto = bcsub($total, $suma, 2);
+
+        if (bccomp($resto, '0', 2) === 0) {
+            return $importes;
+        }
+
+        $mayor = 0;
+
+        foreach ($importes as $i => $importe) {
+            if (bccomp($importe, $importes[$mayor], 2) > 0) {
+                $mayor = $i;
+            }
+        }
+
+        $importes[$mayor] = bcadd($importes[$mayor], $resto, 2);
+
+        return $importes;
     }
 
     /**
@@ -282,7 +340,12 @@ final class DgiiReportService
     private function invoicesOfPeriod(Carbon $period): Collection
     {
         return Invoice::query()
-            ->with('sale')
+            /*
+             * Con sus pagos: el 607 los recorre por factura, y sin esto sería una consulta por cada
+             * comprobante del mes. La guarda está porque en producción las migraciones se aplican a
+             * mano y pedir una relación cuya tabla aún no existe tumbaría el envío entero.
+             */
+            ->with(DbTable::existe('sale_payments') ? ['sale.payments'] : ['sale'])
             ->whereBetween('issued_at', [
                 $period->copy()->startOfMonth(),
                 $period->copy()->endOfMonth(),

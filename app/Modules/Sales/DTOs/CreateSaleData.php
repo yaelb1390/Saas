@@ -50,6 +50,20 @@ final readonly class CreateSaleData
          * que se cobra con conexión.
          */
         public ?string $clientUuid = null,
+        /*
+         * EL COBRO REPARTIDO entre varias formas de pago, si lo hubo.
+         *
+         * Vacío quiere decir «una sola vía», y entonces mandan `paymentMethod` y `paid` como toda la
+         * vida: la API, el cobro sin conexión, las cotizaciones y los dos puntos de venta siguen
+         * construyendo el DTO sin esto y se comportan exactamente igual que antes.
+         *
+         * Con contenido, manda esta lista y los otros dos campos se derivan de ella. Lo que viaja
+         * aquí es lo ENTREGADO por cada vía, no lo imputado: quien decide cuánto cubre la venta y
+         * cuánto es vuelto es el servidor.
+         *
+         * @var array<int, PaymentData>
+         */
+        public array $payments = [],
     ) {}
 
     /**
@@ -76,6 +90,14 @@ final readonly class CreateSaleData
             employeeId: $this->employeeId,
             orderType: $this->orderType,
             clientUuid: $this->clientUuid,
+            /*
+             * Olvidar ESTE campo aquí sería el fallo más caro de todo el cobro repartido: el servicio
+             * no vería el reparto, caería en el camino de una sola vía con efectivo por omisión, y
+             * metería el TOTAL ENTERO al cajón cuando la mitad se cobró con tarjeta. Es exactamente
+             * lo que ya pasó con `customerId`, y ningún tipo puede avisar de un argumento que
+             * simplemente no se pasa: por eso hay un test que compara campo a campo por reflexión.
+             */
+            payments: $this->payments,
         );
     }
 

@@ -13,6 +13,8 @@ use App\Modules\CRM\Models\Customer;
 use App\Modules\HR\Models\Employee;
 use App\Modules\Sales\Enums\OrderType;
 use App\Modules\Sales\Enums\SaleStatus;
+use App\Modules\Sales\Support\DesgloseDePago;
+use App\Modules\Sales\Support\LectorDePagos;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,6 +40,14 @@ class Sale extends Model implements Auditable, HasCompany
     use BelongsToCompany;
     use HasFactory;
     use SoftDeletes;
+
+    /**
+     * El desglose ya resuelto de esta instancia.
+     *
+     * No es un atributo del modelo —no se guarda ni se audita—: es memoria para no repetir el mismo
+     * cálculo cada vez que el recibo o un listado lo preguntan.
+     */
+    private ?DesgloseDePago $desgloseMemo = null;
 
     protected $fillable = [
         'company_id',
@@ -149,5 +159,28 @@ class Sale extends Model implements Auditable, HasCompany
     public function items(): HasMany
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+    /**
+     * Las formas de pago de esta venta, una fila por vía.
+     *
+     * NO SE CONSULTA DIRECTAMENTE para calcular nada: para eso está `LectorDePagos`, que sabe además
+     * sintetizar el desglose de las ventas anteriores a que existiera esta tabla. Un informe que
+     * agrupe por esta relación haría desaparecer de sus totales todas aquellas, sin avisar.
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SalePayment::class)->orderBy('id');
+    }
+
+    /**
+     * Cómo se pagó esta venta: la puerta única para el cajón, la contabilidad y el 607.
+     *
+     * Se memoiza porque el recibo lo pregunta varias veces al pintarse, y porque en un listado con
+     * `->with('payments')` no debe volver a la base ni una vez más.
+     */
+    public function desglose(): DesgloseDePago
+    {
+        return $this->desgloseMemo ??= app(LectorDePagos::class)->de($this);
     }
 }

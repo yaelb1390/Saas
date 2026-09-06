@@ -30,7 +30,18 @@ final class IssuePartsInvoiceRequest extends FormRequest
             'type' => ['required', Rule::enum(NcfType::class)],
             'customer_tax_id' => ['nullable', 'string', 'max:20'],
             'customer_name' => ['nullable', 'string', 'max:255'],
-            'paid' => ['required', 'numeric', 'min:0'],
+            /*
+             * CON EL COBRO REPARTIDO NO SE PIDE «pagado»: lo entregado por cada vía viaja en
+             * `payments` y el total lo suma el servidor. Exigirlo igualmente rechazaba todo cobro
+             * dividido antes de llegar al controlador, con un mensaje —«el campo pagado es
+             * obligatorio»— que además señalaba a un campo que la pantalla ni siquiera enseña.
+             *
+             * `required_without` y no `nullable` a secas: sin reparto sigue siendo obligatorio, que
+             * es lo que impide registrar una venta al contado sin decir cuánto se recibió.
+             */
+            'paid' => ['required_without:payments', 'nullable', 'numeric', 'min:0'],
+            // El reparto llega como JSON; su contenido lo valida RepartoDePagos, que es quien sabe.
+            'payments' => ['nullable', 'string'],
 
             /*
              * De qué almacén sale la pieza.
@@ -63,6 +74,7 @@ final class IssuePartsInvoiceRequest extends FormRequest
             'customer_tax_id' => 'RNC/cédula',
             'customer_name' => 'cliente',
             'paid' => 'pagado',
+            'payments' => 'formas de pago',
         ];
     }
 }

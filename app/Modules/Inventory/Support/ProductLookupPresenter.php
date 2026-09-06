@@ -65,6 +65,41 @@ final class ProductLookupPresenter
      *
      * @return array{results: array<int, array<string, mixed>>, has_more: bool}
      */
+    /**
+     * Unos artículos concretos, por su identificador, con la MISMA forma que una búsqueda.
+     *
+     * Existe para los «productos rápidos» del mostrador: quien decide cuáles son es otro —hoy, los
+     * más vendidos— y aquí solo se les da forma. Devolver la misma que `search()` es lo que permite
+     * que un botón rápido y un resultado de búsqueda entren al ticket por el mismo camino, sin una
+     * segunda función que meter líneas y que un día discrepe de esta.
+     *
+     * Se respeta el orden que llega, que es el de más vendido a menos: `whereIn` no lo garantiza por
+     * su cuenta y la lista saldría ordenada por id, o sea por antigüedad del artículo.
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, array<string, mixed>>
+     */
+    public function porIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $productos = Product::query()->whereIn('id', $ids)->with('stock')->get()->keyBy('id');
+
+        $filas = [];
+
+        foreach ($ids as $id) {
+            $producto = $productos->get($id);
+
+            if ($producto !== null) {
+                $filas[] = $this->row($producto);
+            }
+        }
+
+        return $filas;
+    }
+
     public function catalog(?int $categoryId = null, int $perPage = 60): array
     {
         $page = $this->products->catalog($categoryId, $perPage);

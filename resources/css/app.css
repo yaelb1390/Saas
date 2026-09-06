@@ -5697,6 +5697,8 @@ a.bmos-destino:hover {
         background: #fff;
         box-shadow: 0 -1px 0 var(--bmos-border);
     }
+}
+
 /* ─── La rejilla editable del ticket (POS de mostrador) ──────────────────────────────────────────
    Solo se ve de tablet para arriba; en teléfono manda la tabla de tarjetas de `.pos-rejilla`, que
    una rejilla no sabe imitar. Ver el comentario de las dos maquetaciones en pos.blade.php. */

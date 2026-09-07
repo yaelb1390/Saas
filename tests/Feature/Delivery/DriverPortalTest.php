@@ -6,7 +6,9 @@ use App\Models\User;
 use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Services\CompanyUserService;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\CRM\Models\Customer;
 use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
@@ -14,6 +16,7 @@ use App\Modules\Delivery\Services\DeliveryService;
 use App\Modules\HR\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 
 /*
@@ -436,4 +439,135 @@ it('ascender a alguien a repartidor también le crea la ficha', function (): voi
     ])->assertSessionHasNoErrors();
 
     expect(Employee::query()->where('name', 'Cajero Ascendido')->exists())->toBeTrue();
+});
+
+// ------------------------------------------------------------------ Dónde vive el cliente
+
+/*
+ * EL PROBLEMA QUE RESUELVE TODO ESTO.
+ *
+ * Una dirección dominicana de verdad es «Juana #6, callejón blanco». No hay buscador que la
+ * resuelva, así que el repartidor acaba llamando por teléfono para que le expliquen cómo llegar.
+ *
+ * La salida no es adivinar la dirección: es APRENDERLA. La primera vez se navega por el texto; al
+ * llegar, el repartidor marca la puerta, y la próxima entrega a ese cliente sale con el punto
+ * exacto. Estos tests sujetan esa cadena.
+ */
+
+it('el repartidor guarda donde esta la puerta, y queda en la entrega y en el cliente', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    $cliente = Customer::create(['name' => 'Juana', 'phone' => '8090000000']);
+    $entrega = pedidoDe($kelvin, direccion: 'Juana #6');
+    $entrega->update(['customer_id' => $cliente->id]);
+
+    $this->actingAs($kelvin->user)
+        ->post(route('portal.deliveries.location', $entrega), [
+            'latitude' => '18.4861', 'longitude' => '-69.9312',
+        ])
+        ->assertRedirect();
+
+    // En la ENTREGA: dónde se dejó este pedido concreto.
+    expect((float) $entrega->fresh()->latitude)->toBe(18.4861)
+        // Y en la FICHA: dónde vive. Esto es lo que hace que el sistema mejore solo — el próximo
+        // pedido de Juana nace con el punto puesto y nadie vuelve a llamar por el callejón.
+        ->and((float) $cliente->fresh()->latitude)->toBe(18.4861)
+        ->and((float) $cliente->fresh()->longitude)->toBe(-69.9312);
+});
+
+/*
+ * Y ESO SE NOTA EN LA SIGUIENTE ENTREGA, que es el punto entero del ejercicio: una entrega nueva al
+ * mismo cliente, sin punto propio, navega igualmente al exacto porque lo hereda de su ficha.
+ */
+it('la siguiente entrega al mismo cliente ya navega al punto exacto', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    $cliente = Customer::create([
+        'name' => 'Juana', 'latitude' => '18.4861', 'longitude' => '-69.9312',
+    ]);
+    $entrega = pedidoDe($kelvin, direccion: 'Juana #6');
+    $entrega->update(['customer_id' => $cliente->id]);
+
+    $html = $this->actingAs($kelvin->user)->get(route('portal.deliveries'))->assertOk()->getContent();
+
+    // Navega por coordenadas, no por el texto que nadie entiende.
+    expect($html)->toContain('ll=18.4861000,-69.9312000')
+        ->and($html)->toContain('destination=18.4861000,-69.9312000');
+});
+
+/*
+ * SIN PUNTO SE NAVEGA POR LA DIRECCIÓN, y la almohadilla va codificada: sin codificar, el mapa
+ * recibe «Juana » a secas y enseña un destino plausible pero equivocado, que es peor que ninguno.
+ */
+it('sin punto navega por la direccion escrita, codificada', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    pedidoDe($kelvin, direccion: 'Juana #6');
+
+    $html = $this->actingAs($kelvin->user)->get(route('portal.deliveries'))->assertOk()->getContent();
+
+    expect($html)->toContain('Juana%20%236');
+});
+
+/*
+ * ESCONDER EL BOTÓN NO ES PROTEGER. La misma regla que ya rige cerrar una entrega: sin esto bastaría
+ * teclear el código de la entrega de un compañero para escribirle una ubicación — y peor, para
+ * escribírsela a la ficha de SU cliente, que la vería el negocio entero.
+ */
+it('no puede marcar la ubicacion de una entrega que no lleva el', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    $ramon = motoristaLlamado('Ramón');
+    $ajena = pedidoDe($ramon);
+
+    $this->actingAs($kelvin->user)
+        ->post(route('portal.deliveries.location', $ajena), [
+            'latitude' => '18.4861', 'longitude' => '-69.9312',
+        ])
+        ->assertSessionHas('panel_error');
+
+    expect($ajena->fresh()->latitude)->toBeNull();
+});
+
+/*
+ * EL (0,0) SE RECHAZA. Es lo que manda un GPS que aún no ha fijado posición, y cae en el Atlántico
+ * frente a África. Guardarlo sería peor que no guardar nada: el próximo repartidor abriría Waze
+ * apuntando al océano y vería un pin, no un error.
+ */
+it('rechaza el punto que manda un GPS sin fijar', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    $entrega = pedidoDe($kelvin);
+
+    $this->actingAs($kelvin->user)
+        ->post(route('portal.deliveries.location', $entrega), ['latitude' => '0', 'longitude' => '0'])
+        ->assertSessionHasErrors('latitude');
+
+    expect($entrega->fresh()->latitude)->toBeNull();
+});
+
+it('rechaza una latitud imposible', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    $entrega = pedidoDe($kelvin);
+
+    $this->actingAs($kelvin->user)
+        ->post(route('portal.deliveries.location', $entrega), ['latitude' => '200', 'longitude' => '-69.9'])
+        ->assertSessionHasErrors('latitude');
+});
+
+/*
+ * SIN LA MIGRACIÓN APLICADA la pantalla tiene que seguir funcionando entera, y NO ofrecer guardar.
+ * En producción las migraciones se aplican a mano; ofrecer un botón que no guarda nada y decirle que
+ * sí sería la peor clase de fallo, porque el repartidor confiaría en un punto que no existe.
+ */
+it('sin las columnas la pantalla funciona y no ofrece guardar la ubicacion', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    pedidoDe($kelvin, direccion: 'Calle Duarte 45');
+
+    Schema::table('deliveries', function ($t): void {
+        $t->dropColumn(['latitude', 'longitude']);
+    });
+    DbTable::olvidar();
+
+    $html = $this->actingAs($kelvin->user)->get(route('portal.deliveries'))->assertOk()->getContent();
+
+    expect($html)->toContain('Calle Duarte 45')
+        // Sigue pudiendo navegar por la dirección: lo único que se cae es guardar el punto.
+        ->and($html)->toContain('waze.com')
+        ->and($html)->not->toContain('Guardar esta ubicación');
 });

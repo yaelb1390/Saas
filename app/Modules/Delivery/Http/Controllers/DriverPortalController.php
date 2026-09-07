@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Delivery\Http\Controllers;
 
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Exceptions\DeliveryException;
 use App\Modules\Delivery\Http\Requests\CloseDeliveryRequest;
+use App\Modules\Delivery\Http\Requests\SaveDeliveryLocationRequest;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Delivery\Services\DeliveryService;
 use App\Modules\HR\Models\Employee;
@@ -33,13 +35,25 @@ final class DriverPortalController extends Controller
         $empleado = $this->empleadoDe($request);
 
         if ($empleado === null) {
-            return view('portal.deliveries', ['employee' => null, 'deliveries' => collect(), 'enLaCalle' => '0.00']);
+            return view('portal.deliveries', [
+                'employee' => null, 'deliveries' => collect(), 'enLaCalle' => '0.00',
+                'puedeGuardarUbicacion' => false,
+            ]);
         }
 
         $suyas = Delivery::query()->where('employee_id', $empleado->id);
 
         return view('portal.deliveries', [
             'employee' => $empleado,
+
+            /*
+             * ¿Se puede guardar el punto? Solo si la migración está aplicada.
+             *
+             * En producción se aplican a mano, así que entre que sale este código y alguien migra la
+             * columna no existe. Sin esto, el repartidor pulsaría un botón que no guarda nada y le
+             * diría que sí: la peor clase de fallo, porque confiaría en un punto que no está.
+             */
+            'puedeGuardarUbicacion' => DbTable::tieneColumna('deliveries', 'latitude'),
 
             // Las abiertas, y además las que él cerró HOY: sin eso, cerrar una entrega la hace
             // desaparecer y no hay forma de darse cuenta de que se pulsó el botón equivocado.
@@ -95,6 +109,34 @@ final class DriverPortalController extends Controller
         }
 
         return back()->with('panel_ok', "Entrega {$delivery->code}: {$motivo->label()}.");
+    }
+
+    /**
+     * Guarda dónde está la puerta, tal como la marcó el repartidor al llegar.
+     *
+     * La comprobación de que la entrega es SUYA va aquí, igual que en `close()` y por lo mismo:
+     * esconder el botón no es proteger nada. Sin esto bastaría teclear el código de otra entrega
+     * para escribirle una ubicación a la de un compañero — o peor, a la ficha de su cliente.
+     */
+    public function ubicacion(SaveDeliveryLocationRequest $request, Delivery $delivery, DeliveryService $entregas): RedirectResponse
+    {
+        $empleado = $this->empleadoDe($request);
+
+        if ($empleado === null) {
+            return back()->with('panel_error', DeliveryException::noEresRepartidor()->getMessage());
+        }
+
+        if ((int) $delivery->employee_id !== (int) $empleado->id) {
+            return back()->with('panel_error', DeliveryException::noEsTuya()->getMessage());
+        }
+
+        $entregas->guardarUbicacion(
+            $delivery,
+            (string) $request->input('latitude'),
+            (string) $request->input('longitude'),
+        );
+
+        return back()->with('panel_ok', 'Ubicación guardada. La próxima entrega a este cliente sale con el punto exacto.');
     }
 
     /** La ficha de empleado del usuario que ha entrado. Sin ella, no es repartidor de nadie. */

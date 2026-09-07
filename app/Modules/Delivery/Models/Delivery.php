@@ -56,6 +56,9 @@ class Delivery extends Model implements Auditable, HasCompany
         'assigned_at',
         'delivered_at',
         'notes',
+        // Donde se entrego DE VERDAD. Lo guarda el repartidor al llegar, de un toque.
+        'latitude',
+        'longitude',
         'user_id',
     ];
 
@@ -69,6 +72,11 @@ class Delivery extends Model implements Auditable, HasCompany
             'delivered_at' => 'datetime',
             'collected_at' => 'datetime',
             'settled_at' => 'datetime',
+            // Cadena y no float: siete decimales son ~1 cm, y en coma flotante dos lecturas
+            // identicas pueden no comparar iguales, con lo que «¿es el mismo punto?» deja de
+            // tener respuesta fiable.
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Modules\Cash\Enums\CashMovementType;
 use App\Modules\Cash\Enums\CashSessionStatus;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Cash\Services\CashService;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\CRM\Models\Customer;
 use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
@@ -325,5 +326,43 @@ final class DeliveryService
     private function normalizar(string $valor): string
     {
         return bcadd($valor === '' ? '0' : $valor, '0', 2);
+    }
+
+    /**
+     * Guarda dónde está la puerta del cliente, tal como la marcó el repartidor al llegar.
+     *
+     * SE GUARDA EN DOS SITIOS, y son cosas distintas: en la ENTREGA queda dónde se dejó de verdad
+     * este pedido; en la FICHA DEL CLIENTE, dónde vive. Lo segundo es lo que hace que el sistema
+     * mejore solo: el próximo reparto a ese cliente nace ya con el punto exacto y el repartidor no
+     * vuelve a llamar preguntando por «el callejón blanco».
+     *
+     * En una venta de mostrador sin cliente vinculado solo se guarda en la entrega. No es un fallo:
+     * no hay ficha a la que llevárselo.
+     *
+     * SOBRE LA PRIVACIDAD. Esto es la puerta del CLIENTE, no un rastro del repartidor: se escribe
+     * únicamente cuando él pulsa el botón, nunca al abrir la pantalla ni en segundo plano. Si algún
+     * día alguien quiere seguir al motorista, que sea una decisión consciente y con su propio
+     * nombre, no un efecto colateral de esto.
+     */
+    public function guardarUbicacion(Delivery $delivery, string $latitud, string $longitud): Delivery
+    {
+        // Sin la migración aplicada no hay dónde escribir. Se devuelve la entrega intacta en vez de
+        // reventar: en producción las migraciones se aplican a mano, y entre que sale este código y
+        // alguien migra, el repartidor tiene que poder seguir entregando.
+        if (! DbTable::tieneColumna('deliveries', 'latitude')) {
+            return $delivery;
+        }
+
+        return DB::transaction(function () use ($delivery, $latitud, $longitud): Delivery {
+            $delivery->update(['latitude' => $latitud, 'longitude' => $longitud]);
+
+            $cliente = $delivery->customer;
+
+            if ($cliente !== null && DbTable::tieneColumna('customers', 'latitude')) {
+                $cliente->update(['latitude' => $latitud, 'longitude' => $longitud]);
+            }
+
+            return $delivery->fresh();
+        });
     }
 }

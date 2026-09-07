@@ -54,7 +54,7 @@
                 {{-- Lo que lleva encima. Va arriba porque es lo que le van a preguntar al llegar al local,
                      y porque saber que lleva RD$3,000 en el bolsillo cambia cómo conduce. --}}
                 <div class="entrega-encima mb-5">
-                    <p class="text-sm text-amber-800">Llevas cobrado y sin entregar en caja</p>
+                    <p class="entrega-encima-rotulo"><x-icono name="cash" /> Llevas cobrado y sin entregar en caja</p>
                     <p class="entrega-encima-cifra">{{ money($enLaCalle) }}</p>
                 </div>
             @endif
@@ -103,25 +103,18 @@
                         <div class="entrega-acciones">
                             @if ($d->phone)
                                 <a href="tel:{{ $d->phone }}" class="entrega-accion">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"/>
-                                    </svg>
+                                    <x-icono name="telefono" />
                                     Llamar
                                 </a>
                             @endif
 
                             <a href="{{ $ir->waze() }}" target="_blank" rel="noopener" class="entrega-accion">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>
-                                </svg>
+                                <x-icono name="navegar" />
                                 Waze
                             </a>
 
                             <a href="{{ $ir->googleMaps() }}" target="_blank" rel="noopener" class="entrega-accion">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/>
-                                </svg>
+                                <x-icono name="mapa" />
                                 Maps
                             </a>
                         </div>
@@ -165,7 +158,8 @@
                                                 { enableHighAccuracy: true, timeout: 15000 }
                                             );
                                         ">
-                                    <span x-show="!ubicando">
+                                    <span x-show="!ubicando" class="inline-flex items-center gap-1.5">
+                                        <x-icono name="ubicacion" />
                                         @if ($d->latitude !== null)
                                             ✓ Ubicación guardada · volver a marcar
                                         @else
@@ -191,6 +185,7 @@
                                     <input type="hidden" name="collected" value="1">
                                 @endif
                                 <button type="submit" class="entrega-principal">
+                                    <x-icono name="check" stroke-width="2.2" />
                                     @if ($cobra)
                                         <span>Entregada y cobré</span>
                                         <span class="entrega-principal-importe">{{ money($d->amount_to_collect) }}</span>
@@ -202,9 +197,11 @@
 
                             <div class="entrega-secundarias">
                                 <button type="button" @click="cerrando = 'failed'" class="entrega-suave">
+                                    <x-icono name="alert" />
                                     No pude entregarla
                                 </button>
                                 <button type="button" @click="cerrando = 'cancelled'" class="entrega-suave">
+                                    <x-icono name="ban" />
                                     Cancelada
                                 </button>
                             </div>
@@ -241,7 +238,7 @@
                 {{-- Lo cerrado HOY. Sin esto, pulsar el botón equivocado hace desaparecer la entrega y no
                      hay forma de darse cuenta hasta que llama el cliente. --}}
                 <div class="mt-8">
-                    <p class="mb-3 text-sm font-semibold text-gray-500">Cerradas hoy</p>
+                    <p class="entrega-seccion"><x-icono name="reloj" /> Cerradas hoy</p>
                     <div class="space-y-2">
                         @foreach ($cerradas as $d)
                             <div class="entrega-cerrada">

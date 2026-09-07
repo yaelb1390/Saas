@@ -6310,3 +6310,86 @@ a.bmos-destino:hover {
     border-radius: 0.8rem;
     background: var(--bmos-surface);
 }
+
+/* ─── El portal del repartidor: iconos y remate ──────────────────────────────────────────────────
+   Los iconos salen de `<x-icono>`, el mismo componente del panel: un solo estilo de trazo en todo el
+   sistema y ninguna dependencia nueva por cuatro dibujos. Aquí solo se les da tamaño y sitio. */
+
+/* Todos los iconos de la tarjeta al mismo tamaño salvo donde se diga: sin esto cada bloque los
+   pintaba de un tamaño distinto y la tarjeta se veía descuadrada. */
+.entrega svg,
+.entrega-encima svg,
+.entrega-seccion svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+}
+
+.entrega-accion svg {
+    width: 1.35rem;
+    height: 1.35rem;
+    /* Un punto más apagado que el rótulo: el icono orienta, la palabra confirma. */
+    opacity: 0.75;
+}
+
+.entrega-encima-rotulo {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.875rem;
+    color: #92400e;
+}
+
+/* El rótulo de «Cerradas hoy», con su reloj. */
+.entrega-seccion {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+}
+
+/* Los dos secundarios pasan a icono + palabra, centrados. */
+.entrega-suave {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.entrega-suave svg {
+    opacity: 0.7;
+}
+
+/* El botón de guardar el punto: icono y texto como una sola pieza. */
+.entrega-guardar svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+/*
+ * REMATE DE LA TARJETA.
+ *
+ * El filo de color ya distingue el estado; lo que faltaba era que la tarjeta se despegara del fondo
+ * al tocarla. Nada de animaciones largas: se usa de pie y con prisa, y una transición lenta se
+ * percibe como que el móvil va lento, no como que es bonito.
+ */
+.entrega {
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.entrega:active {
+    transform: scale(0.998);
+}
+
+/* En pantalla ancha la tarjeta se levanta un poco al pasar por encima. En el móvil no aplica: no hay
+   puntero, y un `:hover` pegajoso deja la tarjeta levantada después de tocarla. */
+@media (hover: hover) {
+    .entrega:hover {
+        box-shadow:
+            0 1px 2px rgba(16, 24, 40, 0.06),
+            0 12px 28px -14px rgba(16, 24, 40, 0.3);
+    }
+}

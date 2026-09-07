@@ -185,7 +185,7 @@ it('lo cerrado hoy sigue en pantalla, se haya cerrado como se haya cerrado', fun
 
     $html = $this->actingAs($kelvin->user)->get(route('portal.deliveries'))->assertOk()->getContent();
 
-    expect($html)->toContain('Cerradas hoy')
+    expect($html)->toContain('Entregas completadas hoy')
         ->toContain('Calle de '.DeliveryOutcomeReason::Refused->value);
 });
 
@@ -258,14 +258,65 @@ it('no se cobra lo que no se entregó', function (): void {
     expect($entrega->fresh()->collected_at)->toBeNull();
 });
 
-it('la pantalla le canta cuánto lleva encima', function (): void {
+/*
+ * LA REGLA PRINCIPAL DEL PORTAL, SUJETA POR UN TEST.
+ *
+ * El repartidor trabaja para una empresa de logística: NO cobra, no maneja dinero del pedido y no
+ * debe ver importes. El comercio se encarga del pago de principio a fin.
+ *
+ * Esto era justo lo contrario hace nada: la pantalla abría con «Llevas cobrado y sin entregar en
+ * caja RD$610» y el botón decía «Entregada y cobré RD$140». Además de no ser asunto suyo, lo hacía
+ * responsable de un dinero que nunca debió llevar encima.
+ *
+ * El test monta el caso PEOR —una entrega con importe, ya cobrada y sin liquidar— y comprueba que
+ * aun así no se le escapa un peso a la pantalla. Sin esto, el dinero vuelve a colarse el día que
+ * alguien añada un campo «por comodidad».
+ */
+it('el repartidor no ve dinero por ningun lado', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+
+    $cobrada = pedidoDe($kelvin, aCobrar: '450', direccion: 'Calle Primera 1');
+    app(DeliveryService::class)->close($cobrada, DeliveryOutcomeReason::Delivered, cobro: true);
+
+    // Y una abierta, también con importe: la que se está repartiendo ahora mismo.
+    pedidoDe($kelvin, aCobrar: '610', direccion: 'Calle Pendiente 2');
+
+    $html = $this->actingAs($kelvin->user)->get(route('portal.deliveries'))->assertOk()->getContent();
+
+    // Las dos entregas se ven; lo que no se ve es lo que valen.
+    expect($html)->toContain('Calle Pendiente 2');
+
+    // Ni los importes, ni el símbolo, ni una palabra del asunto.
+    foreach (['450.00', '610.00', 'RD$'] as $rastro) {
+        expect($html)->not->toContain($rastro);
+    }
+
+    // En minúsculas, porque el HTML mezcla mayúsculas.
+    foreach (['cobr', 'liquidar', 'lleva encima', 'entregar en caja'] as $palabra) {
+        expect(mb_strtolower($html))->not->toContain($palabra);
+    }
+});
+
+/*
+ * Y EL DINERO SIGUE REGISTRÁNDOSE, solo que lo hace la oficina.
+ *
+ * Es la otra mitad, y sin ella «quitar el dinero del portal» podría haber roto la contabilidad sin
+ * que nadie se enterara: una venta cobrada en la puerta que nunca se marca es un ingreso que no
+ * existe en los libros.
+ */
+it('la oficina marca el cobro sin que el repartidor lo toque', function (): void {
     $kelvin = motoristaLlamado('Kelvin');
     $entrega = pedidoDe($kelvin, aCobrar: '450');
-    app(DeliveryService::class)->close($entrega, DeliveryOutcomeReason::Delivered, cobro: true);
 
-    $this->actingAs($kelvin->user)->get(route('portal.deliveries'))
-        ->assertOk()
-        ->assertSee('450.00');
+    // El repartidor solo confirma que entregó: ya no manda el cobro.
+    app(DeliveryService::class)->close($entrega, DeliveryOutcomeReason::Delivered);
+    expect($entrega->fresh()->collected_at)->toBeNull();
+
+    // La oficina lo marca después, por su propio camino, que es el que existía desde siempre.
+    app(DeliveryService::class)->markCollected($entrega->fresh());
+
+    expect($entrega->fresh()->collected_at)->not->toBeNull()
+        ->and($entrega->fresh()->pendienteDeLiquidar())->toBeTrue();
 });
 
 // -------------------------------------------------------------------- La sesión de la calle

@@ -24,12 +24,21 @@ enum DeliveryOutcomeReason: string
     case NotHome = 'not_home';
     case WrongAddress = 'wrong_address';
     case NoAnswer = 'no_answer';
+    /*
+     * RETIRADO, PERO NO BORRADO. El repartidor ya no cobra —lo hace la empresa—, así que «no tenía
+     * el dinero» dejó de ser un motivo posible. Se deja de ofrecer en `para()`, pero el caso sigue
+     * existiendo: hay entregas viejas guardadas con él, y borrarlo las dejaría sin explicación y
+     * reventaría al leerlas.
+     */
     case NoMoney = 'no_money';
+    case ProductIssue = 'product_issue';
+    case Unreachable = 'unreachable';
     case FailedOther = 'failed_other';
 
     // --- El pedido se anuló. ---
     case Refused = 'refused';
     case CustomerCancelled = 'customer_cancelled';
+    case MerchantReturn = 'merchant_return';
     case CancelledOther = 'cancelled_other';
 
     /** Lo que lee el repartidor en el botón. Frases de la calle, no del manual. */
@@ -41,9 +50,12 @@ enum DeliveryOutcomeReason: string
             self::WrongAddress => 'La dirección está mala',
             self::NoAnswer => 'No contestó el teléfono',
             self::NoMoney => 'No tenía el dinero',
+            self::ProductIssue => 'El producto venía con algo',
+            self::Unreachable => 'No se puede entrar a la zona',
             self::FailedOther => 'Otra cosa',
             self::Refused => 'La rechazó en la puerta',
             self::CustomerCancelled => 'La canceló antes',
+            self::MerchantReturn => 'El comercio pidió que volviera',
             self::CancelledOther => 'Otra cosa',
         };
     }
@@ -53,8 +65,10 @@ enum DeliveryOutcomeReason: string
     {
         return match ($this) {
             self::Delivered => DeliveryStatus::Delivered,
-            self::NotHome, self::WrongAddress, self::NoAnswer, self::NoMoney, self::FailedOther => DeliveryStatus::Failed,
-            self::Refused, self::CustomerCancelled, self::CancelledOther => DeliveryStatus::Cancelled,
+            self::NotHome, self::WrongAddress, self::NoAnswer, self::NoMoney,
+            self::ProductIssue, self::Unreachable, self::FailedOther => DeliveryStatus::Failed,
+            self::Refused, self::CustomerCancelled,
+            self::MerchantReturn, self::CancelledOther => DeliveryStatus::Cancelled,
         };
     }
 
@@ -67,7 +81,18 @@ enum DeliveryOutcomeReason: string
     {
         return array_values(array_filter(
             self::cases(),
-            static fn (self $motivo): bool => $motivo->status() === $status,
+            static fn (self $motivo): bool => $motivo->status() === $status && $motivo->seOfrece(),
         ));
+    }
+
+    /**
+     * ¿Se le sigue ofreciendo al repartidor?
+     *
+     * Un motivo se RETIRA, no se borra: las entregas ya cerradas con él tienen que poder seguir
+     * explicándose. Hoy solo está retirado «no tenía el dinero», porque el repartidor dejó de cobrar.
+     */
+    public function seOfrece(): bool
+    {
+        return $this !== self::NoMoney;
     }
 }

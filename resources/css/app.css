@@ -6393,3 +6393,183 @@ a.bmos-destino:hover {
             0 12px 28px -14px rgba(16, 24, 40, 0.3);
     }
 }
+
+/* ─── Portal del repartidor: resumen del día, pedido y estados ───────────────────────────────────
+   El repartidor NO cobra: en toda esta familia no hay una sola regla para pintar importes, y no es
+   un olvido. Lo que cuenta son entregas. */
+
+.entrega-quien {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--bmos-muted);
+}
+
+/* Su estado, deducido de sus entregas. Un punto de color y una palabra: se lee sin detenerse. */
+.entrega-estado {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.entrega-estado::before {
+    content: '';
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.entrega-estado[data-estado='disponible'] { background: #ecfdf5; color: #047857; }
+.entrega-estado[data-estado='en_entrega'] { background: #fffbeb; color: #b45309; }
+.entrega-estado[data-estado='fuera'] { background: #f1f5f9; color: #64748b; }
+
+/* EL DÍA EN CUATRO NÚMEROS. Cuatro columnas fijas: en un movil de 390 px caben justas, y partirlas
+   en dos filas rompe la lectura de un vistazo, que es justo para lo que sirven. */
+.entrega-resumen {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.entrega-dato {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.7rem 0.3rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    background: var(--bmos-surface);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    text-align: center;
+    line-height: 1.2;
+}
+
+.entrega-dato-cifra {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--bmos-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.entrega-dato[data-tono='ruta'] .entrega-dato-cifra { color: #b45309; }
+.entrega-dato[data-tono='hecho'] .entrega-dato-cifra { color: #047857; }
+.entrega-dato[data-tono='aviso'] .entrega-dato-cifra { color: #b91c1c; }
+
+.entrega-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 2.5rem 1rem;
+    border: 1px dashed var(--bmos-border);
+    border-radius: 1rem;
+    background: var(--bmos-surface);
+    color: var(--bmos-muted);
+}
+
+.entrega-vacio svg {
+    width: 2rem;
+    height: 2rem;
+    opacity: 0.4;
+}
+
+/* La cabecera de la tarjeta: el número de orden manda, el estado acompaña. */
+.entrega-cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.35rem;
+}
+
+.entrega-orden {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bmos-muted);
+}
+
+.entrega-cliente {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* QUÉ LLEVA. Sin precios: el repartidor no cobra, y saber lo que vale lo que transporta no le ayuda
+   a entregarlo — solo lo pone en una situación incómoda. */
+.entrega-pedido {
+    margin-top: 0.85rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.8rem;
+    background: #f8f9fc;
+}
+
+.entrega-pedido-cab {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--bmos-text);
+}
+
+/* De qué comercio sale la mercancía, a la derecha del todo. */
+.entrega-comercio {
+    margin-inline-start: auto;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entrega-lista {
+    margin-top: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.85rem;
+    color: var(--bmos-text);
+}
+
+.entrega-lista li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+/* La cantidad, en su recuadro: es lo que se cuenta al cargar la moto. */
+.entrega-cant {
+    flex-shrink: 0;
+    min-width: 1.6rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.4rem;
+    background: #e0e7ff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #3730a3;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* «Iniciar entrega» va en ámbar y no en verde: el verde es «ya está», y confundirlos en la calle
+   hace cerrar una entrega que todavía no salió. */
+.entrega-principal[data-tono='ruta'] {
+    background: linear-gradient(135deg, #d97706, #f59e0b);
+    box-shadow: 0 8px 20px -10px rgba(217, 119, 6, 0.8);
+}

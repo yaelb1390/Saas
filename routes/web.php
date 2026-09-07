@@ -123,6 +123,9 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/portal/entregas', [DriverPortalController::class, 'index'])->name('portal.deliveries');
         Route::post('/portal/entregas/{delivery}/cerrar', [DriverPortalController::class, 'close'])
             ->name('portal.deliveries.close');
+        // Sale con la mercancía: la entrega pasa a «en ruta» y él a «en entrega».
+        Route::post('/portal/entregas/{delivery}/iniciar', [DriverPortalController::class, 'iniciar'])
+            ->name('portal.deliveries.start');
         // El repartidor marca dónde está la puerta al llegar. Un toque suyo, nunca en segundo plano.
         Route::post('/portal/entregas/{delivery}/ubicacion', [DriverPortalController::class, 'ubicacion'])
             ->name('portal.deliveries.location');

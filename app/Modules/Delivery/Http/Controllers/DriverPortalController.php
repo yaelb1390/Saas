@@ -36,8 +36,11 @@ final class DriverPortalController extends Controller
 
         if ($empleado === null) {
             return view('portal.deliveries', [
-                'employee' => null, 'deliveries' => collect(), 'enLaCalle' => '0.00',
+                'employee' => null, 'deliveries' => collect(),
                 'puedeGuardarUbicacion' => false,
+                'resumen' => ['pendientes' => 0, 'enRuta' => 0, 'entregadas' => 0, 'incidencias' => 0],
+                'estadoDelRepartidor' => 'fuera',
+                'comercio' => null,
             ]);
         }
 
@@ -65,14 +68,34 @@ final class DriverPortalController extends Controller
                 ->where(fn ($q) => $q
                     ->whereIn('status', DeliveryStatus::abiertas())
                     ->orWhereDate('delivered_at', today()))
+                /*
+                 * QUE LLEVAR, precargado. Sin esto la vista consultaría la venta, sus líneas y cada
+                 * producto una por una: con diez entregas son decenas de consultas en la pantalla que
+                 * se abre de pie en la calle, con la peor conexión de todo el sistema.
+                 */
+                ->with(['sale.items.product', 'customer'])
                 ->orderBy('id')
                 ->get(),
 
-            // Lo que lleva encima. Es lo que le van a preguntar al volver al local, así que lo ve
-            // antes de que se lo pregunten.
-            'enLaCalle' => (clone $suyas)
-                ->whereNotNull('collected_at')->whereNull('settled_at')
-                ->sum('amount_to_collect'),
+            /*
+             * EL RESUMEN DEL DÍA. Cuenta entregas, NUNCA dinero.
+             *
+             * El repartidor de esta empresa no cobra: lo hace el comercio. Antes esta pantalla abría
+             * con «llevas cobrado y sin entregar en caja», que además de no ser asunto suyo lo hacía
+             * responsable de un dinero que nunca debió llevar encima.
+             */
+            'resumen' => $this->resumenDe($empleado),
+
+            /*
+             * Su estado, DEDUCIDO y no declarado. Si fuera un interruptor que él pulsa, se quedaría
+             * «disponible» mientras reparte el día que se le olvide tocarlo — y quien asigna en el
+             * local le mandaría otra entrega encima.
+             */
+            'estadoDelRepartidor' => $this->estadoDe($empleado),
+
+            // De qué comercio sale la mercancía. En el reparto de una empresa de logística es lo
+            // primero que hay que saber para ir a recogerla.
+            'comercio' => $request->user()?->company,
         ]);
     }
 
@@ -137,6 +160,70 @@ final class DriverPortalController extends Controller
         );
 
         return back()->with('panel_ok', 'Ubicación guardada. La próxima entrega a este cliente sale con el punto exacto.');
+    }
+
+    /**
+     * Arranca el viaje: la entrega pasa de asignada a EN RUTA.
+     *
+     * Sirve para dos cosas a la vez, y por eso vale la pena el toque: en el local saben que ya salió
+     * sin tener que llamarlo, y su propio estado pasa a «en entrega», con lo que quien asigna no le
+     * echa encima otra parada creyéndolo libre.
+     */
+    public function iniciar(Request $request, Delivery $delivery, DeliveryService $entregas): RedirectResponse
+    {
+        $empleado = $this->empleadoDe($request);
+
+        if ($empleado === null) {
+            return back()->with('panel_error', DeliveryException::noEresRepartidor()->getMessage());
+        }
+
+        // La misma regla que en todo este portal: esconder el botón no es proteger nada.
+        if ((int) $delivery->employee_id !== (int) $empleado->id) {
+            return back()->with('panel_error', DeliveryException::noEsTuya()->getMessage());
+        }
+
+        try {
+            $entregas->transition($delivery, DeliveryStatus::InTransit);
+        } catch (DeliveryException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
+
+        return back()->with('panel_ok', "Vas en camino con la entrega {$delivery->code}.");
+    }
+
+    /**
+     * Cuántas lleva hoy de cada cosa. Entregas, no pesos.
+     *
+     * @return array<string, int>
+     */
+    private function resumenDe(Employee $empleado): array
+    {
+        $suyas = Delivery::query()->where('employee_id', $empleado->id);
+
+        return [
+            'pendientes' => (clone $suyas)->whereIn('status', [DeliveryStatus::Pending, DeliveryStatus::Assigned])->count(),
+            'enRuta' => (clone $suyas)->where('status', DeliveryStatus::InTransit)->count(),
+            // Lo cerrado HOY, no de siempre: es un resumen del día, no un historial.
+            'entregadas' => (clone $suyas)->where('status', DeliveryStatus::Delivered)->whereDate('delivered_at', today())->count(),
+            'incidencias' => (clone $suyas)
+                ->whereIn('status', [DeliveryStatus::Failed, DeliveryStatus::Cancelled])
+                ->whereDate('updated_at', today())->count(),
+        ];
+    }
+
+    /** Disponible, en entrega, o fuera de servicio. Se deduce; no hay interruptor que olvidar. */
+    private function estadoDe(Employee $empleado): string
+    {
+        if (! $empleado->is_active) {
+            return 'fuera';
+        }
+
+        $enRuta = Delivery::query()
+            ->where('employee_id', $empleado->id)
+            ->where('status', DeliveryStatus::InTransit)
+            ->exists();
+
+        return $enRuta ? 'en_entrega' : 'disponible';
     }
 
     /** La ficha de empleado del usuario que ha entrado. Sin ella, no es repartidor de nadie. */

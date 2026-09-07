@@ -5,20 +5,26 @@
 {{--
     Las entregas del repartidor, en su móvil.
 
-    Está pensada para el peor contexto de todo el sistema: de pie en la calle, con una mano, con
-    prisa y con el sol dando en la pantalla. De ahí las decisiones que aquí parecen exageradas:
+    LA REGLA QUE MANDA SOBRE TODO LO DEMÁS: el repartidor NO cobra. Trabaja para una empresa de
+    logística; el dinero del pedido lo gestiona el comercio, de principio a fin. Por eso aquí no hay
+    un solo importe: ni lo que lleva encima, ni lo que vale el pedido, ni lo que habría que cobrar.
+    Antes lo primero que se veía era «Llevas cobrado y sin entregar en caja RD$610», que además de no
+    ser asunto suyo lo hacía responsable de un dinero que nunca debió llevar. Marcar el cobro y
+    liquidar es cosa de la oficina, y esa pantalla ya existe.
 
-      · Una tarjeta por entrega y nada de tablas: una tabla a 390 px obliga a desplazar en horizontal
-        con el pulgar mientras se sujeta una funda de comida.
-      · La DIRECCIÓN es lo más grande de la tarjeta. Es lo único que necesita mirar mientras conduce.
-      · LA SEÑA va destacada y con rótulo, no en letra chica. «Callejón blanco» o «al lado del
-        colmado» es lo que de verdad encuentra la casa en este país; enterrarlo en gris pequeño era
-        esconder el dato más útil que tiene la tarjeta.
-      · Llamar, Waze y Google Maps a la misma altura y del tamaño del pulgar: cuál se usa depende de
-        si la dirección se entiende o hay que preguntar.
-      · Cerrar es un motivo, no un estado. Ver `DeliveryOutcomeReason`.
-      · Botones de 3rem: con guantes, con lluvia o con el móvil en la otra mano, un botón de tamaño
-        de escritorio se falla.
+    Su trabajo es una cadena de seis pasos: recibir la entrega, recoger, transportar, llegar,
+    entregar y confirmar. Todo lo que se ve aquí sirve a uno de esos seis.
+
+    Está pensada para el peor contexto de todo el sistema: de pie en la calle, con una mano, con
+    prisa y con el sol dando en la pantalla. De ahí las decisiones que parecen exageradas:
+
+      · Una tarjeta por entrega y nada de tablas: a 390 px una tabla obliga a desplazar en horizontal
+        con el pulgar mientras se sujeta un paquete.
+      · La DIRECCIÓN es lo más grande. Es lo único que necesita mirar mientras conduce.
+      · LA REFERENCIA va destacada y con rótulo: «casa azul, al lado del colmado» es lo que de verdad
+        encuentra la puerta en este país. En letra chica era esconder el dato más útil.
+      · Botones de 3rem: con guantes, con lluvia o con el móvil en la otra mano, uno de tamaño de
+        escritorio se falla.
 --}}
 <x-layouts.app title="Mis entregas">
     <x-slot:header>
@@ -26,7 +32,19 @@
             <div class="min-w-0">
                 <h1 class="text-xl font-semibold text-gray-900">Mis entregas</h1>
                 @if ($employee)
-                    <p class="truncate text-sm text-gray-500">{{ $employee->name }}</p>
+                    <p class="entrega-quien">
+                        <span class="truncate">{{ $employee->name }}</span>
+                        {{-- El estado se DEDUCE de sus entregas, no lo declara él: un interruptor que
+                             se olvida de tocar lo deja «disponible» mientras reparte, y en el local
+                             le echan encima otra parada creyéndolo libre. --}}
+                        <span class="entrega-estado" data-estado="{{ $estadoDelRepartidor }}">
+                            @switch ($estadoDelRepartidor)
+                                @case('en_entrega') En entrega @break
+                                @case('fuera') Fuera de servicio @break
+                                @default Disponible
+                            @endswitch
+                        </span>
+                    </p>
                 @endif
             </div>
             <form method="POST" action="{{ route('logout') }}">
@@ -36,12 +54,11 @@
         </div>
     </x-slot:header>
 
-    {{-- El ancho se contiene AQUÍ y no en el layout, que lo comparten más pantallas. En el móvil no
-         se nota; en un escritorio deja de haber una tarjeta de 1.200 px con tres líneas dentro. --}}
+    {{-- El ancho se contiene AQUÍ y no en el layout, que lo comparten más pantallas. --}}
     <div class="entregas">
         @if ($employee === null)
-            {{-- Pasa de verdad: se crea la cuenta y se olvida el vínculo con la ficha. Sin este aviso el
-                 repartidor ve una pantalla vacía y concluye que no tiene entregas. --}}
+            {{-- Pasa de verdad: se crea la cuenta y se olvida el vínculo con la ficha. Sin este aviso
+                 el repartidor ve una pantalla vacía y concluye que no tiene entregas. --}}
             <div class="rounded-xl border border-amber-200 bg-amber-50 p-5">
                 <p class="font-semibold text-amber-900">Tu usuario no está vinculado a tu ficha de empleado.</p>
                 <p class="mt-1 text-sm text-amber-800">
@@ -50,14 +67,13 @@
                 </p>
             </div>
         @else
-            @if (bccomp((string) $enLaCalle, '0', 2) > 0)
-                {{-- Lo que lleva encima. Va arriba porque es lo que le van a preguntar al llegar al local,
-                     y porque saber que lleva RD$3,000 en el bolsillo cambia cómo conduce. --}}
-                <div class="entrega-encima mb-5">
-                    <p class="entrega-encima-rotulo"><x-icono name="cash" /> Llevas cobrado y sin entregar en caja</p>
-                    <p class="entrega-encima-cifra">{{ money($enLaCalle) }}</p>
-                </div>
-            @endif
+            {{-- EL DÍA, EN CUATRO NÚMEROS. Cuenta entregas, nunca dinero. --}}
+            <div class="entrega-resumen">
+                <div class="entrega-dato"><span class="entrega-dato-cifra">{{ $resumen['pendientes'] }}</span>Pendientes</div>
+                <div class="entrega-dato" data-tono="ruta"><span class="entrega-dato-cifra">{{ $resumen['enRuta'] }}</span>En ruta</div>
+                <div class="entrega-dato" data-tono="hecho"><span class="entrega-dato-cifra">{{ $resumen['entregadas'] }}</span>Entregadas</div>
+                <div class="entrega-dato" data-tono="aviso"><span class="entrega-dato-cifra">{{ $resumen['incidencias'] }}</span>Incidencias</div>
+            </div>
 
             @php
                 $abiertas = collect($deliveries)->filter(fn ($d) => ! $d->status->isFinal());
@@ -65,40 +81,43 @@
             @endphp
 
             @if ($abiertas->isEmpty())
-                <div class="rounded-xl bg-white p-6 text-center shadow">
-                    <p class="text-gray-500">No tienes entregas pendientes.</p>
+                <div class="entrega-vacio">
+                    <x-icono name="truck" />
+                    <p>No tienes entregas pendientes.</p>
                 </div>
             @endif
 
             <div class="space-y-4">
                 @foreach ($abiertas as $d)
-                    @php $ir = ComoLlegar::para($d); @endphp
+                    @php
+                        $ir = ComoLlegar::para($d);
+                        $lineas = $d->sale?->items ?? collect();
+                        $enRuta = $d->status === DeliveryStatus::InTransit;
+                    @endphp
 
                     <article x-data="{ cerrando: null, ubicando: false }"
                              data-estado="{{ $d->status->value }}" class="entrega">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                {{-- Lo primero y lo más grande: a dónde hay que ir. --}}
-                                <p class="entrega-direccion">{{ $d->address }}</p>
-                                <p class="entrega-cliente">{{ $d->paraQuien() }}</p>
-                            </div>
-                            <span class="bmos-badge shrink-0 {{ $d->status->badge() }}">{{ $d->status->label() }}</span>
+                        <div class="entrega-cab">
+                            <span class="entrega-orden">Orden {{ $d->code }}</span>
+                            <span class="bmos-badge {{ $d->status->badge() }}">{{ $d->status->label() }}</span>
                         </div>
+
+                        {{-- A dónde hay que ir: lo más grande de la tarjeta. --}}
+                        <p class="entrega-direccion">{{ $d->address }}</p>
+                        <p class="entrega-cliente"><x-icono name="users" />{{ $d->paraQuien() }}</p>
 
                         @if ($d->notes)
                             <p class="entrega-sena">
-                                <span class="entrega-sena-rotulo">Cómo llegar</span>
+                                <span class="entrega-sena-rotulo">Referencia</span>
                                 {{ $d->notes }}
                             </p>
                         @endif
 
                         {{--
-                            LLAMAR · WAZE · MAPS.
-
-                            Los tres iguales: ninguno manda sobre los otros. Si la dirección se
-                            entiende se navega; si no —que en este país es lo normal— se llama. Los
-                            enlaces salen de `ComoLlegar`, que usa el punto exacto si esta entrega o
-                            la ficha del cliente ya lo tienen, y si no la dirección escrita.
+                            LLAMAR · WAZE · MAPS, los tres iguales. Cuál se usa depende de si la
+                            dirección se entiende o hay que preguntar. Los enlaces salen de
+                            `ComoLlegar`, que usa el punto exacto si esta entrega o la ficha del
+                            cliente ya lo tienen, y si no la dirección escrita.
                         --}}
                         <div class="entrega-acciones">
                             @if ($d->phone)
@@ -120,16 +139,11 @@
                         </div>
 
                         {{--
-                            GUARDAR LA UBICACIÓN. Discreto a propósito: es mantenimiento, no reparto,
-                            y no debe competir con «Entregada».
+                            GUARDAR LA UBICACIÓN. Discreto: es mantenimiento, no reparto.
 
-                            Aquí está el porqué de toda esta pantalla: la primera vez se llega
-                            preguntando, y al llegar se marca la puerta. La próxima entrega a este
-                            cliente nace con el punto exacto y ya nadie vuelve a llamar por el
-                            callejón blanco.
-
-                            Solo se escribe cuando él lo pulsa: nunca al abrir la pantalla, nunca en
-                            segundo plano. Esto es la puerta del cliente, no un rastro del motorista.
+                            La primera vez se llega preguntando, y al llegar se marca la puerta. La
+                            próxima entrega a este cliente nace con el punto exacto. Solo se escribe
+                            cuando él lo pulsa: es la puerta del cliente, no un rastro del motorista.
                         --}}
                         @if ($puedeGuardarUbicacion)
                             <form method="POST" action="{{ route('portal.deliveries.location', $d) }}" x-ref="ubicacion">
@@ -160,49 +174,83 @@
                                         ">
                                     <span x-show="!ubicando" class="inline-flex items-center gap-1.5">
                                         <x-icono name="ubicacion" />
-                                        @if ($d->latitude !== null)
-                                            ✓ Ubicación guardada · volver a marcar
-                                        @else
-                                            Guardar esta ubicación
-                                        @endif
+                                        {{ $d->latitude !== null ? 'Ubicación guardada · volver a marcar' : 'Guardar esta ubicación' }}
                                     </span>
                                     <span x-show="ubicando" x-cloak>Buscando dónde estás…</span>
                                 </button>
                             </form>
                         @endif
 
-                        @php $cobra = $d->cobraEnLaPuerta(); @endphp
+                        {{--
+                            QUÉ LLEVA. Solo lo que hace falta para entregarlo: cuántos y cuáles.
 
-                        {{-- Los tres cierres. El primero es el que ocurre nueve de cada diez veces, así
-                             que es el único a todo lo ancho y en verde. El importe va SOLO aquí: antes
-                             salía también como aviso arriba, y dos veces el mismo número hace dudar de
-                             si son dos cobros. --}}
-                        <div x-show="cerrando === null">
-                            <form method="POST" action="{{ route('portal.deliveries.close', $d) }}">
-                                @csrf
-                                <input type="hidden" name="reason" value="{{ DeliveryOutcomeReason::Delivered->value }}">
-                                @if ($cobra)
-                                    <input type="hidden" name="collected" value="1">
-                                @endif
-                                <button type="submit" class="entrega-principal">
-                                    <x-icono name="check" stroke-width="2.2" />
-                                    @if ($cobra)
-                                        <span>Entregada y cobré</span>
-                                        <span class="entrega-principal-importe">{{ money($d->amount_to_collect) }}</span>
-                                    @else
-                                        <span>Entregada</span>
+                            SIN PRECIOS, y no por olvido: el repartidor no cobra, así que un importe
+                            aquí no le sirve para nada y sí lo pone en el sitio incómodo de saber lo
+                            que vale lo que lleva encima.
+                        --}}
+                        @if ($lineas->isNotEmpty())
+                            <div class="entrega-pedido">
+                                <p class="entrega-pedido-cab">
+                                    <x-icono name="bag" />
+                                    {{ $lineas->count() }} {{ $lineas->count() === 1 ? 'producto' : 'productos' }}
+                                    @if ($comercio)
+                                        <span class="entrega-comercio">{{ $comercio->name }}</span>
                                     @endif
-                                </button>
-                            </form>
+                                </p>
+                                <ul class="entrega-lista">
+                                    @foreach ($lineas as $linea)
+                                        <li>
+                                            <span class="entrega-cant">{{ (float) $linea->quantity }}</span>
+                                            {{ $linea->product?->name ?? 'Producto' }}
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
+
+                        {{--
+                            LA CADENA DE ESTADOS: asignada → en ruta → entregada.
+
+                            Se ofrece UN solo paso cada vez, el siguiente. Una pantalla con todos los
+                            botones a la vez obliga a pensar cuál toca, y esto se usa conduciendo.
+                        --}}
+                        <div x-show="cerrando === null">
+                            @unless ($enRuta)
+                                <form method="POST" action="{{ route('portal.deliveries.start', $d) }}">
+                                    @csrf
+                                    <button type="submit" class="entrega-principal" data-tono="ruta">
+                                        <x-icono name="truck" stroke-width="2" />
+                                        <span>Iniciar entrega</span>
+                                    </button>
+                                </form>
+                            @else
+                                <form method="POST" action="{{ route('portal.deliveries.close', $d) }}" id="entregar-{{ $d->id }}">
+                                    @csrf
+                                    <input type="hidden" name="reason" value="{{ DeliveryOutcomeReason::Delivered->value }}">
+                                    {{-- NO se envía `collected`: confirma que ENTREGÓ, no que cobró. --}}
+                                    <button type="button" class="entrega-principal"
+                                            @click="window.confirmarAccion({
+                                                titulo: 'Confirmar entrega',
+                                                mensaje: @js('Orden '.$d->code.' · '.$d->paraQuien().' · '.$d->address),
+                                                aviso: '¿Confirmas que entregaste el pedido?',
+                                                confirmar: 'Sí, la entregué',
+                                                tono: 'seguro',
+                                                formulario: 'entregar-{{ $d->id }}',
+                                            })">
+                                        <x-icono name="check" stroke-width="2.2" />
+                                        <span>Confirmar entrega</span>
+                                    </button>
+                                </form>
+                            @endunless
 
                             <div class="entrega-secundarias">
                                 <button type="button" @click="cerrando = 'failed'" class="entrega-suave">
                                     <x-icono name="alert" />
-                                    No pude entregarla
+                                    No pude entregar
                                 </button>
                                 <button type="button" @click="cerrando = 'cancelled'" class="entrega-suave">
                                     <x-icono name="ban" />
-                                    Cancelada
+                                    Cancelar
                                 </button>
                             </div>
                         </div>
@@ -212,7 +260,7 @@
                         @foreach ([DeliveryStatus::Failed, DeliveryStatus::Cancelled] as $salida)
                             <div x-show="cerrando === '{{ $salida->value }}'" x-cloak class="mt-4">
                                 <p class="mb-2 text-sm font-semibold text-gray-700">
-                                    {{ $salida === DeliveryStatus::Failed ? '¿Qué pasó?' : '¿Por qué se cancela?' }}
+                                    {{ $salida === DeliveryStatus::Failed ? '¿Por qué no pudiste entregar?' : '¿Por qué se cancela?' }}
                                 </p>
                                 <form method="POST" action="{{ route('portal.deliveries.close', $d) }}" class="space-y-2">
                                     @csrf
@@ -221,7 +269,7 @@
                                             {{ $motivo->label() }}
                                         </button>
                                     @endforeach
-                                    <input type="text" name="note" placeholder="Añadir algo (opcional)"
+                                    <input type="text" name="note" placeholder="Observación (opcional)"
                                            class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm">
                                 </form>
                                 <button type="button" @click="cerrando = null"
@@ -235,19 +283,21 @@
             </div>
 
             @if ($cerradas->isNotEmpty())
-                {{-- Lo cerrado HOY. Sin esto, pulsar el botón equivocado hace desaparecer la entrega y no
-                     hay forma de darse cuenta hasta que llama el cliente. --}}
+                {{-- Lo cerrado HOY. Sin esto, pulsar el botón equivocado hace desaparecer la entrega
+                     y no hay forma de darse cuenta hasta que llama el cliente. --}}
                 <div class="mt-8">
-                    <p class="entrega-seccion"><x-icono name="reloj" /> Cerradas hoy</p>
+                    <p class="entrega-seccion"><x-icono name="reloj" /> Entregas completadas hoy</p>
                     <div class="space-y-2">
                         @foreach ($cerradas as $d)
                             <div class="entrega-cerrada">
                                 <div class="min-w-0">
-                                    <p class="truncate text-sm font-medium text-gray-800">{{ $d->address }}</p>
-                                    <p class="text-xs text-gray-500">
-                                        {{ $d->outcome_reason?->label() ?? $d->status->label() }}
-                                        @if ($d->pendienteDeLiquidar())
-                                            · <span class="font-semibold text-amber-700">{{ money($d->amount_to_collect) }} encima</span>
+                                    <p class="truncate text-sm font-medium text-gray-800">
+                                        Orden {{ $d->code }} · {{ $d->paraQuien() }}
+                                    </p>
+                                    <p class="truncate text-xs text-gray-500">
+                                        {{ $d->address }} · {{ $d->outcome_reason?->label() ?? $d->status->label() }}
+                                        @if ($d->delivered_at)
+                                            · {{ $d->delivered_at->format('g:i A') }}
                                         @endif
                                     </p>
                                 </div>

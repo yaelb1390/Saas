@@ -80,6 +80,47 @@
                 $cerradas = collect($deliveries)->filter(fn ($d) => $d->status->isFinal());
             @endphp
 
+            {{--
+                LA RUTA DEL DÍA.
+
+                Va PLEGADA y en la misma pantalla, no en otra ruta: sirve para hacerse una idea del
+                día de un vistazo —cuántas paradas quedan y por dónde— antes de arrancar, y luego
+                estorba. Mandarlo a otra pantalla obligaría a salir y volver de la lista de entregas,
+                que es donde de verdad trabaja.
+
+                El orden es el de ASIGNACIÓN, no por cercanía. Ordenar por distancia exige que todas
+                tengan punto —y casi ninguna lo tiene todavía, el sistema los está aprendiendo— y un
+                cálculo que hoy no existe. Un orden inventado a medias es peor que uno predecible.
+            --}}
+            @if ($abiertas->isNotEmpty())
+                <div x-data="{ abierta: false }" class="entrega-ruta">
+                    <button type="button" @click="abierta = !abierta" :aria-expanded="abierta ? 'true' : 'false'"
+                            class="entrega-ruta-cab">
+                        <x-icono name="mapa" />
+                        <span>Ver ruta del día</span>
+                        <span class="entrega-ruta-cuenta">{{ $abiertas->count() }}</span>
+                    </button>
+
+                    <ol x-show="abierta" x-cloak class="entrega-ruta-lista">
+                        @foreach ($abiertas as $parada)
+                            @php $irParada = ComoLlegar::para($parada); @endphp
+                            <li class="entrega-parada">
+                                <span class="entrega-parada-num">{{ $loop->iteration }}</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="entrega-parada-quien">Orden {{ $parada->code }} · {{ $parada->paraQuien() }}</span>
+                                    <span class="entrega-parada-donde">{{ $parada->address }}</span>
+                                </span>
+                                <span class="bmos-badge shrink-0 {{ $parada->status->badge() }}">{{ $parada->status->label() }}</span>
+                                <a href="{{ $irParada->googleMaps() }}" target="_blank" rel="noopener"
+                                   class="entrega-parada-ir" aria-label="Navegar a esta parada">
+                                    <x-icono name="navegar" />
+                                </a>
+                            </li>
+                        @endforeach
+                    </ol>
+                </div>
+            @endif
+
             @if ($abiertas->isEmpty())
                 <div class="entrega-vacio">
                     <x-icono name="truck" />
@@ -180,6 +221,40 @@
                                 </button>
                             </form>
                         @endif
+
+                        {{--
+                            LA FOTO DE LA ENTREGA.
+
+                            Existe sobre todo para PROTEGER AL REPARTIDOR. Cuando un cliente llama
+                            diciendo que no le entregaron nada, sin foto es su palabra contra la del
+                            cliente, y en esa discusión el que no tiene con qué defenderse es él.
+
+                            `capture="environment"` abre la cámara trasera directamente, sin pasar por
+                            el carrete: son dos toques menos de pie en una puerta. Y se envía sola al
+                            elegir la foto, porque un botón de «subir» aparte se olvida — la foto queda
+                            elegida y nunca llega.
+
+                            No tiene nada que ver con el pago: él no cobra. Solo confirma que llegó.
+                        --}}
+                        @if ($puedeSubirEvidencia)
+                            <form method="POST" action="{{ route('portal.deliveries.evidence', $d) }}"
+                                  enctype="multipart/form-data" x-ref="foto">
+                                @csrf
+                                <label class="entrega-foto {{ $d->evidence_path !== null ? 'is-guardada' : '' }}">
+                                    <input type="file" name="evidence" accept="image/*" capture="environment"
+                                           class="sr-only" @change="$refs.foto.submit()">
+                                    <x-icono name="foto" />
+                                    <span>
+                                        @if ($d->evidence_path !== null)
+                                            ✓ Foto tomada · repetirla
+                                        @else
+                                            Tomar foto de la entrega
+                                        @endif
+                                    </span>
+                                </label>
+                            </form>
+                        @endif
+
 
                         {{--
                             QUÉ LLEVA. Solo lo que hace falta para entregarlo: cuántos y cuáles.

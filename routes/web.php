@@ -126,6 +126,10 @@ Route::middleware(['auth'])->group(function (): void {
         // Sale con la mercancía: la entrega pasa a «en ruta» y él a «en entrega».
         Route::post('/portal/entregas/{delivery}/iniciar', [DriverPortalController::class, 'iniciar'])
             ->name('portal.deliveries.start');
+        // La foto que prueba que el pedido llego. Protege sobre todo al repartidor: sin ella, ante
+        // una reclamacion es su palabra contra la del cliente.
+        Route::post('/portal/entregas/{delivery}/evidencia', [DriverPortalController::class, 'evidencia'])
+            ->name('portal.deliveries.evidence');
         // El repartidor marca dónde está la puerta al llegar. Un toque suyo, nunca en segundo plano.
         Route::post('/portal/entregas/{delivery}/ubicacion', [DriverPortalController::class, 'ubicacion'])
             ->name('portal.deliveries.location');

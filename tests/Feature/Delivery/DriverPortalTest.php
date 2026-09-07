@@ -13,10 +13,13 @@ use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Delivery\Services\DeliveryService;
+use App\Modules\Delivery\Support\EvidenciaDeEntrega;
 use App\Modules\HR\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 /*
@@ -621,4 +624,148 @@ it('sin las columnas la pantalla funciona y no ofrece guardar la ubicacion', fun
         // Sigue pudiendo navegar por la dirección: lo único que se cae es guardar el punto.
         ->and($html)->toContain('waze.com')
         ->and($html)->not->toContain('Guardar esta ubicación');
+});
+
+// ------------------------------------------------------------------ La ruta del día
+
+/*
+ * LA RUTA DEL DÍA, para hacerse una idea antes de arrancar.
+ *
+ * Va numerada por el ORDEN EN QUE LAS VA A HACER, y ahí hay una trampa que ya piqué escribiéndola:
+ * la lista se saca filtrando la colección, y filtrar en PHP CONSERVA LAS CLAVES ORIGINALES. Usando
+ * el índice del array, una entrega ya cerrada dejaba un hueco y la ruta salía numerada «1, 3, 4».
+ * De ahí que se use el contador del propio bucle.
+ */
+it('la ruta del dia numera las paradas en orden y sin huecos', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+
+    // Una cerrada primero, que es la que abre el hueco en las claves.
+    $cerrada = pedidoDe($kelvin, direccion: 'Calle Cerrada 0');
+    app(DeliveryService::class)->close($cerrada, DeliveryOutcomeReason::Delivered);
+
+    pedidoDe($kelvin, direccion: 'Calle Uno 1');
+    pedidoDe($kelvin, direccion: 'Calle Dos 2');
+
+    $html = $this->actingAs($kelvin->user)->get(route('portal.deliveries'))->assertOk()->getContent();
+
+    expect($html)->toContain('Ver ruta del día')
+        ->and($html)->toContain('Calle Uno 1')
+        ->and($html)->toContain('Calle Dos 2');
+
+    // Las dos paradas abiertas, numeradas 1 y 2. Si la numeración volviera al índice del array,
+    // saldrían «2» y «3» y este test lo diría.
+    preg_match_all('/entrega-parada-num">(\d+)</', $html, $numeros);
+    expect($numeros[1])->toBe(['1', '2']);
+});
+
+// ------------------------------------------------------------------ La foto de la entrega
+
+/*
+ * LA EVIDENCIA PROTEGE SOBRE TODO AL REPARTIDOR.
+ *
+ * Cuando un cliente llama diciendo que no le entregaron nada, sin foto es su palabra contra la del
+ * cliente — y el que no tiene con qué defenderse es él. No tiene NADA que ver con el pago: él no
+ * cobra, esto solo confirma que la mercancía llegó.
+ */
+it('el repartidor guarda la foto de la entrega', function (): void {
+    Storage::fake('local');
+
+    $kelvin = motoristaLlamado('Kelvin');
+    $entrega = pedidoDe($kelvin);
+
+    $this->actingAs($kelvin->user)
+        ->post(route('portal.deliveries.evidence', $entrega), [
+            'evidence' => UploadedFile::fake()->image('puerta.jpg', 1600, 1200),
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('panel_ok');
+
+    $entrega->refresh();
+
+    expect($entrega->evidence_path)->not->toBeNull()
+        ->and($entrega->evidence_at)->not->toBeNull()
+        // En su carpeta, y no en la de productos: son cosas distintas y se borran por criterios
+        // distintos.
+        ->and($entrega->evidence_path)->toStartWith('entregas/')
+        ->and(EvidenciaDeEntrega::disk()->exists($entrega->evidence_path))->toBeTrue();
+});
+
+/*
+ * Esconder el botón no es proteger. Sin la comprobación bastaría teclear el código de la entrega de
+ * un compañero para colgarle una foto — a él y al cliente de otro.
+ */
+it('no puede colgar una foto en la entrega de un companero', function (): void {
+    Storage::fake('local');
+
+    $kelvin = motoristaLlamado('Kelvin');
+    $ramon = motoristaLlamado('Ramón');
+    $ajena = pedidoDe($ramon);
+
+    $this->actingAs($kelvin->user)
+        ->post(route('portal.deliveries.evidence', $ajena), [
+            'evidence' => UploadedFile::fake()->image('puerta.jpg'),
+        ])
+        ->assertSessionHas('panel_error');
+
+    expect($ajena->fresh()->evidence_path)->toBeNull();
+});
+
+/* Un ejecutable con nombre de foto no entra. */
+it('rechaza lo que no es una imagen', function (): void {
+    Storage::fake('local');
+
+    $kelvin = motoristaLlamado('Kelvin');
+    $entrega = pedidoDe($kelvin);
+
+    $this->actingAs($kelvin->user)
+        ->post(route('portal.deliveries.evidence', $entrega), [
+            'evidence' => UploadedFile::fake()->create('bicho.php', 10),
+        ])
+        ->assertSessionHasErrors('evidence');
+
+    expect($entrega->fresh()->evidence_path)->toBeNull();
+});
+
+// ------------------------------------------------------------------ El perfil del repartidor
+
+/*
+ * SU PERFIL, SIN UNA CIFRA DE DINERO.
+ *
+ * La ficha de empleado guarda el salario, y esta pantalla la abre él en la calle, muchas veces
+ * delante de un cliente. Que el sueldo no aparezca no es un detalle estético.
+ */
+it('el perfil ensena vehiculo y entregas, y jamas el salario', function (): void {
+    $kelvin = motoristaLlamado('Kelvin');
+    $kelvin->update(['vehicle' => 'Motor Honda 125', 'phone' => '8095551234', 'salary' => '38500']);
+
+    $entrega = pedidoDe($kelvin);
+    app(DeliveryService::class)->close($entrega, DeliveryOutcomeReason::Delivered);
+
+    $html = $this->actingAs($kelvin->user)->get(route('portal.employee'))->assertOk()->getContent();
+
+    expect($html)->toContain('Motor Honda 125')
+        ->and($html)->toContain('8095551234')
+        ->and($html)->toContain('Entregas realizadas')
+        // Disponible, porque no lleva ninguna en ruta.
+        ->and($html)->toContain('Disponible')
+        // Y ni rastro del sueldo.
+        ->and($html)->not->toContain('38500')
+        ->and($html)->not->toContain('38,500');
+});
+
+/*
+ * Y a quien no reparte no se le enseñan rótulos de reparto en blanco: un cajero sin vehículo ni
+ * entregas vería «Vehículo: Sin indicar», que no informa, solo hace dudar de si falla algo.
+ */
+it('a quien no reparte no se le ensenan datos de reparto', function (): void {
+    $cajero = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Cajera',
+        'email' => 'cajera@reparto.test', 'password' => 'secret-password',
+    ]), 'staff');
+    Employee::create(['name' => 'Cajera', 'user_id' => $cajero->id, 'is_active' => true]);
+
+    $html = $this->actingAs($cajero)->get(route('portal.employee'))->assertOk()->getContent();
+
+    expect($html)->not->toContain('Entregas realizadas')
+        ->and($html)->not->toContain('Vehículo');
 });

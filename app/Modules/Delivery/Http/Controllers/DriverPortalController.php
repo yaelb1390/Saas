@@ -9,9 +9,12 @@ use App\Modules\Delivery\Enums\DeliveryOutcomeReason;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Exceptions\DeliveryException;
 use App\Modules\Delivery\Http\Requests\CloseDeliveryRequest;
+use App\Modules\Delivery\Http\Requests\SaveDeliveryEvidenceRequest;
 use App\Modules\Delivery\Http\Requests\SaveDeliveryLocationRequest;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Delivery\Services\DeliveryService;
+use App\Modules\Delivery\Support\EstadoDelRepartidor;
+use App\Modules\Delivery\Support\EvidenciaDeEntrega;
 use App\Modules\HR\Models\Employee;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -24,9 +27,13 @@ use Illuminate\Routing\Controller;
  * Hasta ahora el repartidor no participaba: alguien en el local le preguntaba por teléfono cómo le
  * había ido y tecleaba el resultado. El panel iba siempre por detrás de la calle.
  *
+ * EL REPARTIDOR NO COBRA. Trabaja para una empresa de logística y el dinero del pedido lo gestiona el
+ * comercio de principio a fin, así que de aquí no sale un solo importe: ni lo que vale el pedido, ni
+ * lo que llevaría encima. Marcar el cobro y liquidar es cosa de la oficina, por su propia pantalla.
+ *
  * Todo lo que se lee aquí se filtra por SU ficha de empleado, y no por lo que venga en la petición.
- * Es la regla que sostiene la pantalla entera: lo que se cobra en la puerta es dinero, y el saldo de
- * un compañero no es asunto suyo.
+ * Es la regla que sostiene la pantalla entera: la entrega de un compañero no es asunto suyo, y
+ * esconder un botón nunca ha sido protegerlo.
  */
 final class DriverPortalController extends Controller
 {
@@ -38,6 +45,7 @@ final class DriverPortalController extends Controller
             return view('portal.deliveries', [
                 'employee' => null, 'deliveries' => collect(),
                 'puedeGuardarUbicacion' => false,
+                'puedeSubirEvidencia' => false,
                 'resumen' => ['pendientes' => 0, 'enRuta' => 0, 'entregadas' => 0, 'incidencias' => 0],
                 'estadoDelRepartidor' => 'fuera',
                 'comercio' => null,
@@ -57,6 +65,10 @@ final class DriverPortalController extends Controller
              * diría que sí: la peor clase de fallo, porque confiaría en un punto que no está.
              */
             'puedeGuardarUbicacion' => DbTable::tieneColumna('deliveries', 'latitude'),
+
+            // Igual que la ubicacion: sin la columna, no se ofrece. Un boton que dice que guardo una
+            // foto que no existe es peor que no tener boton, porque se descubre en la reclamacion.
+            'puedeSubirEvidencia' => DbTable::tieneColumna('deliveries', 'evidence_path'),
 
             // Las abiertas, y además las que él cerró HOY: sin eso, cerrar una entrega la hace
             // desaparecer y no hay forma de darse cuenta de que se pulsó el botón equivocado.
@@ -91,7 +103,7 @@ final class DriverPortalController extends Controller
              * «disponible» mientras reparte el día que se le olvide tocarlo — y quien asigna en el
              * local le mandaría otra entrega encima.
              */
-            'estadoDelRepartidor' => $this->estadoDe($empleado),
+            'estadoDelRepartidor' => EstadoDelRepartidor::de($empleado),
 
             // De qué comercio sale la mercancía. En el reparto de una empresa de logística es lo
             // primero que hay que saber para ir a recogerla.
@@ -211,19 +223,36 @@ final class DriverPortalController extends Controller
         ];
     }
 
-    /** Disponible, en entrega, o fuera de servicio. Se deduce; no hay interruptor que olvidar. */
-    private function estadoDe(Employee $empleado): string
+    /**
+     * La foto que prueba que el pedido llegó.
+     *
+     * Existe sobre todo para PROTEGER AL REPARTIDOR. Cuando un cliente llama diciendo que no le
+     * entregaron nada, sin foto es su palabra contra la del cliente, y en esa discusión el que no
+     * tiene con qué defenderse es él.
+     *
+     * No tiene nada que ver con el pago: él no cobra. Solo confirma que la mercancía llegó.
+     */
+    public function evidencia(SaveDeliveryEvidenceRequest $request, Delivery $delivery, EvidenciaDeEntrega $evidencias): RedirectResponse
     {
-        if (! $empleado->is_active) {
-            return 'fuera';
+        $empleado = $this->empleadoDe($request);
+
+        if ($empleado === null) {
+            return back()->with('panel_error', DeliveryException::noEresRepartidor()->getMessage());
         }
 
-        $enRuta = Delivery::query()
-            ->where('employee_id', $empleado->id)
-            ->where('status', DeliveryStatus::InTransit)
-            ->exists();
+        // La misma regla de todo este portal: esconder el botón no es proteger. Sin esto se podría
+        // colgar una foto en la entrega de un compañero tecleando su código.
+        if ((int) $delivery->employee_id !== (int) $empleado->id) {
+            return back()->with('panel_error', DeliveryException::noEsTuya()->getMessage());
+        }
 
-        return $enRuta ? 'en_entrega' : 'disponible';
+        if (! DbTable::tieneColumna('deliveries', 'evidence_path')) {
+            return back()->with('panel_error', 'Las fotos de entrega todavía no están disponibles en este servidor.');
+        }
+
+        $evidencias->guardar($delivery, $request->file('evidence'));
+
+        return back()->with('panel_ok', 'Foto guardada.');
     }
 
     /** La ficha de empleado del usuario que ha entrado. Sin ella, no es repartidor de nadie. */

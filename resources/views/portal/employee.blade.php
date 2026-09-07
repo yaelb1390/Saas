@@ -50,6 +50,45 @@
             <p class="mt-1 text-lg font-semibold text-slate-800">{{ $employee->name }}</p>
             <p class="text-sm text-slate-500">{{ $employee->position ?? 'Sin cargo' }}</p>
 
+            {{--
+                LO DEL REPARTO, solo para quien reparte.
+
+                Un cajero o un cocinero no tienen vehículo ni entregas, y enseñarles esos rótulos en
+                blanco no informa: hace dudar de si falta el dato o falla el sistema.
+
+                NINGUNA CIFRA DE DINERO, incluido su propio salario, que la ficha sí guarda. Esta
+                pantalla la abre él, en su móvil, y muchas veces delante de un cliente.
+            --}}
+            @if ($reparte)
+                <div class="entrega-perfil">
+                    <span class="entrega-estado" data-estado="{{ $estadoDeReparto }}">
+                        {{ \App\Modules\Delivery\Support\EstadoDelRepartidor::label($estadoDeReparto) }}
+                    </span>
+
+                    <dl class="entrega-perfil-datos">
+                        <div>
+                            <dt>Vehículo</dt>
+                            <dd>{{ $employee->vehicle ?: 'Sin indicar' }}</dd>
+                        </div>
+                        <div>
+                            <dt>Teléfono</dt>
+                            <dd>{{ $employee->phone ?: 'Sin indicar' }}</dd>
+                        </div>
+                        <div>
+                            <dt>Entregas realizadas</dt>
+                            <dd>{{ $entregasHechas }}</dd>
+                        </div>
+                        {{-- Sin calificar no es lo mismo que cero: a un repartidor nuevo, un cero de
+                             salida lo pondría como el peor de la plantilla sin haber salido aún. --}}
+                        @if ($employee->rating !== null)
+                            <div>
+                                <dt>Calificación</dt>
+                                <dd>{{ number_format((float) $employee->rating, 1) }} / 5</dd>
+                            </div>
+                        @endif
+                    </dl>
+                </div>
+            @endif
             @can('delivery.own')
                 <a href="{{ route('portal.deliveries') }}" class="bmos-btn bmos-btn-primary mt-4 text-sm">
                     Ver mis entregas

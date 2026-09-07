@@ -6573,3 +6573,175 @@ a.bmos-destino:hover {
     background: linear-gradient(135deg, #d97706, #f59e0b);
     box-shadow: 0 8px 20px -10px rgba(217, 119, 6, 0.8);
 }
+
+/* ─── Portal del repartidor: la ruta del día ─────────────────────────────────────────────────────
+   Plegada por omisión: sirve para hacerse una idea antes de arrancar y después estorba. */
+
+.entrega-ruta {
+    margin-bottom: 1.25rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.9rem;
+    background: var(--bmos-surface);
+    overflow: hidden;
+}
+
+.entrega-ruta-cab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--bmos-text);
+    text-align: start;
+}
+
+/* Cuántas paradas quedan, sin desplegar nada. */
+.entrega-ruta-cuenta {
+    margin-inline-start: auto;
+    min-width: 1.5rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    background: #eef2ff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #3730a3;
+    text-align: center;
+}
+
+.entrega-ruta-lista {
+    border-top: 1px solid var(--bmos-border);
+}
+
+.entrega-parada {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+}
+
+.entrega-parada + .entrega-parada {
+    border-top: 1px solid #f1f3f9;
+}
+
+/* El número de parada: es el orden en que las va a hacer, y se lee antes que el texto. */
+.entrega-parada-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 999px;
+    background: #eef2ff;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #3730a3;
+}
+
+.entrega-parada-quien,
+.entrega-parada-donde {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.entrega-parada-quien {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+}
+
+.entrega-parada-donde {
+    font-size: 0.75rem;
+    color: var(--bmos-muted);
+}
+
+/* Navegar a esa parada sin bajar a su tarjeta. Del tamaño del pulgar aunque sea solo un icono. */
+.entrega-parada-ir {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.6rem;
+    background: #f8f9fc;
+    color: var(--bmos-text);
+}
+
+/* ─── Portal del repartidor: la foto de la entrega ───────────────────────────────────────────────
+   Es una etiqueta y no un botón porque envuelve el campo de fichero: así toda la barra abre la
+   cámara, y no solo un icono de 16 px que hay que acertar con el pulgar. */
+
+.entrega-foto {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: 2.75rem;
+    margin-top: 0.5rem;
+    border: 1px dashed var(--bmos-border);
+    border-radius: 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.entrega-foto:active {
+    background: #f1f3f9;
+}
+
+/* Ya tomada: se dice, y deja de parecer algo pendiente. Sin el acuse, el repartidor la repite en
+   cada entrega sin saber nunca si la anterior sirvió. */
+.entrega-foto.is-guardada {
+    border-style: solid;
+    border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.entrega-foto svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* ─── Perfil del repartidor ──────────────────────────────────────────────────────────────────────
+   Sin una sola regla para importes: aqui no se ensena dinero, ni siquiera su propio salario, que la
+   ficha si guarda. Esta pantalla la abre el en la calle y muchas veces delante de un cliente. */
+
+.entrega-perfil {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bmos-border);
+}
+
+.entrega-perfil-datos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+}
+
+.entrega-perfil-datos dt {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--bmos-muted);
+}
+
+.entrega-perfil-datos dd {
+    margin-top: 0.1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--bmos-text);
+    overflow-wrap: anywhere;
+}

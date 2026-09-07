@@ -48,6 +48,15 @@ return [
     'product_images' => env('PRODUCT_IMAGE_DISK', 'local'),
 
     /*
+     * La foto que prueba que una entrega llego.
+     *
+     * Cae en el mismo disco que las imagenes de producto, que en produccion ya apunta a R2: asi esto
+     * funciona el dia que se despliega sin anadir otra variable. Quien quiera separarlas —por
+     * ejemplo para darles otra caducidad— tiene su propia variable sin tocar codigo.
+     */
+    'delivery_evidence' => env('DELIVERY_EVIDENCE_DISK', env('PRODUCT_IMAGE_DISK', 'local')),
+
+    /*
      * Logo de cada empresa (el que sale en sus recibos). Cae por defecto en el mismo disco que las
      * fotos de producto porque el problema es idéntico —en Vercel el sistema de ficheros es de solo
      * lectura— y así una instalación ya configurada no tiene que tocar nada. La variable propia

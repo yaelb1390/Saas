@@ -59,6 +59,9 @@ class Delivery extends Model implements Auditable, HasCompany
         // Donde se entrego DE VERDAD. Lo guarda el repartidor al llegar, de un toque.
         'latitude',
         'longitude',
+        // La prueba de que llego. Nada que ver con el pago: el repartidor no cobra.
+        'evidence_path',
+        'evidence_at',
         'user_id',
     ];
 
@@ -72,6 +75,7 @@ class Delivery extends Model implements Auditable, HasCompany
             'delivered_at' => 'datetime',
             'collected_at' => 'datetime',
             'settled_at' => 'datetime',
+            'evidence_at' => 'datetime',
             // Cadena y no float: siete decimales son ~1 cm, y en coma flotante dos lecturas
             // identicas pueden no comparar iguales, con lo que «¿es el mismo punto?» deja de
             // tener respuesta fiable.

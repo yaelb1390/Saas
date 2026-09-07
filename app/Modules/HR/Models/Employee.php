@@ -35,6 +35,11 @@ class Employee extends Model implements Auditable, HasCompany
         'salary',
         'hired_at',
         'is_active',
+        // Lo del reparto. El salario NO se ensena en el portal del repartidor: es informacion
+        // financiera, y esa pantalla no muestra ninguna.
+        'vehicle',
+        'phone',
+        'rating',
     ];
 
     protected function casts(): array

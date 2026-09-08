@@ -99,7 +99,7 @@
                     <div class="p-10 text-center text-sm text-slate-400">Todavía no hay trabajos anotados.</div>
                 @else
                     <div class="bmos-tabla-envoltura">
-                        <table class="bmos-table">
+                        <table class="bmos-table bmos-tabla-tarjetas">
                             <thead>
                                 <tr>
                                     <th>Vehículo</th>
@@ -114,17 +114,17 @@
                             <tbody>
                                 @foreach ($trabajos as $trabajo)
                                     <tr>
-                                        <td class="text-sm text-slate-600">
+                                        <td data-rotulo="Vehículo" class="text-sm text-slate-600">
                                             {{ $trabajo->vehicle?->code }}
                                             <span class="block text-xs text-slate-400">
                                                 {{ $trabajo->vehicle?->make }} {{ $trabajo->vehicle?->model }} {{ $trabajo->vehicle?->year }}
                                             </span>
                                         </td>
-                                        <td class="text-sm text-slate-700">{{ $trabajo->description }}</td>
-                                        <td class="text-sm text-slate-500">{{ $trabajo->performed_by ?? '—' }}</td>
-                                        <td class="text-sm text-slate-600">{{ money($trabajo->cost) }}</td>
-                                        <td class="text-sm text-slate-500">{{ $trabajo->performed_at?->format('d/m/Y') ?? '—' }}</td>
-                                        <td>
+                                        <td data-rotulo="Trabajo" class="text-sm text-slate-700">{{ $trabajo->description }}</td>
+                                        <td data-rotulo="Quién" class="text-sm text-slate-500">{{ $trabajo->performed_by ?? '—' }}</td>
+                                        <td data-rotulo="Costo" class="text-sm text-slate-600">{{ money($trabajo->cost) }}</td>
+                                        <td data-rotulo="Fecha" class="text-sm text-slate-500">{{ $trabajo->performed_at?->format('d/m/Y') ?? '—' }}</td>
+                                        <td data-rotulo="Estado">
                                             <span class="bmos-badge {{ $trabajo->status->badgeClass() }}">{{ $trabajo->status->label() }}</span>
                                         </td>
                                         <td class="text-right">

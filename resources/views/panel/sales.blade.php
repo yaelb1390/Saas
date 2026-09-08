@@ -39,7 +39,7 @@
         @endif
 
         <div class="overflow-x-auto">
-            <table class="bmos-table">
+            <table class="bmos-table bmos-tabla-tarjetas">
                 <thead>
                     <tr>
                         @if ($puedeAnular)
@@ -62,14 +62,14 @@
                                            class="rounded border-slate-300 text-indigo-600">
                                 </td>
                             @endif
-                            <td class="font-mono text-xs font-semibold text-indigo-600">{{ $sale->code }}</td>
-                            <td>{{ $sale->customer_name ?? 'Consumidor final' }}</td>
-                            <td>{{ $sale->items_count }}</td>
-                            <td>{{ number_format((float) $sale->subtotal, 2) }}</td>
-                            <td class="font-semibold">{{ number_format((float) $sale->total, 2) }}</td>
-                            <td><span class="bmos-badge badge-blue">{{ ucfirst($sale->payment_method) }}</span></td>
-                            <td><span class="bmos-badge {{ $saleBadge($sale->status) }}">{{ $sale->status->label() }}</span></td>
-                            <td class="text-slate-400">{{ $sale->created_at?->format('d/m/Y H:i') }}</td>
+                            <td data-rotulo="Código" class="font-mono text-xs font-semibold text-indigo-600">{{ $sale->code }}</td>
+                            <td data-rotulo="Cliente">{{ $sale->customer_name ?? 'Consumidor final' }}</td>
+                            <td data-rotulo="Líneas">{{ $sale->items_count }}</td>
+                            <td data-rotulo="Subtotal">{{ number_format((float) $sale->subtotal, 2) }}</td>
+                            <td data-rotulo="Total" class="font-semibold">{{ number_format((float) $sale->total, 2) }}</td>
+                            <td data-rotulo="Pago"><span class="bmos-badge badge-blue">{{ ucfirst($sale->payment_method) }}</span></td>
+                            <td data-rotulo="Estado"><span class="bmos-badge {{ $saleBadge($sale->status) }}">{{ $sale->status->label() }}</span></td>
+                            <td data-rotulo="Fecha" class="text-slate-400">{{ $sale->created_at?->format('d/m/Y H:i') }}</td>
                             <td class="text-right">
                                 <a href="{{ route('panel.sales.receipt', $sale) }}" target="_blank" rel="noopener"
                                    class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-indigo-600 hover:bg-indigo-50" title="Ver recibo">

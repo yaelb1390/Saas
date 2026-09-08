@@ -30,7 +30,7 @@
                 </div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="bmos-table">
+                    <table class="bmos-table bmos-tabla-tarjetas">
                         <thead>
                             <tr>
                                 <th>Nombre</th>
@@ -43,13 +43,13 @@
                         <tbody>
                             @foreach ($categories as $category)
                                 <tr>
-                                    <td class="font-medium text-slate-700">
+                                    <td data-rotulo="Nombre" class="font-medium text-slate-700">
                                         <span class="mr-1.5">{{ \App\Modules\Inventory\Support\CategoryIcons::resolve($category->icon) }}</span>
                                         {{ $category->name }}
                                     </td>
-                                    <td class="text-slate-500">{{ $category->parent?->name ?? '—' }}</td>
-                                    <td class="text-right tabular-nums text-slate-600">{{ $category->products_count }}</td>
-                                    <td>
+                                    <td data-rotulo="Categoría padre" class="text-slate-500">{{ $category->parent?->name ?? '—' }}</td>
+                                    <td data-rotulo="Productos" class="text-right tabular-nums text-slate-600">{{ $category->products_count }}</td>
+                                    <td data-rotulo="Estado">
                                         <span class="bmos-badge {{ $category->is_active ? 'badge-green' : 'badge-gray' }}">
                                             {{ $category->is_active ? 'Activa' : 'Inactiva' }}
                                         </span>

@@ -19,17 +19,17 @@
                     @endcan
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="bmos-table">
+                    <table class="bmos-table bmos-tabla-tarjetas">
                         <thead><tr><th>Código</th><th>Proveedor</th><th>Líneas</th><th>Total</th><th>Estado</th><th>Fecha</th><th class="text-right">Acciones</th></tr></thead>
                         <tbody>
                             @forelse ($orders as $order)
                                 <tr>
-                                    <td class="font-mono text-xs font-semibold text-indigo-600">{{ $order->code }}</td>
-                                    <td>{{ $order->supplier?->name ?? '—' }}</td>
-                                    <td>{{ $order->items_count }}</td>
-                                    <td class="font-semibold">{{ number_format((float) $order->total, 2) }}</td>
-                                    <td><span class="bmos-badge {{ $poBadge($order->status) }}">{{ $order->status->label() }}</span></td>
-                                    <td class="text-slate-400">{{ $order->created_at?->format('d/m/Y') }}</td>
+                                    <td data-rotulo="Código" class="font-mono text-xs font-semibold text-indigo-600">{{ $order->code }}</td>
+                                    <td data-rotulo="Proveedor">{{ $order->supplier?->name ?? '—' }}</td>
+                                    <td data-rotulo="Líneas">{{ $order->items_count }}</td>
+                                    <td data-rotulo="Total" class="font-semibold">{{ number_format((float) $order->total, 2) }}</td>
+                                    <td data-rotulo="Estado"><span class="bmos-badge {{ $poBadge($order->status) }}">{{ $order->status->label() }}</span></td>
+                                    <td data-rotulo="Fecha" class="text-slate-400">{{ $order->created_at?->format('d/m/Y') }}</td>
                                     <td class="text-right">
                                         {{-- Recibir suma existencia al almacén: solo se ofrece si la orden
                                              está en un estado que lo admite. Recibir dos veces lo impide

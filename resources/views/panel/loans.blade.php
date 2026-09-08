@@ -162,7 +162,7 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead>
                         <tr>
                             <th>Código</th><th>Cliente</th><th>Capital</th><th>Total</th><th>Saldo</th>
@@ -172,17 +172,17 @@
                     <tbody>
                         @forelse ($loans as $loan)
                             <tr>
-                                <td class="font-mono text-xs text-slate-500">
+                                <td data-rotulo="Código" class="font-mono text-xs text-slate-500">
                                     <a href="{{ route('panel.loans.show', $loan) }}" class="text-indigo-600 hover:underline">{{ $loan->code }}</a>
                                 </td>
-                                <td class="font-medium text-slate-800">{{ $loan->customer_name ?? $loan->customer?->name ?? '—' }}</td>
-                                <td>{{ number_format((float) $loan->principal, 2) }}</td>
-                                <td>{{ number_format((float) $loan->total, 2) }}</td>
-                                <td class="font-semibold">{{ number_format((float) $loan->balance, 2) }}</td>
-                                <td>{{ number_format((float) $loan->installment_amount, 2) }}</td>
-                                <td>{{ $loan->frequency->label() }}</td>
-                                <td><span class="bmos-badge {{ $loan->status->badgeClass() }}">{{ $loan->status->label() }}</span></td>
-                                <td class="text-xs text-slate-500">
+                                <td data-rotulo="Cliente" class="font-medium text-slate-800">{{ $loan->customer_name ?? $loan->customer?->name ?? '—' }}</td>
+                                <td data-rotulo="Capital">{{ number_format((float) $loan->principal, 2) }}</td>
+                                <td data-rotulo="Total">{{ number_format((float) $loan->total, 2) }}</td>
+                                <td data-rotulo="Saldo" class="font-semibold">{{ number_format((float) $loan->balance, 2) }}</td>
+                                <td data-rotulo="Cuota">{{ number_format((float) $loan->installment_amount, 2) }}</td>
+                                <td data-rotulo="Frecuencia">{{ $loan->frequency->label() }}</td>
+                                <td data-rotulo="Estado"><span class="bmos-badge {{ $loan->status->badgeClass() }}">{{ $loan->status->label() }}</span></td>
+                                <td data-rotulo="Próx. venc." class="text-xs text-slate-500">
                                     @if ($loan->installments_min_due_date)
                                         {{ \Illuminate\Support\Carbon::parse($loan->installments_min_due_date)->format('d/m/Y') }}
                                     @else

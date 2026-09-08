@@ -151,7 +151,7 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="bmos-table">
+            <table class="bmos-table bmos-tabla-tarjetas">
                 <thead>
                     <tr>
                         <th>Proveedor</th><th>RNC/Cédula</th><th>NCF</th><th>Tipo</th><th>Fecha</th>
@@ -162,14 +162,14 @@
                 <tbody>
                     @forelse ($invoices as $inv)
                         <tr>
-                            <td class="font-medium text-slate-800">{{ $inv->provider_name ?? '—' }}</td>
-                            <td class="text-slate-500">{{ $inv->provider_tax_id ?? '—' }}</td>
-                            <td class="font-mono text-xs text-slate-500">{{ $inv->ncf }}</td>
-                            <td class="text-xs text-slate-500">{{ $inv->goods_services_type->value }}</td>
-                            <td>{{ $inv->invoice_date->format('d/m/Y') }}</td>
-                            <td class="text-right">{{ number_format((float) $inv->amount, 2) }}</td>
-                            <td class="text-right">{{ number_format((float) $inv->itbis, 2) }}</td>
-                            <td>
+                            <td data-rotulo="Proveedor" class="font-medium text-slate-800">{{ $inv->provider_name ?? '—' }}</td>
+                            <td data-rotulo="RNC/Cédula" class="text-slate-500">{{ $inv->provider_tax_id ?? '—' }}</td>
+                            <td data-rotulo="NCF" class="font-mono text-xs text-slate-500">{{ $inv->ncf }}</td>
+                            <td data-rotulo="Tipo" class="text-xs text-slate-500">{{ $inv->goods_services_type->value }}</td>
+                            <td data-rotulo="Fecha">{{ $inv->invoice_date->format('d/m/Y') }}</td>
+                            <td data-rotulo="Monto" class="text-right">{{ number_format((float) $inv->amount, 2) }}</td>
+                            <td data-rotulo="ITBIS" class="text-right">{{ number_format((float) $inv->itbis, 2) }}</td>
+                            <td data-rotulo="Adjunto">
                                 @if ($inv->hasFile())
                                     <a href="{{ route('panel.purchase-invoices.file', $inv) }}" target="_blank"
                                        class="text-indigo-600 hover:underline">{{ $inv->isImage() ? 'Ver foto' : 'Ver PDF' }}</a>

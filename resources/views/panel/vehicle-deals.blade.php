@@ -129,7 +129,7 @@
                     <div class="p-10 text-center text-sm text-slate-400">Todavía no hay tratos registrados.</div>
                 @else
                     <div class="bmos-tabla-envoltura">
-                        <table class="bmos-table">
+                        <table class="bmos-table bmos-tabla-tarjetas">
                             <thead>
                                 <tr>
                                     <th>Trato</th>
@@ -144,19 +144,19 @@
                             <tbody>
                                 @foreach ($tratos as $trato)
                                     <tr>
-                                        <td>
+                                        <td data-rotulo="Trato">
                                             <span class="font-medium text-slate-700">{{ $trato->code }}</span>
                                             <span class="block text-xs text-slate-400">{{ $trato->created_at?->format('d/m/Y') }}</span>
                                         </td>
-                                        <td class="text-sm text-slate-600">
+                                        <td data-rotulo="Vehículo" class="text-sm text-slate-600">
                                             {{ $trato->vehicle?->code }}
                                             <span class="block text-xs text-slate-400">
                                                 {{ $trato->vehicle?->make }} {{ $trato->vehicle?->model }} {{ $trato->vehicle?->year }}
                                             </span>
                                         </td>
-                                        <td class="text-sm text-slate-600">{{ $trato->customer_name ?? $trato->customer?->name }}</td>
-                                        <td class="text-sm text-slate-600">{{ money($trato->agreed_price) }}</td>
-                                        <td class="text-sm">
+                                        <td data-rotulo="Cliente" class="text-sm text-slate-600">{{ $trato->customer_name ?? $trato->customer?->name }}</td>
+                                        <td data-rotulo="Precio" class="text-sm text-slate-600">{{ money($trato->agreed_price) }}</td>
+                                        <td data-rotulo="Falta por cobrar" class="text-sm">
                                             {{ money($trato->balance) }}
                                             @if ($trato->cuotas_vencidas > 0)
                                                 {{-- Lo que hay que perseguir. Sin esto habría que abrir

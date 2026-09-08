@@ -6072,6 +6072,24 @@ a.bmos-destino:hover {
     margin-inline: auto;
 }
 
+/*
+ * TAMAÑO BASE DE TODO ICONO DE ESTA PANTALLA.
+ *
+ * `<x-icono>` no trae tamaño propio: lo pone quien lo usa, porque el mismo dibujo sirve para una
+ * fila de menú y para un botón grande. El precio es que un icono al que se le olvida la medida se
+ * pinta del tamaño de su contenedor — y eso fue exactamente lo que pasó con «Ver ruta del día»: un
+ * pin de mapa ocupando la tarjeta entera.
+ *
+ * Esta regla va PRIMERO a propósito. Las de más abajo son igual de específicas, así que al ir
+ * después ganan ellas: el que quiera otro tamaño lo pide y lo obtiene, y el que se olvide no rompe
+ * la pantalla.
+ */
+.entregas svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+}
+
 .entrega {
     position: relative;
     overflow: hidden;
@@ -6744,4 +6762,85 @@ a.bmos-destino:hover {
     font-weight: 600;
     color: var(--bmos-text);
     overflow-wrap: anywhere;
+}
+
+/* ─── Tablas que se vuelven tarjetas en el teléfono ──────────────────────────────────────────────
+   El Punto de Venta y el Mostrador ya lo hacían, pero atado a sus propias clases. Esto es lo mismo,
+   servido a cualquier tabla del panel: once columnas de una venta no se leen en 390 px, y hoy hay
+   que arrastrar el dedo cuatro veces para ver una fila entera.
+
+   ES OPCIONAL, y a proposito. Se activa anadiendo `bmos-tabla-tarjetas` junto a `bmos-table`. Si
+   fuera automatico, una tabla a la que todavia no se le han puesto los rotulos se apilaria SIN
+   etiquetas —una columna de valores sueltos sin decir que es cada uno—, que es peor que la tabla
+   que se desplaza. Asi cada pantalla se convierte cuando esta lista, y a medias nunca empeora. */
+
+@media (max-width: 48rem) {
+    /* La cabecera sobra: cada dato lleva su rotulo al lado, sacado de `data-rotulo`. */
+    .bmos-tabla-tarjetas thead {
+        display: none;
+    }
+
+    .bmos-tabla-tarjetas,
+    .bmos-tabla-tarjetas tbody,
+    .bmos-tabla-tarjetas tr,
+    .bmos-tabla-tarjetas td {
+        display: block;
+        width: 100%;
+    }
+
+    /* Cada fila, una tarjeta. */
+    .bmos-tabla-tarjetas tr {
+        border: 1px solid var(--bmos-border);
+        border-radius: 0.75rem;
+        background: var(--bmos-surface);
+        margin-bottom: 0.6rem;
+        padding: 0.6rem 0.8rem;
+    }
+
+    .bmos-tabla-tarjetas td {
+        border: 0;
+        padding: 0.2rem 0;
+        white-space: normal;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.8rem;
+        min-width: 0;
+        text-align: right;
+    }
+
+    /* El rotulo lo pone el propio dato, asi no hay que repetirlo en el marcado. */
+    .bmos-tabla-tarjetas td[data-rotulo]::before {
+        content: attr(data-rotulo);
+        flex: none;
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #94a3b8;
+        text-align: start;
+    }
+
+    /*
+     * Una celda SIN rotulo ocupa la fila entera y se alinea a la izquierda.
+     *
+     * Son los botones de accion y las casillas de seleccion: ponerles «Acciones» delante es ruido, y
+     * dejarlos a la derecha con un hueco vacio a la izquierda parece un fallo de maquetacion.
+     */
+    .bmos-tabla-tarjetas td:not([data-rotulo]) {
+        justify-content: flex-start;
+        text-align: start;
+    }
+
+    /* Una fila vacia («sin resultados») no debe parecer una tarjeta de datos. */
+    .bmos-tabla-tarjetas td[colspan] {
+        justify-content: center;
+        text-align: center;
+        color: var(--bmos-muted);
+    }
+
+    /* Sin la tabla ancha, la envoltura ya no tiene nada que desplazar. */
+    .bmos-tabla-envoltura:has(.bmos-tabla-tarjetas) {
+        overflow-x: visible;
+    }
 }

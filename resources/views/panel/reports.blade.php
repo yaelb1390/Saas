@@ -129,15 +129,15 @@
         <div class="bmos-card overflow-hidden xl:col-span-2">
             <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Productos más vendidos (período)</p></div>
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead><tr><th>#</th><th>Producto</th><th class="text-right">Cantidad</th><th class="text-right">Importe</th></tr></thead>
                     <tbody>
                         @forelse ($report['top_products'] as $i => $p)
                             <tr>
-                                <td class="text-slate-400">{{ $i + 1 }}</td>
-                                <td class="font-medium text-slate-800">{{ $p['name'] }}</td>
-                                <td class="text-right">{{ rtrim(rtrim(number_format((float) $p['qty'], 3), '0'), '.') }}</td>
-                                <td class="text-right font-semibold">{{ number_format((float) $p['total'], 2) }}</td>
+                                <td data-rotulo="#" class="text-slate-400">{{ $i + 1 }}</td>
+                                <td data-rotulo="Producto" class="font-medium text-slate-800">{{ $p['name'] }}</td>
+                                <td data-rotulo="Cantidad" class="text-right">{{ rtrim(rtrim(number_format((float) $p['qty'], 3), '0'), '.') }}</td>
+                                <td data-rotulo="Importe" class="text-right font-semibold">{{ number_format((float) $p['total'], 2) }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="4" class="bmos-empty">No hubo ventas en el período seleccionado.</td></tr>

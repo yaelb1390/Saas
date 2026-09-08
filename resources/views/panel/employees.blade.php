@@ -18,22 +18,22 @@
             </div>
         </div>
         <div class="overflow-x-auto">
-            <table class="bmos-table">
+            <table class="bmos-table bmos-tabla-tarjetas">
                 <thead><tr><th>Empleado</th><th>Cargo</th><th>Correo</th><th>Ingreso</th><th>Asistencias</th><th>Estado</th><th class="text-right">Acciones</th></tr></thead>
                 <tbody>
                     @forelse ($employees as $employee)
                         <tr>
-                            <td class="flex items-center gap-2 font-medium text-slate-800">
+                            <td data-rotulo="Empleado" class="flex items-center gap-2 font-medium text-slate-800">
                                 <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-600">
                                     {{ strtoupper(mb_substr($employee->name, 0, 1)) }}
                                 </span>
                                 {{ $employee->name }}
                             </td>
-                            <td>{{ $employee->position ?? '—' }}</td>
-                            <td class="text-slate-500">{{ $employee->email ?? '—' }}</td>
-                            <td class="text-slate-400">{{ $employee->hired_at?->format('d/m/Y') ?? '—' }}</td>
-                            <td><span class="bmos-badge badge-blue">{{ $employee->attendances_count }}</span></td>
-                            <td><span class="bmos-badge {{ $employee->is_active ? 'badge-green' : 'badge-gray' }}">{{ $employee->is_active ? 'Activo' : 'Inactivo' }}</span></td>
+                            <td data-rotulo="Cargo">{{ $employee->position ?? '—' }}</td>
+                            <td data-rotulo="Correo" class="text-slate-500">{{ $employee->email ?? '—' }}</td>
+                            <td data-rotulo="Ingreso" class="text-slate-400">{{ $employee->hired_at?->format('d/m/Y') ?? '—' }}</td>
+                            <td data-rotulo="Asistencias"><span class="bmos-badge badge-blue">{{ $employee->attendances_count }}</span></td>
+                            <td data-rotulo="Estado"><span class="bmos-badge {{ $employee->is_active ? 'badge-green' : 'badge-gray' }}">{{ $employee->is_active ? 'Activo' : 'Inactivo' }}</span></td>
                             <td>
                                 <div class="flex items-center justify-end gap-1">
                                     @can('hr.manage')

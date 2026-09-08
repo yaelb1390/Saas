@@ -16,17 +16,17 @@
     <div class="mt-6 bmos-card overflow-hidden">
         <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Movimientos</p></div>
         <div class="overflow-x-auto">
-            <table class="bmos-table">
+            <table class="bmos-table bmos-tabla-tarjetas">
                 <thead><tr><th>Fecha</th><th>Cuenta</th><th>Tipo</th><th>Descripción</th><th class="text-right">Importe</th></tr></thead>
                 <tbody>
                     @forelse ($movements as $mov)
                         @php $isIncome = $mov->type->value === 'income'; @endphp
                         <tr>
-                            <td class="text-slate-400">{{ $mov->occurred_at?->format('d/m/Y H:i') }}</td>
-                            <td>{{ $mov->account?->name }}</td>
-                            <td><span class="bmos-badge {{ $isIncome ? 'badge-green' : 'badge-amber' }}">{{ $mov->type->label() }}</span></td>
-                            <td>{{ $mov->description ?? '—' }}</td>
-                            <td class="text-right font-semibold {{ $isIncome ? 'text-emerald-600' : 'text-rose-600' }}">
+                            <td data-rotulo="Fecha" class="text-slate-400">{{ $mov->occurred_at?->format('d/m/Y H:i') }}</td>
+                            <td data-rotulo="Cuenta">{{ $mov->account?->name }}</td>
+                            <td data-rotulo="Tipo"><span class="bmos-badge {{ $isIncome ? 'badge-green' : 'badge-amber' }}">{{ $mov->type->label() }}</span></td>
+                            <td data-rotulo="Descripción">{{ $mov->description ?? '—' }}</td>
+                            <td data-rotulo="Importe" class="text-right font-semibold {{ $isIncome ? 'text-emerald-600' : 'text-rose-600' }}">
                                 {{ number_format((float) $mov->amount, 2) }}
                             </td>
                         </tr>

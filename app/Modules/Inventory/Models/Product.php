@@ -53,6 +53,9 @@ class Product extends Model implements Auditable, HasCompany
         'cost',
         'price',
         'track_stock',
+        // Si este producto lleva unidades con numero de serie propio (celulares, electronica).
+        // Apagado casi siempre: una batida no se serializa. Ver ProductUnit.
+        'tracks_serials',
         'is_active',
         'is_available',
     ];
@@ -65,6 +68,7 @@ class Product extends Model implements Auditable, HasCompany
             'year_from' => 'integer',
             'year_to' => 'integer',
             'track_stock' => 'boolean',
+            'tracks_serials' => 'boolean',
             'is_active' => 'boolean',
             // «Hoy no hay». NO es lo mismo que `is_active`: aquel saca el producto del catálogo para
             // siempre; este dice que se acabó y se enciende otra vez mañana. Ver la migración.
@@ -170,6 +174,39 @@ class Product extends Model implements Auditable, HasCompany
     public function stock(): HasMany
     {
         return $this->hasMany(Stock::class);
+    }
+
+    /**
+     * Las unidades con número de serie, si es un producto serializado.
+     *
+     * Vacío para el 99 % de los productos, que llevan stock por cantidad. Ver `ProductUnit` para por
+     * qué las dos cosas conviven sin descuadrar.
+     *
+     * @return HasMany<ProductUnit, $this>
+     */
+    public function units(): HasMany
+    {
+        return $this->hasMany(ProductUnit::class);
+    }
+
+    /** ¿Se lleva por unidades con serie, o por cantidad? */
+    public function esSerializado(): bool
+    {
+        return (bool) $this->tracks_serials;
+    }
+
+    /**
+     * Unidades disponibles de un producto serializado en un almacén.
+     *
+     * Es la fuente de verdad de «cuántas hay» para estos productos — y cuadra con el `stock` por
+     * cantidad porque cada unidad, al entrar o salir, mueve también ese contador.
+     */
+    public function unidadesDisponibles(int $warehouseId): int
+    {
+        return $this->units()
+            ->where('warehouse_id', $warehouseId)
+            ->where('status', ProductUnit::DISPONIBLE)
+            ->count();
     }
 
     /**

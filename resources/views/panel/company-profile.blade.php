@@ -100,6 +100,21 @@
                             </span>
                         </span>
                     </label>
+
+                    <label class="mt-2 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:bg-slate-50">
+                        <input type="checkbox" name="features[product_images]" value="1"
+                               @checked(old('features.product_images', $company->usesFeature('product_images')))
+                               class="mt-0.5 rounded border-slate-300 text-indigo-600">
+                        <span class="min-w-0">
+                            <span class="block text-sm font-medium text-slate-800">Fotos de productos</span>
+                            <span class="block text-xs text-slate-500">
+                                Para cafeterías, ropa o repostería, donde el cliente compra con los ojos.
+                                Si vendes tornillos o repuestos, apágalo: te quita el campo de subir foto
+                                en cada alta y el hueco gris de cada fila del inventario.
+                                <b>Las fotos que ya tengas no se borran</b>, solo dejan de verse.
+                            </span>
+                        </span>
+                    </label>
                 </div>
 
                 <div class="mt-5 flex justify-end">

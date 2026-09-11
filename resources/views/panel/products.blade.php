@@ -28,6 +28,7 @@
                             Déjalo vacío y el sistema asigna el siguiente código. Escríbelo solo si ya usas tu propia codificación.
                         </p>
                     </div>
+                    @if ($usaFotos)
                     {{-- La foto se recuadra a vertical 3:4 al guardarla. Se avisa ANTES de subir, y
                          se comprueba la orientación en el navegador para decirlo en el momento en
                          que se elige el archivo, no después de guardar. --}}
@@ -47,6 +48,7 @@
                             pero se verá con franjas arriba y abajo. Una foto vertical llena la ficha entera.
                         </p>
                     </div>
+                    @endif
                     {{-- Opcional: no todo artículo trae código impreso. Tres formas de ponerlo:
                          teclearlo, pasar un lector de pistola (escribe en el campo enfocado), o la
                          cámara del móvil. El evento «codigo-escaneado» de la cámara llena el campo. --}}
@@ -196,6 +198,8 @@
                                 <td class="font-mono text-xs text-slate-500">{{ $product->sku }}</td>
                                 <td class="font-medium text-slate-800">
                                     <div class="flex items-center gap-2.5">
+                                        {{-- Sin fotos, el hueco gris de cada fila sobra: no dice nada y estrecha el nombre. --}}
+                                        @if ($usaFotos)
                                         <span class="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-slate-100">
                                             @if ($product->hasImage())
                                                 <img src="{{ $product->imageUrl() }}" alt="" loading="lazy" class="h-full w-full object-cover">
@@ -203,6 +207,7 @@
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" class="h-5 w-5 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Z"/></svg>
                                             @endif
                                         </span>
+                                        @endif
                                         <div class="min-w-0">
                                             {{ $product->name }}
                                             @php $fit = $product->vehicleFit(); @endphp
@@ -321,6 +326,7 @@
                     <input type="hidden" name="id" x-model="row.id">
                     <div><label class="bmos-field-label">SKU</label><input name="sku" x-model="row.sku" class="bmos-input" required></div>
                     <div><label class="bmos-field-label">Nombre</label><input name="name" x-model="row.name" class="bmos-input" required></div>
+                    @if ($usaFotos)
                     <div x-data="avisoFotoVertical()">
                         <label class="bmos-field-label">Foto del producto</label>
                         <div class="flex items-center gap-3">
@@ -347,6 +353,7 @@
                             pero se verá con franjas arriba y abajo.
                         </p>
                     </div>
+                    @endif
                     <div><label class="bmos-field-label">Código de barras (opcional)</label><input name="barcode" x-model="row.barcode" class="bmos-input" placeholder="Escanea o teclea el código"></div>
                     <div>
                         <label class="bmos-field-label">Categoría</label>

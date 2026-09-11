@@ -95,3 +95,56 @@ it('no sirve la foto de un producto de otra empresa', function (): void {
 
     $this->actingAs($intruso)->get(route('panel.products.image', $product))->assertNotFound();
 });
+
+// ------------------------------------------------------------------ Encender y apagar las fotos
+
+/*
+ * LAS FOTOS SON UNA FUNCIÓN QUE SE APAGA, NO UNA OBLIGACIÓN.
+ *
+ * Un colmado con seiscientos artículos no va a fotografiarlos uno a uno: el campo de subir en cada
+ * alta y el hueco gris en cada fila del inventario son estorbo puro. Una cafetería o una tienda de
+ * ropa venden con los ojos y las quieren. Por eso lo decide el dueño en «Mi empresa».
+ *
+ * Viene APAGADA de fábrica a propósito: es lo contrario de lo habitual, pero encaja con el negocio
+ * típico de aquí, donde la mayoría no fotografía nada.
+ */
+it('de fabrica el inventario no pide fotos', function (): void {
+    $this->withoutVite();
+
+    $html = $this->actingAs($this->owner)->get(route('panel.products'))->assertOk()->getContent();
+
+    /*
+     * Se mira el USO, no la definición: la función de JavaScript se sirve siempre —vive en el
+     * bloque de scripts de la pantalla— y comprobarla daría un test que falla por el motivo
+     * equivocado. Lo que tiene que desaparecer es el campo y su rótulo.
+     */
+    expect($html)->not->toContain('x-data="avisoFotoVertical()"')
+        ->and($html)->not->toContain('Foto del producto');
+});
+
+it('encendida, el inventario vuelve a ofrecerlas', function (): void {
+    $this->withoutVite();
+
+    $this->company->update(['settings' => ['features' => ['product_images' => true]]]);
+
+    $html = $this->actingAs($this->owner)->get(route('panel.products'))->assertOk()->getContent();
+
+    expect($html)->toContain('x-data="avisoFotoVertical()"')
+        ->and($html)->toContain('Foto del producto');
+});
+
+/*
+ * Y APAGARLA NO PIERDE NADA. Es la mitad que de verdad importa: la pantalla de «Mi empresa» promete
+ * que «no se borra nada», y sin este test esa promesa no la sujeta nadie.
+ */
+it('apagarla no borra las fotos que ya estaban', function (): void {
+    $producto = Product::create([
+        'sku' => 'CON-FOTO', 'name' => 'Con foto', 'cost' => '10', 'price' => '20',
+        'image_path' => 'productos/una-foto.jpg',
+    ]);
+
+    $this->company->update(['settings' => ['features' => ['product_images' => false]]]);
+
+    expect($producto->fresh()->image_path)->toBe('productos/una-foto.jpg')
+        ->and($producto->fresh()->hasImage())->toBeTrue();
+});

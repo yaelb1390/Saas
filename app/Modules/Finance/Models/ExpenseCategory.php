@@ -6,6 +6,7 @@ namespace App\Modules\Finance\Models;
 
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
+use App\Modules\Finance\Enums\ExpenseGroup;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -56,6 +57,9 @@ class ExpenseCategory extends Model implements Auditable, HasCompany
     protected $fillable = [
         'company_id',
         'name',
+        // La CATEGORIA fija a la que pertenece este concepto. Ojo al nombre: este modelo es lo que
+        // la pantalla llama «Concepto»; la categoria es otra cosa. Ver ExpenseGroup.
+        'category',
         'is_active',
     ];
 
@@ -63,6 +67,8 @@ class ExpenseCategory extends Model implements Auditable, HasCompany
     {
         return [
             'is_active' => 'boolean',
+            // Null se conserva como null: «sin clasificar» NO es lo mismo que «Otros».
+            'category' => ExpenseGroup::class,
         ];
     }
 

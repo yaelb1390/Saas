@@ -205,6 +205,20 @@ class Company extends Model implements Auditable
      */
     public const FEATURES = [
         'option_groups' => 'Tamaños y sabores',
+
+        /*
+         * Las fotos de los productos.
+         *
+         * APAGADA POR OMISIÓN, y es deliberado: `usesFeature()` devuelve false mientras nadie la
+         * toque, así que una empresa nueva arranca sin fotos y las enciende si las quiere. Un colmado
+         * con seiscientos artículos no va a fotografiarlos uno a uno; el hueco gris en cada fila y el
+         * campo de subir en cada alta son estorbo puro, y esta pantalla existe justo para quitar lo
+         * que estorba.
+         *
+         * Apagarla ESCONDE, no borra. Las fotos ya subidas siguen donde estaban y vuelven a verse al
+         * encenderla, que es la misma promesa que esta pantalla hace para todo lo demás.
+         */
+        'product_images' => 'Fotos de productos',
     ];
 
     /**

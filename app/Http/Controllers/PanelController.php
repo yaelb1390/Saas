@@ -111,6 +111,14 @@ final class PanelController extends Controller
              */
             'showPartFields' => $company !== null && PosProfile::pideDetalles(PosProfile::for($company)['profile']),
 
+            /*
+             * ¿Este negocio usa fotos de producto? Lo enciende el dueño en «Mi empresa».
+             *
+             * Apagado desaparecen el campo de subir y la miniatura de cada fila. Las fotos ya
+             * subidas NO se borran: vuelven a verse en cuanto se encienda.
+             */
+            'usaFotos' => $company !== null && $company->usesFeature('product_images'),
+
             // Los del vehículo son otra cosa: solo tienen sentido donde se venden piezas.
             'showVehicleFields' => $company !== null && PosProfile::pideVehiculo(PosProfile::for($company)['profile']),
 

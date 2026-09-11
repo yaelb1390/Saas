@@ -6844,3 +6844,270 @@ a.bmos-destino:hover {
         overflow-x: visible;
     }
 }
+
+/* ─── Gastos: la tabla dinámica ──────────────────────────────────────────────────────────────────
+   Se pinta como una hoja de cálculo a propósito. Quien lleva las cuentas de un negocio ya sabe leer
+   una rejilla con totales al borde; no hay que enseñarle una forma nueva de mirar sus números. */
+
+/* Resumen | Detalle. Una celda de la dinámica es una suma, no un gasto: no puede llevar los botones
+   de editar y anular, así que las dos vistas se conmutan en vez de mezclarse. */
+.gasto-vistas {
+    display: inline-flex;
+    gap: 0.25rem;
+    margin-bottom: 1.25rem;
+    padding: 0.25rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.7rem;
+    background: var(--bmos-surface);
+}
+
+.gasto-vista {
+    padding: 0.35rem 0.9rem;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+}
+
+.gasto-vista.is-activa {
+    background: var(--bmos-primary);
+    color: #fff;
+}
+
+.gasto-din-cab {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--bmos-border);
+}
+
+.gasto-din-ejes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.gasto-din-eje {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+}
+
+.gasto-din-eje select {
+    width: auto;
+    padding-block: 0.3rem;
+    font-size: 0.8rem;
+}
+
+/* El marco: la rejilla se desplaza DENTRO, no arrastra la página. Con doce meses en columnas no cabe
+   en una pantalla y no debería caber: para eso se clavan la cabecera y la primera columna. */
+.gasto-din-marco {
+    overflow: auto;
+    max-height: min(70vh, 34rem);
+}
+
+.gasto-din {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.gasto-din th,
+.gasto-din td {
+    padding: 0.4rem 0.7rem;
+    border-bottom: 1px solid #eef1f7;
+    border-right: 1px solid #eef1f7;
+    white-space: nowrap;
+}
+
+.gasto-din thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8f9fc;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bmos-muted);
+}
+
+/* La primera columna se queda a la vista al desplazar a la derecha: sin ella, a partir del quinto
+   mes se leen cifras sin saber de qué son. */
+.gasto-din-fila {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bmos-surface);
+    text-align: start;
+    font-weight: 600;
+    color: var(--bmos-text);
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* La esquina se cruza con las dos: tiene que estar por encima de ambas. */
+.gasto-din-esquina {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #f8f9fc;
+    text-align: start;
+}
+
+/* Un filo de color por categoría, para agrupar de un vistazo sin llenar la rejilla de fondos. */
+.gasto-din-fila[data-tono]::before {
+    content: '';
+    display: inline-block;
+    width: 0.2rem;
+    height: 0.85rem;
+    margin-inline-end: 0.5rem;
+    border-radius: 999px;
+    vertical-align: -0.1rem;
+    background: #94a3b8;
+}
+
+.gasto-din-fila[data-tono='amber']::before { background: #f59e0b; }
+.gasto-din-fila[data-tono='blue']::before { background: #3b82f6; }
+.gasto-din-fila[data-tono='violet']::before { background: #8b5cf6; }
+.gasto-din-fila[data-tono='rose']::before { background: #f43f5e; }
+.gasto-din-fila[data-tono='emerald']::before { background: #10b981; }
+
+.gasto-din-num {
+    text-align: right;
+}
+
+/* El hueco es el dato: un guion se lee como «aquí no hubo gasto», y un 0.00 obliga a mirar dos veces
+   para concluir lo mismo. Se apaga para que la vista salte a las cifras que sí tienen algo. */
+.gasto-din td.es-vacia {
+    color: #cbd5e1;
+}
+
+/* La columna y la fila de totales, con peso. Es lo que se mira primero y lo último que se comprueba. */
+.gasto-din-cierre {
+    background: #f8f9fc;
+    font-weight: 700;
+    color: var(--bmos-text);
+}
+
+.gasto-din tfoot th,
+.gasto-din tfoot td {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: #f1f5f9;
+    font-weight: 700;
+    color: var(--bmos-text);
+    border-top: 2px solid var(--bmos-border);
+}
+
+.gasto-din tfoot .gasto-din-fila {
+    z-index: 3;
+}
+
+.gasto-din tbody tr:hover td,
+.gasto-din tbody tr:hover th {
+    background: #f8fafc;
+}
+
+/* Datos de prueba. Solo se pinta fuera de producción, y aun así en gris: es una herramienta de
+   desarrollo, no una función del negocio, y no debe competir con nada de la pantalla. */
+.gasto-demo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding: 0.9rem 1.1rem;
+    border: 1px dashed var(--bmos-border);
+    border-radius: 0.9rem;
+    background: #f8f9fc;
+}
+
+.gasto-demo-titulo {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--bmos-muted);
+}
+
+.gasto-demo-nota {
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    max-width: 44rem;
+}
+
+.gasto-demo-botones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* El de borrar en rojo solo al pasar por encima: en reposo no debe llamar la atención más que el
+   otro, porque no es la acción que se viene a hacer a esta pantalla. */
+.gasto-demo-borrar:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+/* ─── Gastos: el gráfico ─────────────────────────────────────────────────────────────────────────
+   Tres formas, y se eligen por la PREGUNTA que contestan, no por el tipo de dibujo. Un selector que
+   dijera «barras / líneas / tarta» invita a elegir mal: la tarta con trece categorías es ilegible y
+   aun así alguien la pulsaría. */
+
+.gasto-formas {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 0.6rem;
+    background: #f8f9fc;
+}
+
+.gasto-forma {
+    padding: 0.3rem 0.7rem;
+    border-radius: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--bmos-muted);
+    white-space: nowrap;
+}
+
+.gasto-forma.is-activa {
+    background: var(--bmos-surface);
+    color: var(--bmos-text);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+/* Alto fijo y no proporcional: el lienzo lo dimensiona Chart.js con `maintainAspectRatio: false`, y
+   sin un alto del contenedor el gráfico crece sin fin en cada repintado. */
+.gasto-lienzo {
+    position: relative;
+    height: 20rem;
+    padding: 1rem 1.25rem 1.25rem;
+}
+
+/* En el móvil se estira un poco: el ranking de trece categorías necesita sitio vertical, y ahí es
+   donde el gráfico compite con el resto de la pantalla por el pulgar. */
+@media (max-width: 640px) {
+    .gasto-lienzo {
+        height: 24rem;
+        padding: 0.75rem;
+    }
+
+    .gasto-formas {
+        width: 100%;
+        overflow-x: auto;
+    }
+}

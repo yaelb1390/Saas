@@ -646,6 +646,13 @@ Route::middleware(['auth'])->group(function (): void {
 
     Route::middleware(['can:finance.manage', 'module:finance'])->group(function (): void {
         Route::post('/panel/gastos', [ExpenseController::class, 'store'])->name('panel.expenses.store');
+        /*
+         * Datos de prueba. Cerrado en el servidor con un 404 fuera de desarrollo: sembrar cincuenta
+         * apuntes en la contabilidad de un negocio real es de las cosas que nadie quiere descubrir
+         * que se podian hacer. El borrado solo toca los que llevan el prefijo DEMO-.
+         */
+        Route::post('/panel/gastos/demo', [ExpenseController::class, 'sembrarDemo'])->name('panel.expenses.demo');
+        Route::delete('/panel/gastos/demo', [ExpenseController::class, 'borrarDemo'])->name('panel.expenses.demo.destroy');
         // Anular devuelve el dinero al saldo y, si salió del cajón, al turno.
         Route::delete('/panel/gastos/{expense}', [ExpenseController::class, 'destroy'])->name('panel.expenses.destroy');
 

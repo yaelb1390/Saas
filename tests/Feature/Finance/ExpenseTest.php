@@ -262,13 +262,24 @@ it('el listado respeta el rango de fechas', function (): void {
     gasto(['amount' => '100', 'paid_at' => now()->subMonths(3)->toDateString(), 'description' => 'Gasto viejo']);
     gasto(['amount' => '200', 'description' => 'Gasto de este mes']);
 
-    // Por defecto, el mes en curso.
-    $html = $this->actingAs($this->owner)->get(route('panel.expenses'))->getContent();
+    /*
+     * Se pide la vista de DETALLE, y no es un detalle del test.
+     *
+     * La pantalla abre en el resumen —la tabla dinámica—, que agrupa por categoría y por tiempo: ahí
+     * no aparece la descripción de ningún gasto, porque una celda es una suma de varios. Lo que este
+     * test comprueba es que el RANGO DE FECHAS filtra, y eso solo se ve donde se listan los gastos
+     * uno a uno.
+     */
+    $html = $this->actingAs($this->owner)->get(route('panel.expenses', ['vista' => 'detalle']))->getContent();
     expect($html)->toContain('Gasto de este mes')->and($html)->not->toContain('Gasto viejo');
 
     // Ampliando el rango aparecen los dos.
     $html = $this->actingAs($this->owner)
-        ->get(route('panel.expenses', ['desde' => now()->subYear()->toDateString(), 'hasta' => now()->toDateString()]))
+        ->get(route('panel.expenses', [
+            'vista' => 'detalle',
+            'desde' => now()->subYear()->toDateString(),
+            'hasta' => now()->toDateString(),
+        ]))
         ->getContent();
     expect($html)->toContain('Gasto viejo');
 });

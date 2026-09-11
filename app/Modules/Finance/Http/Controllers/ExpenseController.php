@@ -14,6 +14,8 @@ use App\Modules\Finance\Models\Account;
 use App\Modules\Finance\Models\Expense;
 use App\Modules\Finance\Models\ExpenseCategory;
 use App\Modules\Finance\Services\ExpenseService;
+use App\Modules\Finance\Support\GastosDePrueba;
+use App\Modules\Finance\Support\TablaDinamicaDeGastos;
 use App\Modules\Purchasing\Models\Supplier;
 use DomainException;
 use Illuminate\Contracts\View\View;
@@ -27,6 +29,38 @@ use Illuminate\Support\Carbon;
  */
 final class ExpenseController extends Controller
 {
+    /**
+     * Siembra gastos de mentira para poder mirar la pantalla con algo dentro.
+     *
+     * FUERA DE PRODUCCION Y PUNTO. No es que sea poco elegante tenerlo ahi: es que sembrar cincuenta
+     * apuntes en la contabilidad de un negocio de verdad es exactamente el tipo de accion que nadie
+     * quiere descubrir que existia. El 404 lo cierra en el servidor, y la pantalla ni lo ensena.
+     */
+    public function sembrarDemo(GastosDePrueba $demo): RedirectResponse
+    {
+        abort_if(app()->isProduction(), 404);
+
+        $creados = $demo->sembrar();
+
+        return back()->with('panel_ok', "Se anadieron {$creados} gastos de prueba, repartidos en los ultimos meses.");
+    }
+
+    /**
+     * Se lleva los de mentira, y SOLO esos.
+     *
+     * No hay un «borrar todo»: el borrado filtra por el prefijo `DEMO-` del codigo, asi que no
+     * puede tocar un gasto real ni equivocandose. En este modulo hasta anular es un borrado logico
+     * para no perder el historial; un boton capaz de vaciarlo seria una contradiccion.
+     */
+    public function borrarDemo(GastosDePrueba $demo): RedirectResponse
+    {
+        abort_if(app()->isProduction(), 404);
+
+        $borrados = $demo->borrar();
+
+        return back()->with('panel_ok', "Se borraron {$borrados} gastos de prueba. Los reales no se tocan.");
+    }
+
     public function index(): View
     {
         [$desde, $hasta] = $this->rango();
@@ -74,8 +108,40 @@ final class ExpenseController extends Controller
             '0.00',
         );
 
+        /*
+         * LA TABLA DINAMICA. Se calcula sobre TODOS los gastos del periodo, no sobre la pagina.
+         *
+         * La tabla de abajo esta paginada de veinte en veinte porque es el detalle; el cruce de
+         * arriba es un resumen, y un resumen de la primera pagina no es un resumen de nada. Se
+         * repiten los mismos filtros para que las dos partes hablen del mismo dinero.
+         */
+        $paraElCruce = Expense::query()
+            ->with(['category', 'account', 'supplier'])
+            ->whereDate('paid_at', '>=', $desde->toDateString())
+            ->whereDate('paid_at', '<=', $hasta->toDateString())
+            ->when(request('concepto'), fn ($q) => $q->where('expense_category_id', request('concepto')))
+            ->when(request('cuenta'), fn ($q) => $q->where('account_id', request('cuenta')))
+            ->when(request('q'), fn ($q, $texto) => $q->where(fn ($sub) => $sub
+                ->whereLike('description', "%{$texto}%")
+                ->orWhereLike('code', "%{$texto}%")
+                ->orWhereLike('supplier_name', "%{$texto}%")
+                ->orWhereLike('reference', "%{$texto}%")))
+            ->get();
+
         return view('panel.expenses', [
             'expenses' => $gastos,
+            'dinamica' => TablaDinamicaDeGastos::de(
+                $paraElCruce,
+                (string) request('filas', 'categoria'),
+                (string) request('columnas', ''),
+                $desde,
+                $hasta,
+            ),
+            'ejeFilas' => (string) request('filas', 'categoria'),
+            'ejeColumnas' => (string) request('columnas', ''),
+            // Resumen o detalle: una celda de la dinamica es una suma, no un gasto, asi que no puede
+            // llevar los botones de editar o anular. Se conmuta en vez de mezclarlos.
+            'vista' => request('vista') === 'detalle' ? 'detalle' : 'resumen',
             'porConcepto' => $porConcepto,
             'total' => $total,
             'desde' => $desde,

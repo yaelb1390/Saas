@@ -97,6 +97,161 @@
             </div>
         </div>
 
+        {{--
+            LA TABLA DINÁMICA.
+
+            Una lista de gastos no contesta la única pregunta que se le hace a esta pantalla: «¿en qué
+            se me va el dinero, y va a más o a menos?». Para eso hay que cruzar dos ejes —en qué se
+            gasta contra cuándo—, y eso es una tabla dinámica.
+
+            Se pinta como una hoja de cálculo a propósito: rejilla densa, cifras a la derecha, cabecera
+            y primera columna clavadas al desplazar. Quien lleva las cuentas de un negocio ya sabe leer
+            eso; no hay que enseñarle una forma nueva.
+
+            LA DINÁMICA NO LLEVA BOTONES. Una celda es una suma de gastos, no un gasto, así que no se
+            puede editar ni anular desde aquí. Por eso hay un conmutador: el resumen contesta «en qué»
+            y el detalle deja tocar cada apunte.
+        --}}
+        <div class="gasto-vistas">
+            <a href="{{ request()->fullUrlWithQuery(['vista' => 'resumen']) }}"
+               class="gasto-vista {{ $vista === 'resumen' ? 'is-activa' : '' }}">Resumen</a>
+            <a href="{{ request()->fullUrlWithQuery(['vista' => 'detalle']) }}"
+               class="gasto-vista {{ $vista === 'detalle' ? 'is-activa' : '' }}">Detalle</a>
+        </div>
+
+        @if ($vista === 'resumen')
+            {{--
+                EL GRÁFICO, con tres formas. Cada una contesta una pregunta distinta; no son tres
+                maneras de pintar lo mismo, y por eso se eligen por la pregunta y no por el tipo:
+
+                  · «En qué se va»    → barras ordenadas. La magnitud se lee por LONGITUD, así que
+                                        van todas del mismo color: trece colores no dirían nada que
+                                        la longitud no diga ya, y harían la lista ilegible.
+                  · «Cómo evoluciona» → una línea. Serie única, sin leyenda: el título ya la nombra.
+                  · «Cómo se reparte» → barras apiladas en el tiempo, que es lo único que cruza las
+                                        dos preguntas a la vez.
+
+                LAS SERIES SE CORTAN EN SIETE (seis y «Otros»). Con trece categorías, dos tonos
+                vecinos son indistinguibles para quien no distingue bien el color — y para el resto
+                tampoco ayudan. La paleta está comprobada contra el fondo de esta tarjeta, y las
+                cifras exactas viven en la tabla de abajo, que es la vista de tabla que acompaña al
+                gráfico.
+            --}}
+            @php $datosGrafico = $dinamica->paraGrafico(); @endphp
+
+            <div class="bmos-card mb-6 overflow-hidden"
+                 x-data="graficoDeGastos(@js($datosGrafico))" x-init="pintar()">
+                <div class="gasto-din-cab">
+                    <p class="font-semibold text-slate-800">Gráfico</p>
+
+                    <div class="gasto-formas" role="group" aria-label="Tipo de gráfico">
+                        <button type="button" @click="cambiar('ranking')"
+                                :class="forma === 'ranking' && 'is-activa'"
+                                :aria-pressed="forma === 'ranking'" class="gasto-forma">En qué se va</button>
+                        <button type="button" @click="cambiar('evolucion')"
+                                :class="forma === 'evolucion' && 'is-activa'"
+                                :aria-pressed="forma === 'evolucion'" class="gasto-forma">Cómo evoluciona</button>
+                        <button type="button" @click="cambiar('composicion')"
+                                :class="forma === 'composicion' && 'is-activa'"
+                                :aria-pressed="forma === 'composicion'" class="gasto-forma">Cómo se reparte</button>
+                    </div>
+                </div>
+
+                @if ($dinamica->estaVacia())
+                    <p class="bmos-empty">Sin gastos que dibujar en este período.</p>
+                @else
+                    <div class="gasto-lienzo">
+                        <canvas x-ref="lienzo" aria-label="Gráfico de gastos"></canvas>
+                    </div>
+                @endif
+            </div>
+
+            <div class="bmos-card mb-6 overflow-hidden">
+                <div class="gasto-din-cab">
+                    <p class="font-semibold text-slate-800">Tabla dinámica</p>
+
+                    {{-- Los dos ejes. Se envían al cambiarlos, conservando el resto de filtros: hacer
+                         que además haya que pulsar «Ver» convierte una exploración en un formulario. --}}
+                    <form method="GET" class="gasto-din-ejes">
+                        @foreach (request()->except(['filas', 'columnas', 'page']) as $clave => $valor)
+                            <input type="hidden" name="{{ $clave }}" value="{{ $valor }}">
+                        @endforeach
+
+                        <label class="gasto-din-eje">
+                            <span>Filas</span>
+                            <select name="filas" onchange="this.form.submit()" class="bmos-input">
+                                <option value="categoria" @selected($ejeFilas === 'categoria')>Categoría</option>
+                                <option value="concepto" @selected($ejeFilas === 'concepto')>Concepto</option>
+                                <option value="cuenta" @selected($ejeFilas === 'cuenta')>Cuenta</option>
+                                <option value="proveedor" @selected($ejeFilas === 'proveedor')>Proveedor</option>
+                            </select>
+                        </label>
+
+                        <label class="gasto-din-eje">
+                            <span>Columnas</span>
+                            <select name="columnas" onchange="this.form.submit()" class="bmos-input">
+                                <option value="" @selected($ejeColumnas === '')>Automático</option>
+                                <option value="dia" @selected($ejeColumnas === 'dia')>Día</option>
+                                <option value="semana" @selected($ejeColumnas === 'semana')>Semana</option>
+                                <option value="mes" @selected($ejeColumnas === 'mes')>Mes</option>
+                            </select>
+                        </label>
+                    </form>
+                </div>
+
+                @if ($dinamica->estaVacia())
+                    <p class="bmos-empty">Sin gastos entre el {{ $desde->format('d/m/Y') }} y el {{ $hasta->format('d/m/Y') }}.</p>
+                @else
+                    <div class="gasto-din-marco">
+                        <table class="gasto-din">
+                            <thead>
+                                <tr>
+                                    <th class="gasto-din-esquina">
+                                        {{ ['categoria' => 'Categoría', 'concepto' => 'Concepto', 'cuenta' => 'Cuenta', 'proveedor' => 'Proveedor'][$ejeFilas] ?? 'Categoría' }}
+                                    </th>
+                                    @foreach ($dinamica->columnas as $columna)
+                                        <th class="gasto-din-num">{{ $columna['rotulo'] }}</th>
+                                    @endforeach
+                                    <th class="gasto-din-num gasto-din-cierre">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($dinamica->filas as $fila)
+                                    <tr>
+                                        <th scope="row" class="gasto-din-fila" data-tono="{{ $fila['tono'] }}">
+                                            {{ $fila['rotulo'] }}
+                                        </th>
+                                        @foreach ($dinamica->columnas as $columna)
+                                            @php $celda = $dinamica->celda($fila, $columna['clave']); @endphp
+                                            {{-- Un guion y no «0.00»: cero sería «se gastó y salió cero»,
+                                                 que no pasa nunca. El hueco es el dato. --}}
+                                            <td class="gasto-din-num {{ $celda === null ? 'es-vacia' : '' }}">
+                                                {{ $celda === null ? '—' : number_format((float) $celda, 2) }}
+                                            </td>
+                                        @endforeach
+                                        <td class="gasto-din-num gasto-din-cierre">{{ number_format((float) $fila['total'], 2) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th scope="row" class="gasto-din-fila">Total</th>
+                                    @foreach ($dinamica->columnas as $columna)
+                                        @php $suma = $dinamica->totales[$columna['clave']] ?? '0.00'; @endphp
+                                        <td class="gasto-din-num {{ bccomp($suma, '0', 2) === 0 ? 'es-vacia' : '' }}">
+                                            {{ bccomp($suma, '0', 2) === 0 ? '—' : number_format((float) $suma, 2) }}
+                                        </td>
+                                    @endforeach
+                                    <td class="gasto-din-num gasto-din-cierre">{{ number_format((float) $dinamica->granTotal, 2) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        @endif
+
+        @if ($vista === 'detalle')
         <div class="bmos-card overflow-hidden">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
                 <p class="font-semibold text-slate-800">Detalle</p>
@@ -236,6 +391,7 @@
                 <div class="border-t border-slate-100 p-4">{{ $expenses->links() }}</div>
             @endif
         </div>
+        @endif
 
         {{-- Conceptos: se administran aquí abajo y no en otra pantalla, porque solo se tocan cuando
              falta uno al anotar un gasto. --}}
@@ -272,4 +428,218 @@
             </div>
         @endcan
     </div>
+
+        {{--
+            DATOS DE PRUEBA. Solo fuera de producción.
+
+            No es pudor: sembrar cincuenta apuntes en la contabilidad de un negocio de verdad es
+            exactamente el tipo de botón que nadie quiere descubrir que existía. Aquí ni se pinta, y
+            el servidor además responde 404 — esconderlo nunca ha sido protegerlo.
+
+            Y NO HAY UN «BORRAR TODO», aunque se pidiera así. El borrado filtra por el prefijo
+            «DEMO-» del código, así que no puede llevarse por delante un gasto real ni equivocándose.
+            En este módulo hasta anular es un borrado lógico para no perder el historial; un botón
+            capaz de vaciarlo sería una contradicción con el propósito de la pantalla.
+        --}}
+        @if (! app()->isProduction())
+            <div class="gasto-demo">
+                <div class="min-w-0">
+                    <p class="gasto-demo-titulo">Datos de prueba</p>
+                    <p class="gasto-demo-nota">
+                        Solo en desarrollo. Los de prueba llevan código <b>DEMO-</b> y el borrado únicamente
+                        toca esos: tus gastos reales no se pueden perder desde aquí.
+                    </p>
+                </div>
+
+                <div class="gasto-demo-botones">
+                    <form method="POST" action="{{ route('panel.expenses.demo') }}">
+                        @csrf
+                        <button type="submit" class="bmos-btn bmos-btn-suave">Generar 50 gastos</button>
+                    </form>
+
+                    <form method="POST" action="{{ route('panel.expenses.demo.destroy') }}" id="borrar-demo">
+                        @csrf
+                        @method('DELETE')
+                        <button type="button" class="bmos-btn bmos-btn-suave gasto-demo-borrar"
+                                @click="window.confirmarAccion({
+                                    titulo: 'Borrar los gastos de prueba',
+                                    mensaje: 'Se borran solo los que tienen código DEMO-. Los gastos reales no se tocan.',
+                                    confirmar: 'Borrar los de prueba',
+                                    formulario: 'borrar-demo',
+                                })">
+                            Borrar los de prueba
+                        </button>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+
+    <script>
+        /*
+         * El gráfico de gastos. Chart.js se carga BAJO DEMANDA con `window.loadChart()`, que es como
+         * lo hace el resto del panel: son ciento y pico kilobytes que solo usan tres pantallas.
+         */
+        function graficoDeGastos(datos) {
+            return {
+                datos,
+                forma: 'ranking',
+                grafico: null,
+
+                /*
+                 * La paleta. Comprobada con el validador contra el fondo blanco de la tarjeta: pasa
+                 * la banda de luminosidad, el mínimo de croma, la separación para daltonismo y el
+                 * mínimo de visión normal.
+                 *
+                 * Van EN ORDEN FIJO, nunca cicladas: el color sigue a la categoría, no a su puesto
+                 * en el ranking. Si el color se asignara por posición, filtrar un mes repintaría
+                 * las que quedan y «Alimentos» cambiaría de color al cambiar el filtro.
+                 */
+                paleta: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7'],
+
+                // El gasto en una sola tinta: la magnitud la lleva la longitud de la barra.
+                tinta: '#e11d48',
+
+                rd(n) {
+                    return 'RD$ ' + Number(n).toLocaleString('es-DO', {
+                        minimumFractionDigits: 2, maximumFractionDigits: 2,
+                    });
+                },
+
+                cambiar(forma) {
+                    if (this.forma === forma) return;
+                    this.forma = forma;
+                    this.pintar();
+                },
+
+                async pintar() {
+                    if (!this.$refs.lienzo) return;
+
+                    const Chart = await window.loadChart();
+
+                    if (this.grafico) this.grafico.destroy();
+
+                    this.grafico = new Chart(this.$refs.lienzo, this.configuracion(Chart));
+                },
+
+                configuracion() {
+                    const rd = this.rd;
+
+                    /* Rejilla y ejes RECESIVOS: el dato es la barra, no la cuadrícula. */
+                    const ejes = {
+                        x: { grid: { display: false }, border: { display: false },
+                             ticks: { color: '#94a3b8', font: { size: 11 } } },
+                        y: { grid: { color: '#f1f5f9' }, border: { display: false },
+                             ticks: { color: '#94a3b8', font: { size: 11 },
+                                      callback: (v) => Number(v).toLocaleString('es-DO') } },
+                    };
+
+                    const comun = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            tooltip: {
+                                backgroundColor: '#1e2230',
+                                padding: 10,
+                                callbacks: { label: (c) => ' ' + c.dataset.label + ': ' + rd(c.parsed.y ?? c.parsed.x) },
+                            },
+                        },
+                    };
+
+                    if (this.forma === 'ranking') {
+                        return {
+                            type: 'bar',
+                            data: {
+                                labels: this.datos.ranking.map((f) => f.nombre),
+                                datasets: [{
+                                    label: 'Gasto',
+                                    data: this.datos.ranking.map((f) => f.total),
+                                    backgroundColor: this.tinta,
+                                    // Punta redondeada y anclada a la base, como el resto del panel.
+                                    borderRadius: 4,
+                                    borderSkipped: 'start',
+                                    barThickness: 14,
+                                }],
+                            },
+                            options: {
+                                ...comun,
+                                // Horizontal: los nombres de categoría son largos y en vertical se
+                                // giran hasta no leerse.
+                                indexAxis: 'y',
+                                scales: {
+                                    x: { ...ejes.y, beginAtZero: true },
+                                    y: { grid: { display: false }, border: { display: false },
+                                         ticks: { color: '#475569', font: { size: 11 } } },
+                                },
+                                // Serie única: la leyenda repetiría el título de la tarjeta.
+                                plugins: { ...comun.plugins, legend: { display: false } },
+                            },
+                        };
+                    }
+
+                    if (this.forma === 'evolucion') {
+                        const total = this.datos.columnas.map((_, i) =>
+                            this.datos.series.reduce((suma, s) => suma + (s.datos[i] || 0), 0));
+
+                        return {
+                            type: 'line',
+                            data: {
+                                labels: this.datos.columnas,
+                                datasets: [{
+                                    label: 'Gasto total',
+                                    data: total,
+                                    borderColor: this.tinta,
+                                    backgroundColor: 'rgba(225, 29, 72, 0.08)',
+                                    borderWidth: 2,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 6,
+                                    pointBackgroundColor: this.tinta,
+                                    // Anillo del color del fondo, para que dos puntos juntos no se
+                                    // fundan en una mancha.
+                                    pointBorderColor: '#fff',
+                                    pointBorderWidth: 2,
+                                    fill: true,
+                                    tension: 0.25,
+                                }],
+                            },
+                            options: { ...comun, scales: { ...ejes, y: { ...ejes.y, beginAtZero: true } },
+                                       plugins: { ...comun.plugins, legend: { display: false } } },
+                        };
+                    }
+
+                    return {
+                        type: 'bar',
+                        data: {
+                            labels: this.datos.columnas,
+                            datasets: this.datos.series.map((s, i) => ({
+                                label: s.nombre,
+                                data: s.datos,
+                                backgroundColor: this.paleta[i % this.paleta.length],
+                                borderRadius: 3,
+                                // Dos píxeles del color del fondo entre segmentos: sin ese hueco,
+                                // dos tramos contiguos se leen como uno solo.
+                                borderColor: '#fff',
+                                borderWidth: { top: 2, right: 0, bottom: 0, left: 0 },
+                            })),
+                        },
+                        options: {
+                            ...comun,
+                            scales: { x: { ...ejes.x, stacked: true },
+                                      y: { ...ejes.y, stacked: true, beginAtZero: true } },
+                            plugins: {
+                                ...comun.plugins,
+                                // Con varias series la leyenda es obligatoria: la identidad no puede
+                                // depender solo del color.
+                                legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10,
+                                          usePointStyle: true, pointStyle: 'circle',
+                                          color: '#475569', font: { size: 11 }, padding: 14 } },
+                            },
+                        },
+                    };
+                },
+            };
+        }
+    </script>
+
 </x-layouts.admin>

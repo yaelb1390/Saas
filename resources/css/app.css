@@ -3346,7 +3346,20 @@ body {
 
 .bmos-pestana:hover { background: #f1f3f9; color: var(--bmos-text); }
 
-.bmos-pestana.is-activa {
+/*
+ * Activa por CLASE o por ATRIBUTO, las dos.
+ *
+ * Lo segundo se lo copio al modulo de WhatsApp, que lo hacia mejor: al colgar el estilo de
+ * `aria-selected`, lo que se ve y lo que anuncia un lector de pantalla no pueden divergir. Con una
+ * clase suelta es facil marcar la pestana y olvidar el atributo, y entonces el que no ve la pantalla
+ * recibe otra respuesta que el que la ve.
+ *
+ * Se conserva `.is-activa` porque hay pestanas que no son `role="tab"` —el selector de grafico de
+ * Gastos son botones de alternar, con `aria-pressed`— y ahi el atributo correcto es otro.
+ */
+.bmos-pestana.is-activa,
+.bmos-pestana[aria-selected='true'],
+.bmos-pestana[aria-pressed='true'] {
     background: #eef2ff;
     color: var(--bmos-primary);
 }
@@ -3361,7 +3374,8 @@ body {
     color: var(--bmos-muted);
 }
 
-.bmos-pestana.is-activa .bmos-pestana-num {
+.bmos-pestana.is-activa .bmos-pestana-num,
+.bmos-pestana[aria-selected='true'] .bmos-pestana-num {
     background: #c7d2fe;
     color: var(--bmos-primary-600);
 }
@@ -6849,31 +6863,6 @@ a.bmos-destino:hover {
    Se pinta como una hoja de cálculo a propósito. Quien lleva las cuentas de un negocio ya sabe leer
    una rejilla con totales al borde; no hay que enseñarle una forma nueva de mirar sus números. */
 
-/* Resumen | Detalle. Una celda de la dinámica es una suma, no un gasto: no puede llevar los botones
-   de editar y anular, así que las dos vistas se conmutan en vez de mezclarse. */
-.gasto-vistas {
-    display: inline-flex;
-    gap: 0.25rem;
-    margin-bottom: 1.25rem;
-    padding: 0.25rem;
-    border: 1px solid var(--bmos-border);
-    border-radius: 0.7rem;
-    background: var(--bmos-surface);
-}
-
-.gasto-vista {
-    padding: 0.35rem 0.9rem;
-    border-radius: 0.5rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--bmos-muted);
-}
-
-.gasto-vista.is-activa {
-    background: var(--bmos-primary);
-    color: #fff;
-}
-
 .gasto-din-cab {
     display: flex;
     flex-wrap: wrap;
@@ -7066,30 +7055,6 @@ a.bmos-destino:hover {
    dijera «barras / líneas / tarta» invita a elegir mal: la tarta con trece categorías es ilegible y
    aun así alguien la pulsaría. */
 
-.gasto-formas {
-    display: inline-flex;
-    gap: 0.25rem;
-    padding: 0.2rem;
-    border: 1px solid var(--bmos-border);
-    border-radius: 0.6rem;
-    background: #f8f9fc;
-}
-
-.gasto-forma {
-    padding: 0.3rem 0.7rem;
-    border-radius: 0.45rem;
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--bmos-muted);
-    white-space: nowrap;
-}
-
-.gasto-forma.is-activa {
-    background: var(--bmos-surface);
-    color: var(--bmos-text);
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
-}
-
 /* Alto fijo y no proporcional: el lienzo lo dimensiona Chart.js con `maintainAspectRatio: false`, y
    sin un alto del contenedor el gráfico crece sin fin en cada repintado. */
 .gasto-lienzo {
@@ -7105,9 +7070,163 @@ a.bmos-destino:hover {
         height: 24rem;
         padding: 0.75rem;
     }
+}
 
-    .gasto-formas {
-        width: 100%;
-        overflow-x: auto;
+/* ─── Las tres primitivas que faltaban ───────────────────────────────────────────────────────────
+   Salieron de comparar el sistema con daisyUI. No se adopta la libreria —hay 71 reglas cubriendo ya
+   boton, tarjeta, insignia, tabla, campo y estadistica, y un segundo juego dejaria dos lenguajes
+   visuales conviviendo— pero el catalogo sirvio para ver que faltaba. Esto es lo que faltaba, en el
+   idioma de la casa. */
+
+/*
+ * AVISO EMERGENTE QUE FUNCIONA CON EL DEDO.
+ *
+ * El `title` del navegador —que usan 54 vistas— no se estiliza, tarda un segundo en salir y NO
+ * EXISTE EN TACTIL. Justo donde trabajan el cajero y el repartidor, un dato explicado con `title` no
+ * se puede consultar.
+ *
+ * No se migran esas 54: en escritorio el nativo es gratis, accesible y suficiente. Esto es para
+ * donde manda el dedo.
+ *
+ * Sin JavaScript: dos pseudoelementos y `data-tip`. Una libreria para esto seria pagar kilobytes por
+ * lo que hacen doce lineas de CSS.
+ */
+.bmos-tip {
+    position: relative;
+}
+
+.bmos-tip::after,
+.bmos-tip::before {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+}
+
+.bmos-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 0.45rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    max-width: 15rem;
+    width: max-content;
+    padding: 0.35rem 0.55rem;
+    border-radius: 0.45rem;
+    background: var(--bmos-text);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.3;
+    /* El texto se parte: un aviso de una linea de 40 caracteres se sale de un movil. */
+    white-space: normal;
+    text-align: center;
+}
+
+/* La punta, para que se vea a quien senala cuando hay dos botones juntos. */
+.bmos-tip::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 0.15rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    border: 0.3rem solid transparent;
+    border-top-color: var(--bmos-text);
+}
+
+/* `:focus-visible` ademas de `:hover`: con teclado tambien hay que poder leerlo. Y `:active` es lo
+   que lo hace funcionar en tactil, donde no existe el «pasar por encima». */
+.bmos-tip:hover::after,
+.bmos-tip:hover::before,
+.bmos-tip:focus-visible::after,
+.bmos-tip:focus-visible::before,
+.bmos-tip:active::after,
+.bmos-tip:active::before {
+    opacity: 1;
+}
+
+/* Junto al borde izquierdo, el aviso centrado se saldria de la pantalla. */
+.bmos-tip[data-tip-lado='derecha']::after {
+    left: 0;
+    transform: none;
+}
+
+/*
+ * ESQUELETO DE CARGA.
+ *
+ * Una forma gris del tamano de lo que viene, en vez de un hueco en blanco o una rueda girando. Dice
+ * dos cosas que las otras dos no: que algo esta llegando, y QUE FORMA va a tener — asi la pagina no
+ * pega un salto al aparecer.
+ */
+.bmos-esqueleto {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background: #eef1f7;
+}
+
+.bmos-esqueleto::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+    animation: bmos-esqueleto-brillo 1.4s infinite;
+}
+
+@keyframes bmos-esqueleto-brillo {
+    100% { transform: translateX(100%); }
+}
+
+/* Quien pidio menos movimiento se queda con el bloque gris quieto, que sigue diciendo lo mismo. */
+@media (prefers-reduced-motion: reduce) {
+    .bmos-esqueleto::after {
+        animation: none;
     }
+}
+
+.bmos-esqueleto-linea {
+    height: 0.75rem;
+    margin-bottom: 0.45rem;
+}
+
+/* La ultima linea mas corta: es lo que hace que un bloque gris se lea como un parrafo. */
+.bmos-esqueleto-linea:last-child {
+    width: 60%;
+    margin-bottom: 0;
+}
+
+/*
+ * BARRA DE PROGRESO, con los tramos del presupuesto.
+ *
+ * EL COLOR LO DECIDE ESTA REGLA Y NO CADA PANTALLA. Si cada una eligiera su umbral, «vas justo» seria
+ * el 80 % en una pantalla y el 90 % en otra, y el mismo gasto daria dos respuestas distintas segun
+ * donde se mire.
+ */
+.bmos-progreso {
+    height: 0.5rem;
+    border-radius: 999px;
+    background: #eef1f7;
+    overflow: hidden;
+}
+
+.bmos-progreso-barra {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--bmos-primary);
+    transition: width 0.3s ease;
+}
+
+/* Hasta 75 % normal, hasta 90 % aviso, hasta 100 % alerta, y por encima excedido. */
+.bmos-progreso[data-tramo='aviso'] .bmos-progreso-barra { background: #f59e0b; }
+.bmos-progreso[data-tramo='alerta'] .bmos-progreso-barra { background: #f97316; }
+.bmos-progreso[data-tramo='excedido'] .bmos-progreso-barra { background: #e11d48; }
+
+/* Pasarse tiene que VERSE, no solo leerse en la cifra: la barra llena y a rayas se distingue de una
+   llena normal aunque no se distinga el color. */
+.bmos-progreso[data-tramo='excedido'] .bmos-progreso-barra {
+    background-image: repeating-linear-gradient(
+        45deg, transparent, transparent 4px, rgba(255, 255, 255, 0.35) 4px, rgba(255, 255, 255, 0.35) 8px
+    );
 }

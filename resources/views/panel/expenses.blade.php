@@ -112,11 +112,13 @@
             puede editar ni anular desde aquí. Por eso hay un conmutador: el resumen contesta «en qué»
             y el detalle deja tocar cada apunte.
         --}}
-        <div class="gasto-vistas">
+        <div class="bmos-pestanas" role="tablist">
             <a href="{{ request()->fullUrlWithQuery(['vista' => 'resumen']) }}"
-               class="gasto-vista {{ $vista === 'resumen' ? 'is-activa' : '' }}">Resumen</a>
+               role="tab" aria-selected="{{ $vista === 'resumen' ? 'true' : 'false' }}"
+               class="bmos-pestana {{ $vista === 'resumen' ? 'is-activa' : '' }}">Resumen</a>
             <a href="{{ request()->fullUrlWithQuery(['vista' => 'detalle']) }}"
-               class="gasto-vista {{ $vista === 'detalle' ? 'is-activa' : '' }}">Detalle</a>
+               role="tab" aria-selected="{{ $vista === 'detalle' ? 'true' : 'false' }}"
+               class="bmos-pestana {{ $vista === 'detalle' ? 'is-activa' : '' }}">Detalle</a>
         </div>
 
         @if ($vista === 'resumen')
@@ -144,16 +146,16 @@
                 <div class="gasto-din-cab">
                     <p class="font-semibold text-slate-800">Gráfico</p>
 
-                    <div class="gasto-formas" role="group" aria-label="Tipo de gráfico">
+                    <div class="bmos-pestanas" role="group" aria-label="Tipo de gráfico">
                         <button type="button" @click="cambiar('ranking')"
                                 :class="forma === 'ranking' && 'is-activa'"
-                                :aria-pressed="forma === 'ranking'" class="gasto-forma">En qué se va</button>
+                                :aria-pressed="forma === 'ranking'" class="bmos-pestana">En qué se va</button>
                         <button type="button" @click="cambiar('evolucion')"
                                 :class="forma === 'evolucion' && 'is-activa'"
-                                :aria-pressed="forma === 'evolucion'" class="gasto-forma">Cómo evoluciona</button>
+                                :aria-pressed="forma === 'evolucion'" class="bmos-pestana">Cómo evoluciona</button>
                         <button type="button" @click="cambiar('composicion')"
                                 :class="forma === 'composicion' && 'is-activa'"
-                                :aria-pressed="forma === 'composicion'" class="gasto-forma">Cómo se reparte</button>
+                                :aria-pressed="forma === 'composicion'" class="bmos-pestana">Cómo se reparte</button>
                     </div>
                 </div>
 

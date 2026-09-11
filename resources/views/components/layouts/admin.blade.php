@@ -46,6 +46,7 @@
             // le sirve esto.
             ['panel.option-groups', 'Tamaños y sabores', 'tag', 'products.manage', 'quick_pos', 'option_groups'],
             ['panel.stock.entry', 'Entrada de mercancía', 'bag', 'stock.adjust', 'inventory'],
+            ['panel.serial.scan', 'Escaneo de series', 'cube', 'stock.adjust', 'inventory'],
             ['panel.purchases', 'Compras', 'bag', 'purchases.view', 'purchasing'],
         ],
         'Clientes' => [

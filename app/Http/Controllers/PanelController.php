@@ -204,6 +204,25 @@ final class PanelController extends Controller
         ]);
     }
 
+    /**
+     * El escaneo masivo de unidades serializadas: elige un producto con serie y dispara los seriales.
+     *
+     * Solo lista los productos que llevan serie; para el resto esta pantalla no tiene sentido. Y si
+     * la empresa no tiene ninguno marcado, la propia vista lo dice en vez de mostrar un desplegable
+     * vacío.
+     */
+    public function serialScan(): View
+    {
+        return view('panel.serial-scan', [
+            'warehouses' => Warehouse::query()->orderByDesc('is_default')->orderBy('name')->get(),
+            'serializados' => Product::query()
+                ->where('tracks_serials', true)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'sku', 'cost', 'price']),
+        ]);
+    }
+
     public function customers(CurrentCompany $currentCompany): View
     {
         $company = $currentCompany->model();

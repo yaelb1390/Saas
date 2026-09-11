@@ -54,6 +54,7 @@ final class UpdateProductRequest extends FormRequest
             // hasta ahora se descartaban en silencio aunque el modelo los admitiera.
             'description' => ['nullable', 'string', 'max:1000'],
             'track_stock' => ['nullable', 'boolean'],
+            'tracks_serials' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
             // Foto del producto (opcional; si se sube, reemplaza la anterior).
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:15360'],

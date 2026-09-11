@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Http\Controllers;
 
+use App\Modules\Core\Models\Warehouse;
 use App\Modules\Inventory\DTOs\CreateGoodsReceiptData;
+use App\Modules\Inventory\DTOs\ScanUnitData;
+use App\Modules\Inventory\Http\Requests\ScanSerialsRequest;
 use App\Modules\Inventory\Http\Requests\StoreGoodsReceiptRequest;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\GoodsReceiptService;
+use App\Modules\Inventory\Services\SerialScanService;
 use App\Modules\Inventory\Services\StockCountService;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
 use DomainException;
@@ -96,6 +100,57 @@ final class StockController extends Controller
             $remesa->code,
             $lineas,
             $lineas === 1 ? 'producto' : 'productos',
+            $aviso,
+        ));
+    }
+
+    /**
+     * Alta masiva de unidades serializadas por escaneo.
+     *
+     * Los seriales llegan como un JSON del navegador: una lista de series, con la condicion, el
+     * color, el costo y el precio compartidos por toda la tanda. El servicio los convierte en
+     * unidades y sube el stock; aqui solo se traduce el resultado a un aviso para el cajero.
+     */
+    public function scanSerials(ScanSerialsRequest $request, SerialScanService $scan): RedirectResponse
+    {
+        $producto = Product::query()->findOrFail($request->integer('product_id'));
+        $almacen = Warehouse::query()->findOrFail($request->integer('warehouse_id'));
+
+        $crudo = json_decode((string) $request->input('seriales'), true);
+        $seriales = [];
+
+        foreach (is_array($crudo) ? $crudo : [] as $fila) {
+            $serial = trim((string) ($fila['serial'] ?? ''));
+
+            if ($serial === '') {
+                continue;
+            }
+
+            $seriales[] = new ScanUnitData(
+                serial: $serial,
+                condition: $request->input('condition'),
+                color: $request->input('color'),
+                cost: $request->input('cost'),
+                price: $request->input('price'),
+            );
+        }
+
+        try {
+            $resultado = $scan->alta($producto, $almacen, $seriales);
+        } catch (DomainException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
+
+        $rechazados = count($resultado['rechazados']);
+        $aviso = $rechazados > 0
+            ? sprintf(' Se saltaron %d serie%s repetida%s.', $rechazados, $rechazados === 1 ? '' : 's', $rechazados === 1 ? '' : 's')
+            : '';
+
+        return back()->with('panel_ok', sprintf(
+            'Se dieron de alta %d unidad%s de %s.%s',
+            $resultado['creadas'],
+            $resultado['creadas'] === 1 ? '' : 'es',
+            $producto->name,
             $aviso,
         ));
     }

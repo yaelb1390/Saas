@@ -200,6 +200,8 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/opciones', 'optionGroups')->middleware(['can:products.manage', 'module:quick_pos', 'feature:option_groups'])->name('option-groups');
         // Entrada de mercancía: dar existencia es un permiso distinto de consultarla.
         Route::get('/inventario/entradas', 'stockEntry')->middleware(['can:stock.adjust', 'module:inventory'])->name('stock.entry');
+        // Escaneo masivo de unidades con serie. Mismo permiso que la entrada: es dar existencia.
+        Route::get('/inventario/series', 'serialScan')->middleware(['can:stock.adjust', 'module:inventory'])->name('serial.scan');
         Route::get('/ventas', 'sales')->middleware(['can:sales.view', 'module:sales'])->name('sales');
         Route::get('/compras', 'purchases')->middleware(['can:purchases.view', 'module:purchasing'])->name('purchases');
         Route::get('/crm', 'customers')->middleware(['can:customers.view', 'module:crm'])->name('customers');
@@ -390,6 +392,9 @@ Route::middleware(['auth'])->group(function (): void {
     Route::middleware('module:inventory')->group(function (): void {
         Route::get('/panel/inventario/buscar', [StockController::class, 'lookup'])
             ->middleware('can:products.view')->name('panel.products.lookup');
+        // Alta masiva de unidades serializadas por escaneo.
+        Route::post('/panel/inventario/series', [StockController::class, 'scanSerials'])
+            ->middleware('can:stock.adjust')->name('panel.products.scan-serials');
         Route::post('/panel/inventario/entradas', [StockController::class, 'store'])
             ->middleware('can:stock.adjust')->name('panel.stock.store');
         // Contar y ajustar la existencia de un producto. Mismo permiso que dar entrada: mover

@@ -97,6 +97,14 @@
                         Controla stock (desmárcalo si es un servicio)
                     </label>
 
+                    {{-- Con número de serie: cada unidad se da de alta y se vende por su serie. Para
+                         celulares, electrónica, electrodomésticos. Casi nadie lo marca; ver ProductUnit. --}}
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="hidden" name="tracks_serials" value="0">
+                        <input type="checkbox" name="tracks_serials" value="1" class="rounded border-slate-300 text-indigo-600">
+                        Con número de serie (cada unidad es única)
+                    </label>
+
                     {{-- Los detalles: para todos menos los de comida. Una empanada no tiene marca ni
                          estante; una ferretería sí, y hasta ahora no tenía dónde apuntarlos. --}}
                     @if ($showPartFields)
@@ -282,7 +290,7 @@
                                         @endcan
                                         @can('products.manage')
                                         <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
-                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), description: @js($product->description), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">
+                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), description: @js($product->description), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, tracks_serials: {{ $product->tracks_serials ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4.5 w-4.5" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                         </button>
                                         <x-panel.confirm-action
@@ -373,6 +381,12 @@
                         <input type="hidden" name="track_stock" value="0">
                         <input type="checkbox" name="track_stock" value="1" x-model="row.track_stock" class="rounded border-slate-300 text-indigo-600">
                         Controla stock (desmárcalo si es un servicio)
+                    </label>
+
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        <input type="hidden" name="tracks_serials" value="0">
+                        <input type="checkbox" name="tracks_serials" value="1" x-model="row.tracks_serials" class="rounded border-slate-300 text-indigo-600">
+                        Con número de serie (cada unidad es única)
                     </label>
 
                     {{-- Los mismos criterios que en el alta: si un campo se puede escribir al crear y
@@ -615,7 +629,7 @@
                     };
                 },
 
-                row: { id: '', sku: '', name: '', barcode: '', category_id: '', unit: '', cost: '', price: '', track_stock: true,
+                row: { id: '', sku: '', name: '', barcode: '', category_id: '', unit: '', cost: '', price: '', track_stock: true, tracks_serials: false,
                        part_number: '', brand: '', vehicle_make: '', vehicle_model: '', year_from: '', year_to: '', location: '' },
                 get editUrl() { return '{{ url('panel/inventario') }}/' + this.row.id; },
                 edit(data) { this.row = { ...data }; this.open = true; },
@@ -667,6 +681,7 @@
                             vehicle_make: @js(old('vehicle_make')), vehicle_model: @js(old('vehicle_model')),
                             year_from: '{{ old('year_from') }}', year_to: '{{ old('year_to') }}', location: @js(old('location')),
                             track_stock: {{ old('track_stock', 1) ? 'true' : 'false' }},
+                            tracks_serials: {{ old('tracks_serials', 0) ? 'true' : 'false' }},
                         };
                         this.open = true;
                     @endif

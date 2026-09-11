@@ -76,6 +76,7 @@ final class StoreProductRequest extends FormRequest
             ],
             // Desmarcar «controla stock» convierte el producto en un servicio (no descuenta stock).
             'track_stock' => ['nullable', 'boolean'],
+            'tracks_serials' => ['nullable', 'boolean'],
             // Foto del producto (opcional).
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:15360'],
             ...$this->partFieldRules(),

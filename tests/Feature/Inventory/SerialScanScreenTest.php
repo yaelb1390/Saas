@@ -6,9 +6,12 @@ use App\Models\User;
 use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Inventory\DTOs\ScanUnitData;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Models\Stock;
+use App\Modules\Inventory\Services\SerialScanService;
+use App\Modules\Inventory\Support\ProductLookupPresenter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /*
@@ -113,4 +116,38 @@ it('un cajero no puede escanear: dar existencia es otro permiso', function (): v
     ]), 'staff');
 
     $this->actingAs($cajero)->get(route('panel.serial.scan'))->assertForbidden();
+});
+
+// ------------------------------------------------------------------ El selector de unidad del POS
+
+/*
+ * EL ENDPOINT QUE ALIMENTA EL SELECTOR del terminal: las unidades disponibles de un producto
+ * serializado. Solo las de la empresa y en estado disponible; nunca una ya vendida, que llevaría al
+ * cajero a intentar vender algo que no está.
+ */
+it('lista las unidades disponibles con su serie y su precio', function (): void {
+    app(SerialScanService::class)->alta($this->telefono, $this->warehouse, [
+        new ScanUnitData('IMEI-A', condition: 'nuevo', price: '35000'),
+        new ScanUnitData('IMEI-B', condition: 'usado', price: '22000'),
+    ]);
+
+    // Se vende una: no debe aparecer en la lista.
+    ProductUnit::where('serial', 'IMEI-B')->update(['status' => ProductUnit::VENDIDA]);
+
+    $res = $this->actingAs($this->admin)
+        ->getJson(route('panel.products.units', $this->telefono))
+        ->assertOk()
+        ->json('units');
+
+    expect($res)->toHaveCount(1)
+        ->and($res[0]['serial'])->toBe('IMEI-A')
+        ->and($res[0]['price'])->toBe('35000.00');
+});
+
+it('el buscador dice si un producto se vende por serie', function (): void {
+    $payload = app(ProductLookupPresenter::class)
+        ->payload($this->telefono->sku);
+
+    expect($payload['found'])->toBeTrue()
+        ->and($payload['product']['serializado'])->toBeTrue();
 });

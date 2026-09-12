@@ -403,6 +403,9 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:stock.adjust')->name('panel.stock.count');
         // Foto del producto (cacheable). La sirve quien puede ver el catálogo… o quien opera el
         // punto de venta: el cajero no tiene `products.view` y sin esto la rejilla salía sin fotos.
+        // Las unidades disponibles de un producto serializado: el POS las pide para elegir cual sale.
+        Route::get('/panel/inventario/{product}/unidades', [StockController::class, 'availableUnits'])
+            ->middleware('can:products.view')->name('panel.products.units');
         Route::get('/panel/inventario/{product}/imagen', [ProductController::class, 'image'])
             ->middleware('can:pos.product-image')->name('panel.products.image');
 

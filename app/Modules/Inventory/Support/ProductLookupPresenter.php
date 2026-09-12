@@ -159,6 +159,9 @@ final class ProductLookupPresenter
              */
             'cost' => Gate::allows('stock.adjust') ? (string) $product->cost : null,
             'stock' => $stock,
+            // ¿Se vende por número de serie? Si sí, el terminal pide elegir la unidad antes de
+            // cobrar en vez de sumar «uno más». El resto de la ficha no cambia.
+            'serializado' => $product->esSerializado(),
             // La unidad de medida: «12» no significa lo mismo en unidades que en metros o en libras,
             // y en una ferretería media existencia se cuenta en algo que no son piezas.
             'unit' => $product->unit,

@@ -10,6 +10,7 @@ use App\Modules\Inventory\DTOs\ScanUnitData;
 use App\Modules\Inventory\Http\Requests\ScanSerialsRequest;
 use App\Modules\Inventory\Http\Requests\StoreGoodsReceiptRequest;
 use App\Modules\Inventory\Models\Product;
+use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\GoodsReceiptService;
 use App\Modules\Inventory\Services\SerialScanService;
 use App\Modules\Inventory\Services\StockCountService;
@@ -102,6 +103,29 @@ final class StockController extends Controller
             $lineas === 1 ? 'producto' : 'productos',
             $aviso,
         ));
+    }
+
+    /**
+     * Las unidades disponibles de un producto serializado, para que el terminal deje elegir cuál sale.
+     *
+     * Devuelve serie, condición, color y su precio de venta —el propio si lo tiene, si no el del
+     * catálogo—. Solo las de la empresa activa y en estado disponible: nunca una ya vendida.
+     */
+    public function availableUnits(Product $product): JsonResponse
+    {
+        $unidades = $product->units()
+            ->where('status', ProductUnit::DISPONIBLE)
+            ->orderBy('serial')
+            ->get(['id', 'serial', 'condition', 'color', 'price', 'warehouse_id'])
+            ->map(fn (ProductUnit $u): array => [
+                'serial' => $u->serial,
+                'condition' => $u->condition,
+                'color' => $u->color,
+                'price' => $u->precioDeVenta(),
+                'warehouse_id' => $u->warehouse_id,
+            ]);
+
+        return response()->json(['units' => $unidades]);
     }
 
     /**

@@ -94,7 +94,7 @@
             </form>
         </div>
     @else
-        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}', '{{ route('panel.pos.search') }}', '{{ route('panel.pos.catalogo') }}', @js($negocio), @js($openSession?->id), @js($rejillaTicket))"
+        <div x-data="posTerminal('{{ route('panel.pos.lookup') }}', '{{ route('panel.pos.search') }}', '{{ route('panel.pos.catalogo') }}', @js($negocio), @js($openSession?->id), @js($rejillaTicket), '{{ route('panel.products.units', ['product' => '__ID__']) }}')"
              x-init="arrancarSinLinea(); montarRejilla()"
              @codigo-escaneado="barcode = $event.detail.codigo; scan()">
             {{-- Barra de sesión --}}
@@ -626,11 +626,21 @@
         </div>
 
         <script>
-            function posTerminal(lookupUrl, searchUrl, catalogoUrl, negocio, sesionCaja, rejillaConfig) {
+            function posTerminal(lookupUrl, searchUrl, catalogoUrl, negocio, sesionCaja, rejillaConfig, unitsUrl) {
                 return {
-                    negocio, sesionCaja, rejillaConfig,
+                    negocio, sesionCaja, rejillaConfig, unitsUrl,
                     cart: [], paid: '', customer: '', customerId: '', invoice: false, method: 'cash',
                     barcode: '', scanError: '', busy: false,
+
+                    /*
+                     * EL SELECTOR DE UNIDAD, para los productos que se venden por número de serie.
+                     *
+                     * Un serializado no se puede sumar como «uno más»: hay que decir CUÁL teléfono
+                     * sale. Al elegir uno de esos, en vez de meterlo al carrito se abre esta lista con
+                     * sus unidades disponibles; al tocar una, esa —con su serie y su precio propio—
+                     * entra como línea.
+                     */
+                    unidad: { abierto: false, producto: null, lista: [], cargando: false, error: '' },
 
                     /*
                      * El modo sin internet. Lo pinta el componente panel.estado-conexion —escrito
@@ -958,12 +968,59 @@
                         const p = this.results[i];
 
                         if (p && p.sellable) {
+                            // Serializado: no se suma, se elige la unidad. Ver abrirSelectorDeUnidad.
+                            if (p.serializado) {
+                                this.abrirSelectorDeUnidad(p);
+
+                                return;
+                            }
+
                             this.add(p.id, p.name, p.price, p.image, p.sku);
 
                             return;
                         }
 
                         this.scanError = this.porQueNo(p);
+                    },
+
+                    /** Abre la lista de unidades disponibles de un producto serializado. */
+                    async abrirSelectorDeUnidad(p) {
+                        this.unidad = { abierto: true, producto: p, lista: [], cargando: true, error: '' };
+
+                        try {
+                            const res = await fetch(this.unitsUrl.replace('__ID__', p.id), {
+                                headers: { 'Accept': 'application/json' },
+                            });
+                            const data = await res.json();
+                            this.unidad.lista = data.units || [];
+
+                            if (this.unidad.lista.length === 0) {
+                                this.unidad.error = 'No hay unidades disponibles de este producto.';
+                            }
+                        } catch (e) {
+                            this.unidad.error = 'No se pudieron cargar las unidades. Inténtalo otra vez.';
+                        } finally {
+                            this.unidad.cargando = false;
+                        }
+                    },
+
+                    /**
+                     * Mete la unidad elegida como una línea propia.
+                     *
+                     * Con su SERIE y su PRECIO propio —un usado no vale lo que un nuevo—, y sin sumar:
+                     * cada unidad es una línea, aunque sean dos del mismo modelo. La serie viaja en el
+                     * carrito y el servidor la usa para marcar esa unidad como vendida.
+                     */
+                    tomarUnidad(u) {
+                        const p = this.unidad.producto;
+
+                        this.cart.push({
+                            id: p.id, name: p.name + ' · ' + u.serial, sku: p.sku,
+                            price: parseFloat(u.price), image: p.image,
+                            qty: 1, discount: 0, note: '', serial: u.serial, employeeId: '',
+                        });
+
+                        this.unidad = { abierto: false, producto: null, lista: [], cargando: false, error: '' };
                     },
 
                     /** Sube o baja por la lista con las flechas, sin salirse por los extremos. */
@@ -1406,4 +1463,37 @@
             }
         </script>
     @endif
+    {{-- El selector de unidad: se abre al elegir un producto que se vende por número de serie. --}}
+    <div x-show="unidad.abierto" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+         @keydown.escape.window="unidad.abierto = false">
+        <div @click.outside="unidad.abierto = false"
+             class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="mb-3 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <h3 class="text-lg font-semibold text-slate-800">Elige la unidad</h3>
+                    <p class="truncate text-sm text-slate-500" x-text="unidad.producto?.name"></p>
+                </div>
+                <button type="button" @click="unidad.abierto = false" class="text-slate-400 hover:text-slate-600" aria-label="Cerrar">&times;</button>
+            </div>
+
+            <p x-show="unidad.cargando" x-cloak class="py-6 text-center text-sm text-slate-400">Cargando unidades…</p>
+            <p x-show="unidad.error" x-cloak x-text="unidad.error" class="py-6 text-center text-sm text-amber-600"></p>
+
+            <div x-show="!unidad.cargando && unidad.lista.length > 0" x-cloak class="max-h-80 space-y-1.5 overflow-y-auto">
+                <template x-for="u in unidad.lista" :key="u.serial">
+                    <button type="button" @click="tomarUnidad(u)"
+                            class="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50">
+                        <span class="min-w-0">
+                            <span class="block font-mono text-sm font-semibold text-slate-800" x-text="u.serial"></span>
+                            <span class="block text-xs text-slate-500">
+                                <span x-show="u.condition" x-text="u.condition"></span><span x-show="u.condition && u.color"> · </span><span x-show="u.color" x-text="u.color"></span>
+                            </span>
+                        </span>
+                        <span class="shrink-0 font-semibold text-slate-700" x-text="rd(u.price)"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+    </div>
 </x-layouts.admin>

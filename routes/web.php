@@ -202,6 +202,8 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/inventario/entradas', 'stockEntry')->middleware(['can:stock.adjust', 'module:inventory'])->name('stock.entry');
         // Escaneo masivo de unidades con serie. Mismo permiso que la entrada: es dar existencia.
         Route::get('/inventario/series', 'serialScan')->middleware(['can:stock.adjust', 'module:inventory'])->name('serial.scan');
+        // Buscar una unidad por su serie y ver su historia. Solo ver: no da existencia.
+        Route::get('/inventario/consulta-series', [StockController::class, 'unitHistory'])->middleware(['can:products.view', 'module:inventory'])->name('serial.history');
         Route::get('/ventas', 'sales')->middleware(['can:sales.view', 'module:sales'])->name('sales');
         Route::get('/compras', 'purchases')->middleware(['can:purchases.view', 'module:purchasing'])->name('purchases');
         Route::get('/crm', 'customers')->middleware(['can:customers.view', 'module:crm'])->name('customers');

@@ -15,7 +15,9 @@ use App\Modules\Inventory\Services\GoodsReceiptService;
 use App\Modules\Inventory\Services\SerialScanService;
 use App\Modules\Inventory\Services\StockCountService;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
+use App\Modules\Inventory\Support\UnitHistory;
 use DomainException;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -103,6 +105,22 @@ final class StockController extends Controller
             $lineas === 1 ? 'producto' : 'productos',
             $aviso,
         ));
+    }
+
+    /**
+     * Buscar una unidad por su serie y ver su historia.
+     *
+     * Es la pantalla que se abre cuando un cliente vuelve con un aparato: se teclea la serie y sale
+     * qué es, cuándo entró y a quién se vendió. Vacío al entrar; con resultado tras buscar.
+     */
+    public function unitHistory(Request $request): View
+    {
+        $serie = trim((string) $request->query('serie', ''));
+
+        return view('panel.unit-history', [
+            'serie' => $serie,
+            'ficha' => $serie === '' ? null : UnitHistory::porSerie($serie),
+        ]);
     }
 
     /**

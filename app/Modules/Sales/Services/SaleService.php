@@ -11,6 +11,7 @@ use App\Modules\CRM\Models\Customer;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
+use App\Modules\Inventory\Services\UnitSaleService;
 use App\Modules\Sales\DTOs\CreateSaleData;
 use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Events\SaleCompleted;
@@ -32,6 +33,7 @@ final class SaleService
         private readonly StockService $stock,
         private readonly TaxCalculator $tax,
         private readonly RepartoDePagos $reparto,
+        private readonly UnitSaleService $unidades,
     ) {}
 
     /**
@@ -151,6 +153,17 @@ final class SaleService
                         $permitirStockNegativo,
                     );
                 }
+
+                /*
+                 * Y SI ES SERIALIZADO, LA UNIDAD DE ESA SERIE PASA A «VENDIDA».
+                 *
+                 * Va DENTRO de la misma transacción que el descuento de stock, a propósito: o baja el
+                 * contador y sale la unidad, o no pasa ninguna de las dos. Si la serie no está
+                 * disponible —ya vendida, o no existe— esto revienta y la venta entera se deshace,
+                 * antes que registrarla con el stock descontado y ninguna unidad detrás. Para un
+                 * producto no serializado no hace nada: devuelve null y sigue.
+                 */
+                $this->unidades->marcarVendida($product, $warehouse, $line->serial, $sale);
             }
 
             /*

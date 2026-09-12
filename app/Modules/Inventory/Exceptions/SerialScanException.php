@@ -20,4 +20,14 @@ final class SerialScanException extends DomainException
     {
         return new self('No escaneaste ninguna serie.');
     }
+
+    public static function serieRequerida(string $nombre): self
+    {
+        return new self("«{$nombre}» se vende por número de serie: elige qué unidad sale antes de cobrar.");
+    }
+
+    public static function serieNoDisponible(string $serial): self
+    {
+        return new self("La unidad con serie «{$serial}» no está disponible: puede que ya se vendiera o esté en otro almacén.");
+    }
 }

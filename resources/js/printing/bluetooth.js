@@ -40,14 +40,30 @@ export function isSupported() {
 /**
  * Por qué no está disponible, en una frase que se le puede enseñar a quien está frente a la caja.
  * `null` si sí está disponible.
+ *
+ * ASÍNCRONA A PROPÓSITO: `'bluetooth' in navigator` solo dice que el NAVEGADOR conoce la API, no que
+ * de verdad se pueda usar. Brave es el caso que lo demuestra —es Chromium, así que la API está—,
+ * pero Brave la BLOQUEA por defecto como protección de privacidad, y `getAvailability()` es la única
+ * forma de verlo de antemano: sin esto, el botón se enseña como si fuera a funcionar y falla en
+ * silencio al primer clic, que es justo el síntoma difícil de diagnosticar.
  */
-export function motivoNoDisponible() {
+export async function motivoNoDisponible() {
     if (typeof navigator === 'undefined') return 'No se pudo comprobar el navegador.';
     if (!('bluetooth' in navigator)) {
         return 'Este navegador no admite Bluetooth para impresoras. Usa Chrome o Edge en una computadora o en Android — no está disponible en iPhone.';
     }
     if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         return 'Bluetooth exige una conexión segura (https). Esta página no lo es.';
+    }
+
+    try {
+        const disponible = await navigator.bluetooth.getAvailability();
+        if (!disponible) {
+            return 'El navegador no encuentra un adaptador Bluetooth activo. Si usas Brave, esta función viene apagada por privacidad: actívala en brave://settings/privacy → «Usar Bluetooth», o revisa que el Bluetooth del equipo esté encendido.';
+        }
+    } catch {
+        // getAvailability() no está en todos los navegadores con soporte de Web Bluetooth; su
+        // ausencia no significa que Bluetooth no sirva, solo que no se puede adelantar el aviso.
     }
 
     return null;
@@ -57,16 +73,37 @@ export function motivoNoDisponible() {
  * Abre EL SELECTOR DEL NAVEGADOR para que la persona elija su impresora. No busca nada por su
  * cuenta —eso no lo permite el navegador—, solo ofrece el diálogo nativo.
  *
- * @returns {Promise<{device: BluetoothDevice, name: string, deviceId: string}>}
+ * `cancelado: true` cuando la persona cerró el selector sin elegir nada —no es un error, se calla—.
+ * Cualquier otro fallo (adaptador bloqueado, sin Bluetooth en el equipo…) se relanza con un mensaje
+ * claro: los dos casos comparten el mismo `DOMException.name` ("NotFoundError") y solo se
+ * distinguen por el TEXTO del mensaje, así que tratarlos igual —como hacía antes esta función—
+ * esconde justo el fallo que hay que enseñar (el caso de Brave, con Bluetooth apagado por
+ * privacidad, es exactamente este).
+ *
+ * @returns {Promise<{device: BluetoothDevice, name: string, deviceId: string}|{cancelado: true}>}
  */
 export async function elegirDispositivo() {
-    const device = await navigator.bluetooth.requestDevice({
-        // acceptAllDevices dentro de optionalServices: se acepta cualquier dispositivo Bluetooth (no
-        // solo impresoras identificadas por nombre), porque no hay forma de filtrar por "es una
-        // impresora" antes de conectar y preguntarle sus servicios.
-        acceptAllDevices: true,
-        optionalServices: [...SERVICIOS_CANDIDATOS, SERVICIO_BATERIA],
-    });
+    let device;
+
+    try {
+        device = await navigator.bluetooth.requestDevice({
+            // acceptAllDevices dentro de optionalServices: se acepta cualquier dispositivo Bluetooth
+            // (no solo impresoras identificadas por nombre), porque no hay forma de filtrar por "es
+            // una impresora" antes de conectar y preguntarle sus servicios.
+            acceptAllDevices: true,
+            optionalServices: [...SERVICIOS_CANDIDATOS, SERVICIO_BATERIA],
+        });
+    } catch (e) {
+        if (e?.name === 'NotFoundError' && /cancel/i.test(e.message || '')) {
+            return { cancelado: true };
+        }
+
+        if (e?.name === 'NotFoundError') {
+            throw new Error('No se encontró un adaptador Bluetooth activo. Si usas Brave, actívalo en brave://settings/privacy → «Usar Bluetooth»; si no, revisa que el Bluetooth del equipo esté encendido.');
+        }
+
+        throw e;
+    }
 
     return { device, name: device.name || 'Dispositivo sin nombre', deviceId: device.id };
 }

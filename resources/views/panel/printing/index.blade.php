@@ -107,7 +107,9 @@
                 async init() {
                     // Bajo demanda: ver `window.loadPrintingBluetooth` en resources/js/app.js.
                     await window.loadPrintingBluetooth();
-                    this.bt.motivo = window.BmosBluetooth.motivoNoDisponible();
+                    // Async: no basta con que la API exista (Brave la trae pero la bloquea por
+                    // privacidad), hay que preguntarle de verdad si hay un adaptador disponible.
+                    this.bt.motivo = await window.BmosBluetooth.motivoNoDisponible();
                     this.bt.soportado = this.bt.motivo === null;
                 },
 
@@ -140,16 +142,20 @@
                     this.bt.buscando = true;
 
                     try {
-                        const { device, name, deviceId } = await window.BmosBluetooth.elegirDispositivo();
-                        // Si ya estaba en la lista (se volvió a elegir el mismo), no se duplica.
-                        if (!this.bt.dispositivos.some((d) => d.deviceId === deviceId)) {
-                            this.bt.dispositivos.push({ name, deviceId, device, conectando: false, conectado: false, bateria: null, characteristic: null });
+                        const resultado = await window.BmosBluetooth.elegirDispositivo();
+
+                        // El usuario cerró el selector sin elegir nada: no es un error que avisar.
+                        // Cualquier OTRO fallo (adaptador bloqueado, sin Bluetooth…) ya viene con
+                        // mensaje claro y se muestra abajo — ver bluetooth.js, elegirDispositivo().
+                        if (!resultado.cancelado) {
+                            const { device, name, deviceId } = resultado;
+                            // Si ya estaba en la lista (se volvió a elegir el mismo), no se duplica.
+                            if (!this.bt.dispositivos.some((d) => d.deviceId === deviceId)) {
+                                this.bt.dispositivos.push({ name, deviceId, device, conectando: false, conectado: false, bateria: null, characteristic: null });
+                            }
                         }
                     } catch (e) {
-                        // El usuario cerró el selector sin elegir nada: no es un error que avisar.
-                        if (e?.name !== 'NotFoundError') {
-                            window.avisoRapido?.(e?.message || 'No se pudo abrir el selector de Bluetooth.', 'error');
-                        }
+                        window.avisoRapido?.(e?.message || 'No se pudo abrir el selector de Bluetooth.', 'error');
                     } finally {
                         this.bt.buscando = false;
                     }

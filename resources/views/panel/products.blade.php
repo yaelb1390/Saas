@@ -178,7 +178,7 @@
             @endcan
 
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead>
                         <tr>
                             @can('products.manage')
@@ -203,8 +203,8 @@
                                                class="rounded border-slate-300 text-indigo-600">
                                     </td>
                                 @endcan
-                                <td class="font-mono text-xs text-slate-500">{{ $product->sku }}</td>
-                                <td class="font-medium text-slate-800">
+                                <td data-rotulo="SKU" class="font-mono text-xs text-slate-500">{{ $product->sku }}</td>
+                                <td data-rotulo="Producto" class="font-medium text-slate-800">
                                     <div class="flex items-center gap-2.5">
                                         {{-- Sin fotos, el hueco gris de cada fila sobra: no dice nada y estrecha el nombre. --}}
                                         @if ($usaFotos)
@@ -227,23 +227,23 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="font-mono text-xs text-slate-500">{{ $product->barcode ?? '—' }}</td>
-                                <td>{{ $product->category?->name ?? '—' }}</td>
-                                <td>{{ $product->unit }}</td>
-                                <td>{{ number_format((float) $product->cost, 2) }}</td>
-                                <td class="font-semibold">{{ number_format((float) $product->price, 2) }}</td>
+                                <td data-rotulo="Código" class="font-mono text-xs text-slate-500">{{ $product->barcode ?? '—' }}</td>
+                                <td data-rotulo="Categoría">{{ $product->category?->name ?? '—' }}</td>
+                                <td data-rotulo="Unidad">{{ $product->unit }}</td>
+                                <td data-rotulo="Costo">{{ number_format((float) $product->cost, 2) }}</td>
+                                <td data-rotulo="Precio" class="font-semibold">{{ number_format((float) $product->price, 2) }}</td>
                                 {{-- Un producto SIN control de existencias no tiene existencia, y enseñarle
                                      un «0» en ámbar es mentirle: se lee como «se acabó» cuando significa «esto
                                      no se cuenta». Pasó de verdad —una batida sin control aparecía como agotada
                                      y no había forma de entender por qué no se podía reponer—. --}}
-                                <td>
+                                <td data-rotulo="Stock">
                                     @if (! $product->track_stock)
                                         <span class="bmos-badge badge-gray" title="Este producto no lleva control de existencias.">—</span>
                                     @else
                                         <span class="bmos-badge {{ $stock < 5 ? 'badge-amber' : 'badge-blue' }}">{{ number_format($stock, 0) }}</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td data-rotulo="Estado">
                                     <span class="bmos-badge {{ $product->is_active ? 'badge-green' : 'badge-gray' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
                                     {{-- «Se acabó» no es lo mismo que «inactivo»: lo primero cambia
                                          dos veces al día y lo segundo es retirarlo del catálogo. Se

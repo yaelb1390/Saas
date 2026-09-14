@@ -57,12 +57,16 @@
                          es lo que permite pasar treinta códigos sin tocar el ratón. --}}
                     <div class="border-b border-slate-100 p-4">
                         <label class="bmos-field-label" for="entry-scan">Escanea o teclea el código</label>
-                        <div class="flex flex-wrap items-center gap-2">
+                        {{-- En columna en móvil, no en fila: en una fila estrecha el botón «Añadir»
+                             terminaba justo en la esquina donde flota el asistente de ayuda —comprobado
+                             con `elementFromPoint`, quien recibía el clic ahí era su icono, no el
+                             botón—. Apilado, el botón cae en flujo normal y nunca cae en esa esquina. --}}
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <input id="entry-scan" type="text" x-ref="scanInput" x-model="barcode"
                                    @keydown.enter.prevent="escanear()" autofocus autocomplete="off"
                                    placeholder="Pasa el lector por el código y pulsa Enter"
                                    class="bmos-input min-w-0 flex-1 font-mono">
-                            <button type="button" @click="escanear()" class="bmos-btn bmos-btn-ghost" x-bind:disabled="buscando">
+                            <button type="button" @click="escanear()" class="bmos-btn bmos-btn-ghost w-full sm:w-auto" x-bind:disabled="buscando">
                                 <span x-text="buscando ? 'Buscando...' : 'Añadir'"></span>
                             </button>
                         </div>
@@ -84,7 +88,7 @@
                     </div>
 
                     <div class="overflow-x-auto">
-                        <table class="bmos-table">
+                        <table class="bmos-table bmos-tabla-tarjetas">
                             <thead>
                                 <tr>
                                     <th>Producto</th><th class="text-right">Cantidad</th>
@@ -94,7 +98,7 @@
                             <tbody>
                                 <template x-for="(l, i) in lineas" :key="l.id">
                                     <tr>
-                                        <td>
+                                        <td data-rotulo="Producto">
                                             <p class="font-medium text-slate-800" x-text="l.name"></p>
                                             <p class="text-xs text-slate-400" x-text="l.sku || l.barcode || ''"></p>
 
@@ -110,15 +114,15 @@
                                                 </span>
                                             </label>
                                         </td>
-                                        <td class="text-right">
+                                        <td data-rotulo="Cantidad" class="text-right">
                                             <input type="number" step="0.001" min="0.001" x-model.number="l.quantity"
                                                    class="bmos-input w-24 text-right">
                                         </td>
-                                        <td class="text-right">
+                                        <td data-rotulo="Costo" class="text-right">
                                             <input type="number" step="0.01" min="0" x-model="l.unit_cost"
                                                    :placeholder="l.costoActual" class="bmos-input w-28 text-right">
                                         </td>
-                                        <td class="text-right font-semibold text-slate-700" x-text="rd(importe(l))"></td>
+                                        <td data-rotulo="Importe" class="text-right font-semibold text-slate-700" x-text="rd(importe(l))"></td>
                                         <td class="text-right">
                                             <button type="button" @click="quitar(i)" title="Quitar"
                                                     class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600">
@@ -190,7 +194,7 @@
                 <p class="font-semibold text-slate-800">Últimas entradas</p>
             </div>
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead>
                         <tr>
                             <th>Código</th><th>Fecha</th><th>Proveedor</th><th>Referencia</th>
@@ -200,13 +204,13 @@
                     <tbody>
                         @forelse ($receipts as $r)
                             <tr>
-                                <td class="font-mono text-xs text-slate-500">{{ $r->code }}</td>
-                                <td class="text-xs text-slate-500">{{ $r->received_at?->format('d/m/Y') }}</td>
-                                <td class="text-sm text-slate-700">{{ $r->deQuien() }}</td>
-                                <td class="text-xs text-slate-500">{{ $r->reference ?? '—' }}</td>
-                                <td class="text-sm text-slate-600">{{ $r->warehouse?->name ?? '—' }}</td>
-                                <td class="text-right">{{ $r->lines_count }}</td>
-                                <td class="text-right font-semibold text-slate-700">
+                                <td data-rotulo="Código" class="font-mono text-xs text-slate-500">{{ $r->code }}</td>
+                                <td data-rotulo="Fecha" class="text-xs text-slate-500">{{ $r->received_at?->format('d/m/Y') }}</td>
+                                <td data-rotulo="Proveedor" class="text-sm text-slate-700">{{ $r->deQuien() }}</td>
+                                <td data-rotulo="Referencia" class="text-xs text-slate-500">{{ $r->reference ?? '—' }}</td>
+                                <td data-rotulo="Almacén" class="text-sm text-slate-600">{{ $r->warehouse?->name ?? '—' }}</td>
+                                <td data-rotulo="Productos" class="text-right">{{ $r->lines_count }}</td>
+                                <td data-rotulo="Costo" class="text-right font-semibold text-slate-700">
                                     {{ (float) $r->costoTotal() > 0 ? money($r->costoTotal()) : '—' }}
                                 </td>
                             </tr>

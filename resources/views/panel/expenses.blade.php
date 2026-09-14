@@ -332,7 +332,7 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead>
                         <tr>
                             <th>Código</th><th>Fecha</th><th>Descripción</th><th>Concepto</th>
@@ -343,18 +343,18 @@
                     <tbody>
                         @forelse ($expenses as $gasto)
                             <tr>
-                                <td class="font-mono text-xs text-slate-500">{{ $gasto->code }}</td>
-                                <td class="text-xs text-slate-500">{{ $gasto->paid_at?->format('d/m/Y') }}</td>
-                                <td class="font-medium text-slate-800">
+                                <td data-rotulo="Código" class="font-mono text-xs text-slate-500">{{ $gasto->code }}</td>
+                                <td data-rotulo="Fecha" class="text-xs text-slate-500">{{ $gasto->paid_at?->format('d/m/Y') }}</td>
+                                <td data-rotulo="Descripción" class="font-medium text-slate-800">
                                     {{ $gasto->description }}
                                     @if ($gasto->reference)
                                         <span class="block text-xs text-slate-400">Ref. {{ $gasto->reference }}</span>
                                     @endif
                                 </td>
-                                <td><span class="bmos-badge badge-gray">{{ $gasto->category?->name ?? '—' }}</span></td>
-                                <td class="text-sm text-slate-600">{{ $gasto->aQuien() }}</td>
-                                <td class="text-sm text-slate-600">{{ $gasto->account?->name ?? '—' }}</td>
-                                <td class="text-right font-semibold text-rose-600">−{{ number_format((float) $gasto->amount, 2) }}</td>
+                                <td data-rotulo="Concepto"><span class="bmos-badge badge-gray">{{ $gasto->category?->name ?? '—' }}</span></td>
+                                <td data-rotulo="A quién" class="text-sm text-slate-600">{{ $gasto->aQuien() }}</td>
+                                <td data-rotulo="Cuenta" class="text-sm text-slate-600">{{ $gasto->account?->name ?? '—' }}</td>
+                                <td data-rotulo="Monto" class="text-right font-semibold text-rose-600">−{{ number_format((float) $gasto->amount, 2) }}</td>
                                 @can('finance.manage')
                                     <td>
                                         <div class="flex items-center justify-end">

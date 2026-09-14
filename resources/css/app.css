@@ -3325,8 +3325,18 @@ body {
     display: flex;
     gap: 0.25rem;
     overflow-x: auto;
-    /* Sin barra visible: son cuatro pestañas, no una lista. */
+    /* Sin barra visible: son pocas pestañas, no una lista. */
     scrollbar-width: none;
+    /*
+     * El desvanecido en los bordes: se pensó para cuatro pestañas que siempre caben, pero el
+     * Centro de Impresión llegó con cinco y en un teléfono de 390px las dos últimas quedaban
+     * cortadas SIN NINGÚN AVISO —sin la barra, no hay pista de que sigue algo más allá—. Con esto,
+     * un borde que se difumina en vez de cortar en seco dice «hay más» incluso sin JavaScript. Es
+     * casi invisible cuando las pestañas sí caben —no hay nada pegado al borde que difuminar—, así
+     * que no cambia nada en las pantallas de siempre.
+     */
+    mask-image: linear-gradient(to right, transparent, black 14px, black calc(100% - 14px), transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 14px, black calc(100% - 14px), transparent);
 }
 
 .bmos-pestanas::-webkit-scrollbar { display: none; }

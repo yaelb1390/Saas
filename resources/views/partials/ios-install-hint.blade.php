@@ -1,9 +1,12 @@
 {{-- Aviso de instalación para iPhone: iOS no muestra un botón "Instalar" automático como Android,
      así que se le explica al usuario cómo añadir la app a la pantalla de inicio. Solo aparece en
-     Safari de iOS, cuando la app NO está ya instalada, y se puede descartar (se recuerda). --}}
-<div id="ios-install-hint" style="display:none"
-     class="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
-    <div class="flex items-start gap-3">
+     Safari de iOS, cuando la app NO está ya instalada, y se puede descartar (se recuerda).
+
+     Arriba del contenido, no flotando — mismo motivo que `pwa-install-banner`: un aviso `fixed`
+     tapa lo que haya debajo en la posición de scroll donde esté la persona, sin importar cuánto
+     crezca la página. Aquí empuja el contenido hacia abajo en vez de montarse encima. --}}
+<div id="ios-install-hint" style="display:none" class="mb-5">
+    <div class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <img src="{{ asset('images/apple-touch-icon.png') }}" alt="BM Business" class="h-10 w-10 shrink-0 rounded-lg">
         <div class="min-w-0 flex-1 text-sm">
             <p class="font-semibold text-slate-800">Instala BM Business en tu iPhone</p>

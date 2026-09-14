@@ -141,7 +141,7 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead>
                         <tr>
                             <th>Código</th><th>Cliente</th><th>Dirección</th><th>Repartidor</th>
@@ -152,21 +152,21 @@
                     <tbody>
                         @forelse ($deliveries as $d)
                             <tr>
-                                <td class="font-mono text-xs text-slate-500">
+                                <td data-rotulo="Código" class="font-mono text-xs text-slate-500">
                                     {{ $d->code }}
                                     @if ($d->sale)
                                         <span class="block text-[11px] text-indigo-500">{{ $d->sale->code }}</span>
                                     @endif
                                 </td>
-                                <td class="font-medium text-slate-800">
+                                <td data-rotulo="Cliente" class="font-medium text-slate-800">
                                     {{ $d->paraQuien() }}
                                     @if ($d->phone)<span class="block text-xs text-slate-400">{{ $d->phone }}</span>@endif
                                 </td>
-                                <td class="max-w-xs text-sm text-slate-600">
+                                <td data-rotulo="Dirección" class="max-w-xs text-sm text-slate-600">
                                     {{ $d->address }}
                                     @if ($d->notes)<span class="block text-xs text-slate-400">{{ $d->notes }}</span>@endif
                                 </td>
-                                <td class="text-sm text-slate-600">
+                                <td data-rotulo="Repartidor" class="text-sm text-slate-600">
                                     @can('delivery.manage')
                                         @unless ($d->status->isFinal())
                                             <form method="POST" action="{{ route('panel.deliveries.assign', $d) }}" class="flex items-center gap-1">
@@ -191,7 +191,7 @@
                                         {{ $d->driver_name ?? '—' }}
                                     @endcan
                                 </td>
-                                <td>
+                                <td data-rotulo="Estado">
                                     <span class="bmos-badge {{ $d->status->badge() }}">{{ $d->status->label() }}</span>
                                     {{-- El motivo que dio el repartidor. Es la diferencia entre «falló»
                                          y saber que tres pedidos se perdieron por direcciones mal
@@ -207,7 +207,7 @@
                                         <span class="block text-xs italic text-slate-400">«{{ $d->outcome_note }}»</span>
                                     @endif
                                 </td>
-                                <td class="text-right">
+                                <td data-rotulo="A cobrar" class="text-right">
                                     @if ($d->cobraEnLaPuerta())
                                         <span class="font-semibold text-slate-700">{{ money($d->amount_to_collect) }}</span>
                                         @if ($d->settled_at)

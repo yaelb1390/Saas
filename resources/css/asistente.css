@@ -54,19 +54,12 @@
 }
 
 /*
- * El banner de «instala la app» también vive abajo y ocupa todo el ancho en móvil.
- *
- * No es una precaución teórica: medido con `elementFromPoint` a 390px, quien recibía el clic en el
- * centro del botón del asistente era el banner. Mientras esté visible, el asistente se aparta hacia
- * arriba; en cuanto se instala o se descarta, vuelve a su sitio.
- *
- * La marca la pone el propio banner en el <body>, y no se adivina su altura: un valor a ojo se rompe
- * en cuanto le cambien el texto.
+ * El banner de «instala la app» ANTES vivía abajo, fijo, y competía con este botón por el mismo
+ * rincón —medido con `elementFromPoint` a 390px, quien recibía el clic en el centro del botón del
+ * asistente era el banner—. Ya no: el banner se movió arriba del contenido, en el flujo normal de
+ * la página (ver `partials/pwa-install-banner`), así que no hay dos elementos fijos compitiendo por
+ * la esquina inferior y esta regla dejó de hacer falta.
  */
-body.con-banner .asis-boton,
-body.con-banner .asis-panel {
-    bottom: 7.5rem;
-}
 
 /* La ventana. */
 .asis-panel {

@@ -66,19 +66,25 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th class="text-right">Acciones</th></tr></thead>
                     <tbody>
                         @forelse ($users as $user)
                             @php $role = $user->roles->first()?->name ?? 'staff'; @endphp
                             <tr class="{{ $user->is_active ? '' : 'opacity-60' }}">
-                                <td class="flex items-center gap-2 font-medium text-slate-800">
-                                    <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-600">
-                                        {{ strtoupper(mb_substr($user->name, 0, 1)) }}
-                                    </span>
-                                    {{ $user->name }}
+                                {{-- El avatar y el nombre van en SU PROPIO div, no sueltos como dos
+                                     hijos de la celda: en modo tarjeta la celda ya es un flex row con
+                                     la etiqueta a un lado, y sin este envoltorio el avatar quedaría
+                                     compitiendo por el espacio como si fuera un tercer elemento. --}}
+                                <td data-rotulo="Usuario" class="font-medium text-slate-800">
+                                    <div class="flex items-center gap-2">
+                                        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-600">
+                                            {{ strtoupper(mb_substr($user->name, 0, 1)) }}
+                                        </span>
+                                        {{ $user->name }}
+                                    </div>
                                 </td>
-                                <td class="text-slate-500">
+                                <td data-rotulo="Correo" class="text-slate-500">
                                     {{ $user->email }}
                                     @if ($vinculos->has($user->id))
                                         <span class="block text-xs text-slate-400">ficha de {{ $vinculos[$user->id]->name }}</span>
@@ -97,8 +103,8 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td><span class="bmos-badge {{ $roleBadge($role) }}">{{ RoleCatalog::label($role) }}</span></td>
-                                <td>
+                                <td data-rotulo="Rol"><span class="bmos-badge {{ $roleBadge($role) }}">{{ RoleCatalog::label($role) }}</span></td>
+                                <td data-rotulo="Estado">
                                     <span class="bmos-badge {{ $user->is_active ? 'badge-green' : 'badge-gray' }}">
                                         {{ $user->is_active ? 'Activo' : 'Inactivo' }}
                                     </span>

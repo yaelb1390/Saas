@@ -148,7 +148,7 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="bmos-table">
+                <table class="bmos-table bmos-tabla-tarjetas">
                     <thead>
                         <tr>
                             <th>Código</th><th>Cliente</th><th>Solicita</th><th>Cuotas</th>
@@ -158,11 +158,11 @@
                     <tbody>
                         @forelse ($applications as $solicitud)
                             <tr>
-                                <td class="font-mono text-xs text-slate-500">
+                                <td data-rotulo="Código" class="font-mono text-xs text-slate-500">
                                     <a href="{{ route('panel.loan-applications.show', $solicitud) }}" class="text-indigo-600 hover:underline">{{ $solicitud->code }}</a>
                                 </td>
-                                <td class="font-medium text-slate-800">{{ $solicitud->customer_name ?? $solicitud->customer?->name ?? '—' }}</td>
-                                <td>
+                                <td data-rotulo="Cliente" class="font-medium text-slate-800">{{ $solicitud->customer_name ?? $solicitud->customer?->name ?? '—' }}</td>
+                                <td data-rotulo="Solicita">
                                     {{ number_format((float) $solicitud->principal, 2) }}
                                     @if ($solicitud->seAjustaronLosTerminos())
                                         {{-- «Pidió 50.000, le aprobamos 30.000» es lo primero que se quiere ver
@@ -173,10 +173,10 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td>{{ $solicitud->cuotasEfectivas() }}</td>
-                                <td>{{ $solicitud->frequency->label() }}</td>
-                                <td><span class="bmos-badge {{ $solicitud->status->badge() }}">{{ $solicitud->status->label() }}</span></td>
-                                <td class="text-xs text-slate-500">{{ $solicitud->created_at?->format('d/m/Y') }}</td>
+                                <td data-rotulo="Cuotas">{{ $solicitud->cuotasEfectivas() }}</td>
+                                <td data-rotulo="Frecuencia">{{ $solicitud->frequency->label() }}</td>
+                                <td data-rotulo="Estado"><span class="bmos-badge {{ $solicitud->status->badge() }}">{{ $solicitud->status->label() }}</span></td>
+                                <td data-rotulo="Recibida" class="text-xs text-slate-500">{{ $solicitud->created_at?->format('d/m/Y') }}</td>
                                 <td>
                                     <div class="flex items-center justify-end">
                                         <a href="{{ route('panel.loan-applications.show', $solicitud) }}"

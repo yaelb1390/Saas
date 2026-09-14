@@ -94,7 +94,7 @@
             <div class="bmos-card overflow-hidden">
                 <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Calendario de cuotas</p></div>
                 <div class="overflow-x-auto">
-                    <table class="bmos-table">
+                    <table class="bmos-table bmos-tabla-tarjetas">
                         <thead>
                             <tr>
                                 <th>#</th><th>Vencimiento</th><th>Monto</th><th>Mora</th><th>Pagado</th><th>Saldo</th><th>Estado</th>
@@ -105,13 +105,13 @@
                             @foreach ($loan->installments as $inst)
                                 @php $overdue = $inst->isOverdue(); @endphp
                                 <tr class="{{ $overdue ? 'bg-rose-50/50' : '' }}">
-                                    <td class="text-slate-500">{{ $inst->number }}</td>
-                                    <td class="{{ $overdue ? 'font-medium text-rose-600' : '' }}">{{ $inst->due_date->format('d/m/Y') }}</td>
-                                    <td>{{ number_format((float) $inst->amount, 2) }}</td>
-                                    <td>{{ number_format((float) $inst->late_fee, 2) }}</td>
-                                    <td>{{ number_format((float) $inst->paid_amount, 2) }}</td>
-                                    <td class="font-semibold">{{ number_format((float) $inst->outstanding(), 2) }}</td>
-                                    <td>
+                                    <td data-rotulo="#" class="text-slate-500">{{ $inst->number }}</td>
+                                    <td data-rotulo="Vencimiento" class="{{ $overdue ? 'font-medium text-rose-600' : '' }}">{{ $inst->due_date->format('d/m/Y') }}</td>
+                                    <td data-rotulo="Monto">{{ number_format((float) $inst->amount, 2) }}</td>
+                                    <td data-rotulo="Mora">{{ number_format((float) $inst->late_fee, 2) }}</td>
+                                    <td data-rotulo="Pagado">{{ number_format((float) $inst->paid_amount, 2) }}</td>
+                                    <td data-rotulo="Saldo" class="font-semibold">{{ number_format((float) $inst->outstanding(), 2) }}</td>
+                                    <td data-rotulo="Estado">
                                         @if ($overdue)
                                             <span class="bmos-badge badge-red">Vencida</span>
                                         @else
@@ -140,15 +140,15 @@
             <div class="bmos-card overflow-hidden">
                 <div class="border-b border-slate-100 p-4"><p class="font-semibold text-slate-800">Cobros registrados</p></div>
                 <div class="overflow-x-auto">
-                    <table class="bmos-table">
+                    <table class="bmos-table bmos-tabla-tarjetas">
                         <thead><tr><th>Fecha</th><th>Monto</th><th>Saldo</th><th>Método</th><th class="text-right">Recibo</th></tr></thead>
                         <tbody>
                             @forelse ($loan->payments as $payment)
                                 <tr>
-                                    <td class="text-slate-500">{{ $payment->paid_at->format('d/m/Y H:i') }}</td>
-                                    <td class="font-semibold text-emerald-600">{{ number_format((float) $payment->amount, 2) }}</td>
-                                    <td>{{ number_format((float) $payment->balance_after, 2) }}</td>
-                                    <td>{{ $payment->method ?? '—' }}</td>
+                                    <td data-rotulo="Fecha" class="text-slate-500">{{ $payment->paid_at->format('d/m/Y H:i') }}</td>
+                                    <td data-rotulo="Monto" class="font-semibold text-emerald-600">{{ number_format((float) $payment->amount, 2) }}</td>
+                                    <td data-rotulo="Saldo">{{ number_format((float) $payment->balance_after, 2) }}</td>
+                                    <td data-rotulo="Método">{{ $payment->method ?? '—' }}</td>
                                     <td class="text-right">
                                         <a href="{{ route('panel.loans.receipt', [$loan, $payment]) }}?print=1" target="_blank" rel="noopener"
                                            class="text-indigo-600 hover:underline">🖨️ Imprimir</a>

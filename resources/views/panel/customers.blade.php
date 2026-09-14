@@ -60,20 +60,20 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="bmos-table">
+            <table class="bmos-table bmos-tabla-tarjetas">
                 <thead><tr><th>Cliente</th><th>Teléfono</th><th>Correo</th><th class="text-right">Acciones</th></tr></thead>
                 <tbody>
                     @forelse ($customers as $customer)
                         <tr class="{{ $customer->is_active ? '' : 'opacity-60' }}">
-                            <td class="font-medium">
+                            <td data-rotulo="Cliente" class="font-medium">
                                 <a href="{{ route('panel.customers.show', $customer) }}" class="text-indigo-600 hover:underline">{{ $customer->name }}</a>
                                 @unless ($customer->is_active)
                                     <span class="bmos-badge badge-gray ml-1">Archivado</span>
                                 @endunless
                                 @if ($customer->cedula)<span class="block text-xs font-normal text-slate-400">Cédula: {{ $customer->cedula }}</span>@endif
                             </td>
-                            <td>{{ $customer->phone ?? '—' }}</td>
-                            <td class="text-slate-500">{{ $customer->email ?? '—' }}</td>
+                            <td data-rotulo="Teléfono">{{ $customer->phone ?? '—' }}</td>
+                            <td data-rotulo="Correo" class="text-slate-500">{{ $customer->email ?? '—' }}</td>
                             <td>
                                 <div class="flex items-center justify-end gap-1">
                                     @can('customers.manage')

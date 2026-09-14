@@ -49,7 +49,7 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="bmos-table">
+            <table class="bmos-table bmos-tabla-tarjetas">
                 <thead><tr><th>Tipo</th><th>Rango autorizado</th><th>Próximo NCF</th><th class="text-right">Restantes</th><th>Fecha límite</th><th>Estado</th></tr></thead>
                 <tbody>
                     @forelse ($sequences as $seq)
@@ -58,12 +58,12 @@
                             [$badgeClass, $badgeLabel] = $health['badge'];
                         @endphp
                         <tr>
-                            <td><span class="bmos-badge badge-gray">{{ $seq->type->value }}</span> {{ $seq->type->label() }}</td>
-                            <td class="font-mono text-xs text-slate-500">{{ $seq->range_from }} – {{ $seq->range_to }}</td>
-                            <td class="font-mono text-xs font-semibold text-indigo-600">{{ $seq->formatNcf($seq->next_number) }}</td>
-                            <td class="text-right font-semibold">{{ number_format($health['remaining']) }}</td>
-                            <td class="text-slate-500">{{ $seq->expires_at?->format('d/m/Y') ?? '—' }}</td>
-                            <td><span class="bmos-badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
+                            <td data-rotulo="Tipo"><span class="bmos-badge badge-gray">{{ $seq->type->value }}</span> {{ $seq->type->label() }}</td>
+                            <td data-rotulo="Rango autorizado" class="font-mono text-xs text-slate-500">{{ $seq->range_from }} – {{ $seq->range_to }}</td>
+                            <td data-rotulo="Próximo NCF" class="font-mono text-xs font-semibold text-indigo-600">{{ $seq->formatNcf($seq->next_number) }}</td>
+                            <td data-rotulo="Restantes" class="text-right font-semibold">{{ number_format($health['remaining']) }}</td>
+                            <td data-rotulo="Fecha límite" class="text-slate-500">{{ $seq->expires_at?->format('d/m/Y') ?? '—' }}</td>
+                            <td data-rotulo="Estado"><span class="bmos-badge {{ $badgeClass }}">{{ $badgeLabel }}</span></td>
                         </tr>
                     @empty
                         <tr><td colspan="6" class="bmos-empty">Sin secuencias registradas: sin una secuencia activa no se puede emitir ningún comprobante.</td></tr>
@@ -135,7 +135,7 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="bmos-table">
+            <table class="bmos-table bmos-tabla-tarjetas">
                 <thead>
                     <tr>
                         <th>NCF</th><th>Tipo</th><th>Cliente</th><th>RNC/Cédula</th>
@@ -146,20 +146,20 @@
                 <tbody>
                     @forelse ($invoices as $invoice)
                         <tr>
-                            <td class="font-mono text-xs font-semibold text-indigo-600">{{ $invoice->ncf }}</td>
-                            <td><span class="bmos-badge badge-gray">{{ $invoice->type->value }}</span></td>
-                            <td>{{ $invoice->customer_name ?? 'Consumidor final' }}</td>
-                            <td class="font-mono text-xs text-slate-500">{{ $invoice->customer_tax_id ?? '—' }}</td>
-                            <td class="text-right">{{ number_format((float) $invoice->subtotal, 2) }}</td>
-                            <td class="text-right">{{ number_format((float) $invoice->tax, 2) }}</td>
-                            <td class="text-right font-semibold">{{ number_format((float) $invoice->total, 2) }}</td>
-                            <td>
+                            <td data-rotulo="NCF" class="font-mono text-xs font-semibold text-indigo-600">{{ $invoice->ncf }}</td>
+                            <td data-rotulo="Tipo"><span class="bmos-badge badge-gray">{{ $invoice->type->value }}</span></td>
+                            <td data-rotulo="Cliente">{{ $invoice->customer_name ?? 'Consumidor final' }}</td>
+                            <td data-rotulo="RNC/Cédula" class="font-mono text-xs text-slate-500">{{ $invoice->customer_tax_id ?? '—' }}</td>
+                            <td data-rotulo="Subtotal" class="text-right">{{ number_format((float) $invoice->subtotal, 2) }}</td>
+                            <td data-rotulo="ITBIS" class="text-right">{{ number_format((float) $invoice->tax, 2) }}</td>
+                            <td data-rotulo="Total" class="text-right font-semibold">{{ number_format((float) $invoice->total, 2) }}</td>
+                            <td data-rotulo="Estado">
                                 <span class="bmos-badge {{ $invoice->status->badge() }}">{{ $invoice->status->label() }}</span>
                                 @if ($invoice->isCancelled())
                                     <p class="mt-0.5 text-xs text-slate-400">{{ $invoice->cancellation_code?->label() }}</p>
                                 @endif
                             </td>
-                            <td class="text-slate-400">{{ $invoice->issued_at?->format('d/m/Y H:i') }}</td>
+                            <td data-rotulo="Emitida" class="text-slate-400">{{ $invoice->issued_at?->format('d/m/Y H:i') }}</td>
                             <td class="text-right">
                                 @unless ($invoice->isCancelled())
                                     @can('invoices.cancel')

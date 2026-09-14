@@ -258,19 +258,31 @@ body {
     background: linear-gradient(180deg, #818cf8, #a78bfa);
 }
 
-/* ---------- Topbar ---------- */
+/*
+ * ---------- Topbar ----------
+ *
+ * Antes era blanco translúcido: casi no se veía, igual que el color del título del navegador antes
+ * de arreglarlo (ver pwa-head.blade.php). Ahora lleva el mismo índigo de marca que los botones
+ * primarios (`linear-gradient(135deg, var(--bmos-primary), #6366f1)`), no un color nuevo inventado
+ * para esto — así la barra combina con lo que ya destaca en cada pantalla.
+ *
+ * Todo lo que vive encima —el chip de empresa, la ayuda, las alertas, el usuario— asumía un fondo
+ * claro y textos oscuros; se ajustó cada pieza para seguir leyéndose bien sobre índigo, no solo el
+ * fondo. Los menús desplegables (cambiar empresa, alertas, usuario) se dejaron en blanco a propósito:
+ * flotan DEBAJO de la barra, sobre el contenido de la página, y ahí sí conviene el mismo fondo claro
+ * de siempre.
+ */
 .bmos-topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
     padding: 0.85rem 1.75rem;
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--bmos-border);
+    background: linear-gradient(135deg, var(--bmos-primary), #6366f1);
     position: sticky;
     top: 0;
     z-index: 20;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
 .bmos-company-chip {
@@ -5680,15 +5692,21 @@ a.bmos-destino:hover {
  * Los estilos son SOLO de esta clase: no hereda ni modifica ninguna compartida, de modo que ningún
  * otro botón del panel cambia por esto.
  */
+/*
+ * Blanco translúcido sobre índigo, no lavanda clara sobre blanco: era el color de antes de que la
+ * barra fuera índigo, y lavanda-sobre-índigo casi no se distingue del fondo. El botón «encendido»
+ * invierte la relación —blanco SÓLIDO con icono índigo— para que siga habiendo un estado claramente
+ * distinto del apagado, como ya lo había antes.
+ */
 .bmos-plegar {
     display: none; /* en móvil no: ahí el menú ya vive detrás del botón de al lado */
     place-items: center;
     width: 2.4rem;
     height: 2.4rem;
     border-radius: 0.7rem;
-    border: 1px solid #e0e7ff;
-    background: #eef2ff;
-    color: #4f46e5;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
     transition: background-color 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -5699,14 +5717,13 @@ a.bmos-destino:hover {
 }
 
 .bmos-plegar:hover {
-    border-color: #c7d2fe;
-    background: #e0e7ff;
-    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.15);
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.22);
 }
 
 /* Se ve dónde está el foco al llegar con el tabulador. */
 .bmos-plegar:focus-visible {
-    outline: 2px solid #4f46e5;
+    outline: 2px solid #fff;
     outline-offset: 2px;
 }
 
@@ -5718,14 +5735,14 @@ a.bmos-destino:hover {
  * sistema se rompió.
  */
 .bmos-plegar.es-activo {
-    border-color: #4f46e5;
-    background: #4f46e5;
-    color: #fff;
+    border-color: #fff;
+    background: #fff;
+    color: var(--bmos-primary);
 }
 
 .bmos-plegar.es-activo:hover {
-    border-color: #4338ca;
-    background: #4338ca;
+    border-color: #fff;
+    background: #eef2ff;
 }
 
 /*

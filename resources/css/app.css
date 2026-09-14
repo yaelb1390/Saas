@@ -1590,11 +1590,23 @@ body {
     min-height: 12rem;
 }
 
+/*
+ * `.pos-tabla tbody td` y `.pos-rejilla tbody td` fijan `white-space: nowrap` para las celdas
+ * normales —SKU, precio, existencia—, cortas a propósito. Esta fila NO es un dato: es el aviso «aún
+ * no hay nada» de todo el ancho, texto corrido que debe envolver como cualquier párrafo. Las DOS
+ * tablas la usan (`pos.blade.php` y `parts-counter.blade.php`), así que hacen falta las dos formas
+ * con más especificidad que sus reglas de tabla —confirmado con las reglas que de verdad coinciden
+ * en el navegador, no solo leyendo el CSS—, o el aviso se sale por el borde derecho en vez de
+ * partirse en dos líneas. Se vio en un teléfono real.
+ */
+.pos-tabla tbody td.pos-rej-vacio,
+.pos-rejilla tbody td.pos-rej-vacio,
 .pos-rej-vacio {
     text-align: center;
     color: #94a3b8;
     padding: 1.4rem 0.5rem;
     font-size: 0.82rem;
+    white-space: normal;
 }
 
 .pos-quitar {

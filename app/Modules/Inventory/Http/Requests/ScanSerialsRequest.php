@@ -29,11 +29,11 @@ final class ScanSerialsRequest extends FormRequest
         $companyId = app(CurrentCompany::class)->id();
 
         return [
+            // Cualquier producto de la empresa. Ya NO se exige que esté marcado «con serie»: el
+            // servicio lo marca al vuelo. Escanear series a un producto es la forma de serializarlo.
             'product_id' => [
                 'required', 'integer',
-                Rule::exists('products', 'id')
-                    ->where('company_id', $companyId)
-                    ->where('tracks_serials', true),
+                Rule::exists('products', 'id')->where('company_id', $companyId),
             ],
             'warehouse_id' => [
                 'required', 'integer',

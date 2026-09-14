@@ -38,15 +38,25 @@ final class SerialScanService
      */
     public function alta(Product $product, Warehouse $warehouse, array $seriales): array
     {
-        if (! $product->esSerializado()) {
-            throw SerialScanException::productoNoSerializado($product->name);
-        }
-
         if ($seriales === []) {
             throw SerialScanException::nadaQueDarDeAlta();
         }
 
         return DB::transaction(function () use ($product, $warehouse, $seriales): array {
+            /*
+             * SE SERIALIZA AL VUELO. Si el producto todavía no lleva series y le estás escaneando
+             * unidades, es que quieres llevarlo por series — así que se marca aquí en vez de exigir
+             * que fueras antes a activarle un interruptor. Cualquier producto entra por esta puerta,
+             * sin paso previo.
+             *
+             * Un producto que ya traía stock por cantidad queda con esas unidades identificadas más
+             * el remanente sin identificar; se resuelve dándole el resto de series o inventariando.
+             * No es peligroso: el contador cuadra hacia arriba, solo hay stock aún sin nombre.
+             */
+            if (! $product->esSerializado()) {
+                $product->update(['tracks_serials' => true]);
+            }
+
             $creadas = [];
             $rechazados = [];
             // Los que ya vienen en esta misma tanda: dos disparos del mismo IMEI se cazan sin ir a la

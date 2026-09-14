@@ -129,12 +129,21 @@ it('no reutiliza la serie de una unidad ya vendida', function (): void {
 
 // ------------------------------------------------------------------ Lo que no se puede hacer
 
-it('no deja escanear un producto que no es serializado', function (): void {
-    $bateo = Product::create(['sku' => 'BAT-1', 'name' => 'Batida', 'cost' => '50', 'price' => '150']);
-    // tracks_serials queda en false por omisión: es un consumible.
+/*
+ * CUALQUIER PRODUCTO SE SERIALIZA AL VUELO. Escanearle una serie a un producto que no la llevaba es
+ * la forma de empezar a llevarlo por series: no hay que marcarlo antes.
+ */
+it('serializa al vuelo un producto que no lo estaba', function (): void {
+    $generico = Product::create(['sku' => 'GEN-1', 'name' => 'Genérico', 'cost' => '500', 'price' => '900']);
+    expect($generico->tracks_serials)->toBeFalsy();  // recien creado: aun sin cast, es null
 
-    expect(fn () => $this->scan->alta($bateo, $this->warehouse, [serie('LO-QUE-SEA')]))
-        ->toThrow(SerialScanException::class);
+    $r = $this->scan->alta($generico, $this->warehouse, [serie('SN-001'), serie('SN-002')]);
+
+    expect($r['creadas'])->toBe(2)
+        // Quedó marcado como serializado, sin que nadie tocara el interruptor.
+        ->and($generico->fresh()->tracks_serials)->toBeTrue()
+        // Y con su stock, como cualquier alta.
+        ->and((float) stockDe($generico, $this->warehouse->id))->toBe(2.0);
 });
 
 it('no da de alta una tanda vacia', function (): void {

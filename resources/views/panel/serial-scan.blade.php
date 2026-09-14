@@ -17,12 +17,11 @@
 
     @if ($serializados->isEmpty())
         <div class="bmos-card bmos-card-pad max-w-xl">
-            <p class="font-semibold text-slate-800">No tienes productos con número de serie.</p>
+            <p class="font-semibold text-slate-800">Todavía no tienes productos.</p>
             <p class="mt-2 text-sm text-slate-500">
-                Esta pantalla es para lo que se lleva unidad por unidad: teléfonos, electrónica, equipos
-                con garantía. Marca un producto como <b>«con número de serie»</b> al crearlo o editarlo en
-                <a href="{{ route('panel.products') }}" class="font-medium text-indigo-600">Inventario</a>,
-                y aparecerá aquí.
+                Crea uno en
+                <a href="{{ route('panel.products') }}" class="font-medium text-indigo-600">Inventario</a>
+                y podrás darle unidades por serie aquí.
             </p>
         </div>
     @else
@@ -40,9 +39,13 @@
                             <select id="serie-producto" name="product_id" x-model="productoId" required class="bmos-input">
                                 <option value="">— elegir —</option>
                                 @foreach ($serializados as $p)
-                                    <option value="{{ $p->id }}">{{ $p->name }} @if ($p->sku)· {{ $p->sku }}@endif</option>
+                                    {{-- Los que aún no llevan serie se marcan solos al escanearles la primera. --}}
+                                    <option value="{{ $p->id }}">{{ $p->name }}@if ($p->sku) · {{ $p->sku }}@endif @unless ($p->tracks_serials) · (se serializa al escanear)@endunless</option>
                                 @endforeach
                             </select>
+                            <p class="mt-1 text-xs text-slate-400">
+                                Elige cualquier producto. Si aún no lleva número de serie, empieza a llevarlo en cuanto le escanees la primera unidad.
+                            </p>
                         </div>
 
                         @if ($warehouses->count() > 1)

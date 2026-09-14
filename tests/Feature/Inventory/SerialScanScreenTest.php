@@ -40,24 +40,27 @@ beforeEach(function (): void {
     ]);
 });
 
-it('la pantalla solo ofrece los productos con serie', function (): void {
+it('la pantalla ofrece cualquier producto, marcando los que ya llevan serie', function (): void {
     $this->withoutVite();
-    // Un consumible, que NO debe aparecer en el selector.
+    // Un consumible: ahora TAMBIEN aparece, porque se puede serializar al escanear.
     Product::create(['sku' => 'BAT-1', 'name' => 'Batida', 'cost' => '50', 'price' => '150']);
 
     $html = $this->actingAs($this->admin)->get(route('panel.serial.scan'))->assertOk()->getContent();
 
     expect($html)->toContain('Teléfono')
-        ->and($html)->not->toContain('Batida');
+        ->and($html)->toContain('Batida')
+        // El que no lleva serie se distingue: se serializa al escanearle la primera.
+        ->and($html)->toContain('se serializa al escanear');
 });
 
-it('sin productos serializados, explica como marcarlos en vez de un desplegable vacio', function (): void {
+it('sin ningun producto, invita a crear uno', function (): void {
     $this->withoutVite();
-    $this->telefono->update(['tracks_serials' => false]);
+    // Se quitan todos los productos de la empresa.
+    Product::query()->delete();
 
     $html = $this->actingAs($this->admin)->get(route('panel.serial.scan'))->assertOk()->getContent();
 
-    expect($html)->toContain('No tienes productos con número de serie');
+    expect($html)->toContain('Todavía no tienes productos');
 });
 
 it('el POST da de alta las unidades escaneadas y sube el stock', function (): void {
@@ -77,19 +80,20 @@ it('el POST da de alta las unidades escaneadas y sube el stock', function (): vo
         ->and((float) Stock::query()->where('product_id', $this->telefono->id)->value('quantity'))->toBe(2.0);
 });
 
-it('no deja escanear contra un producto que no es serializado', function (): void {
-    $bateo = Product::create(['sku' => 'BAT-2', 'name' => 'Batida', 'cost' => '50', 'price' => '150']);
+it('escanear un producto sin marcar lo serializa al vuelo', function (): void {
+    $generico = Product::create(['sku' => 'GEN-2', 'name' => 'Genérico', 'cost' => '50', 'price' => '150']);
 
     $this->actingAs($this->admin)
         ->post(route('panel.products.scan-serials'), [
-            'product_id' => $bateo->id,
+            'product_id' => $generico->id,
             'warehouse_id' => $this->warehouse->id,
-            'seriales' => json_encode([['serial' => 'X']]),
+            'seriales' => json_encode([['serial' => 'SN-X']]),
         ])
-        // Lo para la validación: `tracks_serials = true` es condición del `exists`.
-        ->assertSessionHasErrors('product_id');
+        ->assertRedirect()
+        ->assertSessionHas('panel_ok');
 
-    expect(ProductUnit::count())->toBe(0);
+    expect(ProductUnit::count())->toBe(1)
+        ->and($generico->fresh()->tracks_serials)->toBeTrue();
 });
 
 it('no deja dar de alta contra el producto de otra empresa', function (): void {

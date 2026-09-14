@@ -4006,6 +4006,68 @@ body {
 }
 
 /* ============================================================
+   Centro de Impresión: el documento genérico (ticket, factura, reporte, documento) y su impresión
+   real. Un solo diseño para los dos usos: la vista previa del editor de plantillas lo enseña EN
+   PANTALLA, y el botón «Imprimir» lo manda al papel —el mismo HTML en los dos casos, para que lo que
+   se configura sea EXACTAMENTE lo que sale, sin que un renderizador de vista previa diverja del que
+   imprime de verdad.
+   ============================================================ */
+.bmos-doc {
+    font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+    color: #111827;
+    line-height: 1.5;
+}
+
+.bmos-doc-brand { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
+.bmos-doc-muted { color: #6b7280; }
+.bmos-doc-sep { border: none; border-top: 1px dashed #cbd2e0; margin: 10px 0; }
+.bmos-doc-row { display: flex; justify-content: space-between; gap: 10px; padding: 1px 0; }
+.bmos-doc-items { width: 100%; border-collapse: collapse; margin: 6px 0; }
+.bmos-doc-items td { padding: 3px 0; vertical-align: top; }
+.bmos-doc-qty { white-space: nowrap; padding-right: 6px !important; color: #6b7280; }
+.bmos-doc-num { text-align: right; white-space: nowrap; }
+.bmos-doc-grand { font-size: 15px; font-weight: 800; }
+
+.bmos-doc-ncf {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border: 1px dashed #6b7280;
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+/* La vista previa en pantalla: recuadrada y con sombra, como un papel sobre la mesa. Se re-renderiza
+   entera cada vez que el editor cambia algo —ver `resources/js/printing/index.js`—, así que no lleva
+   transición: parpadearía en cada tecla. */
+.bmos-doc-preview-frame {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px -12px rgba(2, 6, 23, 0.35);
+    padding: 18px 16px;
+    margin: 0 auto;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/*
+ * El contenedor que SOLO existe al imprimir de verdad. Mismo patrón que `#bmos-recibo-offline`:
+ * vive oculto en la propia página, nunca en una ventana nueva —un bloqueador de emergentes tumbaría
+ * la impresión justo cuando el cajero más la necesita—.
+ */
+#bmos-print-doc { display: none; }
+
+@media print {
+    body > *:not(#bmos-print-doc) {
+        display: none !important;
+    }
+
+    #bmos-print-doc { display: block; }
+    #bmos-print-doc .bmos-doc-preview-frame { box-shadow: none; border-radius: 0; padding: 0; max-height: none; overflow: visible; }
+    @page { margin: 4mm; }
+}
+
+/* ============================================================
    Publicar en redes: compositor e historial
 
    Sin librería nueva. Este panel ya usa Tailwind 4 y Alpine, y meter un segundo

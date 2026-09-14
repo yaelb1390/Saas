@@ -53,6 +53,7 @@ use App\Modules\Loans\Http\Controllers\LoanController;
 use App\Modules\POS\Http\Controllers\OfflineSyncController;
 use App\Modules\POS\Http\Controllers\PosController;
 use App\Modules\POS\Http\Controllers\QuickPosController;
+use App\Modules\Printing\Http\Controllers\PrintingController;
 use App\Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchasing\Http\Controllers\SupplierController;
 use App\Modules\Quotes\Http\Controllers\PublicQuoteController;
@@ -204,6 +205,9 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/inventario/series', 'serialScan')->middleware(['can:stock.adjust', 'module:inventory'])->name('serial.scan');
         // Buscar una unidad por su serie y ver su historia. Solo ver: no da existencia.
         Route::get('/inventario/consulta-series', [StockController::class, 'unitHistory'])->middleware(['can:products.view', 'module:inventory'])->name('serial.history');
+        // La rejilla de todas las unidades: listar y saltar al historial. Borrar y editar son acciones
+        // aparte, con su propio permiso. Solo ver, como el historial.
+        Route::get('/inventario/unidades', [StockController::class, 'units'])->middleware(['can:products.view', 'module:inventory'])->name('serial.units');
         Route::get('/ventas', 'sales')->middleware(['can:sales.view', 'module:sales'])->name('sales');
         Route::get('/compras', 'purchases')->middleware(['can:purchases.view', 'module:purchasing'])->name('purchases');
         Route::get('/crm', 'customers')->middleware(['can:customers.view', 'module:crm'])->name('customers');
@@ -217,6 +221,35 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/ia', 'ai')->middleware(['can:ai.assistant.use', 'module:ai'])->name('ai');
         Route::get('/reportes', 'reports')->middleware(['can:reports.view', 'module:reports'])->name('reports');
         Route::get('/usuarios', 'users')->middleware('can:users.manage')->name('users');
+    });
+
+    /*
+     * El Centro de Impresión: impresoras, plantillas, impresora por módulo e historial.
+     *
+     * Una sola pantalla con pestañas —`printing.view`— y las acciones que de verdad cambian algo
+     * —dar de alta o borrar una impresora, tocar una plantilla, reasignar un módulo— detrás de
+     * `printing.manage`. Marcar la PROPIA impresora predeterminada y su estado, en cambio, van con
+     * `printing.view`: la térmica de la caja es de quien la usa, no un ajuste del dueño.
+     */
+    Route::controller(PrintingController::class)->prefix('panel/impresion')->name('panel.printing.')->middleware(['subscription', 'module:printing'])->group(function (): void {
+        Route::get('/', 'index')->middleware('can:printing.view')->name('index');
+
+        Route::post('/impresoras', 'storePrinter')->middleware('can:printing.manage')->name('printers.store');
+        Route::put('/impresoras/{printer}', 'updatePrinter')->middleware('can:printing.manage')->name('printers.update');
+        Route::delete('/impresoras/{printer}', 'destroyPrinter')->middleware('can:printing.manage')->name('printers.destroy');
+        Route::post('/impresoras/{printer}/estado', 'setPrinterStatus')->middleware('can:printing.view')->name('printers.status');
+        Route::post('/predeterminada', 'setDefaultPrinter')->middleware('can:printing.view')->name('printers.default');
+
+        Route::post('/plantillas', 'storeTemplate')->middleware('can:printing.manage')->name('templates.store');
+        Route::put('/plantillas/{template}', 'updateTemplate')->middleware('can:printing.manage')->name('templates.update');
+        Route::delete('/plantillas/{template}', 'destroyTemplate')->middleware('can:printing.manage')->name('templates.destroy');
+
+        Route::post('/modulos', 'assignModule')->middleware('can:printing.manage')->name('modules.assign');
+
+        // El botón «Imprimir» global llama a estos dos: primero arma el documento, después —tras el
+        // intento real de imprimir en el navegador— registra cómo salió.
+        Route::post('/render', 'render')->middleware('can:printing.view')->name('render');
+        Route::post('/trabajos', 'logJob')->middleware('can:printing.view')->name('jobs.store');
     });
 
     /*
@@ -397,6 +430,12 @@ Route::middleware(['auth'])->group(function (): void {
         // Alta masiva de unidades serializadas por escaneo.
         Route::post('/panel/inventario/series', [StockController::class, 'scanSerials'])
             ->middleware('can:stock.adjust')->name('panel.products.scan-serials');
+        // Baja y corrección de una unidad. Mismo permiso que dar entrada: mover existencias. Borrar
+        // baja el stock por la puerta con kardex; editar solo toca precio, condición y color.
+        Route::delete('/panel/inventario/unidades/{unit}', [StockController::class, 'deleteUnit'])
+            ->middleware('can:stock.adjust')->name('panel.products.units.destroy');
+        Route::put('/panel/inventario/unidades/{unit}', [StockController::class, 'updateUnit'])
+            ->middleware('can:stock.adjust')->name('panel.products.units.update');
         Route::post('/panel/inventario/entradas', [StockController::class, 'store'])
             ->middleware('can:stock.adjust')->name('panel.stock.store');
         // Contar y ajustar la existencia de un producto. Mismo permiso que dar entrada: mover

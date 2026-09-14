@@ -23,6 +23,8 @@
         "alpinejs": "^3.15.12",
         "chart.js": "^4.5.1",
         "html5-qrcode": "^2.3.8",
+        "jsbarcode": "^3.12.3",
+        "qrcode": "^1.5.4",
         "sweetalert2": "^11.26.25"
     }
 }

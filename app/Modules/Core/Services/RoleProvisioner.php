@@ -138,6 +138,12 @@ final class RoleProvisioner
         'vehicle_jobs.manage',
         // Reportes
         'reports.view',
+        // Centro de Impresión. `printing.view` abre la pantalla —ver impresoras, elegir la propia,
+        // hacer una prueba de impresión— y lo tiene también el cajero: la térmica de su caja es
+        // suya, no un ajuste del dueño. `printing.manage` es dar de alta o borrar impresoras, tocar
+        // plantillas y asignar impresora por módulo: eso sí es administrar el negocio.
+        'printing.view',
+        'printing.manage',
     ];
 
     /**
@@ -214,6 +220,8 @@ final class RoleProvisioner
             'vehicle_jobs.view',
             'vehicle_jobs.manage',
             'reports.view',
+            'printing.view',
+            'printing.manage',
         ],
         // Cajero: SOLO la caja / punto de venta. Puede operar el POS (que internamente crea la
         // venta y emite la factura si se pide) y abrir/cerrar su caja. Nada de inventario, compras,
@@ -230,6 +238,12 @@ final class RoleProvisioner
             'cash.view',
             'cash.open',
             'cash.close',
+            // La térmica de SU caja es suya, no un ajuste del dueño: puede abrir el Centro de
+            // Impresión para elegirla, probarla y marcarla como predeterminada —pero no
+            // `printing.manage`: no da de alta impresoras, no toca plantillas, no reasigna la de
+            // otro módulo. Imprimir un recibo, en sí, no pide permiso nuevo: ya podía hacerlo con
+            // `pos.operate`, igual que antes de que existiera este módulo.
+            'printing.view',
         ],
         // Repartidor: SOLO sus entregas, y en el móvil. Un permiso y ni uno más.
         //

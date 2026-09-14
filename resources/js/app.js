@@ -570,6 +570,17 @@ Alpine.data('kiosko', () => ({
  * guardar nada —navegación privada, almacenamiento bloqueado— devuelve null y el terminal NO ofrece
  * cobrar sin conexión: prometer que la venta se guarda y perderla es peor que decirlo de entrada.
  */
+/**
+ * Un aviso rápido (éxito/error) desde CUALQUIER script, sin tener que armar el objeto de
+ * `avisoFlash` cada vez. `avisoFlash` en sí sigue siendo el que de verdad pinta el toast —esto solo
+ * traduce «pasó esto» a su contrato—.
+ */
+window.avisoRapido = (texto, tipo = 'error') => window.avisoFlash?.({
+    tipo: tipo === 'ok' ? 'success' : 'error',
+    titulo: tipo === 'ok' ? 'Listo' : 'No se pudo completar',
+    texto,
+});
+
 window.cargarOffline = async () => {
     if (window.bmosOffline !== undefined) return window.bmosOffline;
 
@@ -588,6 +599,27 @@ window.cargarOffline = async () => {
     }
 
     return window.bmosOffline;
+};
+
+/**
+ * El Centro de Impresión, bajo demanda: casi ninguna página imprime nada, y las dos piezas que
+ * hacen falta —Web Bluetooth y el dibujado de QR/código de barras— no tienen por qué viajar en el
+ * bundle que carga el login o el dashboard.
+ */
+window.loadPrintingBluetooth = async () => {
+    if (!window.BmosBluetooth) {
+        window.BmosBluetooth = await import('./printing/bluetooth');
+    }
+
+    return window.BmosBluetooth;
+};
+
+window.loadPrintingCodes = async () => {
+    if (!window.BmosPrintingCodes) {
+        window.BmosPrintingCodes = await import('./printing/codes');
+    }
+
+    return window.BmosPrintingCodes;
 };
 
 Alpine.start();

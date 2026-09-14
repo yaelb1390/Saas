@@ -47,6 +47,7 @@
             ['panel.option-groups', 'Tamaños y sabores', 'tag', 'products.manage', 'quick_pos', 'option_groups'],
             ['panel.stock.entry', 'Entrada de mercancía', 'bag', 'stock.adjust', 'inventory'],
             ['panel.serial.scan', 'Escaneo de series', 'cube', 'stock.adjust', 'inventory'],
+            ['panel.serial.units', 'Unidades en serie', 'tag', 'products.view', 'inventory'],
             ['panel.serial.history', 'Consulta por serie', 'id', 'products.view', 'inventory'],
             ['panel.purchases', 'Compras', 'bag', 'purchases.view', 'purchasing'],
         ],
@@ -81,6 +82,7 @@
         ],
         'Administración' => [
             ['panel.company-profile', 'Mi empresa', 'id', 'company.manage', null],
+            ['panel.printing.index', 'Centro de Impresión', 'printer', 'printing.view', 'printing'],
             ['panel.users', 'Usuarios', 'shield', 'users.manage', null],
             // Estaba solo en el desplegable del avatar: quien no lo abriera nunca encontraba dónde
             // ver su plan ni dónde pagar. Sin módulo asociado: la suscripción no se contrata.

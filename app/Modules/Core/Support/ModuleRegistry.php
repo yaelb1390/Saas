@@ -41,6 +41,7 @@ final class ModuleRegistry
         'dealer' => 'Vehículos',
         'ai' => 'IA & RAG',
         'reports' => 'Reportes',
+        'printing' => 'Centro de Impresión',
     ];
 
     /**
@@ -72,6 +73,7 @@ final class ModuleRegistry
         'dealer' => 'Patio de vehículos: cada unidad con su chasis, lo que costó prepararla y a cuánto se vendió.',
         'ai' => 'Asistente que responde sobre tus propios documentos y ventas.',
         'reports' => 'Informes de ventas, ganancias y productos más vendidos.',
+        'printing' => 'Impresoras Bluetooth, USB y de red, plantillas y una impresora por módulo.',
     ];
 
     /**

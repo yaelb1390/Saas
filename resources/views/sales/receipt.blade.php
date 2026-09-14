@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Recibo {{ $sale->code }} · BM Business OS</title>
+    {{-- Solo para el botón de impresión del Centro de Impresión (Alpine + la carga bajo demanda de
+         Bluetooth/QR): esta página no usaba el bundle de la app porque es liviana a propósito, y
+         sigue siéndolo — nada más se suma. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -131,7 +135,9 @@
     </div>
 
     <div class="actions">
-        <button type="button" class="btn btn-print" onclick="window.print()">🖨️ Imprimir</button>
+        {{-- El botón de impresión global del Centro de Impresión: resuelve la impresora asignada a
+             Ventas (térmica Bluetooth, si la hay) y si no, el diálogo del navegador de siempre. --}}
+        <x-panel.print-button document-type="sale_ticket" module="sales" :sale-id="$sale->id" label="🖨️ Imprimir" class="btn btn-print" />
         <a href="{{ route('panel.sales.receipt.pdf', ['sale' => $sale, 'mode' => 'descargar']) }}" class="btn btn-pdf">⬇️ PDF 80mm</a>
         <a href="{{ route('panel.sales') }}" class="btn btn-back">Volver</a>
     </div>

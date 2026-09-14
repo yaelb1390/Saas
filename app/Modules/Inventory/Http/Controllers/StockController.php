@@ -9,11 +9,13 @@ use App\Modules\Inventory\DTOs\CreateGoodsReceiptData;
 use App\Modules\Inventory\DTOs\ScanUnitData;
 use App\Modules\Inventory\Http\Requests\ScanSerialsRequest;
 use App\Modules\Inventory\Http\Requests\StoreGoodsReceiptRequest;
+use App\Modules\Inventory\Http\Requests\UpdateUnitRequest;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Models\ProductUnit;
 use App\Modules\Inventory\Services\GoodsReceiptService;
 use App\Modules\Inventory\Services\SerialScanService;
 use App\Modules\Inventory\Services\StockCountService;
+use App\Modules\Inventory\Services\UnitAdjustmentService;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
 use App\Modules\Inventory\Support\UnitHistory;
 use DomainException;
@@ -195,5 +197,72 @@ final class StockController extends Controller
             $producto->name,
             $aviso,
         ));
+    }
+
+    /**
+     * La rejilla de TODAS las unidades de la empresa: la que deja borrar la que coló mal, corregir un
+     * usado mal tasado o saltar al historial de una serie.
+     *
+     * Se filtra por producto y por estado. Por omisión salen las disponibles —las que se pueden
+     * tocar—; «vendidas» y «todas» son pestañas aparte. Se cargan producto y almacén de una vez para
+     * no ir a la base por cada fila.
+     */
+    public function units(Request $request): View
+    {
+        $estado = (string) $request->query('estado', 'disponibles');
+        $productId = $request->integer('product_id') ?: null;
+
+        $unidades = ProductUnit::query()
+            ->with(['product', 'warehouse'])
+            ->when($productId, fn ($q, $id) => $q->where('product_id', $id))
+            ->when($estado === 'disponibles', fn ($q) => $q->where('status', ProductUnit::DISPONIBLE))
+            ->when($estado === 'vendidas', fn ($q) => $q->where('status', ProductUnit::VENDIDA))
+            ->orderByDesc('id')
+            ->paginate(30)
+            ->withQueryString();
+
+        return view('panel.serial-units', [
+            'unidades' => $unidades,
+            'estado' => $estado,
+            'productId' => $productId,
+            // Solo los productos que llevan serie tienen unidades: son los del desplegable del filtro.
+            'serializados' => Product::query()
+                ->where('tracks_serials', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'sku']),
+        ]);
+    }
+
+    /**
+     * Da de baja una unidad. La regla —solo disponibles, y bajando el stock por la puerta con
+     * kardex— vive en el servicio; aquí solo se traduce el «no» a un aviso.
+     */
+    public function deleteUnit(ProductUnit $unit, UnitAdjustmentService $unidades): RedirectResponse
+    {
+        $serial = $unit->serial;
+
+        try {
+            $unidades->borrar($unit);
+        } catch (DomainException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
+
+        return back()->with('panel_ok', "Unidad «{$serial}» dada de baja. El stock bajó en uno.");
+    }
+
+    /**
+     * Corrige precio, condición y color de una unidad. La serie no se toca: el FormRequest ni la
+     * admite.
+     */
+    public function updateUnit(UpdateUnitRequest $request, ProductUnit $unit, UnitAdjustmentService $unidades): RedirectResponse
+    {
+        $unidades->editar(
+            $unit,
+            $request->input('condition'),
+            $request->input('color'),
+            $request->input('price'),
+        );
+
+        return back()->with('panel_ok', "Unidad «{$unit->serial}» actualizada.");
     }
 }

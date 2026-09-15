@@ -262,15 +262,18 @@ body {
  * ---------- Topbar ----------
  *
  * Antes era blanco translúcido: casi no se veía, igual que el color del título del navegador antes
- * de arreglarlo (ver pwa-head.blade.php). Ahora lleva el mismo índigo de marca que los botones
- * primarios (`linear-gradient(135deg, var(--bmos-primary), #6366f1)`), no un color nuevo inventado
- * para esto — así la barra combina con lo que ya destaca en cada pantalla.
+ * de arreglarlo (ver pwa-head.blade.php). Un primer intento la puso en el índigo brillante de los
+ * botones —pero al lado del azul marino oscuro de la barra lateral, la esquina donde se juntan las
+ * dos quedaba como dos colores sueltos, no una sola pieza—. Ahora usa el MISMO azul marino de la
+ * barra lateral (--bmos-sidebar-from/--bmos-sidebar-to, sin tocar esas variables ni la barra
+ * lateral en sí), así las dos forman un solo marco oscuro alrededor del contenido claro, sin
+ * costura en la esquina.
  *
  * Todo lo que vive encima —el chip de empresa, la ayuda, las alertas, el usuario— asumía un fondo
- * claro y textos oscuros; se ajustó cada pieza para seguir leyéndose bien sobre índigo, no solo el
- * fondo. Los menús desplegables (cambiar empresa, alertas, usuario) se dejaron en blanco a propósito:
- * flotan DEBAJO de la barra, sobre el contenido de la página, y ahí sí conviene el mismo fondo claro
- * de siempre.
+ * claro y textos oscuros; se ajustó cada pieza para seguir leyéndose bien sobre un fondo oscuro, no
+ * solo el color de fondo. Los menús desplegables (cambiar empresa, alertas, usuario) se dejaron en
+ * blanco a propósito: flotan DEBAJO de la barra, sobre el contenido de la página, y ahí sí conviene
+ * el mismo fondo claro de siempre.
  */
 .bmos-topbar {
     display: flex;
@@ -278,11 +281,11 @@ body {
     justify-content: space-between;
     gap: 1rem;
     padding: 0.85rem 1.75rem;
-    background: linear-gradient(135deg, var(--bmos-primary), #6366f1);
+    background: linear-gradient(120deg, var(--bmos-sidebar-from), var(--bmos-sidebar-to));
     position: sticky;
     top: 0;
     z-index: 20;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
 }
 
 .bmos-company-chip {

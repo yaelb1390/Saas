@@ -52,6 +52,20 @@ window.loadAgGrid = async () => {
 };
 
 /**
+ * FullCalendar, cargado BAJO DEMANDA, mismo motivo que AG Grid y Chart.js.
+ *
+ * Solo lo abre quien entra a /panel/alquiler/calendario: el resto del panel no tiene por qué
+ * descargarlo.
+ */
+window.loadRentalCalendar = async () => {
+    if (!window.BmosRentalCalendar) {
+        window.BmosRentalCalendar = await import('./rental-calendar.js');
+    }
+
+    return window.BmosRentalCalendar;
+};
+
+/**
  * El armazón del panel: el cajón del móvil y el plegado del menú.
  *
  * El plegado se RECUERDA en el navegador. Quien vende no esconde el menú una vez: lo esconde porque

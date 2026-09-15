@@ -74,6 +74,17 @@
             ['panel.vehicle-deals', 'Ventas y apartados', 'receipt', 'vehicle_deals.view', 'dealer'],
             ['panel.vehicle-jobs', 'Taller', 'wrench', 'vehicle_jobs.view', 'dealer'],
         ],
+        /*
+         * Alquiler. Módulo aparte de «Vehículos», pero opera sobre el mismo catálogo: la ruta exige
+         * los DOS módulos activos. Aquí solo se comprueba «rental» —esta lista no admite dos claves
+         * de módulo por fila— así que una empresa con «rental» pero sin «dealer» vería la entrada y,
+         * al entrar, la ruta le explicaría con claridad qué le falta, en vez de escondérsela sin decir
+         * por qué.
+         */
+        'Alquiler' => [
+            ['panel.rentals', 'Alquileres', 'truck', 'vehicle_rentals.view', 'rental'],
+            ['panel.rentals.calendar', 'Calendario', 'reloj', 'vehicle_rentals.view', 'rental'],
+        ],
         'Equipo' => [
             ['panel.employees', 'RRHH', 'id', 'hr.view', 'hr'],
         ],

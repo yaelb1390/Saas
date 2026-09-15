@@ -58,6 +58,7 @@ use App\Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use App\Modules\Purchasing\Http\Controllers\SupplierController;
 use App\Modules\Quotes\Http\Controllers\PublicQuoteController;
 use App\Modules\Quotes\Http\Controllers\QuoteController;
+use App\Modules\Rental\Http\Controllers\VehicleRentalController;
 use App\Modules\Sales\Http\Controllers\SaleController;
 use App\Modules\Social\Http\Controllers\SocialAutomationController;
 use App\Modules\Social\Http\Controllers\SocialController;
@@ -466,6 +467,9 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/panel/inventario', [ProductController::class, 'store'])->name('panel.products.store');
         Route::put('/panel/inventario/{product}', [ProductController::class, 'update'])->name('panel.products.update');
         Route::delete('/panel/inventario/{product}', [ProductController::class, 'destroy'])->name('panel.products.destroy');
+        // Copia los datos de catálogo a un producto nuevo con SKU propio y existencia en cero: no
+        // inventa unidades físicas que no se duplicaron en la vida real.
+        Route::post('/panel/inventario/{product}/duplicar', [ProductController::class, 'duplicate'])->name('panel.products.duplicate');
         // Borrado múltiple. `throttle` porque vaciar el catálogo no es algo que se repita en ráfaga.
         Route::delete('/panel/inventario', [ProductController::class, 'bulkDestroy'])
             ->middleware('throttle:10,1')->name('panel.products.bulk-destroy');
@@ -650,6 +654,42 @@ Route::middleware(['auth'])->group(function (): void {
         Route::middleware('can:vehicle_jobs.manage')->group(function (): void {
             Route::post('/panel/vehiculos/taller', [VehicleJobController::class, 'store'])->name('panel.vehicle-jobs.store');
             Route::post('/panel/vehiculos/taller/{job}/hecho', [VehicleJobController::class, 'complete'])->name('panel.vehicle-jobs.complete');
+        });
+    });
+
+    /*
+     * Alquiler de vehículos. Módulo APARTE de «Vehículos» (dealer) y contratable por separado, pero
+     * opera sobre el mismo catálogo: exige los DOS módulos activos (dos middlewares = Y lógico, a
+     * diferencia de «module:dealer,rental» que sería un O). Un solo permiso de gestión
+     * (`vehicle_rentals.manage`) cubre todo el ciclo —reservar, confirmar, entregar, devolver,
+     * liquidar, cancelar, cobrar, anotar daños—, mismo criterio que ya usa `vehicle_deals.manage` en
+     * el Dealer.
+     */
+    Route::middleware(['module:dealer', 'module:rental'])->group(function (): void {
+        Route::get('/panel/alquiler', [VehicleRentalController::class, 'index'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals');
+        Route::get('/panel/alquiler/calendario', [VehicleRentalController::class, 'calendar'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals.calendar');
+        Route::get('/panel/alquiler/calendario/datos', [VehicleRentalController::class, 'calendarData'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals.calendar.data');
+        Route::get('/panel/alquiler/reportes', [VehicleRentalController::class, 'reports'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals.reports');
+        Route::get('/panel/alquiler/{rental}', [VehicleRentalController::class, 'show'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals.show');
+        Route::get('/panel/alquiler/{rental}/contrato', [VehicleRentalController::class, 'contractPdf'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals.contract');
+
+        Route::middleware('can:vehicle_rentals.manage')->group(function (): void {
+            Route::post('/panel/alquiler', [VehicleRentalController::class, 'store'])->name('panel.rentals.store');
+            Route::post('/panel/alquiler/{rental}/confirmar', [VehicleRentalController::class, 'confirm'])->name('panel.rentals.confirm');
+            Route::post('/panel/alquiler/{rental}/entregar', [VehicleRentalController::class, 'pickup'])->name('panel.rentals.pickup');
+            Route::post('/panel/alquiler/{rental}/devolver', [VehicleRentalController::class, 'returnVehicle'])->name('panel.rentals.return');
+            Route::post('/panel/alquiler/{rental}/liquidar', [VehicleRentalController::class, 'settle'])->name('panel.rentals.settle');
+            Route::post('/panel/alquiler/{rental}/cancelar', [VehicleRentalController::class, 'cancel'])->name('panel.rentals.cancel');
+            Route::post('/panel/alquiler/{rental}/abonos', [VehicleRentalController::class, 'payment'])->name('panel.rentals.payments.store');
+            Route::post('/panel/alquiler/{rental}/danos', [VehicleRentalController::class, 'damageStore'])->name('panel.rentals.damages.store');
+            Route::post('/panel/alquiler/danos/{damage}/cobrar', [VehicleRentalController::class, 'damageCharge'])->name('panel.rentals.damages.charge');
+            Route::post('/panel/alquiler/danos/{damage}/condonar', [VehicleRentalController::class, 'damageWaive'])->name('panel.rentals.damages.waive');
         });
     });
 

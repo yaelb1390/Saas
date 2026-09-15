@@ -136,6 +136,15 @@ final class RoleProvisioner
         'vehicle_deals.manage',
         'vehicle_jobs.view',
         'vehicle_jobs.manage',
+        /*
+         * Alquiler de vehículos. Un solo par y no uno por acción: cubre reservar, confirmar,
+         * entregar, devolver, liquidar, cancelar, cobrar y anotar daños —todo el ciclo—, mismo
+         * criterio que ya usa `vehicle_deals.manage` con el ciclo de una venta. El mantenimiento
+         * sigue yendo por `vehicle_jobs.*` (arriba): no hace falta un permiso nuevo para algo que ya
+         * cubre el mismo modelo.
+         */
+        'vehicle_rentals.view',
+        'vehicle_rentals.manage',
         // Reportes
         'reports.view',
         // Centro de Impresión. `printing.view` abre la pantalla —ver impresoras, elegir la propia,
@@ -219,6 +228,8 @@ final class RoleProvisioner
             'vehicle_deals.manage',
             'vehicle_jobs.view',
             'vehicle_jobs.manage',
+            'vehicle_rentals.view',
+            'vehicle_rentals.manage',
             'reports.view',
             'printing.view',
             'printing.manage',

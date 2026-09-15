@@ -12,6 +12,7 @@ use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
 use App\Modules\Inventory\Models\Product;
+use App\Modules\Rental\Models\VehicleRental;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Support\Facades\Cache;
 
@@ -136,6 +137,33 @@ final class AlertService
                 'tone' => 'sky',
                 'icon' => 'M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.66-.831H14.25',
             ];
+        }
+
+        /*
+         * Alquileres que hay que devolver hoy o que ya se pasaron de fecha.
+         *
+         * `vehicle_rentals` puede no existir todavía —el módulo de Alquiler se aplica a mano, igual
+         * que el resto— así que se comprueba antes de preguntar, mismo criterio que `offline_review`
+         * arriba.
+         */
+        if (DbTable::existe('vehicle_rentals')) {
+            $porDevolver = VehicleRental::query()
+                ->where('status', 'active')
+                ->where('end_at', '<=', now()->endOfDay())
+                ->count();
+
+            if ($porDevolver > 0) {
+                $alerts[] = [
+                    'key' => 'rentals_due',
+                    'title' => $porDevolver === 1
+                        ? '1 alquiler por devolver hoy o vencido'
+                        : "{$porDevolver} alquileres por devolver hoy o vencidos",
+                    'count' => $porDevolver,
+                    'url' => route('panel.rentals', ['estado' => 'active']),
+                    'tone' => 'amber',
+                    'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+                ];
+            }
         }
 
         return $alerts;

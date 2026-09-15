@@ -70,6 +70,17 @@ final class StoreVehicleRequest extends FormRequest
             'min_price' => ['nullable', 'numeric', 'min:0'],
             'vehicle_type' => ['nullable', 'string', 'max:40'],
             /*
+             * Del módulo Alquiler. «sale» es lo que ya vale para todo vehículo existente: no se
+             * exige nada de esto salvo que el dueño marque la unidad como alquilable a propósito.
+             */
+            'usage_type' => ['nullable', 'in:sale,rental,both'],
+            'rental_price_daily' => ['nullable', 'numeric', 'min:0'],
+            'rental_price_weekly' => ['nullable', 'numeric', 'min:0'],
+            'rental_price_monthly' => ['nullable', 'numeric', 'min:0'],
+            'deposit_amount' => ['nullable', 'numeric', 'min:0'],
+            'rental_km_limit_daily' => ['nullable', 'integer', 'min:0'],
+            'extra_km_price' => ['nullable', 'numeric', 'min:0'],
+            /*
              * La foto. Se limita el tamaño ANTES de tocarla: sin tope, una foto de móvil moderno
              * son diez megas y el recuadrado con GD se come la memoria del proceso.
              *

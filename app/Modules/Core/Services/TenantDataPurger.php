@@ -98,6 +98,16 @@ final class TenantDataPurger
         // que ya no existe.
         'vehicle_photos',
         'vehicle_documents',
+        /*
+         * Alquiler de vehículos (módulo aparte, pero sus tablas también apuntan a `vehicles` y a
+         * `customers` con restrict, así que van antes que las dos). Las fotos de cada inspección y
+         * los daños, ANTES que la propia inspección; los abonos, antes que el alquiler.
+         */
+        'vehicle_inspection_photos',
+        'vehicle_damages',
+        'vehicle_inspections',
+        'vehicle_rental_payments',
+        'vehicle_rentals',
         'vehicles',
         // Facturación
         'invoice_items',
@@ -132,6 +142,14 @@ final class TenantDataPurger
         'product_option_group',
         'options',
         'option_groups',
+        // Centro de Impresión. Las tres primeras quedaron fuera al construir el módulo —el aviso de
+        // arriba pide añadirlas aquí y no bastó con escribirlo—, y lo cazó este mismo test.
+        'print_jobs',
+        'printer_preferences',
+        'print_templates',
+        'printers',
+        // Unidades con número de serie (celulares, electrónica). Antes que `products`: apuntan ahí.
+        'product_units',
         // Inventario
         'stock_movements',
         'stock',

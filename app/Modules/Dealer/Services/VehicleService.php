@@ -49,6 +49,13 @@ final class VehicleService
                 'purchase_cost' => $this->normalize($data->purchaseCost),
                 'asking_price' => $this->normalize($data->askingPrice),
                 'status' => VehicleStatus::Available,
+                'usage_type' => $data->usageType,
+                'rental_price_daily' => $data->rentalPriceDaily !== null ? $this->normalize($data->rentalPriceDaily) : null,
+                'rental_price_weekly' => $data->rentalPriceWeekly !== null ? $this->normalize($data->rentalPriceWeekly) : null,
+                'rental_price_monthly' => $data->rentalPriceMonthly !== null ? $this->normalize($data->rentalPriceMonthly) : null,
+                'deposit_amount' => $data->depositAmount !== null ? $this->normalize($data->depositAmount) : null,
+                'rental_km_limit_daily' => $data->rentalKmLimitDaily,
+                'extra_km_price' => $data->extraKmPrice !== null ? $this->normalize($data->extraKmPrice) : null,
                 'acquired_at' => $data->acquiredAt,
                 'notes' => $data->notes,
                 'user_id' => auth()->id(),
@@ -96,6 +103,15 @@ final class VehicleService
                     : null,
                 'acquired_at' => $datos['acquired_at'] ?? null,
                 'notes' => $datos['notes'] ?? null,
+                'usage_type' => $datos['usage_type'] ?? 'sale',
+                'rental_price_daily' => $this->normalizeOrNull($datos['rental_price_daily'] ?? null),
+                'rental_price_weekly' => $this->normalizeOrNull($datos['rental_price_weekly'] ?? null),
+                'rental_price_monthly' => $this->normalizeOrNull($datos['rental_price_monthly'] ?? null),
+                'deposit_amount' => $this->normalizeOrNull($datos['deposit_amount'] ?? null),
+                'rental_km_limit_daily' => isset($datos['rental_km_limit_daily']) && $datos['rental_km_limit_daily'] !== ''
+                    ? (int) $datos['rental_km_limit_daily']
+                    : null,
+                'extra_km_price' => $this->normalizeOrNull($datos['extra_km_price'] ?? null),
             ]);
 
             // El rastro lo escribe la auditoría sola al guardar: guarda quién, cuándo, el valor
@@ -190,5 +206,11 @@ final class VehicleService
     private function normalize(string $value): string
     {
         return bcadd($value === '' ? '0' : $value, '0', self::SCALE);
+    }
+
+    /** Como `normalize()`, pero deja pasar «no hay dato» en vez de convertirlo en cero. */
+    private function normalizeOrNull(mixed $value): ?string
+    {
+        return ($value === null || $value === '') ? null : $this->normalize((string) $value);
     }
 }

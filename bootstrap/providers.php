@@ -13,6 +13,7 @@ use App\Modules\Inventory\Providers\InventoryServiceProvider;
 use App\Modules\Loans\Providers\LoansServiceProvider;
 use App\Modules\POS\Providers\POSServiceProvider;
 use App\Modules\Purchasing\Providers\PurchasingServiceProvider;
+use App\Modules\Rental\Providers\RentalServiceProvider;
 use App\Modules\Reports\Providers\ReportsServiceProvider;
 use App\Modules\Sales\Providers\SalesServiceProvider;
 use App\Modules\WhatsApp\Providers\WhatsAppServiceProvider;
@@ -35,6 +36,7 @@ return [
     DeliveryServiceProvider::class,
     FinanceServiceProvider::class,
     DealerServiceProvider::class,
+    RentalServiceProvider::class,
     LoansServiceProvider::class,
     HrServiceProvider::class,
     ReportsServiceProvider::class,

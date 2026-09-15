@@ -6,9 +6,14 @@ use App\Models\User;
 use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\CRM\Models\Customer;
+use App\Modules\Dealer\DTOs\CreateVehicleData;
+use App\Modules\Dealer\Services\VehicleService;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Inventory\Services\StockService;
+use App\Modules\Rental\DTOs\CreateRentalData;
+use App\Modules\Rental\Services\VehicleRentalService;
 use App\Modules\Reports\Services\AlertService;
 use App\Modules\Reports\Services\ReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -117,4 +122,27 @@ it('la campana muestra las alertas en la barra superior', function (): void {
         ->get('/dashboard')
         ->assertOk()
         ->assertSee('stock bajo');
+});
+
+it('avisa de un alquiler activo por devolver hoy o vencido', function (): void {
+    $this->company->update(['modules' => ['dealer', 'rental', 'crm']]);
+
+    $vehiculo = app(VehicleService::class)->create(new CreateVehicleData(
+        make: 'Kia', model: 'Rio', usageType: 'rental', rentalPriceDaily: '2000',
+    ));
+    $cliente = Customer::create(['company_id' => $this->company->id, 'name' => 'Inquilino']);
+
+    $rentals = app(VehicleRentalService::class);
+    $alquiler = $rentals->reserve(new CreateRentalData(
+        vehicleId: $vehiculo->id, customerId: $cliente->id,
+        // Vencido: terminó ayer y sigue activo.
+        startAt: now()->subDays(3)->toDateTimeString(), endAt: now()->subDay()->toDateTimeString(),
+        confirm: true,
+    ));
+    $rentals->pickup($alquiler, ['mileage' => 1000, 'fuel_level' => 'full']);
+
+    $alerta = collect(app(AlertService::class)->forCurrentCompany())->firstWhere('key', 'rentals_due');
+
+    expect($alerta)->not->toBeNull()
+        ->and($alerta['count'])->toBe(1);
 });

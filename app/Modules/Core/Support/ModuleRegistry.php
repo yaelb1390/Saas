@@ -39,6 +39,10 @@ final class ModuleRegistry
         // Dealer de vehículos. Aparte del inventario porque un carro no es un producto: es una
         // pieza única con su chasis, su costo y su precio, y se vende a un negocio distinto.
         'dealer' => 'Vehículos',
+        // Depende de «dealer»: el catálogo (cada unidad, sus fotos, sus papeles) sigue viviendo ahí.
+        // Este módulo es la OPERACIÓN de alquilarlas —reservas, entrega, devolución, contratos—, y por
+        // eso una empresa necesita los dos activos para usarlo (ver EnsureModuleActive en las rutas).
+        'rental' => 'Alquiler de Vehículos',
         'ai' => 'IA & RAG',
         'reports' => 'Reportes',
         'printing' => 'Centro de Impresión',
@@ -71,6 +75,7 @@ final class ModuleRegistry
         'delivery' => 'Reparto a domicilio con seguimiento de cada entrega.',
         'hr' => 'Empleados, asistencia y su portal para consultar sus datos.',
         'dealer' => 'Patio de vehículos: cada unidad con su chasis, lo que costó prepararla y a cuánto se vendió.',
+        'rental' => 'Reservas, entregas, devoluciones y contratos de alquiler. Necesita también el módulo Vehículos.',
         'ai' => 'Asistente que responde sobre tus propios documentos y ventas.',
         'reports' => 'Informes de ventas, ganancias y productos más vendidos.',
         'printing' => 'Impresoras Bluetooth, USB y de red, plantillas y una impresora por módulo.',

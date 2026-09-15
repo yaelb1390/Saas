@@ -18,6 +18,18 @@ enum VehicleStatus: string
     case Sold = 'sold';
     case Withdrawn = 'withdrawn';
 
+    /*
+     * Los dos casos siguientes los añadió el módulo de Alquiler, que vive aparte (App\Modules\Rental)
+     * y depende de este enum sin poder tocarlo. `Maintenance` bloquea CUALQUIER trato o alquiler
+     * mientras la unidad está en el taller; `Rented` es el estado mientras el alquiler está
+     * físicamente en curso —desde la entrega hasta la devolución—. Las reservas FUTURAS de alquiler no
+     * cambian este estado: un vehículo puede estar «Disponible» hoy y tener una reserva para la semana
+     * que viene, y eso se resuelve con un rango de fechas, no con una columna de estado (ver
+     * VehicleAvailabilityService en el módulo de Alquiler).
+     */
+    case Maintenance = 'maintenance';
+    case Rented = 'rented';
+
     public function label(): string
     {
         return match ($this) {
@@ -25,6 +37,8 @@ enum VehicleStatus: string
             self::Reserved => 'Apartado',
             self::Sold => 'Vendido',
             self::Withdrawn => 'Retirado',
+            self::Maintenance => 'En mantenimiento',
+            self::Rented => 'Alquilado',
         };
     }
 
@@ -35,6 +49,8 @@ enum VehicleStatus: string
             self::Reserved => 'badge-amber',
             self::Sold => 'badge-blue',
             self::Withdrawn => 'badge-gray',
+            self::Maintenance => 'badge-red',
+            self::Rented => 'badge-violet',
         };
     }
 
@@ -47,5 +63,19 @@ enum VehicleStatus: string
     public function admiteTrato(): bool
     {
         return $this === self::Available;
+    }
+
+    /**
+     * Si se puede RESERVAR para alquiler. No mira fechas —eso lo hace
+     * `VehicleAvailabilityService` con el solapamiento contra otros alquileres— solo si el estado
+     * ACTUAL de la unidad lo permite en absoluto: vendida, retirada o en el taller no se alquila
+     * nunca, esté libre la fecha que esté.
+     */
+    public function admiteAlquiler(): bool
+    {
+        return match ($this) {
+            self::Sold, self::Withdrawn, self::Maintenance => false,
+            default => true,
+        };
     }
 }

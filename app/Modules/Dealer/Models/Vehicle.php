@@ -58,6 +58,15 @@ class Vehicle extends Model implements Auditable, HasCompany
         'purchase_cost',
         'asking_price',
         'status',
+        // Del módulo Alquiler (App\Modules\Rental), que depende de este modelo y no al revés: vive
+        // aquí porque «para qué sirve este vehículo» es un dato DEL vehículo, no del alquiler.
+        'usage_type',
+        'rental_price_daily',
+        'rental_price_weekly',
+        'rental_price_monthly',
+        'deposit_amount',
+        'rental_km_limit_daily',
+        'extra_km_price',
         'acquired_at',
         'notes',
         'user_id',
@@ -73,10 +82,22 @@ class Vehicle extends Model implements Auditable, HasCompany
             'purchase_cost' => 'decimal:2',
             'asking_price' => 'decimal:2',
             'min_price' => 'decimal:2',
+            'rental_price_daily' => 'decimal:2',
+            'rental_price_weekly' => 'decimal:2',
+            'rental_price_monthly' => 'decimal:2',
+            'deposit_amount' => 'decimal:2',
+            'extra_km_price' => 'decimal:2',
+            'rental_km_limit_daily' => 'integer',
             'acquired_at' => 'date',
             'year' => 'integer',
             'mileage' => 'integer',
         ];
+    }
+
+    /** Si este vehículo admite alquilarse, según lo que el dueño marcó (no según su estado actual). */
+    public function seAlquila(): bool
+    {
+        return in_array($this->usage_type ?? 'sale', ['rental', 'both'], true);
     }
 
     public function branch(): BelongsTo

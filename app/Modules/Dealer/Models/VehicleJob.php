@@ -33,6 +33,11 @@ class VehicleJob extends Model implements Auditable, HasCompany
         'type',
         'description',
         'cost',
+        // El kilometraje al que se hizo, y cuándo/con cuántos km toca el siguiente. Nullable: la
+        // mayoría de los gastos (transporte, papeles) no tienen «próxima vez».
+        'mileage',
+        'next_due_at',
+        'next_mileage',
         'performed_by',
         'status',
         'performed_at',
@@ -46,7 +51,10 @@ class VehicleJob extends Model implements Auditable, HasCompany
             'status' => JobStatus::class,
             'type' => ExpenseType::class,
             'cost' => 'decimal:2',
+            'mileage' => 'integer',
+            'next_mileage' => 'integer',
             'performed_at' => 'date',
+            'next_due_at' => 'date',
         ];
     }
 

@@ -34,5 +34,15 @@ final readonly class CreateVehicleData
         // El fichero subido, si lo hubo. Se guarda DESPUÉS de crear la unidad, porque el nombre
         // del fichero se cuelga de ella.
         public ?UploadedFile $photo = null,
+        // Del módulo Alquiler (App\Modules\Rental), que depende de este vehículo y no al revés.
+        // «sale» por defecto: una unidad recién dada de alta sigue siendo solo de venta hasta que
+        // alguien la marque a propósito, así que ningún vehículo existente cambia de comportamiento.
+        public string $usageType = 'sale',
+        public ?string $rentalPriceDaily = null,
+        public ?string $rentalPriceWeekly = null,
+        public ?string $rentalPriceMonthly = null,
+        public ?string $depositAmount = null,
+        public ?int $rentalKmLimitDaily = null,
+        public ?string $extraKmPrice = null,
     ) {}
 }

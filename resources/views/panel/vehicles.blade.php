@@ -240,6 +240,7 @@
                                     {{-- Solo marca y modelo son obligatorios: un carro llega y hay que
                                          anotarlo YA. Pedir la ficha completa hace que se apunte en un
                                          papel, y el papel no está en el sistema. --}}
+                                    <div x-data="{ usoVehiculo: '{{ old('usage_type', 'sale') }}' }">
                                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <x-panel.field name="make" label="Marca" required placeholder="Toyota" />
                                         <x-panel.field name="model" label="Modelo" required placeholder="Corolla" />
@@ -297,6 +298,29 @@
                                     <div class="mt-4">
                                         <label class="bmos-field-label">Notas</label>
                                         <textarea name="notes" rows="2" class="bmos-input"></textarea>
+                                    </div>
+
+                                    {{-- Alquiler (módulo aparte). «Solo venta» por defecto: no se le pide
+                                         nada de esto a quien no vaya a alquilar la unidad. --}}
+                                    <div class="mt-4 border-t border-slate-100 pt-4">
+                                        <label class="bmos-field-label">¿Para qué se usa?</label>
+                                        <select name="usage_type" class="bmos-input" x-model="usoVehiculo">
+                                            <option value="sale">Solo venta</option>
+                                            <option value="rental">Solo alquiler</option>
+                                            <option value="both">Venta y alquiler</option>
+                                        </select>
+
+                                        <template x-if="usoVehiculo !== 'sale'">
+                                            <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                                <x-panel.field name="rental_price_daily" label="Tarifa diaria" type="number" step="0.01" />
+                                                <x-panel.field name="deposit_amount" label="Depósito" type="number" step="0.01" />
+                                                <x-panel.field name="rental_price_weekly" label="Tarifa semanal (opcional)" type="number" step="0.01" />
+                                                <x-panel.field name="rental_price_monthly" label="Tarifa mensual (opcional)" type="number" step="0.01" />
+                                                <x-panel.field name="rental_km_limit_daily" label="Límite de km por día (opcional)" type="number" />
+                                                <x-panel.field name="extra_km_price" label="Precio por km de más" type="number" step="0.01" />
+                                            </div>
+                                        </template>
+                                    </div>
                                     </div>
                                 </x-panel.create-modal>
                             @endcan
@@ -684,6 +708,14 @@
                                         mismo problema que ya se arregló en «Limpiar filtros».
                                     --}}
                                     <div class="bmos-ficha-acciones">
+                                        @can('vehicles.manage')
+                                            <button type="button" class="bmos-btn bmos-btn-suave" @click="editar(ficha)">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/>
+                                                </svg>
+                                                Editar
+                                            </button>
+                                        @endcan
                                         @can('vehicle_deals.manage')
                                             <a href="{{ route('panel.vehicle-deals') }}" class="bmos-btn bmos-btn-primary">
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-4 w-4">
@@ -707,6 +739,123 @@
                             </div>
                         </template>
                     </div>
+                </div>
+
+                {{-- ------------------------------------------------------------- Editar vehículo --}}
+                <div x-show="editando" x-cloak
+                     class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 py-10"
+                     @keydown.escape.window="editando = null">
+                    <template x-if="editando">
+                        <div @click.outside="editando = null" x-transition
+                             class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+                            <div class="mb-4 flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-slate-800">Editar vehículo</h3>
+                                <button type="button" @click="editando = null" class="text-slate-400 hover:text-slate-600">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <form method="POST" :action="editUrl" class="space-y-4">
+                                @csrf
+                                <input type="hidden" name="_method" value="PUT">
+
+                                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <label class="bmos-field-label">Marca <span class="text-rose-500">&nbsp;*</span></label>
+                                        <input name="make" required class="bmos-input" x-model="editando.marca">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Modelo <span class="text-rose-500">&nbsp;*</span></label>
+                                        <input name="model" required class="bmos-input" x-model="editando.modelo">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Año</label>
+                                        <input name="year" type="number" class="bmos-input" x-model="editando.anio">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Versión</label>
+                                        <input name="trim" class="bmos-input" x-model="editando.version">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Chasis (VIN)</label>
+                                        <input name="vin" class="bmos-input" x-model="editando.vin">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Placa</label>
+                                        <input name="plate" class="bmos-input" x-model="editando.placa">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Color</label>
+                                        <input name="color" class="bmos-input" x-model="editando.color">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Kilometraje</label>
+                                        <input name="mileage" type="number" class="bmos-input" x-model="editando.km">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Costo de compra</label>
+                                        <input name="purchase_cost" type="number" step="0.01" class="bmos-input" x-model="editando.costo">
+                                    </div>
+                                    <div>
+                                        <label class="bmos-field-label">Precio de venta</label>
+                                        <input name="asking_price" type="number" step="0.01" class="bmos-input" x-model="editando.precio">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="bmos-field-label">Notas</label>
+                                    <textarea name="notes" rows="2" class="bmos-input" x-model="editando.notas"></textarea>
+                                </div>
+
+                                {{-- Alquiler (módulo aparte). Mismo criterio que en el alta: nada de
+                                     esto se pide si la unidad sigue siendo solo de venta. --}}
+                                <div class="border-t border-slate-100 pt-4">
+                                    <label class="bmos-field-label">¿Para qué se usa?</label>
+                                    <select name="usage_type" class="bmos-input" x-model="editando.usage_type">
+                                        <option value="sale">Solo venta</option>
+                                        <option value="rental">Solo alquiler</option>
+                                        <option value="both">Venta y alquiler</option>
+                                    </select>
+
+                                    <template x-if="editando.usage_type !== 'sale'">
+                                        <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                            <div>
+                                                <label class="bmos-field-label">Tarifa diaria</label>
+                                                <input name="rental_price_daily" type="number" step="0.01" class="bmos-input" x-model="editando.rental_price_daily">
+                                            </div>
+                                            <div>
+                                                <label class="bmos-field-label">Depósito</label>
+                                                <input name="deposit_amount" type="number" step="0.01" class="bmos-input" x-model="editando.deposit_amount">
+                                            </div>
+                                            <div>
+                                                <label class="bmos-field-label">Tarifa semanal (opcional)</label>
+                                                <input name="rental_price_weekly" type="number" step="0.01" class="bmos-input" x-model="editando.rental_price_weekly">
+                                            </div>
+                                            <div>
+                                                <label class="bmos-field-label">Tarifa mensual (opcional)</label>
+                                                <input name="rental_price_monthly" type="number" step="0.01" class="bmos-input" x-model="editando.rental_price_monthly">
+                                            </div>
+                                            <div>
+                                                <label class="bmos-field-label">Límite de km por día (opcional)</label>
+                                                <input name="rental_km_limit_daily" type="number" class="bmos-input" x-model="editando.rental_km_limit_daily">
+                                            </div>
+                                            <div>
+                                                <label class="bmos-field-label">Precio por km de más</label>
+                                                <input name="extra_km_price" type="number" step="0.01" class="bmos-input" x-model="editando.extra_km_price">
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <div class="flex justify-end gap-2 pt-3">
+                                    <button type="button" @click="editando = null" class="bmos-btn bmos-btn-ghost">Cancelar</button>
+                                    <button type="submit" class="bmos-btn bmos-btn-primary">Guardar cambios</button>
+                                </div>
+                            </form>
+                        </div>
+                    </template>
                 </div>
             </div>
         @endif
@@ -820,6 +969,7 @@
                 filas: [],       // lo último que trajo el servidor, para la galería
                 temporizador: null,
                 ficha: null,     // la fila que se está mirando
+                editando: null,  // copia de la fila abierta para editar, o null si el modal está cerrado
                 verFoto: null,   // cuál de la galería se ve en grande
                 detalle: null,   // gastos, fotos, historial y trato, pedidos aparte
                 documentos: [],  // se piden solo al abrir su pestaña: llevan datos personales
@@ -934,6 +1084,20 @@
                  */
                 fotoGrande() {
                     return this.verFoto || (this.ficha ? this.ficha.foto : null);
+                },
+
+                /**
+                 * Abre el editor con una COPIA de la fila, no la fila misma.
+                 *
+                 * Si se editara `this.ficha` directamente, cancelar dejaría los campos ya tocados
+                 * pintados en la ficha de solo lectura hasta que se recargara la pantalla entera.
+                 */
+                editar(fila) {
+                    this.editando = { ...fila };
+                },
+
+                get editUrl() {
+                    return '{{ url('panel/vehiculos') }}/' + this.editando.id;
                 },
 
                 async abrirFicha(fila) {

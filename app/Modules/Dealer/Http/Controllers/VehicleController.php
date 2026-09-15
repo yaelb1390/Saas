@@ -211,6 +211,13 @@ final class VehicleController extends Controller
             acquiredAt: $datos['acquired_at'] ?? null,
             notes: $datos['notes'] ?? null,
             photo: $request->file('photo'),
+            usageType: $datos['usage_type'] ?? 'sale',
+            rentalPriceDaily: $datos['rental_price_daily'] ?? null,
+            rentalPriceWeekly: $datos['rental_price_weekly'] ?? null,
+            rentalPriceMonthly: $datos['rental_price_monthly'] ?? null,
+            depositAmount: $datos['deposit_amount'] ?? null,
+            rentalKmLimitDaily: isset($datos['rental_km_limit_daily']) ? (int) $datos['rental_km_limit_daily'] : null,
+            extraKmPrice: $datos['extra_km_price'] ?? null,
         ));
 
         return back()->with('panel_success', "«{$vehiculo->nombre()}» quedó registrado como {$vehiculo->code}.");
@@ -428,6 +435,18 @@ final class VehicleController extends Controller
              */
             'dias' => $v->acquired_at === null ? null : (int) $v->acquired_at->diffInDays(now()),
             'notas' => $v->notes,
+            'branch_id' => $v->branch_id,
+            'min_price' => $v->min_price === null ? null : (float) $v->min_price,
+            'vehicle_type' => $v->vehicle_type,
+            // Del módulo Alquiler: se pintan aquí para que la ficha (y su edición) los tenga sin
+            // pedir una segunda consulta.
+            'usage_type' => $v->usage_type,
+            'rental_price_daily' => $v->rental_price_daily === null ? null : (float) $v->rental_price_daily,
+            'rental_price_weekly' => $v->rental_price_weekly === null ? null : (float) $v->rental_price_weekly,
+            'rental_price_monthly' => $v->rental_price_monthly === null ? null : (float) $v->rental_price_monthly,
+            'deposit_amount' => $v->deposit_amount === null ? null : (float) $v->deposit_amount,
+            'rental_km_limit_daily' => $v->rental_km_limit_daily,
+            'extra_km_price' => $v->extra_km_price === null ? null : (float) $v->extra_km_price,
         ];
 
         if ($puedeGestionar) {

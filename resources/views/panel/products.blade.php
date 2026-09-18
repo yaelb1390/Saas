@@ -1,5 +1,29 @@
 <x-layouts.admin title="Inventario" heading="Inventario" subheading="Catálogo de productos y existencias por almacén">
     <div x-data="productsCrud()">
+        {{-- Cuatro cifras de todo el catálogo (no de la página a la vista): ver PanelController::products(). --}}
+        <div class="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-indigo"><x-icono name="cube" /></div>
+                <p class="bmos-stat-label">Total de productos</p>
+                <p class="bmos-stat-value">{{ number_format($resumen['total']) }}</p>
+            </div>
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-sky"><x-icono name="truck" /></div>
+                <p class="bmos-stat-label">Stock total</p>
+                <p class="bmos-stat-value">{{ number_format((float) $resumen['stockTotal'], 0) }}</p>
+            </div>
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-emerald"><x-icono name="cash" /></div>
+                <p class="bmos-stat-label">Valor en inventario</p>
+                <p class="bmos-stat-value">{{ number_format((float) $resumen['valorInventario'], 2) }}</p>
+            </div>
+            <div class="bmos-stat">
+                <div class="bmos-stat-icon tone-amber"><x-icono name="alert" /></div>
+                <p class="bmos-stat-label">Bajo stock</p>
+                <p class="bmos-stat-value">{{ number_format($resumen['bajoStock']) }}</p>
+            </div>
+        </div>
+
         @if ($lowStockFilter)
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <span class="flex items-center gap-2 font-medium">
@@ -14,7 +38,47 @@
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
                 <p class="font-semibold text-slate-800">Productos</p>
                 <div class="flex flex-wrap items-center gap-3">
-                    <x-panel.search-bar placeholder="Buscar por SKU, nombre o código..." />
+                    <x-panel.search-bar placeholder="Buscar por SKU, nombre o código...">
+                        {{-- El botón «Filtros» agrupa categoría, almacén y el «solo bajo stock» que ya
+                             existía, en vez de inventar una cuarta dimensión de filtro. Los tres viajan
+                             en el MISMO <form> que la búsqueda, así que no se pierden al buscar. --}}
+                        <div x-data="{ filtrosAbiertos: false }" class="relative">
+                            <button type="button" @click="filtrosAbiertos = !filtrosAbiertos"
+                                    class="bmos-btn {{ ($categoryFilter || $warehouseFilter || $lowStockFilter) ? 'bmos-btn-primary' : '' }}">
+                                <x-icono name="sliders" class="h-4 w-4" />
+                                Filtros
+                            </button>
+                            <div x-show="filtrosAbiertos" @click.outside="filtrosAbiertos = false" x-cloak x-transition
+                                 class="absolute left-0 z-20 mt-2 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
+                                <div>
+                                    <label class="bmos-field-label">Categoría</label>
+                                    <select name="category_id" class="bmos-input" onchange="this.form.submit()">
+                                        <option value="">Todas</option>
+                                        @foreach ($categories as $cat)
+                                            <option value="{{ $cat->id }}" @selected($categoryFilter == $cat->id)>{{ $cat->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="bmos-field-label">Almacén</label>
+                                    <select name="warehouse_id" class="bmos-input" onchange="this.form.submit()">
+                                        <option value="">Todos</option>
+                                        @foreach ($warehouses as $w)
+                                            <option value="{{ $w->id }}" @selected($warehouseFilter == $w->id)>{{ $w->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <label class="flex items-center gap-2 text-sm text-slate-600">
+                                    <input type="checkbox" name="filter" value="low_stock" @checked($lowStockFilter)
+                                           onchange="this.form.submit()" class="rounded border-slate-300 text-indigo-600">
+                                    Solo stock bajo
+                                </label>
+                                @if ($categoryFilter || $warehouseFilter || $lowStockFilter)
+                                    <a href="{{ route('panel.products') }}" class="block text-center text-xs font-semibold text-indigo-600 hover:text-indigo-700">Quitar filtros</a>
+                                @endif
+                            </div>
+                        </div>
+                    </x-panel.search-bar>
                     <x-panel.export-button route="panel.export.products" />
                 @can('products.manage')
                 <x-panel.create-modal title="Nuevo producto" label="Nuevo producto" form="product_create"
@@ -171,6 +235,8 @@
                     <input type="hidden" name="todos" x-bind:value="todos ? 1 : 0">
                     <input type="hidden" name="q" value="{{ request('q') }}">
                     <input type="hidden" name="filter" value="{{ request('filter') }}">
+                    <input type="hidden" name="category_id" value="{{ $categoryFilter }}">
+                    <input type="hidden" name="warehouse_id" value="{{ $warehouseFilter }}">
                     <template x-for="id in marcados" :key="id">
                         <input type="hidden" name="ids[]" :value="id">
                     </template>
@@ -188,8 +254,16 @@
                                            class="rounded border-slate-300 text-indigo-600">
                                 </th>
                             @endcan
-                            <th>SKU</th><th>Producto</th><th>Código</th><th>Categoría</th><th>Unidad</th>
-                            <th>Costo</th><th>Precio</th><th>Stock</th><th>Estado</th><th class="text-right">Acciones</th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="tag" class="h-3.5 w-3.5 text-slate-400" />SKU</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="cube" class="h-3.5 w-3.5 text-slate-400" />Producto</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="doc" class="h-3.5 w-3.5 text-slate-400" />Código</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="building" class="h-3.5 w-3.5 text-slate-400" />Categoría</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="sliders" class="h-3.5 w-3.5 text-slate-400" />Unidad</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="cash" class="h-3.5 w-3.5 text-slate-400" />Costo</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="chart" class="h-3.5 w-3.5 text-slate-400" />Precio</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="truck" class="h-3.5 w-3.5 text-slate-400" />Stock</span></th>
+                            <th><span class="inline-flex items-center gap-1.5"><x-icono name="shield" class="h-3.5 w-3.5 text-slate-400" />Estado</span></th>
+                            <th class="text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -240,11 +314,19 @@
                                     @if (! $product->track_stock)
                                         <span class="bmos-badge badge-gray" title="Este producto no lleva control de existencias.">—</span>
                                     @else
-                                        <span class="bmos-badge {{ $stock < 5 ? 'badge-amber' : 'badge-blue' }}">{{ number_format($stock, 0) }}</span>
+                                        <span class="bmos-badge is-punto {{ $stock < 5 ? 'badge-amber' : 'badge-blue' }}">{{ number_format($stock, 0) }}</span>
                                     @endif
                                 </td>
                                 <td data-rotulo="Estado">
-                                    <span class="bmos-badge {{ $product->is_active ? 'badge-green' : 'badge-gray' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
+                                    {{-- Aspecto de interruptor, PERO no es uno: no es clicable ni lleva
+                                         acción propia. «Eliminar» sigue siendo la única forma de
+                                         retirar un producto; esto solo lo enseña de un vistazo. --}}
+                                    <div class="flex items-center gap-2" title="{{ $product->is_active ? 'Activo' : 'Inactivo' }}">
+                                        <span class="inline-flex h-5 w-9 shrink-0 items-center rounded-full {{ $product->is_active ? 'bg-emerald-500' : 'bg-slate-300' }}">
+                                            <span class="h-4 w-4 rounded-full bg-white shadow transition-transform {{ $product->is_active ? 'translate-x-4' : 'translate-x-0.5' }}"></span>
+                                        </span>
+                                        <span class="text-xs font-medium {{ $product->is_active ? 'text-emerald-600' : 'text-slate-500' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
+                                    </div>
                                     {{-- «Se acabó» no es lo mismo que «inactivo»: lo primero cambia
                                          dos veces al día y lo segundo es retirarlo del catálogo. Se
                                          enseña aparte para que no se confundan de un vistazo. --}}
@@ -254,6 +336,18 @@
                                 </td>
                                 <td>
                                     <div class="flex items-center justify-end gap-1">
+                                        {{-- Ficha de solo lectura. Con `products.view`: quien solo puede
+                                             consultar el catálogo también puede mirar el detalle de un
+                                             producto, aunque no pueda tocarlo. --}}
+                                        @can('products.view')
+                                            <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Ver"
+                                                    @click="ver({ sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category: @js($product->category?->name), unit: @js($product->unit), cost: '{{ number_format((float) $product->cost, 2) }}', price: '{{ number_format((float) $product->price, 2) }}', track_stock: {{ $product->track_stock ? 'true' : 'false' }}, is_active: {{ $product->is_active ? 'true' : 'false' }}, stock: @js($product->stock->map(fn ($s) => ['almacen' => $s->warehouse?->name ?? '—', 'cantidad' => number_format((float) $s->quantity, 0)])->all()) })">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z"/>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                                                </svg>
+                                            </button>
+                                        @endcan
                                         {{-- «Hoy no hay». Con `products.view`, que es lo que ya tiene
                                              quien opera el terminal: que se acabó el guineo lo sabe
                                              el cajero, no el dueño desde su casa. --}}
@@ -293,6 +387,16 @@
                                                 @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), description: @js($product->description), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, tracks_serials: {{ $product->tracks_serials ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4.5 w-4.5" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                         </button>
+                                        {{-- Copia los datos de catálogo a un producto nuevo, con SKU
+                                             propio y existencia en cero (ver ProductController::duplicate).
+                                             Sin confirmación: duplicar no es destructivo, no hace falta
+                                             el mismo aviso que borrar. --}}
+                                        <form method="POST" action="{{ route('panel.products.duplicate', $product) }}">
+                                            @csrf
+                                            <button type="submit" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Duplicar">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25"/></svg>
+                                            </button>
+                                        </form>
                                         <x-panel.confirm-action
                                             :action="route('panel.products.destroy', $product)"
                                             title="¿Eliminar «{{ $product->name }}»?"
@@ -421,6 +525,55 @@
             </div>
         </div>
     
+    {{-- Ficha de solo lectura. A propósito NO es un formulario: mostrar sin poder tocar nada evita
+         que quien solo tiene `products.view` se encuentre con campos que no puede guardar. --}}
+    <div x-show="verAbierto" x-cloak @keydown.escape.window="verAbierto = false"
+         class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 py-10">
+        <div @click.outside="verAbierto = false" x-transition class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-800" x-text="viendo.name"></h3>
+                <button type="button" @click="verAbierto = false" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <dl class="space-y-3 text-sm">
+                <div class="grid grid-cols-2 gap-3">
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">SKU</dt><dd class="font-mono text-slate-700" x-text="viendo.sku"></dd></div>
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Código de barras</dt><dd class="font-mono text-slate-700" x-text="viendo.barcode || '—'"></dd></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Categoría</dt><dd class="text-slate-700" x-text="viendo.category || '—'"></dd></div>
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Unidad</dt><dd class="text-slate-700" x-text="viendo.unit"></dd></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Costo</dt><dd class="text-slate-700" x-text="viendo.cost"></dd></div>
+                    <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio</dt><dd class="font-semibold text-slate-800" x-text="viendo.price"></dd></div>
+                </div>
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</dt>
+                    <dd class="mt-1">
+                        <span class="bmos-badge" :class="viendo.is_active ? 'badge-green' : 'badge-gray'" x-text="viendo.is_active ? 'Activo' : 'Inactivo'"></span>
+                    </dd>
+                </div>
+                <div x-show="viendo.track_stock">
+                    <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Existencia por almacén</dt>
+                    <dd class="mt-1.5 space-y-1">
+                        <template x-if="viendo.stock && viendo.stock.length === 0">
+                            <p class="text-slate-400">Sin existencia registrada todavía.</p>
+                        </template>
+                        <template x-for="fila in viendo.stock" :key="fila.almacen">
+                            <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+                                <span class="text-slate-600" x-text="fila.almacen"></span>
+                                <span class="font-semibold text-slate-800" x-text="fila.cantidad"></span>
+                            </div>
+                        </template>
+                    </dd>
+                </div>
+            </dl>
+            <div class="mt-5 flex justify-end">
+                <button type="button" @click="verAbierto = false" class="bmos-btn">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     {{-- Contar existencia.
 
          El usuario escribe LO QUE HAY, no la diferencia: nadie cuenta «tengo tres de más», cuenta
@@ -633,6 +786,11 @@
                        part_number: '', brand: '', vehicle_make: '', vehicle_model: '', year_from: '', year_to: '', location: '' },
                 get editUrl() { return '{{ url('panel/inventario') }}/' + this.row.id; },
                 edit(data) { this.row = { ...data }; this.open = true; },
+
+                /* ---- Ficha de solo lectura ---- */
+                verAbierto: false,
+                viendo: { sku: '', name: '', barcode: '', category: '', unit: '', cost: '', price: '', track_stock: true, is_active: true, stock: [] },
+                ver(data) { this.viendo = { ...data }; this.verAbierto = true; },
 
                 /* ---- Selección múltiple para borrar en lote ---- */
 

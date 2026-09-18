@@ -118,24 +118,38 @@ class Product extends Model implements Auditable, HasCompany
     }
 
     /**
-     * Filtros del listado de inventario: búsqueda libre y «solo stock bajo».
+     * Filtros del listado de inventario: búsqueda libre, categoría, almacén y «solo stock bajo».
      *
      * Vive en el modelo y no en el controlador porque lo usan DOS sitios que tienen que coincidir
      * exactamente: la pantalla que enseña los productos y el borrado múltiple de «seleccionar todos
      * los que coinciden». Si cada uno filtrara por su cuenta, alguien podría acabar borrando un
-     * conjunto distinto del que está viendo.
+     * conjunto distinto del que está viendo — por eso categoría y almacén se suman AQUÍ y no en una
+     * consulta aparte en el controlador.
      *
      * @param  Builder<Product>  $query
      */
-    public function scopeFiltered(Builder $query, ?string $texto = null, bool $soloStockBajo = false): void
-    {
+    public function scopeFiltered(
+        Builder $query,
+        ?string $texto = null,
+        bool $soloStockBajo = false,
+        ?int $categoryId = null,
+        ?int $warehouseId = null,
+    ): void {
         $query
             ->when(filled($texto), fn (Builder $q) => $q->where(
                 fn (Builder $sub) => $sub->whereLike('sku', "%{$texto}%")
                     ->orWhereLike('name', "%{$texto}%")
                     ->orWhereLike('barcode', "%{$texto}%")
             ))
-            ->when($soloStockBajo, fn (Builder $q) => $q->stockBajo());
+            ->when($soloStockBajo, fn (Builder $q) => $q->stockBajo())
+            ->when($categoryId !== null, fn (Builder $q) => $q->where('category_id', $categoryId))
+            // «En este almacén» = tiene una fila de existencia ahí, aunque esté en cero: es donde se
+            // repone, no donde hay unidades ahora mismo. Filtrar por cantidad > 0 escondería
+            // justo los productos que urge revisar en ese almacén.
+            ->when($warehouseId !== null, fn (Builder $q) => $q->whereHas(
+                'stock',
+                fn (Builder $s) => $s->where('warehouse_id', $warehouseId)
+            ));
     }
 
     /**

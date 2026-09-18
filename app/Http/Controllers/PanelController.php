@@ -29,6 +29,7 @@ use App\Modules\Inventory\Models\Category;
 use App\Modules\Inventory\Models\GoodsReceipt;
 use App\Modules\Inventory\Models\OptionGroup;
 use App\Modules\Inventory\Models\Product;
+use App\Modules\Inventory\Models\Stock;
 use App\Modules\Loans\Enums\InstallmentStatus;
 use App\Modules\Loans\Enums\LoanFrequency;
 use App\Modules\Loans\Models\Loan;
@@ -91,14 +92,39 @@ final class PanelController extends Controller
     public function products(CurrentCompany $current): View
     {
         $company = $current->model();
+        $categoryId = request()->integer('category_id') ?: null;
+        $warehouseId = request()->integer('warehouse_id') ?: null;
 
         return view('panel.products', [
-            'products' => Product::query()->with(['category', 'stock'])
+            'products' => Product::query()->with(['category', 'stock.warehouse'])
                 // Mismo filtro que usa el borrado múltiple (ver Product::scopeFiltered): así
                 // «seleccionar todos los que coinciden» borra exactamente lo que hay en pantalla.
-                ->filtered(request('q'), request('filter') === 'low_stock')
+                ->filtered(request('q'), request('filter') === 'low_stock', $categoryId, $warehouseId)
                 ->orderBy('name')->paginate(15)->withQueryString(),
             'lowStockFilter' => request('filter') === 'low_stock',
+            'categoryFilter' => $categoryId,
+            'warehouseFilter' => $warehouseId,
+
+            /*
+             * Las cuatro cifras de la franja de resumen. Cada una es UNA consulta agregada sobre TODO
+             * el catálogo de la empresa —no sobre la página paginada de 15 que se está mostrando—,
+             * para que la tarjeta no cambie según en qué página del listado esté el usuario.
+             */
+            'resumen' => [
+                'total' => Product::query()->count(),
+                'stockTotal' => (string) Stock::query()
+                    ->whereHas('product', fn ($q) => $q->where('track_stock', true))
+                    ->sum('quantity'),
+                'valorInventario' => (string) Stock::query()
+                    ->join('products', 'products.id', '=', 'stock.product_id')
+                    ->where('products.track_stock', true)
+                    ->selectRaw('COALESCE(SUM(stock.quantity * products.cost), 0) as total')
+                    ->value('total'),
+                // Reutiliza Product::scopeStockBajo() a propósito: es la ÚNICA definición correcta de
+                // «stock bajo» del sistema (ver el comentario en el modelo). Esta tarjeta no inventa
+                // una cuarta forma de contarlo.
+                'bajoStock' => Product::query()->stockBajo()->count(),
+            ],
             'categories' => Category::query()->orderBy('name')->get(),
             // Los datos de pieza de vehículo solo tienen sentido en un negocio de repuestos.
             /*

@@ -59,6 +59,49 @@ final class ProductController extends Controller
         return back()->with('panel_ok', 'Producto actualizado.');
     }
 
+    /**
+     * Copia los datos de catálogo de un producto a uno nuevo.
+     *
+     * Arranca con SKU propio (regenerado, nunca el del original: dos productos con el mismo SKU
+     * romperían la búsqueda por código) y con existencia en cero: duplicar la ficha no duplica la
+     * mercancía física que representa. Tampoco copia la foto ni el código de barras —compartir un
+     * barcode entre dos productos rompería el escaneo, que asume que identifica uno solo.
+     */
+    public function duplicate(Product $product, ProductService $products): RedirectResponse
+    {
+        $data = new CreateProductData(
+            sku: null,
+            name: $product->name.' (copia)',
+            categoryId: $product->category_id,
+            description: $product->description,
+            barcode: null,
+            unit: $product->unit,
+            cost: (string) $product->cost,
+            price: (string) $product->price,
+            trackStock: $product->track_stock,
+            partNumber: $product->part_number,
+            brand: $product->brand,
+            vehicleMake: $product->vehicle_make,
+            vehicleModel: $product->vehicle_model,
+            yearFrom: $product->year_from,
+            yearTo: $product->year_to,
+            location: $product->location,
+        );
+
+        // Sin almacén ni cantidad inicial: ProductService::create() no crea ninguna fila de
+        // existencia, así que el duplicado nace en cero en todos los almacenes.
+        $duplicate = $products->create($data);
+
+        // tracks_serials no viaja en el DTO (ver CreateProductData): es el único campo de catálogo
+        // que hoy solo se escribe desde update(), nunca desde store(). Se completa aparte para no
+        // ampliar el DTO por un caso que usa un solo sitio.
+        if ($product->tracks_serials) {
+            $duplicate->update(['tracks_serials' => true]);
+        }
+
+        return back()->with('panel_ok', 'Producto duplicado. Revisa el nuevo antes de venderlo: no tiene existencia todavía.');
+    }
+
     public function destroy(Product $product, ProductImageStore $images): RedirectResponse
     {
         $images->delete($product);
@@ -85,12 +128,19 @@ final class ProductController extends Controller
             'todos' => ['sometimes', 'boolean'],
             'q' => ['nullable', 'string'],
             'filter' => ['nullable', 'string'],
+            'category_id' => ['nullable', 'integer'],
+            'warehouse_id' => ['nullable', 'integer'],
         ]);
 
         // El ámbito de empresa va en el modelo, así que un id de otra empresa no aparece por aquí
         // aunque se envíe a mano: la consulta simplemente no lo encuentra.
         $productos = $request->boolean('todos')
-            ? Product::query()->filtered($datos['q'] ?? null, ($datos['filter'] ?? null) === 'low_stock')->get()
+            ? Product::query()->filtered(
+                $datos['q'] ?? null,
+                ($datos['filter'] ?? null) === 'low_stock',
+                $datos['category_id'] ?? null,
+                $datos['warehouse_id'] ?? null,
+            )->get()
             : Product::query()->whereIn('id', $datos['ids'] ?? [])->get();
 
         if ($productos->isEmpty()) {

@@ -387,6 +387,141 @@ it('condonar un daño no cambia el saldo', function (): void {
         ->and((string) $rental->fresh()->balance)->toBe('7000.00');
 });
 
+// ------------------------------------------------------------------ Reprogramar (arrastrar/redimensionar)
+
+it('reprogramar una reserva recalcula días, subtotal y saldo', function (): void {
+    $rental = $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $this->vehicle->id, customerId: $this->customer->id,
+        startAt: '2026-10-01 10:00:00', endAt: '2026-10-03 10:00:00', // 2 días = 7000
+    ));
+
+    $actualizado = $this->rentals->reschedule(
+        $rental, Carbon::parse('2026-10-05 10:00:00'), Carbon::parse('2026-10-10 10:00:00'), // 5 días
+    );
+
+    expect($actualizado->days)->toBe(5)
+        ->and((string) $actualizado->subtotal)->toBe('17500.00')
+        ->and((string) $actualizado->total)->toBe('17500.00')
+        ->and((string) $actualizado->balance)->toBe('17500.00');
+});
+
+it('NUNCA permite reprogramar una reserva sobre las fechas de otra: la disponibilidad manda', function (): void {
+    $rental = $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $this->vehicle->id, customerId: $this->customer->id,
+        startAt: '2026-10-01 10:00:00', endAt: '2026-10-03 10:00:00',
+    ));
+
+    $otroCliente = Customer::create(['company_id' => $this->company->id, 'name' => 'Cliente Dos']);
+    $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $this->vehicle->id, customerId: $otroCliente->id,
+        startAt: '2026-10-10 10:00:00', endAt: '2026-10-15 10:00:00',
+    ));
+
+    // Se intenta arrastrar la primera reserva justo encima de la segunda.
+    expect(fn () => $this->rentals->reschedule(
+        $rental, Carbon::parse('2026-10-12 10:00:00'), Carbon::parse('2026-10-14 10:00:00'),
+    ))->toThrow(RentalException::class);
+
+    // Y las fechas originales de la primera no se tocaron.
+    expect($rental->fresh()->start_at->toDateString())->toBe('2026-10-01');
+});
+
+it('un alquiler activo no puede mover la fecha de recogida, pero sí la de devolución', function (): void {
+    $rental = $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $this->vehicle->id, customerId: $this->customer->id,
+        startAt: '2026-10-01 10:00:00', endAt: '2026-10-03 10:00:00',
+    ));
+    $this->rentals->pickup($rental, ['mileage' => 1000, 'fuel_level' => 'full']);
+
+    // Mover la recogida: rechazado, el vehículo ya salió.
+    expect(fn () => $this->rentals->reschedule(
+        $rental, Carbon::parse('2026-10-02 10:00:00'), Carbon::parse('2026-10-03 10:00:00'),
+    ))->toThrow(RentalException::class);
+
+    // Extender solo la devolución: sí se admite.
+    $rental->refresh();
+    $actualizado = $this->rentals->reschedule(
+        $rental, Carbon::parse('2026-10-01 10:00:00'), Carbon::parse('2026-10-06 10:00:00'),
+    );
+    expect($actualizado->days)->toBe(5);
+});
+
+it('un alquiler devuelto o cancelado ya no admite cambiar sus fechas', function (): void {
+    $rental = $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $this->vehicle->id, customerId: $this->customer->id,
+        startAt: '2026-10-01 10:00:00', endAt: '2026-10-03 10:00:00',
+    ));
+    $this->rentals->cancel($rental);
+
+    expect(fn () => $this->rentals->reschedule(
+        $rental, Carbon::parse('2026-11-01 10:00:00'), Carbon::parse('2026-11-03 10:00:00'),
+    ))->toThrow(RentalException::class);
+});
+
+it('reprogramar por HTTP exige permiso y devuelve 422 si el vehículo no está libre', function (): void {
+    $rental = $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $this->vehicle->id, customerId: $this->customer->id,
+        startAt: '2026-10-01 10:00:00', endAt: '2026-10-03 10:00:00',
+    ));
+    $otroCliente = Customer::create(['company_id' => $this->company->id, 'name' => 'Cliente Dos']);
+    $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $this->vehicle->id, customerId: $otroCliente->id,
+        startAt: '2026-10-10 10:00:00', endAt: '2026-10-15 10:00:00',
+    ));
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.rentals.reschedule', $rental), [
+            'start_at' => '2026-10-12 10:00:00', 'end_at' => '2026-10-14 10:00:00',
+        ])
+        ->assertStatus(422)
+        ->assertJsonStructure(['message']);
+
+    $soloLectura = User::create([
+        'company_id' => $this->company->id, 'name' => 'Solo lectura',
+        'email' => 'lectura2@rentacar.test', 'password' => 'secret-password',
+    ]);
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->company->id);
+    $soloLectura->givePermissionTo('vehicle_rentals.view');
+    $registrar->forgetCachedPermissions();
+
+    $this->actingAs($soloLectura)
+        ->post(route('panel.rentals.reschedule', $rental), [
+            'start_at' => '2026-10-01 10:00:00', 'end_at' => '2026-10-04 10:00:00',
+        ])
+        ->assertForbidden();
+});
+
+// ------------------------------------------------------------------ Estado de la flota (calendario)
+
+it('el estado de la flota cuenta disponibles, reservados, en curso y mantenimiento sin solaparse', function (): void {
+    // $this->vehicle ya está «both»/disponible. Se añaden tres más para cubrir cada estado.
+    $enMantenimiento = vehiculoAlquilable();
+    $enMantenimiento->update(['status' => VehicleStatus::Maintenance]);
+
+    $reservado = vehiculoAlquilable();
+    $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $reservado->id, customerId: $this->customer->id,
+        startAt: '2026-10-01 10:00:00', endAt: '2026-10-03 10:00:00',
+    ));
+
+    $enCurso = vehiculoAlquilable();
+    $alquilerActivo = $this->rentals->reserve(new CreateRentalData(
+        vehicleId: $enCurso->id, customerId: $this->customer->id,
+        startAt: now()->subDay()->toDateTimeString(), endAt: now()->addDays(3)->toDateTimeString(),
+    ));
+    $this->rentals->pickup($alquilerActivo, ['mileage' => 100, 'fuel_level' => 'full']);
+
+    $estado = app(VehicleRentalReportService::class)->estadoFlota();
+
+    expect($estado['mantenimiento'])->toBe(1)
+        ->and($estado['reservados'])->toBe(1)
+        ->and($estado['en_curso'])->toBe(1)
+        // La flota tiene 4 unidades en total ($this->vehicle + las 3 nuevas); 3 están ocupadas de
+        // una forma u otra, así que solo debe quedar 1 disponible.
+        ->and($estado['disponibles'])->toBe(1);
+});
+
 // ------------------------------------------------------------------ Resumen / rentabilidad
 
 it('el resumen cuenta los alquilados ahora y lo cobrado este mes', function (): void {

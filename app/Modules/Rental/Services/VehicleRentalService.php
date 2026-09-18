@@ -214,6 +214,63 @@ final class VehicleRentalService
         return $rental;
     }
 
+    /**
+     * Cambia las fechas de un alquiler: arrastrar o redimensionar en el calendario.
+     *
+     * La RECOGIDA solo se puede mover mientras el vehículo sigue en el patio (Pendiente/Confirmado):
+     * una vez entregado, `actual_pickup_at` ya pasó de verdad y no hay fecha que reescribir. La
+     * DEVOLUCIÓN sí se puede ajustar con el alquiler en curso —el cliente pide unos días más, o
+     * adelanta la entrega—.
+     *
+     * La tarifa diaria NO se recalcula al precio de hoy del vehículo: sigue siendo la pactada al
+     * reservar, mismo criterio que el resto del alquiler. Solo cambian los días y, con ellos, el
+     * subtotal; lo ya cobrado en kilómetros/daños/combustible no se toca.
+     */
+    public function reschedule(VehicleRental $rental, Carbon $newStart, Carbon $newEnd): VehicleRental
+    {
+        return DB::transaction(function () use ($rental, $newStart, $newEnd): VehicleRental {
+            $rental = VehicleRental::query()->whereKey($rental->id)->lockForUpdate()->firstOrFail();
+
+            if (! $rental->status->admiteReprogramarFin()) {
+                throw RentalException::noAdmiteCambioDeFechas();
+            }
+
+            if (! $newStart->equalTo($rental->start_at) && ! $rental->status->admiteReprogramarInicio()) {
+                throw RentalException::noSePuedeMoverLaRecogida();
+            }
+
+            $vehicle = Vehicle::query()->whereKey($rental->vehicle_id)->lockForUpdate()->firstOrFail();
+            $this->availability->assertAvailable($vehicle, $newStart, $newEnd, $rental->id);
+
+            $dias = max(1, (int) $newStart->copy()->startOfDay()->diffInDays($newEnd->copy()->startOfDay()));
+
+            $nuevoSubtotal = bcmul((string) $rental->daily_rate, (string) $dias, self::SCALE);
+            $nuevoTotal = bcsub($nuevoSubtotal, (string) $rental->discount, self::SCALE);
+            $nuevoTotal = bccomp($nuevoTotal, '0', self::SCALE) < 0 ? '0.00' : $nuevoTotal;
+            // Lo ya cobrado de más (kilómetros, daños, combustible) no depende de las fechas: se suma
+            // tal cual quedó.
+            foreach (['extra_km_charge', 'damage_charge', 'fuel_charge'] as $cargo) {
+                $nuevoTotal = bcadd($nuevoTotal, (string) ($rental->{$cargo} ?? '0'), self::SCALE);
+            }
+
+            // El saldo se mueve con la MISMA diferencia que el total: si el alquiler se alarga, debe
+            // más; si se acorta, debe menos —pero nunca queda negativo—.
+            $diferencia = bcsub($nuevoTotal, (string) $rental->total, self::SCALE);
+            $nuevoSaldo = bcadd((string) $rental->balance, $diferencia, self::SCALE);
+            $nuevoSaldo = bccomp($nuevoSaldo, '0', self::SCALE) < 0 ? '0.00' : $nuevoSaldo;
+
+            $rental->start_at = $newStart;
+            $rental->end_at = $newEnd;
+            $rental->days = $dias;
+            $rental->subtotal = $nuevoSubtotal;
+            $rental->total = $nuevoTotal;
+            $rental->balance = $nuevoSaldo;
+            $rental->save();
+
+            return $rental;
+        });
+    }
+
     /** Cancela una reserva que todavía no se entregó. La fecha simplemente queda libre. */
     public function cancel(VehicleRental $rental): VehicleRental
     {

@@ -63,4 +63,14 @@ final class RentalException extends RuntimeException
     {
         return new self('Ese cliente no es de esta empresa.');
     }
+
+    public static function noAdmiteCambioDeFechas(): self
+    {
+        return new self('Ese alquiler ya está devuelto o cerrado: las fechas no se pueden mover.');
+    }
+
+    public static function noSePuedeMoverLaRecogida(): self
+    {
+        return new self('El vehículo ya salió: la fecha de recogida no se puede cambiar, solo la de devolución.');
+    }
 }

@@ -74,4 +74,28 @@ enum RentalStatus: string
             default => false,
         };
     }
+
+    /**
+     * Si la fecha de RECOGIDA se puede mover (arrastrar en el calendario). Solo antes de que el
+     * vehículo salga físicamente del patio: una vez entregado, `actual_pickup_at` ya pasó de verdad.
+     */
+    public function admiteReprogramarInicio(): bool
+    {
+        return match ($this) {
+            self::Pending, self::Confirmed => true,
+            default => false,
+        };
+    }
+
+    /**
+     * Si la fecha de DEVOLUCIÓN se puede mover (redimensionar en el calendario). Con el alquiler ya
+     * en curso también se admite: el cliente pide unos días más, o adelanta la entrega.
+     */
+    public function admiteReprogramarFin(): bool
+    {
+        return match ($this) {
+            self::Pending, self::Confirmed, self::Active => true,
+            default => false,
+        };
+    }
 }

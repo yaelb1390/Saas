@@ -672,6 +672,10 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:vehicle_rentals.view')->name('panel.rentals.calendar');
         Route::get('/panel/alquiler/calendario/datos', [VehicleRentalController::class, 'calendarData'])
             ->middleware('can:vehicle_rentals.view')->name('panel.rentals.calendar.data');
+        Route::get('/panel/alquiler/calendario/resumen', [VehicleRentalController::class, 'calendarSummary'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals.calendar.summary');
+        Route::get('/panel/alquiler/calendario/flota', [VehicleRentalController::class, 'fleetData'])
+            ->middleware('can:vehicle_rentals.view')->name('panel.rentals.calendar.fleet');
         Route::get('/panel/alquiler/reportes', [VehicleRentalController::class, 'reports'])
             ->middleware('can:vehicle_rentals.view')->name('panel.rentals.reports');
         Route::get('/panel/alquiler/{rental}', [VehicleRentalController::class, 'show'])
@@ -686,6 +690,7 @@ Route::middleware(['auth'])->group(function (): void {
             Route::post('/panel/alquiler/{rental}/devolver', [VehicleRentalController::class, 'returnVehicle'])->name('panel.rentals.return');
             Route::post('/panel/alquiler/{rental}/liquidar', [VehicleRentalController::class, 'settle'])->name('panel.rentals.settle');
             Route::post('/panel/alquiler/{rental}/cancelar', [VehicleRentalController::class, 'cancel'])->name('panel.rentals.cancel');
+            Route::post('/panel/alquiler/{rental}/reprogramar', [VehicleRentalController::class, 'reschedule'])->name('panel.rentals.reschedule');
             Route::post('/panel/alquiler/{rental}/abonos', [VehicleRentalController::class, 'payment'])->name('panel.rentals.payments.store');
             Route::post('/panel/alquiler/{rental}/danos', [VehicleRentalController::class, 'damageStore'])->name('panel.rentals.damages.store');
             Route::post('/panel/alquiler/danos/{damage}/cobrar', [VehicleRentalController::class, 'damageCharge'])->name('panel.rentals.damages.charge');

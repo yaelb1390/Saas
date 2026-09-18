@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Rental\Services;
 
+use App\Modules\Dealer\Enums\VehicleStatus;
 use App\Modules\Dealer\Models\Vehicle;
 use App\Modules\Dealer\Models\VehicleJob;
 use App\Modules\Rental\Models\VehicleRental;
@@ -109,6 +110,37 @@ final class VehicleRentalReportService
         }
 
         return bcdiv(bcmul((string) $diasAlquiladosTotal, '100', self::SCALE), (string) $diasDisponiblesTotal, self::SCALE);
+    }
+
+    /**
+     * Las cuatro tarjetas de la cabecera del calendario: de la flota que se alquila, cuántos están
+     * libres, reservados, en curso o en el taller ahora mismo.
+     *
+     * «Disponibles» se resta de las otras tres: es la única de las cuatro que no tiene una consulta
+     * propia —es lo que sobra de la flota una vez descontado lo demás—, así que si un vehículo se
+     * cuenta dos veces en otro lado, aquí se nota como que faltan disponibles, no como un número que
+     * calla el error.
+     *
+     * @return array{disponibles: int, reservados: int, en_curso: int, mantenimiento: int}
+     */
+    public function estadoFlota(): array
+    {
+        $flota = Vehicle::query()->whereIn('usage_type', ['rental', 'both'])->get(['id', 'status']);
+
+        $mantenimiento = $flota->filter(fn (Vehicle $v) => $v->status === VehicleStatus::Maintenance)->count();
+        $enCurso = $flota->filter(fn (Vehicle $v) => $v->status === VehicleStatus::Rented)->count();
+
+        $reservados = VehicleRental::query()
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->distinct('vehicle_id')
+            ->count('vehicle_id');
+
+        return [
+            'disponibles' => max(0, $flota->count() - $mantenimiento - $enCurso - $reservados),
+            'reservados' => $reservados,
+            'en_curso' => $enCurso,
+            'mantenimiento' => $mantenimiento,
+        ];
     }
 
     /**

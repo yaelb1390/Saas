@@ -318,15 +318,28 @@
                                     @endif
                                 </td>
                                 <td data-rotulo="Estado">
-                                    {{-- Aspecto de interruptor, PERO no es uno: no es clicable ni lleva
-                                         acción propia. «Eliminar» sigue siendo la única forma de
-                                         retirar un producto; esto solo lo enseña de un vistazo. --}}
-                                    <div class="flex items-center gap-2" title="{{ $product->is_active ? 'Activo' : 'Inactivo' }}">
-                                        <span class="inline-flex h-5 w-9 shrink-0 items-center rounded-full {{ $product->is_active ? 'bg-emerald-500' : 'bg-slate-300' }}">
-                                            <span class="h-4 w-4 rounded-full bg-white shadow transition-transform {{ $product->is_active ? 'translate-x-4' : 'translate-x-0.5' }}"></span>
-                                        </span>
-                                        <span class="text-xs font-medium {{ $product->is_active ? 'text-emerald-600' : 'text-slate-500' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
-                                    </div>
+                                    @can('products.manage')
+                                        {{-- Con permiso de gestión SÍ es un interruptor de verdad: activar o
+                                             retirar un producto del catálogo (ver ProductStatusController). --}}
+                                        <form method="POST" action="{{ route('panel.products.status', $product) }}">
+                                            @csrf
+                                            <input type="hidden" name="is_active" value="{{ $product->is_active ? '0' : '1' }}">
+                                            <button type="submit" class="flex items-center gap-2" title="{{ $product->is_active ? 'Activo — clic para retirar del catálogo' : 'Inactivo — clic para activar' }}">
+                                                <span class="inline-flex h-5 w-9 shrink-0 items-center rounded-full {{ $product->is_active ? 'bg-emerald-500' : 'bg-slate-300' }}">
+                                                    <span class="h-4 w-4 rounded-full bg-white shadow transition-transform {{ $product->is_active ? 'translate-x-4' : 'translate-x-0.5' }}"></span>
+                                                </span>
+                                                <span class="text-xs font-medium {{ $product->is_active ? 'text-emerald-600' : 'text-slate-500' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
+                                            </button>
+                                        </form>
+                                    @else
+                                        {{-- Solo lectura: se enseña de un vistazo, pero no es clicable. --}}
+                                        <div class="flex items-center gap-2" title="{{ $product->is_active ? 'Activo' : 'Inactivo' }}">
+                                            <span class="inline-flex h-5 w-9 shrink-0 items-center rounded-full {{ $product->is_active ? 'bg-emerald-500' : 'bg-slate-300' }}">
+                                                <span class="h-4 w-4 rounded-full bg-white shadow transition-transform {{ $product->is_active ? 'translate-x-4' : 'translate-x-0.5' }}"></span>
+                                            </span>
+                                            <span class="text-xs font-medium {{ $product->is_active ? 'text-emerald-600' : 'text-slate-500' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
+                                        </div>
+                                    @endcan
                                     {{-- «Se acabó» no es lo mismo que «inactivo»: lo primero cambia
                                          dos veces al día y lo segundo es retirarlo del catálogo. Se
                                          enseña aparte para que no se confundan de un vistazo. --}}

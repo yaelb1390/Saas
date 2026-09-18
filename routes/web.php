@@ -47,6 +47,7 @@ use App\Modules\Inventory\Http\Controllers\CategoryController;
 use App\Modules\Inventory\Http\Controllers\OptionGroupController;
 use App\Modules\Inventory\Http\Controllers\ProductAvailabilityController;
 use App\Modules\Inventory\Http\Controllers\ProductController;
+use App\Modules\Inventory\Http\Controllers\ProductStatusController;
 use App\Modules\Inventory\Http\Controllers\StockController;
 use App\Modules\Loans\Http\Controllers\LoanApplicationController;
 use App\Modules\Loans\Http\Controllers\LoanController;
@@ -470,6 +471,9 @@ Route::middleware(['auth'])->group(function (): void {
         // Copia los datos de catálogo a un producto nuevo con SKU propio y existencia en cero: no
         // inventa unidades físicas que no se duplicaron en la vida real.
         Route::post('/panel/inventario/{product}/duplicar', [ProductController::class, 'duplicate'])->name('panel.products.duplicate');
+        // Activo/Inactivo del catálogo. Con `products.manage`, a diferencia de «Hoy no hay»
+        // (ProductAvailabilityController, con products.view): esto retira el producto del catálogo.
+        Route::post('/panel/inventario/{product}/estado', ProductStatusController::class)->name('panel.products.status');
         // Borrado múltiple. `throttle` porque vaciar el catálogo no es algo que se repita en ráfaga.
         Route::delete('/panel/inventario', [ProductController::class, 'bulkDestroy'])
             ->middleware('throttle:10,1')->name('panel.products.bulk-destroy');

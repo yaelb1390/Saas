@@ -127,6 +127,47 @@ it('duplicar copia el catálogo pero arranca sin existencia, sin foto y con SKU 
         ->and($duplicado->totalStock())->toBe('0.000');
 });
 
+it('el interruptor de Activo/Inactivo retira o devuelve el producto al catálogo', function (): void {
+    // El default de la columna ('is_active' boolean, default true) lo pone la base de datos al
+    // insertar: el modelo recién creado en memoria no lo trae hasta que se relee.
+    expect($this->agua->refresh()->is_active)->toBeTrue();
+
+    $this->actingAs($this->duena)
+        ->post(route('panel.products.status', $this->agua), ['is_active' => '0'])
+        ->assertRedirect();
+
+    expect($this->agua->refresh()->is_active)->toBeFalse()
+        ->and($this->agua->sePuedeVender())->toBeFalse();
+
+    $this->actingAs($this->duena)
+        ->post(route('panel.products.status', $this->agua), ['is_active' => '1'])
+        ->assertRedirect();
+
+    expect($this->agua->refresh()->is_active)->toBeTrue();
+});
+
+it('con products.view el interruptor no es clicable y el POST directo se rechaza', function (): void {
+    $soloLectura = User::create([
+        'company_id' => $this->company->id, 'name' => 'Solo lectura',
+        'email' => 'lectura2@colmado.test', 'password' => 'secret-password',
+    ]);
+
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->company->id);
+    $soloLectura->givePermissionTo('products.view');
+    $registrar->forgetCachedPermissions();
+
+    $html = $this->actingAs($soloLectura)->get(route('panel.products'))->assertOk()->getContent();
+
+    expect($html)->not->toContain(route('panel.products.status', $this->agua));
+
+    $this->actingAs($soloLectura)
+        ->post(route('panel.products.status', $this->agua), ['is_active' => '0'])
+        ->assertForbidden();
+
+    expect($this->agua->refresh()->is_active)->toBeTrue();
+});
+
 it('con products.view se ve «Ver», pero «Duplicar» exige products.manage', function (): void {
     $soloLectura = User::create([
         'company_id' => $this->company->id, 'name' => 'Solo lectura',

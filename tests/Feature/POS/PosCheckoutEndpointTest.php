@@ -181,6 +181,31 @@ it('rechaza el cobro si no hay stock suficiente', function (): void {
         ->and(Stock::where('product_id', $this->product->id)->firstOrFail()->quantity)->toBe('100.000');
 });
 
+/*
+ * Regresión: un producto por número de serie, cobrado SIN elegir la unidad —como hace el POS
+ * rápido, que no tiene selector de serie—, no debe tumbar la petición entera con un error genérico.
+ * Antes de este fix, SerialScanException no estaba en el catch del checkout y escapaba como un 500
+ * (en producción, un «Server Error» sin ninguna pista de qué pasó).
+ */
+it('avisa con claridad si el producto se vende por serie y no se eligió unidad', function (): void {
+    $serializado = Product::create([
+        'sku' => 'P-SERIE', 'name' => 'Router Repetidor', 'cost' => '10', 'price' => '50',
+        'tracks_serials' => true,
+    ]);
+    app(StockService::class)->increase($serializado, $this->warehouse, StockMovementType::Purchase, '5');
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('panel.pos.checkout'), [
+            'cart' => json_encode([['id' => $serializado->id, 'qty' => 1]]),
+            'paid' => '50',
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJson(['message' => '«Router Repetidor» se vende por número de serie: elige qué unidad sale antes de cobrar.']);
+
+    expect(Sale::count())->toBe(0);
+});
+
 // ------------------------------------------------------------------ Los interruptores del terminal
 
 /*

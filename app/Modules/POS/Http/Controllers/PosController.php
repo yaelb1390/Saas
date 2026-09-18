@@ -15,6 +15,7 @@ use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Inventory\Exceptions\InsufficientStockException;
+use App\Modules\Inventory\Exceptions\SerialScanException;
 use App\Modules\Inventory\Support\ProductLookupPresenter;
 use App\Modules\POS\DTOs\DeliveryOrderData;
 use App\Modules\POS\Exceptions\ProductUnavailableException;
@@ -24,7 +25,9 @@ use App\Modules\POS\Support\CartResolver;
 use App\Modules\Sales\DTOs\CreateSaleData;
 use App\Modules\Sales\Enums\OrderType;
 use App\Modules\Sales\Enums\PaymentMethod;
+use App\Modules\Sales\Exceptions\CustomerNotInCompanyException;
 use App\Modules\Sales\Exceptions\InsufficientPaymentException;
+use App\Modules\Sales\Exceptions\PaymentSplitException;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -370,6 +373,12 @@ final class PosController extends Controller
             return $this->fallo($request, 'Stock insuficiente para completar la venta.');
         } catch (InsufficientPaymentException) {
             return $this->fallo($request, 'El pago es menor que el total de la venta.');
+        } catch (SerialScanException $e) {
+            return $this->fallo($request, $e->getMessage());
+        } catch (PaymentSplitException $e) {
+            return $this->fallo($request, $e->getMessage());
+        } catch (CustomerNotInCompanyException) {
+            return $this->fallo($request, 'El cliente seleccionado no es válido.');
         }
 
         $message = "Venta {$sale->code} cobrada. Cambio: ".number_format((float) $sale->change, 2);

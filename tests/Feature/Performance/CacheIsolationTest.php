@@ -5,9 +5,16 @@ declare(strict_types=1);
 use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\CRM\Models\Customer;
+use App\Modules\Dealer\DTOs\CreateVehicleData;
+use App\Modules\Dealer\Services\VehicleService;
 use App\Modules\Inventory\Enums\StockMovementType;
 use App\Modules\Inventory\Models\Product;
+use App\Modules\Inventory\Services\ProductSummaryService;
 use App\Modules\Inventory\Services\StockService;
+use App\Modules\Rental\DTOs\CreateRentalData;
+use App\Modules\Rental\Services\VehicleRentalReportService;
+use App\Modules\Rental\Services\VehicleRentalService;
 use App\Modules\Reports\Services\AlertService;
 use App\Modules\Reports\Services\ReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -91,4 +98,66 @@ it('el resumen se sirve de caché dentro del minuto y refleja el dato al expirar
     // Al vencer la caché, el resumen se pone al día.
     Cache::forget("company:{$company->id}:executive-summary");
     expect(app(ReportService::class)->executiveSummary()['products'])->toBe(2);
+});
+
+it('el resumen de inventario cacheado NO se filtra entre empresas', function (): void {
+    $a = companyWithProducts('Alfa', 2);
+    $resumenA = app(ProductSummaryService::class)->resumen();
+
+    $b = companyWithProducts('Beta', 5);
+    $resumenB = app(ProductSummaryService::class)->resumen();
+
+    expect($resumenA['total'])->toBe(2)
+        ->and($resumenB['total'])->toBe(5);
+
+    // Volver a la primera empresa debe devolver SU dato, no el de la última consultada.
+    app(CurrentCompany::class)->set($a->id);
+    expect(app(ProductSummaryService::class)->resumen()['total'])->toBe(2);
+});
+
+/**
+ * Crea una empresa con un vehículo de alquiler y N reservas futuras (fechas que no se solapan
+ * entre sí, para que reservar más de una no choque contra la disponibilidad).
+ */
+function companyWithRentalFleet(string $name, int $reservas): object
+{
+    $company = app(CompanyService::class)->create(new CreateCompanyData(name: $name));
+    app(CurrentCompany::class)->set($company->id);
+
+    $vehiculo = app(VehicleService::class)->create(new CreateVehicleData(
+        make: 'Toyota', model: 'Corolla', year: 2022,
+        purchaseCost: '900000', askingPrice: '1200000',
+        usageType: 'both', rentalPriceDaily: '3500', depositAmount: '10000',
+        rentalKmLimitDaily: 200, extraKmPrice: '15',
+    ));
+
+    $customer = Customer::create(['company_id' => $company->id, 'name' => 'Cliente']);
+
+    for ($i = 0; $i < $reservas; $i++) {
+        app(VehicleRentalService::class)->reserve(new CreateRentalData(
+            vehicleId: $vehiculo->id,
+            customerId: $customer->id,
+            startAt: now()->addDays(5 + $i * 3)->toDateTimeString(),
+            endAt: now()->addDays(7 + $i * 3)->toDateTimeString(),
+        ));
+    }
+
+    return $company;
+}
+
+it('el resumen y el estado de la flota de Alquiler NO se filtran entre empresas', function (): void {
+    $reportes = app(VehicleRentalReportService::class);
+
+    $a = companyWithRentalFleet('Alfa Rent', 0);
+    expect($reportes->resumen()['reservas_proximas'])->toBe(0)
+        ->and($reportes->estadoFlota()['reservados'])->toBe(0);
+
+    $b = companyWithRentalFleet('Beta Rent', 1);
+    expect($reportes->resumen()['reservas_proximas'])->toBe(1)
+        ->and($reportes->estadoFlota()['reservados'])->toBe(1);
+
+    // Volver a la primera empresa debe devolver SU dato, no el de la última consultada.
+    app(CurrentCompany::class)->set($a->id);
+    expect($reportes->resumen()['reservas_proximas'])->toBe(0)
+        ->and($reportes->estadoFlota()['reservados'])->toBe(0);
 });

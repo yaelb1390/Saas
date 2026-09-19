@@ -9,6 +9,8 @@ use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Models\Subscription;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Dealer\DTOs\CreateVehicleData;
+use App\Modules\Dealer\Services\VehicleService;
 use App\Modules\Inventory\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -97,7 +99,11 @@ it('el POS se mantiene dentro de su presupuesto de consultas', function (): void
 it('el inventario se mantiene dentro de su presupuesto de consultas', function (): void {
     $count = countQueries(fn () => $this->actingAs($this->owner)->get(route('panel.products'))->assertOk());
 
-    expect($count)->toBeLessThan(25, "El inventario ejecutó {$count} consultas.");
+    // Valor real en frío: 27 consultas. Subió de 25 cuando la pantalla incorporó las cuatro
+    // tarjetas de resumen (agregaciones sobre TODO el catálogo, no la página de 15 que se ve): no
+    // es un N+1, son cuatro consultas nuevas y necesarias que solo se pagan en frío (ver el test
+    // «en régimen normal» de abajo, que sí se ahorran en la segunda carga gracias a la caché).
+    expect($count)->toBeLessThan(30, "El inventario ejecutó {$count} consultas.");
 });
 
 it('en régimen normal el dashboard baja a un puñado de consultas', function (): void {
@@ -118,5 +124,35 @@ it('la campana de alertas se sirve de caché entre páginas', function (): void 
 
     $second = countQueries(fn () => $this->actingAs($this->owner)->get(route('panel.products'))->assertOk());
 
-    expect($second)->toBeLessThan(12, "La 2.ª página ejecutó {$second} consultas.");
+    // Subió de 12 a 13 por la misma razón que el test de arriba: las tarjetas de resumen del
+    // inventario. La campana sigue sirviéndose de caché (por eso el tope sigue holgado y no en 27).
+    expect($second)->toBeLessThan(15, "La 2.ª página ejecutó {$second} consultas.");
+});
+
+it('en régimen normal el inventario baja a un puñado de consultas', function (): void {
+    // 1.ª carga: calcula el resumen (4 agregaciones sobre todo el catálogo) y lo cachea.
+    $first = countQueries(fn () => $this->actingAs($this->owner)->get(route('panel.products'))->assertOk());
+
+    // 2.ª carga dentro del minuto: el resumen ya no toca la base (ver ProductSummaryService).
+    $second = countQueries(fn () => $this->actingAs($this->owner)->get(route('panel.products'))->assertOk());
+
+    expect($second)->toBeLessThan($first, "1.ª={$first} consultas, 2.ª={$second} consultas.");
+});
+
+it('en régimen normal el alquiler baja a un puñado de consultas', function (): void {
+    $this->company->update(['modules' => ['dealer', 'rental', 'crm']]);
+    app(VehicleService::class)->create(new CreateVehicleData(
+        make: 'Toyota', model: 'Corolla', year: 2022,
+        purchaseCost: '900000', askingPrice: '1200000',
+        usageType: 'both', rentalPriceDaily: '3500', depositAmount: '10000',
+        rentalKmLimitDaily: 200, extraKmPrice: '15',
+    ));
+
+    // 1.ª carga: calcula el resumen de la flota (varias agregaciones) y lo cachea.
+    $first = countQueries(fn () => $this->actingAs($this->owner)->get(route('panel.rentals'))->assertOk());
+
+    // 2.ª carga dentro del minuto: el resumen ya no toca la base (ver VehicleRentalReportService).
+    $second = countQueries(fn () => $this->actingAs($this->owner)->get(route('panel.rentals'))->assertOk());
+
+    expect($second)->toBeLessThan($first, "1.ª={$first} consultas, 2.ª={$second} consultas.");
 });

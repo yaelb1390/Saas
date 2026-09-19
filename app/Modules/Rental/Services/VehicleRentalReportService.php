@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Rental\Services;
 
+use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Dealer\Enums\VehicleStatus;
 use App\Modules\Dealer\Models\Vehicle;
 use App\Modules\Dealer\Models\VehicleJob;
@@ -11,6 +12,7 @@ use App\Modules\Rental\Models\VehicleRental;
 use App\Modules\Rental\Models\VehicleRentalPayment;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Las cifras de la pantalla de Alquiler: cuántos vehículos están fuera ahora mismo, lo que entró
@@ -24,6 +26,9 @@ final class VehicleRentalReportService
 {
     private const SCALE = 2;
 
+    /** Segundos que se sirven los indicadores desde caché antes de recalcularlos. */
+    private const TTL = 60;
+
     /**
      * @return array{
      *     alquilados_ahora: int, reservas_proximas: int, ingresos_mes: string,
@@ -31,6 +36,26 @@ final class VehicleRentalReportService
      * }
      */
     public function resumen(): array
+    {
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:rental-resumen",
+            self::TTL,
+            fn (): array => $this->computeResumen(),
+        );
+    }
+
+    /**
+     * Cálculo real del resumen (sin caché). Separado para poder cachearlo y para poder probar el
+     * valor fresco.
+     *
+     * @return array{
+     *     alquilados_ahora: int, reservas_proximas: int, ingresos_mes: string,
+     *     gastos_mes: string, utilidad_mes: string, valor_flota: string, tasa_utilizacion: string,
+     * }
+     */
+    public function computeResumen(): array
     {
         $hoy = now();
         $inicioMes = $hoy->copy()->startOfMonth();
@@ -74,6 +99,19 @@ final class VehicleRentalReportService
             return '0.00';
         }
 
+        // UNA sola consulta para TODA la flota, no una por vehículo. El límite inferior se
+        // ensancha a $inicioMes (en vez del $desde de cada vehículo, que solo se conoce dentro del
+        // bucle): no cambia el resultado, porque la comprobación de solape de más abajo ya descarta
+        // exactamente las mismas filas de más que un `where('end_at', '>=', $desde)` por vehículo
+        // habría filtrado antes.
+        $alquileresPorVehiculo = VehicleRental::query()
+            ->whereIn('vehicle_id', $vehiculos->pluck('id'))
+            ->whereIn('status', ['active', 'returned', 'completed'])
+            ->where('start_at', '<=', $finMes)
+            ->where('end_at', '>=', $inicioMes)
+            ->get(['vehicle_id', 'start_at', 'end_at'])
+            ->groupBy('vehicle_id');
+
         $diasDisponiblesTotal = 0;
         $diasAlquiladosTotal = 0;
 
@@ -88,14 +126,7 @@ final class VehicleRentalReportService
 
             $diasDisponiblesTotal += (int) $desde->diffInDays($finMes) + 1;
 
-            $alquileres = VehicleRental::query()
-                ->where('vehicle_id', $vehiculo->id)
-                ->whereIn('status', ['active', 'returned', 'completed'])
-                ->where('start_at', '<=', $finMes)
-                ->where('end_at', '>=', $desde)
-                ->get(['start_at', 'end_at']);
-
-            foreach ($alquileres as $alquiler) {
+            foreach ($alquileresPorVehiculo->get($vehiculo->id, collect()) as $alquiler) {
                 $solapaDesde = $alquiler->start_at->max($desde);
                 $solapaHasta = $alquiler->end_at->min($finMes);
 
@@ -125,6 +156,29 @@ final class VehicleRentalReportService
      */
     public function estadoFlota(): array
     {
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:rental-fleet-status",
+            self::TTL,
+            fn (): array => $this->computeEstadoFlota(),
+        );
+    }
+
+    /**
+     * Cálculo real del estado de la flota (sin caché).
+     *
+     * Lo usa el endpoint de resumen del calendario (`calendarSummary()`), que el propio calendario
+     * vuelve a pedir justo después de confirmar/cancelar/liquidar una reserva: si esa llamada
+     * sirviera la versión cacheada, quien acaba de cancelar un alquiler vería sus propias tarjetas
+     * desactualizadas hasta por un minuto. La carga de página normal SÍ puede cachearse (ver
+     * estadoFlota() arriba) — es la misma separación que ya usa executiveSummary()/
+     * computeExecutiveSummary() en ReportService.
+     *
+     * @return array{disponibles: int, reservados: int, en_curso: int, mantenimiento: int}
+     */
+    public function computeEstadoFlota(): array
+    {
         $flota = Vehicle::query()->whereIn('usage_type', ['rental', 'both'])->get(['id', 'status']);
 
         $mantenimiento = $flota->filter(fn (Vehicle $v) => $v->status === VehicleStatus::Maintenance)->count();
@@ -149,6 +203,20 @@ final class VehicleRentalReportService
      * @return list<array{mes: string, total: string}>
      */
     public function ingresosPorMes(int $meses = 6): array
+    {
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:rental-revenue-by-month:{$meses}",
+            self::TTL,
+            fn (): array => $this->computeIngresosPorMes($meses),
+        );
+    }
+
+    /**
+     * @return list<array{mes: string, total: string}>
+     */
+    public function computeIngresosPorMes(int $meses): array
     {
         $inicio = now()->copy()->subMonths($meses - 1)->startOfMonth();
 
@@ -181,6 +249,20 @@ final class VehicleRentalReportService
      * @return list<array{vehiculo: string, alquileres: int, dias: int, ingresos: string}>
      */
     public function vehiculosMasAlquilados(int $top = 10): array
+    {
+        $companyId = app(CurrentCompany::class)->id() ?? 0;
+
+        return Cache::remember(
+            "company:{$companyId}:rental-top-vehicles:{$top}",
+            self::TTL,
+            fn (): array => $this->computeVehiculosMasAlquilados($top),
+        );
+    }
+
+    /**
+     * @return list<array{vehiculo: string, alquileres: int, dias: int, ingresos: string}>
+     */
+    public function computeVehiculosMasAlquilados(int $top): array
     {
         return VehicleRental::query()
             ->whereIn('status', ['active', 'returned', 'completed'])

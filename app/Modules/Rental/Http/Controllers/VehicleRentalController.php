@@ -76,10 +76,16 @@ final class VehicleRentalController extends Controller
         ]);
     }
 
-    /** Las cuatro tarjetas de la cabecera, para refrescarlas sin recargar la pantalla entera. */
+    /**
+     * Las cuatro tarjetas de la cabecera, para refrescarlas sin recargar la pantalla entera.
+     *
+     * A propósito NO usa estadoFlota() (cacheada): el calendario pide esto justo después de
+     * confirmar/cancelar/liquidar una reserva, y quien acaba de hacer ese cambio tiene que ver su
+     * propio resultado, no una cifra de hasta un minuto atrás.
+     */
     public function calendarSummary(VehicleRentalReportService $reportes): JsonResponse
     {
-        return response()->json($reportes->estadoFlota());
+        return response()->json($reportes->computeEstadoFlota());
     }
 
     /**

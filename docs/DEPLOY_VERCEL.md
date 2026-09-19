@@ -1,5 +1,8 @@
 # Desplegar en Vercel
 
+> **Deploys (desde 2026-09-19):** los que construye Vercel en la nube salen rotos por un bug del runtime
+> PHP. Se despliega con [DEPLOY_VERCEL_PREBUILT.md](DEPLOY_VERCEL_PREBUILT.md); léelo antes de hacer `git push`.
+
 > **Aviso honesto:** Vercel corre PHP como funciones **serverless**. Laravel funciona ahí, pero con
 > adaptaciones. **Evolution API y n8n NO pueden correr en Vercel** — deben vivir en otro host (un
 > VPS, un servicio gestionado) y Vercel los llama por HTTP. El scheduler real (cada minuto) exige

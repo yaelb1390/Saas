@@ -106,9 +106,15 @@
                                 <span class="bmos-pricing-precio">{{ number_format((float) $plan->price, 0) }}</span>
                                 <span class="text-sm font-medium text-slate-400">/ {{ mb_strtolower($plan->billing_cycle->label()) }}</span>
                             </div>
-                            <p class="mt-0.5 text-xs font-medium text-emerald-600">
-                                {{ $trialDays }} días gratis, sin tarjeta
-                            </p>
+                            @if ($plan->trial_days > 0)
+                                <p class="mt-0.5 text-xs font-medium text-emerald-600">
+                                    {{ $plan->trial_days }} días gratis, sin tarjeta
+                                </p>
+                            @else
+                                <p class="mt-0.5 text-xs font-medium text-slate-400">
+                                    Plan de pago, sin período de prueba
+                                </p>
+                            @endif
 
                             <div class="mt-4 flex-1 border-t border-slate-100 pt-3">
                                 @if ($contieneAlAnterior)
@@ -166,19 +172,24 @@
                                         Empezar gratis
                                     </a>
                                 @elseif ($puedeContratar)
-                                    {{-- En prueba el cambio es gratis e inmediato; pagando, pasa por
-                                         la pasarela. Las dos rutas lo vuelven a comprobar en el
-                                         servidor: el botón es la puerta, no la cerradura. --}}
+                                    @php
+                                        // En prueba el cambio es gratis e inmediato — PERO solo si el
+                                        // plan de destino admite prueba (trial_days > 0). Un plan solo
+                                        // de pago se contrata pagando aunque la empresa esté en prueba
+                                        // de otro plan. Las dos rutas lo vuelven a comprobar en el
+                                        // servidor: el botón es la puerta, no la cerradura.
+                                        $cambioGratis = $enPrueba && $plan->trial_days > 0;
+                                    @endphp
                                     <form method="POST"
-                                          action="{{ $enPrueba
+                                          action="{{ $cambioGratis
                                               ? route('panel.account.plan', $plan)
                                               : route('panel.account.checkout', $plan) }}">
                                         @csrf
                                         <button type="submit" class="bmos-pricing-btn">
-                                            {{ $enPrueba ? 'Probar este plan' : 'Contratar' }}
+                                            {{ $cambioGratis ? 'Probar este plan' : 'Contratar' }}
                                         </button>
                                     </form>
-                                    @if ($enPrueba)
+                                    @if ($cambioGratis)
                                         <p class="mt-1.5 text-center text-xs text-slate-400">
                                             Sin costo. Tu prueba mantiene la misma fecha de fin.
                                         </p>

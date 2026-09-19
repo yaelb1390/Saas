@@ -35,9 +35,11 @@ beforeEach(function (): void {
         'modules' => ['pos', 'inventory'], 'is_active' => true,
     ]);
 
+    // trial_days > 0: Pro SÍ admite el cambio gratis durante la prueba (ver 'Cambio de plan' más
+    // abajo). El plan solo-de-pago de esas pruebas es otro, con trial_days = 0 a propósito.
     $this->pro = Plan::create([
         'name' => 'Pro', 'slug' => 'pro', 'price' => '1500',
-        'billing_cycle' => 'monthly', 'trial_days' => 0, 'modules' => null, 'is_active' => true,
+        'billing_cycle' => 'monthly', 'trial_days' => 15, 'modules' => null, 'is_active' => true,
     ]);
 
     $this->company = app(CompanyService::class)->create(new CreateCompanyData(name: 'Heladería'));
@@ -216,4 +218,48 @@ it('el menú lateral enseña Suscripción al dueño', function (): void {
     $this->actingAs($this->owner)->get(route('panel.account'))
         ->assertOk()
         ->assertSee('Suscripción');
+});
+
+// ---------------------------------------------------------------- Planes solo de pago (trial_days = 0)
+
+it('un plan sin prueba no se cambia gratis aunque la empresa esté en prueba de otro', function (): void {
+    $empresarial = Plan::create([
+        'name' => 'Empresarial', 'slug' => 'empresarial', 'price' => '3000',
+        'billing_cycle' => 'monthly', 'trial_days' => 0, 'modules' => null, 'is_active' => true,
+    ]);
+    ponerEnPrueba();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.account.plan', $empresarial))
+        ->assertRedirect(route('panel.account'));
+
+    $sub = $this->company->subscription->fresh();
+
+    expect($sub->plan_id)->toBe($this->basico->id) // no cambió
+        ->and(session('panel_error'))->toContain('no tiene período de prueba');
+});
+
+it('la pantalla de planes marca «sin período de prueba» en el que no admite prueba', function (): void {
+    Plan::create([
+        'name' => 'Empresarial', 'slug' => 'empresarial', 'price' => '3000',
+        'billing_cycle' => 'monthly', 'trial_days' => 0, 'modules' => null, 'is_active' => true,
+    ]);
+
+    $this->get(route('plans.public'))
+        ->assertOk()
+        ->assertSee('días gratis, sin tarjeta') // Básico y Pro sí lo dicen
+        ->assertSee('Plan de pago, sin período de prueba'); // Empresarial no
+});
+
+it('a un cliente en prueba, el plan sin prueba le pide Contratar y no Probar', function (): void {
+    $empresarial = Plan::create([
+        'name' => 'Empresarial', 'slug' => 'empresarial', 'price' => '3000',
+        'billing_cycle' => 'monthly', 'trial_days' => 0, 'modules' => null, 'is_active' => true,
+    ]);
+    ponerEnPrueba();
+
+    $html = $this->actingAs($this->owner)->get(route('plans.public'))->assertOk()->getContent();
+
+    expect($html)->toContain(route('panel.account.checkout', $empresarial))
+        ->not->toContain(route('panel.account.plan', $empresarial));
 });

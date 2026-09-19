@@ -20,6 +20,11 @@ use Illuminate\Routing\Controller;
  * suscripción que no está al día arranca un período completo desde hoy sin comprobar ningún pago
  * (ver SubscriptionService::changePlan). Exponer eso al cliente sería regalarle un ciclo entero cada
  * vez que cambiara de plan. Por eso quien no está en prueba acaba en la pasarela.
+ *
+ * Y hay planes que TAMPOCO se prueban gratis aunque la empresa sí esté en prueba: los que tienen
+ * `trial_days = 0` (ver Plan) se contratan pagando siempre. No es lo mismo que «fuera de prueba»:
+ * una empresa en su prueba de Básico puede seguir probando Pro gratis si Pro admite prueba, pero no
+ * un plan marcado como solo de pago.
  */
 final class SubscriptionPlanController extends Controller
 {
@@ -51,6 +56,14 @@ final class SubscriptionPlanController extends Controller
         if (! $subscription->isTrialing() || ! $subscription->isUsable()) {
             return redirect()->route('panel.account')->with('panel_error',
                 'Tu prueba ya terminó. Para cambiar de plan, realiza el pago del plan que quieras.');
+        }
+
+        // Algunos planes no participan de la prueba (trial_days = 0): se contratan pagando siempre,
+        // aunque la empresa todavía tenga prueba vigente en otro plan. La pantalla ya no ofrece este
+        // botón para esos planes; esto es la comprobación real, por si alguien postea la ruta a mano.
+        if ($plan->trial_days === 0) {
+            return redirect()->route('panel.account')->with('panel_error',
+                "«{$plan->name}» no tiene período de prueba. Contrátalo directamente para activarlo.");
         }
 
         $subscriptions->changePlan($subscription, $plan);

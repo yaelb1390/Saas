@@ -35,6 +35,9 @@ final class SubscriptionCancelledMail extends Mailable
         public readonly string $accountUrl,
         public readonly string $supportWhatsapp,
         public readonly string $supportEmail,
+        // Solo lo apaga la herramienta de correos de prueba, para comprobar si esta cabecera influye en
+        // que un buzón (Hotmail, por ejemplo) acepte o no el mensaje. En los envíos reales va siempre.
+        public readonly bool $replyToSupport = true,
     ) {
         $this->firstName = trim(strtok(trim($ownerName), ' ') ?: $ownerName);
     }
@@ -45,7 +48,7 @@ final class SubscriptionCancelledMail extends Mailable
             subject: "Cancelaste tu suscripción · Sigues con acceso hasta el {$this->accessUntil->format('d/m/Y')} · BM Business OS",
             // El correo invita a contar por qué se cancela y a responder. Sin esto la respuesta iría a
             // la dirección de envío, que nadie lee.
-            replyTo: filled($this->supportEmail) ? [new Address($this->supportEmail)] : [],
+            replyTo: $this->replyToSupport && filled($this->supportEmail) ? [new Address($this->supportEmail)] : [],
         );
     }
 

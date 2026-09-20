@@ -30,6 +30,8 @@ final class SubscriptionResumedMail extends Mailable
         public readonly string $accountUrl,
         public readonly string $supportWhatsapp,
         public readonly string $supportEmail,
+        // Ver `SubscriptionCancelledMail`: solo lo apaga la herramienta de correos de prueba.
+        public readonly bool $replyToSupport = true,
     ) {
         $this->firstName = trim(strtok(trim($ownerName), ' ') ?: $ownerName);
     }
@@ -38,7 +40,7 @@ final class SubscriptionResumedMail extends Mailable
     {
         return new Envelope(
             subject: 'Tu suscripción sigue activa · BM Business OS',
-            replyTo: filled($this->supportEmail) ? [new Address($this->supportEmail)] : [],
+            replyTo: $this->replyToSupport && filled($this->supportEmail) ? [new Address($this->supportEmail)] : [],
         );
     }
 

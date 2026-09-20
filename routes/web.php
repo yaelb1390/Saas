@@ -16,6 +16,7 @@ use App\Modules\Core\Http\Controllers\CompanyDeletionController;
 use App\Modules\Core\Http\Controllers\CompanyProfileController;
 use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
+use App\Modules\Core\Http\Controllers\MailTestController;
 use App\Modules\Core\Http\Controllers\MonitoringController;
 use App\Modules\Core\Http\Controllers\PlanController;
 use App\Modules\Core\Http\Controllers\PolarWebhookController;
@@ -340,6 +341,14 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/plataforma/monitoreo', MonitoringController::class)->name('platform.monitoring');
         Route::post('/plataforma/monitoreo/limpiar', [MonitoringController::class, 'limpiar'])
             ->name('platform.monitoring.clean');
+
+        // Correos de prueba: manda a mano, con datos de ejemplo, los correos que reciben los clientes,
+        // para comprobar que llegan a Gmail, Hotmail… sin provocar una baja real en Polar. `throttle`
+        // porque es una puerta para mandar correo con NUESTRO remitente a cualquier dirección: aunque
+        // solo la atraviese el operador, no debe poder usarse en ráfaga.
+        Route::get('/plataforma/correos', [MailTestController::class, 'index'])->name('platform.mail-test');
+        Route::post('/plataforma/correos/probar', [MailTestController::class, 'send'])
+            ->middleware('throttle:10,1')->name('platform.mail-test.send');
     });
 
     // Recibo imprimible de una venta. Lo abre quien puede ver las ventas… o quien las cobra: el

@@ -102,6 +102,7 @@
             ['platform.plans', 'Planes', 'tag', 'platform.manage', null],
             ['platform.ai', 'IA de la plataforma', 'spark', 'platform.manage', null],
             ['platform.monitoring', 'Monitoreo', 'sliders', 'platform.manage', null],
+            ['platform.mail-test', 'Correos de prueba', 'enviar', 'platform.manage', null],
         ],
     ];
 

@@ -56,7 +56,8 @@ final class PolarWebhookHandler
 
         return match ($type) {
             'order.paid' => $this->applyPayment($event, $data),
-            'subscription.created', 'subscription.active', 'subscription.uncanceled' => $this->ensureActive($event, $data),
+            'subscription.created', 'subscription.active' => $this->ensureActive($event, $data),
+            'subscription.uncanceled' => $this->resume($event, $data),
             'subscription.canceled' => $this->scheduleCancellation($event, $data),
             'subscription.revoked' => $this->revoke($event, $data),
             default => $event->resolveAs(PolarWebhookEvent::RESULT_IGNORED, 'Evento sin efecto sobre las suscripciones.'),
@@ -286,10 +287,36 @@ final class PolarWebhookHandler
     }
 
     /**
+     * `subscription.uncanceled`: se arrepintió de la baja y la suscripción vuelve a renovarse.
+     *
+     * Primero se anota la reversión y DESPUÉS se aplica el período: `applyPolarPeriod` también deja
+     * `cancelled_at` en null, y si corriera antes ya no quedaría nada que anotar y el cliente no
+     * recibiría su correo. Si el botón del panel se adelantó, la reversión ya está anotada y aquí no
+     * se repite ni el correo ni el rastro.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function resume(PolarWebhookEvent $event, array $data): PolarWebhookEvent
+    {
+        $subscription = $this->resolveSubscription($data);
+
+        if ($subscription !== null) {
+            $this->subscriptions->unscheduleCancellation($subscription);
+        }
+
+        return $this->ensureActive($event, $data);
+    }
+
+    /**
      * `subscription.canceled`: pidió darse de baja, PERO el período ya está pagado.
      *
      * No se toca el estado a propósito: cortar aquí le quitaría un servicio por el que pagó. Solo
      * se deja constancia de la baja; el corte de verdad llega con `subscription.revoked`.
+     *
+     * Este aviso llega por TODAS las puertas: el botón del panel, el portal de Polar y el panel de
+     * Polar. Por eso es aquí, y no en el botón, donde se garantiza que el cliente recibe su correo
+     * aunque haya cancelado por otro lado. `scheduleCancellation` avisa una sola vez: si el botón
+     * del panel llegó primero, ya está anotada y no se repite.
      *
      * @param  array<string, mixed>  $data
      */
@@ -301,7 +328,7 @@ final class PolarWebhookHandler
             return $event->resolveAs(PolarWebhookEvent::RESULT_UNRESOLVED, 'Baja recibida sin suscripción que la reciba.');
         }
 
-        $subscription->update(['cancelled_at' => Carbon::now()]);
+        $this->subscriptions->scheduleCancellation($subscription);
 
         return $event->resolveAs(
             PolarWebhookEvent::RESULT_APPLIED,

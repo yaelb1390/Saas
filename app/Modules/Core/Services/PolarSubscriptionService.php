@@ -6,7 +6,6 @@ namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Models\Subscription;
 use App\Modules\Core\Models\SystemEvent;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -23,7 +22,10 @@ use Illuminate\Support\Facades\Log;
  */
 final class PolarSubscriptionService
 {
-    public function __construct(private readonly PolarClient $polar) {}
+    public function __construct(
+        private readonly PolarClient $polar,
+        private readonly SubscriptionService $subscriptions,
+    ) {}
 
     /**
      * Cancela la renovación: la suscripción sigue hasta el fin del período pagado.
@@ -47,18 +49,10 @@ final class PolarSubscriptionService
             return false;
         }
 
-        $subscription->update(['cancelled_at' => Carbon::now()]);
-
-        SystemEvent::registrar(
-            type: 'subscription.cancel_requested',
-            message: 'La empresa pidió la baja de su suscripción desde el panel',
-            contexto: [
-                'plan' => $subscription->plan?->slug,
-                'acceso_hasta' => $subscription->renewsAt()?->toDateString(),
-            ],
-            companyId: (int) $subscription->company_id,
-            userId: $userId,
-        );
+        // La anotación, el rastro en el registro del sistema, el evento y el correo al cliente los
+        // resuelve `SubscriptionService`, y a la vez para todas las puertas de entrada. Si el aviso de
+        // Polar llegó antes que esta línea, ya está anotada y no se envía un segundo correo.
+        $this->subscriptions->scheduleCancellation($subscription, $userId);
 
         return true;
     }
@@ -85,15 +79,8 @@ final class PolarSubscriptionService
             return false;
         }
 
-        $subscription->update(['cancelled_at' => null]);
-
-        SystemEvent::registrar(
-            type: 'subscription.resumed',
-            message: 'La empresa reactivó la renovación de su suscripción',
-            contexto: ['plan' => $subscription->plan?->slug],
-            companyId: (int) $subscription->company_id,
-            userId: $userId,
-        );
+        // Igual que al cancelar: `SubscriptionService` anota, deja rastro y avisa al cliente una sola vez.
+        $this->subscriptions->unscheduleCancellation($subscription, $userId);
 
         return true;
     }

@@ -6,8 +6,12 @@ namespace App\Modules\Core\Providers;
 
 use App\Models\User;
 use App\Modules\Core\Events\CompanyCreated;
+use App\Modules\Core\Events\SubscriptionCancellationRequested;
+use App\Modules\Core\Events\SubscriptionResumed;
 use App\Modules\Core\Listeners\ProvisionCompanyRoles;
 use App\Modules\Core\Listeners\RecordAuthEvents;
+use App\Modules\Core\Listeners\SendSubscriptionCancelledEmail;
+use App\Modules\Core\Listeners\SendSubscriptionResumedEmail;
 use App\Modules\Core\Repositories\Contracts\CompanyRepositoryInterface;
 use App\Modules\Core\Repositories\EloquentCompanyRepository;
 use App\Modules\Core\Support\SubscriptionNotice;
@@ -42,6 +46,12 @@ final class CoreServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Event::listen(CompanyCreated::class, ProvisionCompanyRoles::class);
+
+        // La baja de una suscripción y su reversión: el correo al cliente, en español y con nuestra
+        // marca en vez del aviso genérico de Polar. Los mismos eventos son el punto de enganche para
+        // n8n. Salen del cambio de estado (`SubscriptionService`), no de la puerta por la que entró.
+        Event::listen(SubscriptionCancellationRequested::class, SendSubscriptionCancelledEmail::class);
+        Event::listen(SubscriptionResumed::class, SendSubscriptionResumedEmail::class);
 
         /*
          * Quién entra, quién sale y quién lo intenta sin conseguirlo.

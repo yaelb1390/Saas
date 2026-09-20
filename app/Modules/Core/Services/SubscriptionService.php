@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Enums\SubscriptionStatus;
+use App\Modules\Core\Events\SubscriptionCancellationRequested;
+use App\Modules\Core\Events\SubscriptionResumed;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Models\Subscription;
+use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Ciclo de vida de las suscripciones (cobro manual: el operador registra los pagos).
@@ -149,5 +153,94 @@ final class SubscriptionService
         ]);
 
         return $subscription;
+    }
+
+    /**
+     * Anota que el cliente pidió la baja: deja de renovarse, pero conserva el acceso hasta el fin del
+     * período que ya pagó. El corte de verdad llega después, con `subscription.revoked` (`cancel()`).
+     *
+     * Devuelve `true` solo si ESTA llamada fue la que la marcó. Es lo que evita el correo doble: la
+     * baja llega por dos puertas —el botón del panel y el aviso de Polar, que también salta si el
+     * cliente cancela desde el portal de Polar— y las dos pasan por aquí. Quien marca primero avisa al
+     * cliente; el otro se encuentra la baja ya marcada y no hace nada.
+     *
+     * La comprobación va dentro de una transacción con la fila bloqueada: sin ello las dos puertas
+     * leerían «aún no está marcada» a la vez y el cliente recibiría dos correos.
+     */
+    public function scheduleCancellation(Subscription $subscription, ?int $userId = null): bool
+    {
+        $marked = DB::transaction(function () use ($subscription): bool {
+            $current = Subscription::query()->lockForUpdate()->find($subscription->getKey());
+
+            if ($current === null || $current->cancelled_at !== null) {
+                return false;
+            }
+
+            $current->update(['cancelled_at' => Carbon::now()]);
+
+            return true;
+        });
+
+        $subscription->refresh();
+
+        if (! $marked) {
+            return false;
+        }
+
+        SystemEvent::registrar(
+            type: 'subscription.cancel_requested',
+            message: 'La empresa pidió la baja de su suscripción',
+            contexto: [
+                'plan' => $subscription->plan?->slug,
+                'acceso_hasta' => $subscription->renewsAt()?->toDateString(),
+                'origen' => $userId === null ? 'polar' : 'panel',
+            ],
+            companyId: (int) $subscription->company_id,
+            userId: $userId,
+        );
+
+        SubscriptionCancellationRequested::dispatch($subscription, $userId);
+
+        return true;
+    }
+
+    /**
+     * Deshace la baja pedida: la suscripción vuelve a renovarse sola. Pareja de `scheduleCancellation`,
+     * con la misma garantía: devuelve `true` solo si ESTA llamada fue la que la deshizo.
+     */
+    public function unscheduleCancellation(Subscription $subscription, ?int $userId = null): bool
+    {
+        $undone = DB::transaction(function () use ($subscription): bool {
+            $current = Subscription::query()->lockForUpdate()->find($subscription->getKey());
+
+            if ($current === null || $current->cancelled_at === null) {
+                return false;
+            }
+
+            $current->update(['cancelled_at' => null]);
+
+            return true;
+        });
+
+        $subscription->refresh();
+
+        if (! $undone) {
+            return false;
+        }
+
+        SystemEvent::registrar(
+            type: 'subscription.resumed',
+            message: 'La empresa reactivó la renovación de su suscripción',
+            contexto: [
+                'plan' => $subscription->plan?->slug,
+                'origen' => $userId === null ? 'polar' : 'panel',
+            ],
+            companyId: (int) $subscription->company_id,
+            userId: $userId,
+        );
+
+        SubscriptionResumed::dispatch($subscription, $userId);
+
+        return true;
     }
 }

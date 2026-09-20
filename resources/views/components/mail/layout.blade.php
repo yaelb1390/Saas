@@ -54,6 +54,16 @@
                                 <a href="https://wa.me/{{ preg_replace('/\D/', '', $supportWhatsapp) }}" style="color:#4f46e5; text-decoration:none;">WhatsApp</a>
                                 o a <a href="mailto:{{ $supportEmail }}" style="color:#4f46e5; text-decoration:none;">{{ $supportEmail }}</a>.
                             </p>
+                            {{-- Un remitente nuevo cae en «Otros» (Outlook) o «Promociones» (Gmail) hasta que la
+                                 persona lo conoce. Pedirle que lo añada a sus contactos es lo que enseña a su
+                                 buzón a ponerlo en la bandeja principal. La dirección sale de la configuración,
+                                 no escrita a mano: si el remitente cambia, esta línea no queda mintiendo. --}}
+                            @if (filled(config('mail.from.address')))
+                                <p style="margin:8px 0 0 0; font-size:12px; line-height:1.6; color:#6b7280;">
+                                    Para no perder nuestros correos, añade
+                                    <strong style="color:#4b5162;">{{ config('mail.from.address') }}</strong> a tus contactos.
+                                </p>
+                            @endif
                             <p style="margin:12px 0 0 0; font-size:11px; color:#9aa1b0;">
                                 © {{ date('Y') }} BM Business OS · Gestiona, conecta, crece.
                             </p>

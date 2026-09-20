@@ -7,8 +7,12 @@ use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Enums\SubscriptionStatus;
 use App\Modules\Core\Events\SubscriptionCancellationRequested;
 use App\Modules\Core\Events\SubscriptionResumed;
+use App\Modules\Core\Mail\PasswordResetMail;
 use App\Modules\Core\Mail\SubscriptionCancelledMail;
+use App\Modules\Core\Mail\SubscriptionConfirmedMail;
+use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\SubscriptionResumedMail;
+use App\Modules\Core\Mail\TrialWelcomeMail;
 use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Services\PolarWebhookHandler;
@@ -367,4 +371,66 @@ it('la baja no toca el estado de la suscripción: sigue activa hasta que llegue 
 
     expect($suscripcion->status)->toBe(SubscriptionStatus::Active)
         ->and($suscripcion->isUsable())->toBeTrue();
+});
+
+// ------------------------------------------- El pie: pedir que añadan el remitente a contactos
+
+/*
+ * Un remitente nuevo cae en «Otros» (Outlook) o en «Promociones» (Gmail) hasta que la persona lo
+ * conoce: en Hotmail los correos llegaban a la Bandeja de entrada y nadie los veía porque estaban en
+ * la pestaña equivocada. Pedirle que añada el remitente a sus contactos es lo que le enseña a su
+ * buzón a ponerlos en la bandeja principal. Va en TODOS los correos que comparten pie —también el de
+ * cambiar la contraseña, que es el que más se necesita ver a tiempo—.
+ */
+
+it('todos los correos piden añadir el remitente a contactos, con la dirección configurada', function (string $caso): void {
+    // La dirección sale de la configuración, no escrita a mano: si el remitente cambia, la línea no miente.
+    config(['mail.from.address' => 'no-responder@bm.test']);
+
+    $fecha = Carbon::parse('2026-10-20');
+
+    $correo = match ($caso) {
+        'baja' => new SubscriptionCancelledMail(
+            ownerName: 'Ana', companyName: 'Heladería', planName: 'Pro', accessUntil: $fecha, daysLeft: 30,
+            accountUrl: 'https://bmos.test/panel/cuenta', supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
+        ),
+        'reactivacion' => new SubscriptionResumedMail(
+            ownerName: 'Ana', companyName: 'Heladería', planName: 'Pro', planPrice: '1500', billingCycleLabel: 'Mensual',
+            renewsAt: $fecha, accountUrl: 'https://bmos.test/panel/cuenta', supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
+        ),
+        'recibo' => new SubscriptionConfirmedMail(
+            ownerName: 'Ana', companyName: 'Heladería', planName: 'Pro', planPrice: '1500', billingCycleLabel: 'Mensual',
+            renewsAt: $fecha, moduleLabels: ['POS'], loginUrl: 'https://bmos.test/login',
+            supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
+        ),
+        'vencimiento' => new SubscriptionExpiringMail(
+            ownerName: 'Ana', companyName: 'Heladería', planName: 'Pro', renewsAt: $fecha, daysLeft: 3,
+            loginUrl: 'https://bmos.test/login', supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
+        ),
+        'bienvenida' => new TrialWelcomeMail(
+            ownerName: 'Ana', companyName: 'Heladería', trialDays: 15, trialEndsAt: $fecha, purgeAt: $fecha,
+            moduleLabels: ['POS'], loginUrl: 'https://bmos.test/login',
+            supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
+        ),
+        'contrasena' => new PasswordResetMail(
+            ownerName: 'Ana', resetUrl: 'https://bmos.test/restablecer/abc', expiresInMinutes: 60,
+            supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
+        ),
+    };
+
+    $correo->assertSeeInHtml('Para no perder nuestros correos')
+        ->assertSeeInHtml('no-responder@bm.test')
+        ->assertSeeInHtml('a tus contactos')
+        ->assertSeeInText('Para no perder nuestros correos, añade no-responder@bm.test a tus contactos.');
+})->with(['baja', 'reactivacion', 'recibo', 'vencimiento', 'bienvenida', 'contrasena']);
+
+it('sin remitente configurado no sale la línea, en vez de pedir añadir una dirección vacía', function (): void {
+    config(['mail.from.address' => '']);
+
+    $correo = new SubscriptionCancelledMail(
+        ownerName: 'Ana', companyName: 'Heladería', planName: 'Pro', accessUntil: Carbon::parse('2026-10-20'), daysLeft: 30,
+        accountUrl: 'https://bmos.test/panel/cuenta', supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
+    );
+
+    $correo->assertDontSeeInHtml('a tus contactos')->assertDontSeeInText('a tus contactos');
 });

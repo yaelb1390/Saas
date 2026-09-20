@@ -15,5 +15,8 @@ Ver mi suscripción:
 {{ $loginUrl }}
 
 ¿Necesitas ayuda? WhatsApp: {{ $supportWhatsapp }} · Correo: {{ $supportEmail }}
+@if (filled(config('mail.from.address')))
+Para no perder nuestros correos, añade {{ config('mail.from.address') }} a tus contactos.
+@endif
 
 © {{ date('Y') }} BM Business OS · Gestiona, conecta, crece.

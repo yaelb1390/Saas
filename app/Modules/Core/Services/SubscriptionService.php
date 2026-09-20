@@ -6,12 +6,15 @@ namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Enums\SubscriptionStatus;
 use App\Modules\Core\Events\SubscriptionCancellationRequested;
+use App\Modules\Core\Events\SubscriptionEnded;
+use App\Modules\Core\Events\SubscriptionPaymentFailed;
 use App\Modules\Core\Events\SubscriptionResumed;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Models\Subscription;
 use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -240,6 +243,90 @@ final class SubscriptionService
         );
 
         SubscriptionResumed::dispatch($subscription, $userId);
+
+        return true;
+    }
+
+    /**
+     * La suscripción TERMINÓ (Polar la revocó): se retira el acceso y se avisa al cliente.
+     *
+     * Devuelve `true` solo si ESTA llamada fue la que la terminó. Un segundo aviso de revocación —Polar
+     * reintenta, o llegan dos por caminos distintos— se encuentra la suscripción ya terminada y no repite
+     * ni el rastro, ni el evento, ni el correo.
+     *
+     * Antes de retirar el acceso se mira si el cliente había pedido la baja (`cancelled_at`): `cancel()`
+     * lo pisa con la fecha de hoy, y después ya no se puede saber si esto lo pidió él o se terminó por
+     * otra causa (un cobro que no se pudo hacer, el operador…).
+     *
+     * Como en `scheduleCancellation`, la comprobación va en una transacción con la fila bloqueada: dos
+     * avisos de revocación a la vez leerían «aún no terminó» los dos y mandarían dos correos.
+     */
+    public function end(Subscription $subscription): bool
+    {
+        $requestedByCustomer = false;
+
+        $ended = DB::transaction(function () use ($subscription, &$requestedByCustomer): bool {
+            $current = Subscription::query()->lockForUpdate()->find($subscription->getKey());
+
+            if ($current === null || $current->status === SubscriptionStatus::Cancelled) {
+                return false;
+            }
+
+            $requestedByCustomer = $current->cancelled_at !== null;
+
+            $this->cancel($current);
+
+            return true;
+        });
+
+        $subscription->refresh();
+
+        if (! $ended) {
+            return false;
+        }
+
+        SystemEvent::registrar(
+            type: 'subscription.ended',
+            message: 'La suscripción terminó y se retiró el acceso',
+            contexto: [
+                'plan' => $subscription->plan?->slug,
+                'pidio_la_baja' => $requestedByCustomer,
+            ],
+            companyId: (int) $subscription->company_id,
+        );
+
+        SubscriptionEnded::dispatch($subscription, $requestedByCustomer);
+
+        return true;
+    }
+
+    /**
+     * Falló el cobro de la renovación (Polar la marcó `past_due`): se avisa al cliente para que actualice
+     * su tarjeta. Devuelve `true` solo si se avisó.
+     *
+     * NO toca el estado ni el período: dar o quitar acceso por un cobro fallido es una decisión de
+     * negocio aparte, y hacerlo aquí a ciegas dejaría fuera a un cliente cuya tarjeta se arregla en una
+     * hora, o regalaría acceso a quien no piensa pagar. Solo avisa.
+     *
+     * Un correo al día como mucho por suscripción: Polar reintenta el cobro varias veces y puede volver a
+     * avisar en cada intento, y tres correos iguales seguidos parecen un fallo nuestro.
+     */
+    public function notifyPaymentFailure(Subscription $subscription): bool
+    {
+        if (! Cache::add("subscription:{$subscription->getKey()}:payment-failed", true, now()->addDay())) {
+            return false;
+        }
+
+        SystemEvent::registrar(
+            type: 'subscription.payment_failed',
+            message: 'Falló el cobro de la renovación: el cliente puede perder el acceso',
+            contexto: ['plan' => $subscription->plan?->slug],
+            // Un cobro que falla es un cliente a punto de irse: el operador tiene que verlo.
+            level: SystemEvent::AVISO,
+            companyId: (int) $subscription->company_id,
+        );
+
+        SubscriptionPaymentFailed::dispatch($subscription);
 
         return true;
     }

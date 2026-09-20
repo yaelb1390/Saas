@@ -6,6 +6,9 @@ namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Mail\SubscriptionCancelledMail;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
+use App\Modules\Core\Mail\SubscriptionEndedMail;
+use App\Modules\Core\Mail\SubscriptionPaymentFailedMail;
+use App\Modules\Core\Mail\SubscriptionRenewalNoticeMail;
 use App\Modules\Core\Mail\SubscriptionResumedMail;
 use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Support\Facades\Mail;
@@ -36,6 +39,9 @@ final class MailTestService
             'baja' => ['Baja de suscripción', '«Cancelaste tu suscripción · Sigues con acceso hasta…»'],
             'reactivacion' => ['Reactivación', '«Tu suscripción sigue activa»'],
             'recibo' => ['Recibo de pago', '«Suscripción confirmada · Plan …»'],
+            'aviso_renovacion' => ['Aviso de renovación', '«Tu suscripción se renovará el …»'],
+            'pago_fallido' => ['Cobro fallido', '«No pudimos cobrar tu suscripción · Actualiza tu tarjeta»'],
+            'terminada' => ['Suscripción terminada', '«Tu suscripción ha terminado · Tus datos siguen guardados»'],
         ];
     }
 
@@ -56,20 +62,35 @@ final class MailTestService
 
         $mail = match ($template) {
             'baja' => new SubscriptionCancelledMail(
-                ownerName: $operatorName, companyName: $company, planName: 'Plan Pro',
+                ownerName: $operatorName, companyName: $company, planName: 'Pro',
                 accessUntil: $renews, daysLeft: 30, accountUrl: route('panel.account'),
                 supportWhatsapp: $whatsapp, supportEmail: $support, replyToSupport: $replyToSupport,
             ),
             'reactivacion' => new SubscriptionResumedMail(
-                ownerName: $operatorName, companyName: $company, planName: 'Plan Pro', planPrice: '1500',
+                ownerName: $operatorName, companyName: $company, planName: 'Pro', planPrice: '1500',
                 billingCycleLabel: 'Mensual', renewsAt: $renews, accountUrl: route('panel.account'),
                 supportWhatsapp: $whatsapp, supportEmail: $support, replyToSupport: $replyToSupport,
             ),
             'recibo' => new SubscriptionConfirmedMail(
-                ownerName: $operatorName, companyName: $company, planName: 'Plan Pro', planPrice: '1500',
+                ownerName: $operatorName, companyName: $company, planName: 'Pro', planPrice: '1500',
                 billingCycleLabel: 'Mensual', renewsAt: $renews,
                 moduleLabels: ['Punto de Venta', 'Inventario', 'Ventas', 'CRM'],
                 loginUrl: route('login'), supportWhatsapp: $whatsapp, supportEmail: $support,
+            ),
+            'aviso_renovacion' => new SubscriptionRenewalNoticeMail(
+                ownerName: $operatorName, companyName: $company, planName: 'Pro', planPrice: '1500',
+                billingCycleLabel: 'Mensual', renewsAt: now()->addDays(5), daysLeft: 5,
+                accountUrl: route('panel.account'), updateCardUrl: route('panel.account.portal'),
+                supportWhatsapp: $whatsapp, supportEmail: $support,
+            ),
+            'pago_fallido' => new SubscriptionPaymentFailedMail(
+                ownerName: $operatorName, companyName: $company, planName: 'Pro', planPrice: '1500',
+                billingCycleLabel: 'Mensual', updateCardUrl: route('panel.account.portal'),
+                supportWhatsapp: $whatsapp, supportEmail: $support,
+            ),
+            'terminada' => new SubscriptionEndedMail(
+                ownerName: $operatorName, companyName: $company, planName: 'Pro', requestedByCustomer: true,
+                resubscribeUrl: route('panel.account'), supportWhatsapp: $whatsapp, supportEmail: $support,
             ),
             default => throw new InvalidArgumentException("Plantilla desconocida: {$template}"),
         };

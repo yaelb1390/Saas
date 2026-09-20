@@ -86,6 +86,48 @@ final class PolarSubscriptionService
     }
 
     /**
+     * La dirección del portal de Polar del cliente, donde cambia su tarjeta y ve sus facturas.
+     *
+     * Se pide a Polar EN EL MOMENTO de usarla, nunca se guarda ni se pone en un correo: el enlace de una
+     * sesión del portal caduca en una hora, y un correo se puede abrir días después. Por eso el botón
+     * «Actualizar mi tarjeta» apunta a una ruta de la app, que llama a esto y redirige.
+     *
+     * @return string|null La dirección, o null si no se pudo (sin pasarela, la suscripción no viene de
+     *                     Polar, o Polar no contestó bien).
+     */
+    public function customerPortalUrl(Subscription $subscription, string $returnUrl): ?string
+    {
+        if (! $this->polar->isConfigured() || blank($subscription->polar_customer_id)) {
+            return null;
+        }
+
+        // La barra final importa: sin ella Polar responde una redirección y la petición se pierde.
+        $response = $this->polar->http()->post($this->polar->url('/v1/customer-sessions/'), [
+            'customer_id' => (string) $subscription->polar_customer_id,
+            'return_url' => $returnUrl,
+        ]);
+
+        if (! $response->successful()) {
+            SystemEvent::registrar(
+                type: 'integration.failed',
+                message: 'Polar: no se pudo abrir el portal de pagos del cliente',
+                contexto: [
+                    'estado' => $response->status(),
+                    'respuesta' => mb_substr($response->body(), 0, 300),
+                ],
+                level: SystemEvent::AVISO,
+                companyId: (int) $subscription->company_id,
+            );
+
+            return null;
+        }
+
+        $url = $response->json('customer_portal_url');
+
+        return is_string($url) && $url !== '' ? $url : null;
+    }
+
+    /**
      * Le pide a Polar que cancele (o deje de cancelar) la renovación.
      *
      * Polar contesta con un ERROR cuando la suscripción ya está en el estado que se pide: 403

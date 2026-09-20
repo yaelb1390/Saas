@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Modules\Core\Enums\SubscriptionStatus;
 use App\Modules\Core\Mail\SubscriptionExpiringMail;
+use App\Modules\Core\Mail\SubscriptionRenewalNoticeMail;
 use App\Modules\Core\Models\Subscription;
 use App\Modules\Core\Support\SubscriptionNotice;
 use Illuminate\Console\Command;
@@ -14,7 +15,8 @@ use Throwable;
 
 /**
  * Avisa por correo a las suscripciones de PAGO que están por vencer, usando el MISMO umbral que el
- * banner en pantalla (SubscriptionNotice: 5/10/30 días según el ciclo). Envía una sola vez por
+ * banner en pantalla (SubscriptionNotice: 5/10/30 días según el ciclo). A la que Polar cobra sola le
+ * avisa de que SE RENOVARÁ (y cuánto se cobra); a la demás, de que VENCE. Envía una sola vez por
  * período: marca `renewal_reminded_at` y este se limpia al renovar/pagar. Las pruebas se excluyen.
  *
  * Lo dispara el scheduler (o el endpoint /tareas/avisar-vencimientos en Vercel); también a mano:
@@ -42,12 +44,22 @@ final class SendExpiringSubscriptionReminders extends Command
         $sent = 0;
 
         foreach ($candidates as $subscription) {
-            // Misma decisión que el banner: no-nula solo dentro del umbral. Excluye pruebas.
-            $notice = SubscriptionNotice::for($subscription);
+            /*
+             * Dos clases de suscripción de pago, dos avisos distintos, ambos con el mismo umbral del ciclo.
+             *
+             * La que Polar cobra sola no «vence»: se renueva. Decirle «Renueva a tiempo» la llevaba a pagar
+             * de nuevo algo que ya se paga solo, o a escribir preocupada. Su aviso es «se renovará el… y se
+             * cobrará tanto». La demás (asignada a mano, o con la baja ya pedida) sí vence, y sigue con el
+             * aviso de siempre. Las pruebas quedan fuera de las dos.
+             */
+            $renewalDays = SubscriptionNotice::renewalNoticeDays($subscription);
+            $notice = $renewalDays === null ? SubscriptionNotice::for($subscription) : null;
 
-            if ($notice === null || $notice->isTrial) {
+            if ($renewalDays === null && ($notice === null || $notice->isTrial)) {
                 continue;
             }
+
+            $days = $renewalDays ?? (int) $notice?->days;
 
             $company = $subscription->company;
             $plan = $subscription->plan;
@@ -77,7 +89,8 @@ final class SendExpiringSubscriptionReminders extends Command
              */
             if ($simular) {
                 $sent++;
-                $this->line("Se avisaría a «{$company->name}» ({$to}), le quedan {$notice->days} días.");
+                $this->line("Se avisaría a «{$company->name}» ({$to}), le quedan {$days} días"
+                    .($renewalDays !== null ? ' (se renueva sola).' : '.'));
 
                 continue;
             }
@@ -89,17 +102,35 @@ final class SendExpiringSubscriptionReminders extends Command
             //
             // Y el fallo de un destinatario no puede abortar el recorrido: los siguientes se
             // quedarían sin avisar por culpa de una dirección mal escrita.
+            $ownerName = (string) ($owner !== null ? $owner->name : $company->name);
+            $supportWhatsapp = (string) config('platform.support_whatsapp');
+            $supportEmail = (string) config('platform.support_email');
+
             try {
-                Mail::to($to)->send(new SubscriptionExpiringMail(
-                    ownerName: (string) ($owner !== null ? $owner->name : $company->name),
-                    companyName: (string) $company->name,
-                    planName: (string) $plan->name,
-                    renewsAt: $subscription->current_period_end,
-                    daysLeft: max(0, $notice->days),
-                    loginUrl: route('login'),
-                    supportWhatsapp: (string) config('platform.support_whatsapp'),
-                    supportEmail: (string) config('platform.support_email'),
-                ));
+                Mail::to($to)->send($renewalDays !== null
+                    ? new SubscriptionRenewalNoticeMail(
+                        ownerName: $ownerName,
+                        companyName: (string) $company->name,
+                        planName: (string) $plan->name,
+                        planPrice: (string) $plan->price,
+                        billingCycleLabel: $plan->billing_cycle->label(),
+                        renewsAt: $subscription->current_period_end,
+                        daysLeft: max(0, $days),
+                        accountUrl: route('panel.account'),
+                        updateCardUrl: route('panel.account.portal'),
+                        supportWhatsapp: $supportWhatsapp,
+                        supportEmail: $supportEmail,
+                    )
+                    : new SubscriptionExpiringMail(
+                        ownerName: $ownerName,
+                        companyName: (string) $company->name,
+                        planName: (string) $plan->name,
+                        renewsAt: $subscription->current_period_end,
+                        daysLeft: max(0, $days),
+                        loginUrl: route('login'),
+                        supportWhatsapp: $supportWhatsapp,
+                        supportEmail: $supportEmail,
+                    ));
             } catch (Throwable $e) {
                 report($e);
                 $this->error("No se pudo avisar a «{$company->name}» ({$to}): {$e->getMessage()}");
@@ -110,7 +141,8 @@ final class SendExpiringSubscriptionReminders extends Command
             $subscription->update(['renewal_reminded_at' => now()]);
             $sent++;
 
-            $this->line("Aviso de vencimiento enviado a «{$company->name}» ({$to}).");
+            $this->line(($renewalDays !== null ? 'Aviso de renovación' : 'Aviso de vencimiento')
+                ." enviado a «{$company->name}» ({$to}).");
         }
 
         $this->info($simular

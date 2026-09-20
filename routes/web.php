@@ -25,6 +25,7 @@ use App\Modules\Core\Http\Controllers\RegisterController;
 use App\Modules\Core\Http\Controllers\SubscriptionCancelController;
 use App\Modules\Core\Http\Controllers\SubscriptionCheckoutController;
 use App\Modules\Core\Http\Controllers\SubscriptionPlanController;
+use App\Modules\Core\Http\Controllers\SubscriptionPortalController;
 use App\Modules\Core\Http\Controllers\SubscriptionResumeController;
 use App\Modules\Core\Http\Controllers\SubscriptionStatusController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
@@ -173,6 +174,12 @@ Route::middleware(['auth'])->group(function (): void {
         ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.cancel');
     Route::post('/panel/cuenta/reactivar', SubscriptionResumeController::class)
         ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.resume');
+
+    // Portal de pagos de Polar (cambiar la tarjeta, ver facturas). Es un GET a propósito: lo abren los
+    // botones de los correos («Actualizar mi tarjeta»), que no pueden enviar un formulario. No cambia
+    // nada de la app; crea una sesión en Polar en el momento del clic, porque su enlace caduca en una hora.
+    Route::get('/panel/cuenta/tarjeta', SubscriptionPortalController::class)
+        ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.portal');
 
     /*
      * Datos de la empresa: lo que sale impreso en cada recibo que recibe un cliente.

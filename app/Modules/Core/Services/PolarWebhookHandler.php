@@ -60,6 +60,7 @@ final class PolarWebhookHandler
             'subscription.uncanceled' => $this->resume($event, $data),
             'subscription.canceled' => $this->scheduleCancellation($event, $data),
             'subscription.revoked' => $this->revoke($event, $data),
+            'subscription.past_due' => $this->paymentFailed($event, $data),
             default => $event->resolveAs(PolarWebhookEvent::RESULT_IGNORED, 'Evento sin efecto sobre las suscripciones.'),
         };
     }
@@ -350,11 +351,41 @@ final class PolarWebhookHandler
             return $event->resolveAs(PolarWebhookEvent::RESULT_UNRESOLVED, 'Revocación recibida sin suscripción que la reciba.');
         }
 
-        $this->subscriptions->cancel($subscription);
+        // `end` retira el acceso Y avisa al cliente, una sola vez: un segundo aviso de revocación se
+        // encuentra la suscripción ya terminada y no repite nada.
+        $this->subscriptions->end($subscription);
 
         return $event->resolveAs(
             PolarWebhookEvent::RESULT_APPLIED,
             'Suscripción revocada: se retiró el acceso.',
+            $subscription->company_id,
+        );
+    }
+
+    /**
+     * `subscription.past_due`: falló el cobro de la renovación.
+     *
+     * Solo se AVISA al cliente para que actualice su tarjeta; el estado y el período no se tocan (ver
+     * `SubscriptionService::notifyPaymentFailure`). Sin este aviso, el cliente se enteraba de que su cobro
+     * falló cuando perdía el acceso, porque el único correo que lo decía era el de Polar, en inglés.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function paymentFailed(PolarWebhookEvent $event, array $data): PolarWebhookEvent
+    {
+        $subscription = $this->resolveSubscription($data);
+
+        if ($subscription === null) {
+            return $event->resolveAs(PolarWebhookEvent::RESULT_UNRESOLVED, 'Cobro fallido recibido sin suscripción que lo reciba.');
+        }
+
+        $avisado = $this->subscriptions->notifyPaymentFailure($subscription);
+
+        return $event->resolveAs(
+            PolarWebhookEvent::RESULT_APPLIED,
+            $avisado
+                ? 'Cobro fallido: se avisó al cliente para que actualice su tarjeta.'
+                : 'Cobro fallido: el cliente ya fue avisado hoy.',
             $subscription->company_id,
         );
     }

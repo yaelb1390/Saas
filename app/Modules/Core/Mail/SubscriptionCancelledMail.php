@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Mail;
 
+use App\Modules\Core\Support\PersonName;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Content;
@@ -39,7 +40,7 @@ final class SubscriptionCancelledMail extends Mailable
         // que un buzón (Hotmail, por ejemplo) acepte o no el mensaje. En los envíos reales va siempre.
         public readonly bool $replyToSupport = true,
     ) {
-        $this->firstName = trim(strtok(trim($ownerName), ' ') ?: $ownerName);
+        $this->firstName = PersonName::first($ownerName);
     }
 
     public function envelope(): Envelope

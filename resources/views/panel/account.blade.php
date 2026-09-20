@@ -297,7 +297,8 @@
                 {{-- Sin botón de pago, lo que se puede hacer aquí es dejar de renovar o, si ya se
                      pidió, arrepentirse. Cancelar NO corta el acceso: dura hasta el fin del período
                      pagado, y el diálogo lo dice antes de que el cliente confirme. Cambiar la
-                     tarjeta sí pasa por nosotros.
+                     tarjeta lleva al portal de pagos de Polar (ruta propia: la sesión del portal
+                     caduca en una hora y se pide en el momento del clic).
 
                      El botón de descarte se llama «Mantener mi suscripción» y no «Cancelar»: en un
                      diálogo que pregunta «¿Cancelar tu suscripción?», «Cancelar» no diría cuál de
@@ -327,7 +328,9 @@
                         </x-panel.confirm-action>
                         <p class="mt-2 text-xs text-slate-500">
                             Seguirás con acceso completo hasta el {{ $renews?->format('d/m/Y') }} aunque canceles.
-                            Para cambiar la tarjeta, escríbenos.
+                            Para cambiar la tarjeta,
+                            <a href="{{ route('panel.account.portal') }}"
+                               class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">entra al portal de pagos</a>.
                         </p>
                     </div>
                 @elseif ($endsAtPeriodEnd)

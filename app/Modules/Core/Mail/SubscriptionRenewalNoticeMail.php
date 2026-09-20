@@ -12,12 +12,16 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Support\Carbon;
 
 /**
- * Lo que recibe el cliente cuando se arrepiente de su baja y la suscripción vuelve a renovarse.
+ * Aviso de que la suscripción se va a RENOVAR SOLA, unos días antes del cobro.
  *
- * Pareja de `SubscriptionCancelledMail`: reemplaza el aviso de Polar («Your subscription is no longer
- * canceled»), que llega en inglés y con su marca. Mismas razones para no encolarlo: ver esa clase.
+ * Es el aviso que corresponde a quien Polar cobra automáticamente. Antes, esa persona recibía el mismo
+ * «Tu suscripción está por vencer. Renueva a tiempo» que quien paga a mano, y lo llevaba a escribir a
+ * soporte o a intentar pagar algo que se pagaba solo. Aquí no hay nada que renovar: se le dice cuándo se
+ * cobra, cuánto, y cómo cancelar o cambiar la tarjeta si no quiere que ocurra.
+ *
+ * Reemplaza el recordatorio de renovación de Polar, que llega en inglés.
  */
-final class SubscriptionResumedMail extends Mailable
+final class SubscriptionRenewalNoticeMail extends Mailable
 {
     public readonly string $firstName;
 
@@ -28,11 +32,11 @@ final class SubscriptionResumedMail extends Mailable
         public readonly string $planPrice,
         public readonly string $billingCycleLabel,
         public readonly Carbon $renewsAt,
+        public readonly int $daysLeft,
         public readonly string $accountUrl,
+        public readonly string $updateCardUrl,
         public readonly string $supportWhatsapp,
         public readonly string $supportEmail,
-        // Ver `SubscriptionCancelledMail`: solo lo apaga la herramienta de correos de prueba.
-        public readonly bool $replyToSupport = true,
     ) {
         $this->firstName = PersonName::first($ownerName);
     }
@@ -40,16 +44,16 @@ final class SubscriptionResumedMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Tu suscripción sigue activa · BM Business OS',
-            replyTo: $this->replyToSupport && filled($this->supportEmail) ? [new Address($this->supportEmail)] : [],
+            subject: "Tu suscripción se renovará el {$this->renewsAt->format('d/m/Y')} · BM Business OS",
+            replyTo: filled($this->supportEmail) ? [new Address($this->supportEmail)] : [],
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.subscription-resumed',
-            text: 'emails.subscription-resumed-text',
+            view: 'emails.subscription-renewal-notice',
+            text: 'emails.subscription-renewal-notice-text',
         );
     }
 }

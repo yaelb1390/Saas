@@ -67,14 +67,27 @@ final class SubscriptionNotice
             );
         }
 
+        // Una suscripción que Polar renueva SOLA no «vence»: se renovará, y no hay nada que pedirle al
+        // cliente. Decirle «Renueva para no perder el acceso» lo llevaba a intentar pagar algo que ya se
+        // paga solo o a escribir a soporte preocupado. Su aviso propio es el de «se renovará el…»: ver
+        // `renewalNoticeDays()`.
+        if ($subscription->renewsAutomatically()) {
+            return null;
+        }
+
         // Suscripción de pago: se avisa solo dentro del umbral del ciclo (5/10/30 días).
         $threshold = $subscription->plan?->billing_cycle->noticeThresholdDays() ?? 7;
 
         if ($days <= $threshold) {
+            // Quien pidió la baja SÍ perderá el acceso en esa fecha, pero lo que tiene que hacer no es
+            // «renovar»: es reactivar la suscripción que canceló.
+            $message = $subscription->endsAtPeriodEnd()
+                ? "Tu suscripción termina en {$days} ".self::dias($days)." ({$renews->format('d/m/Y')}). Reactívala para no perder el acceso."
+                : "Tu suscripción vence en {$days} ".self::dias($days)." ({$renews->format('d/m/Y')}). Renueva para no perder el acceso.";
+
             return new self(
                 level: $days <= 3 ? 'critical' : 'warning',
-                message: "Tu suscripción vence en {$days} ".self::dias($days)
-                    ." ({$renews->format('d/m/Y')}). Renueva para no perder el acceso.",
+                message: $message,
                 days: $days,
                 renewsAt: $renews,
                 isTrial: false,
@@ -82,6 +95,30 @@ final class SubscriptionNotice
         }
 
         return null;
+    }
+
+    /**
+     * Días que faltan para el cobro automático, si toca AVISAR de él; null si no.
+     *
+     * Es la pareja de `for()` para la suscripción que Polar renueva sola: `for()` no le dice nada («no
+     * vence»), y esto decide cuándo mandarle el aviso de «se renovará el…». Usa el mismo umbral del ciclo
+     * (5/10/30 días) para que el aviso salga en el mismo momento en que a las demás les saldría el suyo.
+     */
+    public static function renewalNoticeDays(Subscription $subscription): ?int
+    {
+        if (! $subscription->renewsAutomatically()) {
+            return null;
+        }
+
+        $days = $subscription->daysUntilRenewal();
+
+        if ($days === null || $days < 0) {
+            return null;
+        }
+
+        $threshold = $subscription->plan?->billing_cycle->noticeThresholdDays() ?? 7;
+
+        return $days <= $threshold ? $days : null;
     }
 
     /**

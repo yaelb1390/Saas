@@ -8,6 +8,11 @@
     $soon = $days !== null && $days >= 0 && $days <= $threshold;
     $isTrial = (bool) $subscription?->isTrialing();
 
+    // Suscripción que Polar cobra sola, o cuya baja ya está pedida: a ninguna de las dos se le ofrece
+    // «Renovar», porque lo primero ya ocurre solo y lo segundo es justo lo que se acaba de cancelar.
+    $autoRenews = (bool) $subscription?->renewsAutomatically();
+    $endsAtPeriodEnd = (bool) $subscription?->endsAtPeriodEnd();
+
     // Progreso de la prueba (solo si es prueba y el plan la define): % de días ya consumidos.
     $trialTotal = (int) ($plan?->trial_days ?? 0);
     $trialPct = null;
@@ -18,10 +23,13 @@
 @endphp
 <x-layouts.admin title="Mi suscripción" heading="Mi suscripción" subheading="Estado del plan de tu empresa">
     <div class="mx-auto max-w-2xl">
-        {{-- Vuelta de la pasarela. Se dice «estamos confirmando» y no «ya está activo» a propósito:
+        {{-- Vuelta de la pasarela. Por defecto se dice «estamos confirmando» y no «ya está activo»:
              quien activa es el aviso de pago de Polar, que llega por su cuenta unos segundos
-             después. Dar por hecha la activación aquí sería mentir, porque esta dirección la puede
-             escribir cualquiera en la barra del navegador. --}}
+             después. Dar por hecha la activación por lo que trae la dirección sería mentir, porque
+             la puede escribir cualquiera en la barra del navegador.
+
+             «Ya está activo» solo se dice cuando el aviso YA llegó, y eso se lee de la suscripción
+             guardada —que solo el webhook puede dejar así—, nunca de la dirección. --}}
         @if (request('pago') === 'recibido')
             <div class="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-600 ring-1 ring-emerald-100">
@@ -30,8 +38,13 @@
                 <div>
                     <p class="text-sm font-semibold text-emerald-900">Gracias, recibimos tu pago.</p>
                     <p class="mt-0.5 text-sm text-emerald-800">
-                        Estamos confirmándolo con el banco. Tu plan se activa solo en cuanto se confirme
-                        —suele tardar unos segundos—. Recarga esta página para ver el estado.
+                        @if ($autoRenews)
+                            Ya está confirmado y tu plan está activo. Se renovará solo, no tienes que hacer
+                            nada más.
+                        @else
+                            Estamos confirmándolo con el banco. Tu plan se activa solo en cuanto se confirme
+                            —suele tardar unos segundos—. Recarga esta página para ver el estado.
+                        @endif
                     </p>
                 </div>
             </div>
@@ -100,7 +113,7 @@
                         <span class="mb-2.5 grid h-9 w-9 place-items-center rounded-lg {{ $soon ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600' }}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
                         </span>
-                        <p class="bmos-stat-label">{{ $isTrial ? 'Prueba hasta' : 'Renueva' }}</p>
+                        <p class="bmos-stat-label">{{ $isTrial ? 'Prueba hasta' : ($endsAtPeriodEnd ? 'Termina' : 'Renueva') }}</p>
                         <p class="text-lg font-bold text-slate-800">{{ $renews?->format('d/m/Y') ?? '—' }}</p>
                         @if ($days !== null)
                             <p class="text-xs font-medium {{ $days < 0 ? 'text-rose-500' : ($soon ? 'text-amber-600' : 'text-slate-400') }}">
@@ -171,10 +184,22 @@
                     </span>
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-slate-800">
-                            {{ $isTrial ? '¿Listo para activar tu plan?' : '¿Quieres renovar tu suscripción?' }}
+                            @if ($autoRenews)
+                                Tu suscripción se renueva sola
+                            @elseif ($endsAtPeriodEnd)
+                                Pediste la baja de tu suscripción
+                            @else
+                                {{ $isTrial ? '¿Listo para activar tu plan?' : '¿Quieres renovar tu suscripción?' }}
+                            @endif
                         </p>
                         <p class="mt-0.5 text-sm text-slate-500">
-                            @if ($canPayOnline)
+                            @if ($autoRenews)
+                                El {{ $renews?->format('d/m/Y') }} se cobrará automáticamente a la tarjeta con la
+                                que pagaste. No tienes que hacer nada.
+                            @elseif ($endsAtPeriodEnd)
+                                Sigues con acceso completo hasta el {{ $renews?->format('d/m/Y') }}. Después no se
+                                cobrará ni se renovará.
+                            @elseif ($canPayOnline)
                                 Paga con tarjeta y tu cuenta queda activa en cuanto se confirme el cobro.
                             @else
                                 Contáctanos y activamos tu cuenta enseguida.
@@ -185,7 +210,7 @@
 
                 {{-- El pago es la acción principal, así que va solo y con peso propio. El contacto
                      baja a una línea discreta: sirve para dudas, no para contratar. --}}
-                @if ($canPayOnline)
+                @if ($canPayOnline && ! $autoRenews && ! $endsAtPeriodEnd)
                     {{-- Sigue siendo un <form> de verdad, y eso NO es de adorno: si el JavaScript no
                          carga, el cliente tiene que poder pagar igual. El script solo lo intercepta
                          para abrir el pago sin sacarlo de su panel; si algo falla, se envía. --}}
@@ -265,6 +290,43 @@
                            class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                             Tu pago entró, pero la confirmación está tardando más de lo normal. No lo
                             vuelvas a pagar: recarga en un minuto y, si sigue igual, escríbenos.
+                        </p>
+                    </form>
+                @endif
+
+                {{-- Sin botón de pago, lo que se puede hacer aquí es dejar de renovar o, si ya se
+                     pidió, arrepentirse. Cancelar NO corta el acceso: dura hasta el fin del período
+                     pagado, y el diálogo lo dice antes de que el cliente confirme. Cambiar la
+                     tarjeta sí pasa por nosotros.
+
+                     El botón de descarte se llama «Mantener mi suscripción» y no «Cancelar»: en un
+                     diálogo que pregunta «¿Cancelar tu suscripción?», «Cancelar» no diría cuál de
+                     los dos botones la cancela. --}}
+                @if ($autoRenews)
+                    <div class="mt-4">
+                        <x-panel.confirm-action
+                            :action="route('panel.account.cancel')"
+                            method="POST"
+                            title="¿Cancelar tu suscripción?"
+                            message="Seguirás con acceso completo hasta el {{ $renews?->format('d/m/Y') }}. Después no se cobrará ni se renovará más."
+                            note="No borramos tus datos: si más adelante quieres volver, solo tienes que contratar de nuevo. Y hasta esa fecha puedes reactivar la renovación cuando quieras."
+                            confirm="Sí, cancelar suscripción"
+                            dismiss="Mantener mi suscripción"
+                            tone="neutral"
+                            class="inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold text-slate-500 transition hover:text-rose-600 hover:underline">
+                            Cancelar suscripción
+                        </x-panel.confirm-action>
+                        <p class="mt-1 text-xs text-slate-400">Para cambiar la tarjeta, escríbenos.</p>
+                    </div>
+                @elseif ($endsAtPeriodEnd)
+                    <form method="POST" action="{{ route('panel.account.resume') }}" class="mt-4">
+                        @csrf
+                        <button type="submit"
+                                class="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2">
+                            Reactivar mi suscripción
+                        </button>
+                        <p class="mt-2 text-xs text-slate-400">
+                            Se seguirá renovando y cobrando cada período, como antes.
                         </p>
                     </form>
                 @endif

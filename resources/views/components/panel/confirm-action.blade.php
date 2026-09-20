@@ -28,6 +28,10 @@
             <svg>…</svg>
         </x-panel.confirm-action>
 
+    `dismiss` cambia el texto del botón que cierra el diálogo sin hacer nada (por defecto «Cancelar»).
+    Se usa cuando la acción misma se llama «cancelar»: en «¿Cancelar tu suscripción?» un botón
+    «Cancelar» no diría cuál de los dos es el que la cancela.
+
     Los atributos sueltos (`class`, `x-show`…) van al botón, así que la fila conserva el aspecto que
     ya tenía. El globo de ayuda va en `tooltip` y no en `title`, porque `title` ya es el titular del
     diálogo.
@@ -40,6 +44,7 @@
     'note' => null,
     'irreversible' => false,
     'confirm' => 'Eliminar',
+    'dismiss' => null,
     'tone' => 'danger',
     'requireText' => null,
     'tooltip' => null,
@@ -68,6 +73,7 @@
             'aviso' => $note,
             'avisoGrave' => (bool) $irreversible,
             'confirmar' => $confirm,
+            'descartar' => $dismiss,
             'tono' => $tone === 'danger' ? 'peligro' : 'neutro',
             'exigirTexto' => $requireText,
             'formulario' => $formId,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Modules\Core\DTOs\CreateCompanyData;
+use App\Modules\Core\Enums\SubscriptionStatus;
 use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Services\SubscriptionService;
@@ -365,4 +366,121 @@ it('sin pasarela no se ofrece el monedero, que no llevaría a ninguna parte', fu
     $this->actingAs($this->owner)->get(route('panel.account'))
         ->assertOk()
         ->assertDontSee('Pagar con Apple Pay o Google Pay');
+});
+
+// ------------------------------------------------- Suscripción que Polar cobra sola
+
+/*
+ * Una suscripción enlazada con Polar se renueva sin que el cliente haga nada. Ofrecerle «Renovar»
+ * justo después de pagar lo llevaría a intentar pagar otra vez algo que ya se paga solo: Polar no
+ * admite dos suscripciones activas del mismo cliente, así que vería un error en el momento en que
+ * acaba de darnos su dinero. Por eso la pantalla cambia según de quién sea el cobro.
+ */
+
+it('una suscripción que Polar cobra sola no ofrece renovar', function (): void {
+    $this->company->subscription->update([
+        'status' => SubscriptionStatus::Active, 'trial_ends_at' => null,
+        'current_period_end' => now()->addDays(30),
+        'polar_subscription_id' => 'sub_de_prueba',
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.account'))
+        ->assertOk()
+        ->assertSee('Tu suscripción se renueva sola')
+        ->assertDontSee('Renovar mi plan')
+        ->assertDontSee('Pagar con Apple Pay o Google Pay')
+        // Sin escapar: con las comillas convertidas en entidades la búsqueda no encontraría nada
+        // nunca y la comprobación pasaría siempre, aunque el formulario siguiera ahí.
+        ->assertDontSee('action="'.route('panel.account.checkout', $this->plan).'"', false);
+});
+
+it('quien pidió la baja conserva el acceso y no se le ofrece pagar otra vez', function (): void {
+    $this->company->subscription->update([
+        'status' => SubscriptionStatus::Active, 'trial_ends_at' => null,
+        'current_period_end' => now()->addDays(30), 'cancelled_at' => now(),
+        'polar_subscription_id' => 'sub_de_prueba',
+    ]);
+
+    // La baja no corta lo ya pagado: eso lo hace el aviso de revocación cuando llega el fin del período.
+    expect($this->company->subscription->fresh()->isUsable())->toBeTrue();
+
+    $this->actingAs($this->owner)->get(route('panel.account'))
+        ->assertOk()
+        ->assertSee('Pediste la baja de tu suscripción')
+        ->assertSee('Sigues con acceso completo hasta el '.now()->addDays(30)->format('d/m/Y'))
+        ->assertDontSee('Renovar mi plan')
+        ->assertDontSee('Tu suscripción se renueva sola');
+});
+
+it('una suscripción activa asignada a mano sigue ofreciendo renovar', function (): void {
+    // Nada la cobra sola: sin Polar detrás, «Renovar» sigue siendo la acción correcta.
+    $this->company->subscription->update([
+        'status' => SubscriptionStatus::Active, 'trial_ends_at' => null,
+        'current_period_end' => now()->addDays(30), 'polar_subscription_id' => null,
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.account'))
+        ->assertOk()
+        ->assertSee('Renovar mi plan')
+        ->assertDontSee('Tu suscripción se renueva sola');
+});
+
+it('si el período de una suscripción de Polar ya venció, el botón de pago vuelve', function (): void {
+    // Una activa con la fecha pasada es un cobro que no llegó: ahí el cliente sí tiene que poder pagar.
+    $this->company->subscription->update([
+        'status' => SubscriptionStatus::Active, 'trial_ends_at' => null,
+        'current_period_end' => now()->subDay(),
+        'polar_subscription_id' => 'sub_de_prueba',
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.account'))
+        ->assertOk()
+        ->assertSee('Renovar mi plan')
+        ->assertDontSee('Tu suscripción se renueva sola');
+});
+
+it('distingue cobro automático, baja pedida y el resto', function (string $caso, bool $automatica, bool $baja): void {
+    $enlazada = 'sub_de_prueba';
+
+    $campos = match ($caso) {
+        'cobro_automatico' => ['status' => SubscriptionStatus::Active, 'current_period_end' => now()->addDays(30), 'polar_subscription_id' => $enlazada],
+        'baja_pedida' => ['status' => SubscriptionStatus::Active, 'current_period_end' => now()->addDays(30), 'polar_subscription_id' => $enlazada, 'cancelled_at' => now()],
+        'asignada_a_mano' => ['status' => SubscriptionStatus::Active, 'current_period_end' => now()->addDays(30), 'polar_subscription_id' => null],
+        'periodo_vencido' => ['status' => SubscriptionStatus::Active, 'current_period_end' => now()->subDay(), 'polar_subscription_id' => $enlazada],
+        'ya_revocada' => ['status' => SubscriptionStatus::Cancelled, 'current_period_end' => now()->addDays(30), 'polar_subscription_id' => $enlazada, 'cancelled_at' => now()],
+    };
+
+    $this->company->subscription->update($campos + ['trial_ends_at' => null]);
+    $suscripcion = $this->company->subscription->fresh();
+
+    expect($suscripcion->renewsAutomatically())->toBe($automatica)
+        ->and($suscripcion->endsAtPeriodEnd())->toBe($baja);
+})->with([
+    'cobro automático' => ['cobro_automatico', true, false],
+    'baja pedida con período vigente' => ['baja_pedida', false, true],
+    'asignada a mano, sin Polar' => ['asignada_a_mano', false, false],
+    'período vencido' => ['periodo_vencido', false, false],
+    'ya revocada' => ['ya_revocada', false, false],
+]);
+
+it('al volver de pagar, si el aviso ya activó el plan, lo dice', function (): void {
+    $this->company->subscription->update([
+        'status' => SubscriptionStatus::Active, 'trial_ends_at' => null,
+        'current_period_end' => now()->addDays(30),
+        'polar_subscription_id' => 'sub_de_prueba',
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.account', ['pago' => 'recibido']))
+        ->assertOk()
+        ->assertSee('tu plan está activo')
+        ->assertDontSee('Estamos confirmándolo');
+});
+
+it('la dirección de retorno sola nunca dice que el plan está activo', function (): void {
+    // Esta dirección se teclea a mano. «Está activo» solo puede salir de lo que dejó el aviso de Polar
+    // en la suscripción guardada; con la empresa todavía en prueba, sigue diciéndose «confirmando».
+    $this->actingAs($this->owner)->get(route('panel.account', ['pago' => 'recibido']))
+        ->assertOk()
+        ->assertSee('Estamos confirmándolo')
+        ->assertDontSee('tu plan está activo');
 });

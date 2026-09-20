@@ -7,7 +7,6 @@ namespace App\Modules\Core\Services;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Plan;
 use App\Modules\Core\Models\SystemEvent;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -19,13 +18,11 @@ use Illuminate\Support\Facades\Log;
  */
 final class PolarCheckoutService
 {
-    private const SANDBOX = 'https://sandbox-api.polar.sh';
-
-    private const PRODUCTION = 'https://api.polar.sh';
+    public function __construct(private readonly PolarClient $polar) {}
 
     public function isConfigured(): bool
     {
-        return filled(config('polar.access_token'));
+        return $this->polar->isConfigured();
     }
 
     /**
@@ -57,11 +54,8 @@ final class PolarCheckoutService
             $payload['locale'] = (string) $locale;
         }
 
-        $response = Http::withToken((string) config('polar.access_token'))
-            ->acceptJson()
-            ->asJson()
-            // La barra final importa: sin ella Polar responde una redirección y la petición se pierde.
-            ->post($this->baseUrl().'/v1/checkouts/', $payload);
+        // La barra final importa: sin ella Polar responde una redirección y la petición se pierde.
+        $response = $this->polar->http()->post($this->polar->url('/v1/checkouts/'), $payload);
 
         if (! $response->successful()) {
             // Un fallo aquí no debe reventar la pantalla: el cliente verá un aviso y podrá
@@ -94,10 +88,5 @@ final class PolarCheckoutService
         $url = $response->json('url');
 
         return is_string($url) && $url !== '' ? $url : null;
-    }
-
-    private function baseUrl(): string
-    {
-        return config('polar.server') === 'sandbox' ? self::SANDBOX : self::PRODUCTION;
     }
 }

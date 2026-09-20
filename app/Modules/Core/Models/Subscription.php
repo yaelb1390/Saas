@@ -16,8 +16,10 @@ use OwenIt\Auditing\Contracts\Auditable;
  * suscripción esté «usable» (activa o en prueba y dentro del período vigente).
  *
  * @property SubscriptionStatus $status
+ * @property string|null $polar_subscription_id
  * @property Carbon|null $trial_ends_at
  * @property Carbon|null $current_period_end
+ * @property Carbon|null $cancelled_at
  * @property Carbon|null $purge_at
  * @property Carbon|null $renewal_reminded_at
  */
@@ -99,6 +101,39 @@ class Subscription extends Model implements Auditable
     public function isTrialing(): bool
     {
         return $this->status === SubscriptionStatus::Trialing;
+    }
+
+    /**
+     * ¿Polar la cobra sola en cada período?
+     *
+     * Una suscripción enlazada con Polar se renueva sin que el cliente haga nada, salvo que haya
+     * pedido la baja. Ofrecerle entonces «Renovar» lo llevaría a pagar otra vez algo que ya se paga
+     * solo. Se exige además que el período siga vigente: una activa cuya fecha ya pasó es un cobro
+     * que no llegó, y ahí el botón de pago sí hace falta.
+     */
+    public function renewsAutomatically(): bool
+    {
+        return $this->isPolarManaged() && $this->cancelled_at === null && $this->isUsable();
+    }
+
+    /**
+     * ¿Pidió la baja y todavía conserva el período que ya pagó?
+     *
+     * Polar no la cobrará más, pero el acceso dura hasta el fin del período: el aviso de baja solo
+     * anota `cancelled_at` y no toca el estado (ver `PolarWebhookHandler::scheduleCancellation`).
+     */
+    public function endsAtPeriodEnd(): bool
+    {
+        return $this->isPolarManaged() && $this->cancelled_at !== null && $this->isUsable();
+    }
+
+    /**
+     * Activa y enlazada con una suscripción de Polar. Las que se asignan a mano no lo están: nada
+     * las renueva solo, y para ellas «Renovar» sigue siendo la acción correcta.
+     */
+    private function isPolarManaged(): bool
+    {
+        return $this->status === SubscriptionStatus::Active && filled($this->polar_subscription_id);
     }
 
     /**

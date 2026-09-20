@@ -21,8 +21,10 @@ use App\Modules\Core\Http\Controllers\PlanController;
 use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\PublicPlanController;
 use App\Modules\Core\Http\Controllers\RegisterController;
+use App\Modules\Core\Http\Controllers\SubscriptionCancelController;
 use App\Modules\Core\Http\Controllers\SubscriptionCheckoutController;
 use App\Modules\Core\Http\Controllers\SubscriptionPlanController;
+use App\Modules\Core\Http\Controllers\SubscriptionResumeController;
 use App\Modules\Core\Http\Controllers\SubscriptionStatusController;
 use App\Modules\Core\Http\Controllers\SuspensionController;
 use App\Modules\Core\Http\Controllers\TrialMaintenanceController;
@@ -161,6 +163,15 @@ Route::middleware(['auth'])->group(function (): void {
     // `subscription`: el propio controlador comprueba que la prueba siga vigente.
     Route::post('/panel/cuenta/plan/{plan}', SubscriptionPlanController::class)
         ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.plan');
+
+    // Cancelar la suscripción (dejar de renovar; el acceso dura hasta el fin del período pagado) y
+    // arrepentirse. Mismo permiso, y sin el middleware `subscription` por la misma razón que las de
+    // arriba: hay que poder gestionarla también cuando ya no está al día. Ninguna lleva identificador:
+    // la suscripción sale de la empresa activa, así que no hay nada que manipular para tocar la de otra.
+    Route::post('/panel/cuenta/cancelar', SubscriptionCancelController::class)
+        ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.cancel');
+    Route::post('/panel/cuenta/reactivar', SubscriptionResumeController::class)
+        ->middleware(['can:company.manage', 'throttle:10,1'])->name('panel.account.resume');
 
     /*
      * Datos de la empresa: lo que sale impreso en cada recibo que recibe un cliente.

@@ -6,6 +6,8 @@ namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Models\Subscription;
 use App\Modules\Core\Models\SystemEvent;
+use App\Modules\Core\Support\CardExpiry;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -125,6 +127,64 @@ final class PolarSubscriptionService
         $url = $response->json('customer_portal_url');
 
         return is_string($url) && $url !== '' ? $url : null;
+    }
+
+    /**
+     * La tarjeta con la que Polar cobrará la renovación, para avisar si va a fallar por culpa de ella.
+     *
+     * Es de SOLO LECTURA y nunca lanza: un aviso es un extra, y que Polar no conteste no puede impedir que
+     * el cliente reciba el aviso de renovación de siempre. Por eso devuelve null tanto si el cliente no
+     * tiene tarjeta como si no se pudo saber, y el llamante sigue con lo normal. Si fue un fallo (no un
+     * «no hay tarjeta») deja rastro para el operador.
+     *
+     * Solo se llama en el momento del aviso de renovación —una vez por suscripción y período—, no en un
+     * barrido diario de todas: cada llamada es una petición a Polar y el recordatorio corre en una función
+     * de Vercel con el tiempo limitado.
+     */
+    public function cardOnFile(Subscription $subscription): ?CardExpiry
+    {
+        if (! $this->polar->isConfigured() || blank($subscription->polar_customer_id)) {
+            return null;
+        }
+
+        try {
+            // Tiempo corto a propósito: si Polar tarda, el aviso normal sale igual y no se retrasa el resto.
+            $response = $this->polar->http()->timeout(8)->get(
+                $this->polar->url('/v1/customers/'.rawurlencode((string) $subscription->polar_customer_id).'/payment-methods'),
+                ['limit' => 100],
+            );
+        } catch (ConnectionException $e) {
+            $this->registerCardLookupFailure($subscription, ['error' => 'Polar no contestó a tiempo']);
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            $this->registerCardLookupFailure($subscription, [
+                'estado' => $response->status(),
+                'respuesta' => mb_substr($response->body(), 0, 300),
+            ]);
+
+            return null;
+        }
+
+        $items = $response->json('items');
+
+        return CardExpiry::fromPaymentMethods(is_array($items) ? $items : []);
+    }
+
+    /**
+     * @param  array<string, mixed>  $contexto
+     */
+    private function registerCardLookupFailure(Subscription $subscription, array $contexto): void
+    {
+        SystemEvent::registrar(
+            type: 'integration.failed',
+            message: 'Polar: no se pudo consultar la tarjeta del cliente',
+            contexto: $contexto,
+            level: SystemEvent::AVISO,
+            companyId: (int) $subscription->company_id,
+        );
     }
 
     /**

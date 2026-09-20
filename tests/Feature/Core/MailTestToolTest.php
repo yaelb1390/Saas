@@ -5,8 +5,10 @@ declare(strict_types=1);
 use App\Models\User;
 use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Mail\SubscriptionCancelledMail;
+use App\Modules\Core\Mail\SubscriptionCardExpiringMail;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionEndedMail;
+use App\Modules\Core\Mail\SubscriptionEndingSoonMail;
 use App\Modules\Core\Mail\SubscriptionPaymentFailedMail;
 use App\Modules\Core\Mail\SubscriptionRenewalNoticeMail;
 use App\Modules\Core\Mail\SubscriptionResumedMail;
@@ -93,7 +95,9 @@ it('la pantalla dice con qué remitente y con qué envío se manda', function ()
         ->assertSee('Recibo de pago')
         ->assertSee('Aviso de renovación')
         ->assertSee('Cobro fallido')
-        ->assertSee('Suscripción terminada');
+        ->assertSee('Suscripción terminada')
+        ->assertSee('Acceso a punto de terminar')
+        ->assertSee('Tarjeta por vencer');
 });
 
 it('avisa cuando el envío no sale de la aplicación, porque ninguna prueba llegaría jamás', function (): void {
@@ -140,13 +144,15 @@ it('manda cada uno de los correos que reciben los clientes', function (string $p
         'aviso_renovacion' => SubscriptionRenewalNoticeMail::class,
         'pago_fallido' => SubscriptionPaymentFailedMail::class,
         'terminada' => SubscriptionEndedMail::class,
+        'termina_pronto' => SubscriptionEndingSoonMail::class,
+        'tarjeta_por_vencer' => SubscriptionCardExpiringMail::class,
     };
 
     // «Enviado» y no «encolado», también en el recibo: aunque ese correo sea `ShouldQueue`, la herramienta
     // lo manda con `sendNow`. En producción no hay worker de colas, y uno encolado no lo recogería nadie.
     Mail::assertSent($clase, fn ($correo): bool => $correo->hasTo('prueba@ejemplo.test'));
     Mail::assertNothingQueued();
-})->with(['baja', 'reactivacion', 'recibo', 'aviso_renovacion', 'pago_fallido', 'terminada']);
+})->with(['baja', 'reactivacion', 'recibo', 'aviso_renovacion', 'pago_fallido', 'terminada', 'termina_pronto', 'tarjeta_por_vencer']);
 
 it('sin la cabecera «Responder a» la quita de la baja y de la reactivación', function (string $plantilla, string $clase): void {
     $this->actingAs($this->super)->post(route('platform.mail-test.send'), [

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Mail\SubscriptionCancelledMail;
+use App\Modules\Core\Mail\SubscriptionCardExpiringMail;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionEndedMail;
+use App\Modules\Core\Mail\SubscriptionEndingSoonMail;
 use App\Modules\Core\Mail\SubscriptionPaymentFailedMail;
 use App\Modules\Core\Mail\SubscriptionRenewalNoticeMail;
 use App\Modules\Core\Mail\SubscriptionResumedMail;
@@ -42,6 +44,8 @@ final class MailTestService
             'aviso_renovacion' => ['Aviso de renovación', '«Tu suscripción se renovará el …»'],
             'pago_fallido' => ['Cobro fallido', '«No pudimos cobrar tu suscripción · Actualiza tu tarjeta»'],
             'terminada' => ['Suscripción terminada', '«Tu suscripción ha terminado · Tus datos siguen guardados»'],
+            'termina_pronto' => ['Acceso a punto de terminar (baja pedida)', '«Tu acceso termina el … · Aún puedes reactivarla»'],
+            'tarjeta_por_vencer' => ['Tarjeta por vencer', '«Tu tarjeta vence antes de tu próxima renovación · Actualízala»'],
         ];
     }
 
@@ -91,6 +95,19 @@ final class MailTestService
             'terminada' => new SubscriptionEndedMail(
                 ownerName: $operatorName, companyName: $company, planName: 'Pro', requestedByCustomer: true,
                 resubscribeUrl: route('panel.account'), supportWhatsapp: $whatsapp, supportEmail: $support,
+            ),
+            'termina_pronto' => new SubscriptionEndingSoonMail(
+                ownerName: $operatorName, companyName: $company, planName: 'Pro',
+                accessUntil: now()->addDays(3), daysLeft: 3, accountUrl: route('panel.account'),
+                supportWhatsapp: $whatsapp, supportEmail: $support,
+            ),
+            // La versión grave (la tarjeta ya no servirá el día del cobro): es la que más importa ver bien.
+            'tarjeta_por_vencer' => new SubscriptionCardExpiringMail(
+                ownerName: $operatorName, companyName: $company, planName: 'Pro', planPrice: '1500',
+                billingCycleLabel: 'Mensual', cardBrand: 'Visa', cardLast4: '4242',
+                cardExpiry: now()->format('m/Y'), renewsAt: now()->addDays(5), failsAtRenewal: true,
+                accountUrl: route('panel.account'), updateCardUrl: route('panel.account.portal'),
+                supportWhatsapp: $whatsapp, supportEmail: $support,
             ),
             default => throw new InvalidArgumentException("Plantilla desconocida: {$template}"),
         };

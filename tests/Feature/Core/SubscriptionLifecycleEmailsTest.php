@@ -81,6 +81,10 @@ beforeEach(function (): void {
     ];
 
     Mail::fake();
+
+    // El recordatorio de renovación mira la tarjeta en Polar (ver SubscriptionReminderVariantsTest). Aquí no
+    // importa: el cliente no tiene ninguna guardada, y así ninguna prueba sale a la red de verdad.
+    Http::fake(['*/v1/customers/*/payment-methods*' => Http::response(['items' => [], 'pagination' => ['total_count' => 0, 'max_page' => 1]])]);
 });
 
 // ================================================================== El cobro que falla
@@ -379,13 +383,14 @@ it('si el aviso de renovación no sale, no se marca como enviado y se reintenta'
     expect($this->subscription->fresh()->renewal_reminded_at)->toBeNull();
 });
 
-it('quien ya pidió la baja sigue con el aviso de vencimiento: su acceso sí termina', function (): void {
+it('quien ya pidió la baja no recibe el aviso de renovación: su acceso sí termina', function (): void {
+    // Su aviso propio («tu acceso termina, aún puedes reactivarla») se prueba en SubscriptionReminderVariantsTest.
     $this->subscription->update(['current_period_end' => now()->addDays(3), 'cancelled_at' => now()]);
 
     $this->artisan('subscriptions:remind-expiring')->assertSuccessful();
 
-    Mail::assertQueued(SubscriptionExpiringMail::class, 1);
     Mail::assertNotSent(SubscriptionRenewalNoticeMail::class);
+    Mail::assertNotQueued(SubscriptionExpiringMail::class);
 });
 
 it('la suscripción asignada a mano, sin Polar, sigue con el aviso de vencimiento', function (): void {

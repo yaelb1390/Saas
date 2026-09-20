@@ -301,9 +301,15 @@
 
                      El botón de descarte se llama «Mantener mi suscripción» y no «Cancelar»: en un
                      diálogo que pregunta «¿Cancelar tu suscripción?», «Cancelar» no diría cuál de
-                     los dos botones la cancela. --}}
+                     los dos botones la cancela.
+
+                     Botón y confirmación van en ROJO: es la acción que termina un servicio de pago
+                     y el color es lo primero que se lee. Los datos no se borran, pero el diálogo
+                     compartido reserva el rojo para lo grave y esto lo es. Tiene el mismo tamaño y
+                     forma que el botón de pagar para que la pantalla se vea de una pieza, y el
+                     texto de debajo dice lo que conserva antes de que el cliente pulse. --}}
                 @if ($autoRenews)
-                    <div class="mt-4">
+                    <div class="mt-5">
                         <x-panel.confirm-action
                             :action="route('panel.account.cancel')"
                             method="POST"
@@ -312,11 +318,17 @@
                             note="No borramos tus datos: si más adelante quieres volver, solo tienes que contratar de nuevo. Y hasta esa fecha puedes reactivar la renovación cuando quieras."
                             confirm="Sí, cancelar suscripción"
                             dismiss="Mantener mi suscripción"
-                            tone="neutral"
-                            class="inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold text-slate-500 transition hover:text-rose-600 hover:underline">
+                            tone="danger"
+                            class="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:from-rose-600 hover:to-red-700 hover:shadow-xl hover:shadow-rose-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 sm:w-auto">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                            </svg>
                             Cancelar suscripción
                         </x-panel.confirm-action>
-                        <p class="mt-1 text-xs text-slate-400">Para cambiar la tarjeta, escríbenos.</p>
+                        <p class="mt-2 text-xs text-slate-500">
+                            Seguirás con acceso completo hasta el {{ $renews?->format('d/m/Y') }} aunque canceles.
+                            Para cambiar la tarjeta, escríbenos.
+                        </p>
                     </div>
                 @elseif ($endsAtPeriodEnd)
                     <form method="POST" action="{{ route('panel.account.resume') }}" class="mt-4">
@@ -325,7 +337,7 @@
                                 class="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2">
                             Reactivar mi suscripción
                         </button>
-                        <p class="mt-2 text-xs text-slate-400">
+                        <p class="mt-2 text-xs text-slate-500">
                             Se seguirá renovando y cobrando cada período, como antes.
                         </p>
                     </form>

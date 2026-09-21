@@ -6,7 +6,9 @@ use App\Modules\Core\Http\Middleware\EnsureSubscriptionActive;
 use App\Modules\Core\Http\Middleware\SetApiCompany;
 use App\Modules\Core\Http\Middleware\SetCurrentCompany;
 use App\Modules\Core\Models\ErrorEvent;
-use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Core\Monitoring\Errors\ExceptionSnapshot;
+use App\Modules\Core\Support\SecretRedactor;
+use App\Modules\Core\Support\TenantAttribution;
 use App\Modules\Delivery\Http\Middleware\ForceDriverPortal;
 use App\Modules\POS\Http\Middleware\ForceKioskMode;
 use Illuminate\Foundation\Application;
@@ -85,11 +87,17 @@ return Application::configure(basePath: dirname(__DIR__))
         // principio: se pierde la cabecera (clase, mensaje y origen), que es lo único que identifica
         // el fallo, y queda solo el middleware genérico, idéntico en cualquier error. Aquí se
         // conservan la cabecera y los marcos propios de la aplicación, que son los que importan.
+        // Un mismo fallo reportado dos veces en la misma petición (alguien hace `report($e)` y luego
+        // relanza) contaba dos veces en el grupo. Laravel ya sabe evitarlo; solo hay que pedírselo.
+        $exceptions->dontReportDuplicates();
+
         $exceptions->report(function (Throwable $e): bool {
             $marcos = [];
 
             foreach ($e->getTrace() as $m) {
-                if (isset($m['file']) && ! str_contains($m['file'], '/vendor/')) {
+                // Con `/` siempre: en Windows la ruta lleva `\vendor\` y los marcos de terceros contaban
+                // como propios.
+                if (isset($m['file']) && ! str_contains(str_replace('\\', '/', $m['file']), '/vendor/')) {
                     $marcos[] = basename($m['file']).':'.($m['line'] ?? '?');
 
                     if (count($marcos) === 5) {
@@ -98,8 +106,16 @@ return Application::configure(basePath: dirname(__DIR__))
                 }
             }
 
+            // El mensaje de una `QueryException` lleva la sentencia CON los valores puestos, y el de una
+            // llamada a una API, su clave. Se registra el mismo texto ya saneado que se guarda en el grupo.
+            try {
+                $resumen = ExceptionSnapshot::from($e)->sampleMessage;
+            } catch (Throwable) {
+                $resumen = SecretRedactor::redact(mb_substr($e->getMessage(), 0, 400));
+            }
+
             Log::error('[resumen] '.$e::class, [
-                'message' => mb_substr($e->getMessage(), 0, 400),
+                'message' => $resumen,
                 'origen' => basename($e->getFile()).':'.$e->getLine(),
                 'app' => implode(' <- ', $marcos),
             ]);
@@ -116,11 +132,13 @@ return Application::configure(basePath: dirname(__DIR__))
              * Perder el registro es peor que romper la petición, pero solo un poco.
              */
             try {
+                // La empresa sale de `TenantAttribution`, no de `CurrentCompany`: para el operador de la
+                // plataforma esa es «la primera empresa», y un error suyo no es de ninguna.
                 ErrorEvent::anotar(
                     $e,
                     $marcos,
                     request()->fullUrl(),
-                    app(CurrentCompany::class)->id(),
+                    TenantAttribution::companyId(),
                     auth()->id(),
                 );
             } catch (Throwable) {

@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Poda las dos tablas que crecen solas: la auditoría y el registro de sucesos.
+ * Poda las tablas que crecen solas: la auditoría, el registro de sucesos y los errores agrupados.
  *
  * POR QUÉ EXISTE. Al medir la base de datos aparecieron de primeras y de lejos, con el sistema
  * prácticamente vacío: `audits` la mayor y `system_events` la segunda, con 62 y 53 filas entre las
@@ -37,9 +37,10 @@ final class PurgeOldRecords extends Command
     protected $signature = 'registros:purgar
                             {--auditoria= : Fuerza los días de la auditoría, ignorando la configuración}
                             {--sucesos= : Fuerza los días del registro de sucesos}
+                            {--errores= : Fuerza los días de los errores agrupados}
                             {--simular : Cuenta lo que borraría sin borrar nada}';
 
-    protected $description = 'Poda la auditoría y el registro de sucesos más viejos que su retención.';
+    protected $description = 'Poda la auditoría, el registro de sucesos y los errores más viejos que su retención.';
 
     /**
      * Cuántas filas se borran de una tacada.
@@ -68,6 +69,18 @@ final class PurgeOldRecords extends Command
             simular: $simular,
         );
 
+        // Los errores agrupados NUNCA se podaban: un error visto una vez hace un año seguía ahí. Se
+        // poda por la última vez que ocurrió (`last_seen_at`) y no por la primera: un error que sigue
+        // pasando hoy no es viejo por haber nacido hace meses. Las filas de desglose por empresa y por
+        // usuario se van con su error (clave foránea en cascada).
+        $total += $this->podar(
+            tabla: 'error_events',
+            dias: $this->dias('errores', 'bmos.retencion.errores', 90),
+            titulo: 'Errores agrupados',
+            simular: $simular,
+            columna: 'last_seen_at',
+        );
+
         $this->info($simular
             ? "Se borrarían {$total} filas."
             : "Filas borradas: {$total}.");
@@ -83,7 +96,11 @@ final class PurgeOldRecords extends Command
         return $forzado !== null ? (int) $forzado : (int) config($clave, $porOmision);
     }
 
-    private function podar(string $tabla, int $dias, string $titulo, bool $simular): int
+    /**
+     * @param  string  $columna  La fecha por la que se decide qué es viejo: `created_at` salvo que el
+     *                           «cuándo pasó por última vez» viva en otra columna.
+     */
+    private function podar(string $tabla, int $dias, string $titulo, bool $simular, string $columna = 'created_at'): int
     {
         /*
          * Cero apaga la poda, y el `<= 0` cubre además un negativo que se hubiera colado: restarle
@@ -107,7 +124,7 @@ final class PurgeOldRecords extends Command
         $corte = CarbonImmutable::now()->subDays($dias);
 
         if ($simular) {
-            $cuantos = DB::table($tabla)->where('created_at', '<', $corte)->count();
+            $cuantos = DB::table($tabla)->where($columna, '<', $corte)->count();
             $this->line("{$titulo}: {$cuantos} filas de más de {$dias} días.");
 
             return $cuantos;
@@ -122,7 +139,7 @@ final class PurgeOldRecords extends Command
          */
         do {
             $ids = DB::table($tabla)
-                ->where('created_at', '<', $corte)
+                ->where($columna, '<', $corte)
                 ->orderBy('id')
                 ->limit(self::LOTE)
                 ->pluck('id')

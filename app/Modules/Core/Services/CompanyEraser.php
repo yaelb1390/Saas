@@ -6,6 +6,7 @@ namespace App\Modules\Core\Services;
 
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\SystemEvent;
+use App\Modules\Core\Support\DbTable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -82,7 +83,7 @@ final class CompanyEraser
              * la empresa ni sus usuarios, y unas filas apuntando a nada no se pueden ni atribuir.
              */
             DB::table('audits')->where('company_id', $companyId)->delete();
-            DB::table('error_events')->where('company_id', $companyId)->delete();
+            $this->borrarRastroDeErrores($companyId);
         });
 
         // Queda constancia fuera de la base: los registros de auditoría de esta empresa acaban de
@@ -115,5 +116,69 @@ final class CompanyEraser
             'empresa' => $nombre,
             'operador' => auth()->user()?->email,
         ]);
+    }
+
+    /**
+     * Quita a la empresa de los errores, SIN llevarse los de las demás.
+     *
+     * Antes bastaba un `DELETE ... WHERE company_id = X`, porque un error era de UNA empresa. Ahora un
+     * mismo error (un grupo) puede afectar a varias, y ese borrado se llevaría por delante errores de
+     * empresas que siguen vivas. Lo correcto es restarle al grupo lo que esta empresa aportó y borrarlo
+     * solo si se queda sin ninguna ocurrencia.
+     *
+     * Sin las tablas de desglose (la migración aún no se aplicó) el error sigue siendo de una sola
+     * empresa, y se borra entero como siempre.
+     */
+    private function borrarRastroDeErrores(int $companyId): void
+    {
+        if (! DbTable::existe('error_event_companies')
+            || ! DbTable::existe('error_event_users')
+            || ! DbTable::tieneColumnas('error_events', ['fingerprint_version', 'companies_count', 'users_count'])) {
+            DB::table('error_events')->where('company_id', $companyId)->delete();
+
+            return;
+        }
+
+        $aportado = DB::table('error_event_companies')
+            ->where('company_id', $companyId)
+            ->get(['error_event_id', 'hits']);
+
+        foreach ($aportado as $fila) {
+            $quitar = (int) $fila->hits;
+
+            DB::table('error_events')->where('id', $fila->error_event_id)->update([
+                'hits' => DB::raw("CASE WHEN hits > {$quitar} THEN hits - {$quitar} ELSE 0 END"),
+            ]);
+        }
+
+        $grupos = $aportado->pluck('error_event_id')->all();
+
+        DB::table('error_event_companies')->where('company_id', $companyId)->delete();
+        DB::table('error_event_users')->where('company_id', $companyId)->delete();
+
+        if ($grupos !== []) {
+            // Los totales de los grupos que la empresa dejó atrás, recalculados con lo que queda.
+            DB::table('error_events')->whereIn('id', $grupos)->update([
+                'companies_count' => DB::raw('(SELECT COUNT(*) FROM error_event_companies c WHERE c.error_event_id = error_events.id)'),
+                'users_count' => DB::raw('(SELECT COUNT(*) FROM error_event_users u WHERE u.error_event_id = error_events.id)'),
+            ]);
+
+            // Los que solo eran de esta empresa se quedaron sin ninguna ocurrencia.
+            DB::table('error_events')->whereIn('id', $grupos)->where('hits', '<=', 0)->delete();
+        }
+
+        // Un grupo anterior al desglose que nunca pasó por el backfill apunta a una sola empresa: era suyo.
+        DB::table('error_events')
+            ->where('company_id', $companyId)
+            ->where('fingerprint_version', '<', 2)
+            ->whereNotExists(function ($consulta): void {
+                $consulta->select(DB::raw('1'))
+                    ->from('error_event_companies')
+                    ->whereColumn('error_event_companies.error_event_id', 'error_events.id');
+            })
+            ->delete();
+
+        // Lo que quede apunta a «la última empresa conocida»: que no sea una que ya no existe.
+        DB::table('error_events')->where('company_id', $companyId)->update(['company_id' => null]);
     }
 }

@@ -29,6 +29,9 @@ final class DbTable
     /** @var array<string, bool> memo de columnas, con la clave «tabla.columna» */
     private static array $columnas = [];
 
+    /** @var array<string, list<string>> memo de la lista de columnas de cada tabla */
+    private static array $listas = [];
+
     public static function existe(string $tabla): bool
     {
         if (! array_key_exists($tabla, self::$vistas)) {
@@ -69,10 +72,46 @@ final class DbTable
         return self::$columnas[$clave];
     }
 
+    /**
+     * Todas las columnas de una tabla, con UNA sola consulta al catálogo.
+     *
+     * Para cuando el código nuevo necesita saber varias cosas de la misma tabla a la vez («¿ya tiene el
+     * estado, el servicio y el contador?»): preguntar columna a columna con `tieneColumna()` son tantas
+     * consultas al catálogo como columnas, y en Vercel cada petición es un proceso nuevo, así que el
+     * memo de arriba no sobrevive de una a otra. Vacía si la tabla no existe todavía.
+     *
+     * @return list<string> en minúsculas
+     */
+    public static function columnas(string $tabla): array
+    {
+        if (! array_key_exists($tabla, self::$listas)) {
+            try {
+                self::$listas[$tabla] = self::existe($tabla)
+                    ? array_values(array_map('strtolower', Schema::getColumnListing($tabla)))
+                    : [];
+            } catch (Throwable) {
+                self::$listas[$tabla] = [];
+            }
+        }
+
+        return self::$listas[$tabla];
+    }
+
+    /**
+     * ¿Están TODAS estas columnas? Una sola consulta al catálogo por tabla (ver `columnas()`).
+     *
+     * @param  list<string>  $columnas
+     */
+    public static function tieneColumnas(string $tabla, array $columnas): bool
+    {
+        return array_diff(array_map('strtolower', $columnas), self::columnas($tabla)) === [];
+    }
+
     /** Para los tests, que comparten proceso y crean y borran tablas entre casos. */
     public static function olvidar(): void
     {
         self::$vistas = [];
         self::$columnas = [];
+        self::$listas = [];
     }
 }

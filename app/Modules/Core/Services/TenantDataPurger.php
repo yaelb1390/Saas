@@ -173,6 +173,11 @@ final class TenantDataPurger
         // queda ni la empresa ni sus usuarios, y unas filas huérfanas no se pueden ni atribuir.
         'audits',
         'error_events',
+        // El desglose de cada error por empresa y por usuario, por lo mismo que `error_events`: son su
+        // detalle. Al borrar la empresa del todo, CompanyEraser las limpia y corrige los totales del
+        // grupo, que puede seguir afectando a otras empresas.
+        'error_event_companies',
+        'error_event_users',
         // El registro del sistema, por lo mismo: es lo que dice quién entró y qué se rompió, y la
         // cuenta sigue viva. Además contiene los intentos de acceso fallidos contra ella, que es
         // justo lo que hay que poder mirar después de un vaciado.

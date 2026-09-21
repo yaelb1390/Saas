@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Core\Models;
 
 use App\Models\User;
-use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\Core\Monitoring\Errors\ServiceResolver;
+use App\Modules\Core\Support\DbTable;
+use App\Modules\Core\Support\SecretRedactor;
+use App\Modules\Core\Support\TenantAttribution;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 /**
@@ -20,6 +22,7 @@ use Throwable;
  *
  * @property string $type
  * @property string $level
+ * @property string|null $service
  * @property array<string, mixed>|null $context
  */
 final class SystemEvent extends Model
@@ -35,27 +38,8 @@ final class SystemEvent extends Model
     /** Alguien tiene que mirarlo hoy: un borrado, un bloqueo, un ataque por fuerza bruta. */
     public const GRAVE = 'critical';
 
-    /**
-     * Las claves que suelen viajar dentro del detalle de un fallo de API.
-     *
-     * Es la misma expresión que usa `ErrorEvent`, y está repetida a propósito: son dos tablas que se
-     * escriben en momentos distintos y por caminos distintos, y hacer que una dependa de la otra
-     * para poder limpiar sería acoplarlas por un `preg_replace`.
-     */
-    private const SECRETOS = '/(AIza|sk-|sk_|xkeysib-|xsmtpsib-|polar_oat_|Bearer\s+)[A-Za-z0-9_\-]{8,}/';
-
-    /**
-     * Si la tabla existe. Se comprueba UNA vez por proceso.
-     *
-     * Mismo motivo que en `Audit`: aquí las migraciones se aplican a mano y el despliegue no las
-     * corre, así que el código llega siempre antes que el cambio en la base. Sin esto, el hueco
-     * entre las dos cosas no sería «el registro aún no se ve»: sería que NADIE PUEDE INICIAR SESIÓN,
-     * porque el intento de anotar la entrada reventaría dentro del propio inicio de sesión.
-     */
-    private static ?bool $existe = null;
-
     protected $fillable = [
-        'company_id', 'user_id', 'type', 'level', 'message', 'context', 'ip', 'user_agent',
+        'company_id', 'user_id', 'type', 'level', 'service', 'message', 'context', 'ip', 'user_agent',
     ];
 
     /**
@@ -65,7 +49,15 @@ final class SystemEvent extends Model
      * y de un borrado de empresa. Si fallara al escribir, se llevaría por delante la operación que
      * estaba registrando, y un registro que rompe lo que vigila es peor que no tener registro.
      *
+     * Aquí las migraciones se aplican a mano y el despliegue no las corre, así que el código llega
+     * siempre antes que el cambio en la base. Sin la tabla, no se escribe nada; sin la columna nueva
+     * (`service`), se escribe lo de siempre. Sin esto, el hueco entre las dos cosas no sería «el
+     * registro aún no se ve»: sería que NADIE PUEDE INICIAR SESIÓN, porque el intento de anotar la
+     * entrada reventaría dentro del propio inicio de sesión.
+     *
      * @param  array<string, mixed>  $contexto
+     * @param  string|null  $service  De qué servicio o integración habla; si no se dice, se deduce del
+     *                                tipo y del mensaje (y queda vacío si no se puede saber).
      */
     public static function registrar(
         string $type,
@@ -74,18 +66,21 @@ final class SystemEvent extends Model
         string $level = self::INFO,
         ?int $companyId = null,
         ?int $userId = null,
+        ?string $service = null,
     ): void {
         try {
-            if (! self::hayTabla()) {
+            $columnas = DbTable::columnas('system_events');
+
+            if ($columnas === []) {
                 return;
             }
 
             $peticion = request();
 
-            self::create([
-                // La empresa que se pase gana; si no, la activa. En un intento de acceso fallido no
-                // hay ninguna de las dos, y por eso la columna admite nulo.
-                'company_id' => $companyId ?? self::empresaActiva(),
+            $datos = [
+                // La empresa que se pase gana; si no, la que corresponda (ver `TenantAttribution`). En un
+                // intento de acceso fallido no hay ninguna, y por eso la columna admite nulo.
+                'company_id' => $companyId ?? TenantAttribution::companyId(),
                 'user_id' => $userId ?? auth()->id(),
                 'type' => $type,
                 'level' => $level,
@@ -93,7 +88,13 @@ final class SystemEvent extends Model
                 'context' => self::limpiar($contexto),
                 'ip' => $peticion?->ip(),
                 'user_agent' => mb_substr((string) $peticion?->userAgent(), 0, 255) ?: null,
-            ]);
+            ];
+
+            if (in_array('service', $columnas, true)) {
+                $datos['service'] = $service ?? ServiceResolver::forEvent($type, $message);
+            }
+
+            self::create($datos);
         } catch (Throwable) {
             // A propósito en silencio. Reportarlo llamaría al manejador de errores, que a su vez
             // escribe en la base: si la base es el problema, sería un bucle.
@@ -119,7 +120,7 @@ final class SystemEvent extends Model
     /** Para los tests, que comparten proceso y necesitan volver a preguntar. */
     public static function olvidarSiHayTabla(): void
     {
-        self::$existe = null;
+        DbTable::olvidar();
     }
 
     protected function casts(): array
@@ -127,47 +128,18 @@ final class SystemEvent extends Model
         return ['context' => 'array'];
     }
 
-    private static function hayTabla(): bool
-    {
-        if (self::$existe === null) {
-            try {
-                self::$existe = Schema::hasTable('system_events');
-            } catch (Throwable) {
-                self::$existe = false;
-            }
-        }
-
-        return self::$existe;
-    }
-
-    private static function empresaActiva(): ?int
-    {
-        try {
-            $actual = app(CurrentCompany::class);
-
-            return $actual->has() ? $actual->id() : null;
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
     /**
      * Tacha las credenciales del detalle antes de guardarlo.
      *
      * Un fallo de una API trae la clave dentro más veces de las que parece, y guardarla aquí sería
-     * filtrarla a una pantalla y, de paso, a todas las copias de seguridad.
+     * filtrarla a una pantalla y, de paso, a todas las copias de seguridad. Lo hace `SecretRedactor`,
+     * que es el mismo que usa `ErrorEvent`: antes había una copia de la expresión en cada modelo.
      *
      * @param  array<string, mixed>  $contexto
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private static function limpiar(array $contexto): array
     {
-        array_walk_recursive($contexto, static function (mixed &$valor): void {
-            if (is_string($valor)) {
-                $valor = preg_replace(self::SECRETOS, '***', mb_substr($valor, 0, 500)) ?? '***';
-            }
-        });
-
-        return $contexto;
+        return SecretRedactor::redactArray($contexto);
     }
 }

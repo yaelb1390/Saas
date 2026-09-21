@@ -16,6 +16,7 @@ use App\Modules\Core\Listeners\SendSubscriptionCancelledEmail;
 use App\Modules\Core\Listeners\SendSubscriptionEndedEmail;
 use App\Modules\Core\Listeners\SendSubscriptionPaymentFailedEmail;
 use App\Modules\Core\Listeners\SendSubscriptionResumedEmail;
+use App\Modules\Core\Monitoring\Errors\ErrorRecorder;
 use App\Modules\Core\Repositories\Contracts\CompanyRepositoryInterface;
 use App\Modules\Core\Repositories\EloquentCompanyRepository;
 use App\Modules\Core\Support\SubscriptionNotice;
@@ -37,6 +38,10 @@ final class CoreServiceProvider extends ServiceProvider
     {
         // El contexto de empresa vive durante toda la petición.
         $this->app->singleton(CurrentCompany::class);
+
+        // Lleva la cuenta de cuántos errores ha anotado este proceso (su tope por minuto): tiene que ser
+        // la misma instancia durante toda la petición o el tope no cuenta nada.
+        $this->app->singleton(ErrorRecorder::class);
 
         $this->app->bind(
             CompanyRepositoryInterface::class,

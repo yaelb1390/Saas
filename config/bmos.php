@@ -60,6 +60,38 @@ return [
     'retencion' => [
         'sucesos' => (int) env('BMOS_RETENCION_SUCESOS', 90),
         'auditoria' => (int) env('BMOS_RETENCION_AUDITORIA', 0),
+        // Los errores agrupados, por la última vez que ocurrieron. Antes no se podaban nunca. Igual que
+        // los sucesos, son NUESTRO diario de a bordo: pasados tres meses sin repetirse no le sirven a nadie.
+        'errores' => (int) env('BMOS_RETENCION_ERRORES', 90),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Monitoreo de la plataforma
+    |--------------------------------------------------------------------------
+    |
+    | Lo que se puede ajustar del monitoreo sin tocar código. Cada fase del monitoreo añade aquí su
+    | sección; el porqué de cada cosa está en docs/MONITOREO.md.
+    |
+    */
+    'monitoreo' => [
+        'errores' => [
+            /*
+             * A qué servicio pertenece un error según el host al que se llamó.
+             *
+             * Sirve para agrupar y filtrar («¿falla Polar o falla la IA?»), y entra en la huella del error:
+             * el mismo «Connection timed out» contra dos servicios distintos son dos problemas. El host se
+             * compara entero o como sufijo (`sandbox-api.polar.sh` coincide con `polar.sh`). El de Evolution
+             * no está aquí porque es de cada instalación: sale de `evolution.base_url`.
+             */
+            'hosts' => [
+                'polar.sh' => 'polar',
+                'api.zernio.com' => 'zernio',
+                'api.openai.com' => 'ai',
+                'generativelanguage.googleapis.com' => 'ai',
+                'api.anthropic.com' => 'ai',
+            ],
+        ],
     ],
 
     /*

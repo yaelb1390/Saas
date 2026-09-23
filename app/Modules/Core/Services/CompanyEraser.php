@@ -84,6 +84,7 @@ final class CompanyEraser
              */
             DB::table('audits')->where('company_id', $companyId)->delete();
             $this->borrarRastroDeErrores($companyId);
+            $this->borrarRastroDeIncidentes($companyId);
         });
 
         // Queda constancia fuera de la base: los registros de auditoría de esta empresa acaban de
@@ -180,5 +181,31 @@ final class CompanyEraser
 
         // Lo que quede apunta a «la última empresa conocida»: que no sea una que ya no existe.
         DB::table('error_events')->where('company_id', $companyId)->update(['company_id' => null]);
+    }
+
+    /**
+     * Quita a la empresa del desglose de los incidentes, sin borrar el incidente.
+     *
+     * A diferencia de un grupo de errores, un incidente NO desaparece si se queda sin ninguna
+     * empresa: es el registro de que algo pasó, y ese hecho sigue siendo cierto aunque la única
+     * empresa a la que afectó ya no exista. Solo se recalcula `companies_count`.
+     */
+    private function borrarRastroDeIncidentes(int $companyId): void
+    {
+        if (! DbTable::existe('incident_companies')) {
+            return;
+        }
+
+        $incidentes = DB::table('incident_companies')
+            ->where('company_id', $companyId)
+            ->pluck('incident_id');
+
+        DB::table('incident_companies')->where('company_id', $companyId)->delete();
+
+        if ($incidentes->isNotEmpty()) {
+            DB::table('incidents')->whereIn('id', $incidentes)->update([
+                'companies_count' => DB::raw('(SELECT COUNT(*) FROM incident_companies c WHERE c.incident_id = incidents.id)'),
+            ]);
+        }
     }
 }

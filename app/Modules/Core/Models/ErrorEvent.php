@@ -37,6 +37,7 @@ use Throwable;
  * @property int $fingerprint_version
  * @property int $companies_count
  * @property int $users_count
+ * @property int $recent_hits
  */
 final class ErrorEvent extends Model
 {
@@ -50,7 +51,7 @@ final class ErrorEvent extends Model
         'fingerprint', 'class', 'message', 'origin', 'frames',
         'url', 'company_id', 'user_id', 'hits', 'first_seen_at', 'last_seen_at',
         'status', 'resolved_at', 'resolved_by', 'service', 'route_name',
-        'fingerprint_version', 'companies_count', 'users_count',
+        'fingerprint_version', 'companies_count', 'users_count', 'recent_hits',
     ];
 
     protected function casts(): array
@@ -60,6 +61,7 @@ final class ErrorEvent extends Model
             'companies_count' => 'integer',
             'users_count' => 'integer',
             'fingerprint_version' => 'integer',
+            'recent_hits' => 'integer',
             'first_seen_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'resolved_at' => 'datetime',

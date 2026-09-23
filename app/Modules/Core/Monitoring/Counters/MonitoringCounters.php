@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Modules\Core\Monitoring\Counters;
 
 use App\Modules\Core\Models\ErrorEvent;
+use App\Modules\Core\Models\Incident;
 use App\Modules\Core\Models\PolarWebhookEvent;
 use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Monitoring\MonitoringSchema;
 use App\Modules\Core\Services\CompanyHealthService;
 use App\Modules\Core\Services\PlatformHealthService;
+use App\Modules\Core\Support\DbTable;
 use Illuminate\Support\Collection;
 
 /**
@@ -41,7 +43,7 @@ final class MonitoringCounters
      * @return array{
      *     errores_activos: int, avisos_graves_24h: int, webhooks_pendientes: int,
      *     empresas_con_problemas: int, servicios_con_aviso: int, empresas_bloqueadas: int,
-     *     incidentes_activos: int|null, pendientes: int,
+     *     incidentes_activos: int, pendientes: int,
      * }
      */
     public function calcular(): array
@@ -58,18 +60,30 @@ final class MonitoringCounters
             'empresas_con_problemas' => $this->empresas->conAviso(),
             'servicios_con_aviso' => $serviciosConAviso,
             'empresas_bloqueadas' => $empresasBloqueadas,
-            // No hay tabla de incidentes hasta la Fase 2. `null` y no `0`: son cosas distintas
-            // —«no se sabe todavía» y «se comprobó y no hay ninguno»— y la vista no debe confundirlas.
-            'incidentes_activos' => null,
+            'incidentes_activos' => $this->incidentesActivos(),
             /*
              * El titular de la pantalla. Las mismas cuatro familias de antes —integraciones con
              * aviso, empresas bloqueadas, errores, webhooks—, pero contadas de verdad. Las empresas
              * con un problema de negocio (sin almacén, caja abierta…) tienen su propia tarjeta y no
              * entran aquí: esto es lo que le toca resolver AL OPERADOR de la plataforma, no lo que
              * cada cliente tiene pendiente en su propio negocio.
+             *
+             * Los incidentes NO se suman aquí a propósito: casi todo incidente activo nace de un
+             * grupo de error que YA está contado en `errores_activos`, y sumar los dos doblaría la
+             * misma cosa. Un incidente es una forma más grave de mirar el mismo error, no una cosa
+             * aparte que además pida atención.
              */
             'pendientes' => $erroresActivos + $webhooksPendientes + $serviciosConAviso + $empresasBloqueadas,
         ];
+    }
+
+    private function incidentesActivos(): int
+    {
+        if (! DbTable::existe('incidents')) {
+            return 0;
+        }
+
+        return Incident::query()->activos()->count();
     }
 
     private function erroresActivos(): int

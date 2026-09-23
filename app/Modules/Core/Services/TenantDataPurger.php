@@ -178,6 +178,10 @@ final class TenantDataPurger
         // grupo, que puede seguir afectando a otras empresas.
         'error_event_companies',
         'error_event_users',
+        // El desglose de cada INCIDENTE por empresa (Fase 2), por la misma razón: un incidente es un
+        // hecho que ya pasó, y sobrevive incluso a la poda del error que lo originó (`incidents` no
+        // se poda). `CompanyEraser` lo limpia igual que el de errores.
+        'incident_companies',
         // El registro del sistema, por lo mismo: es lo que dice quién entró y qué se rompió, y la
         // cuenta sigue viva. Además contiene los intentos de acceso fallidos contra ella, que es
         // justo lo que hay que poder mirar después de un vaciado.

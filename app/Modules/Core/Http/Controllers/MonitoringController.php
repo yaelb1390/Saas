@@ -7,9 +7,11 @@ namespace App\Modules\Core\Http\Controllers;
 use App\Modules\Core\Models\Audit;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\ErrorEvent;
+use App\Modules\Core\Models\Incident;
 use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Monitoring\Counters\MonitoringCounters;
 use App\Modules\Core\Monitoring\Errors\ServiceResolver;
+use App\Modules\Core\Monitoring\Incidents\IncidentService;
 use App\Modules\Core\Monitoring\MonitoringSchema;
 use App\Modules\Core\Monitoring\Search\MonitoringFilters;
 use App\Modules\Core\Monitoring\Search\MonitoringSearch;
@@ -64,6 +66,8 @@ final class MonitoringController extends Controller
         'mail' => 'Correo',
         'task' => 'Tareas programadas',
         'webhook' => 'Webhooks',
+        // Fase 2: cuando se abre o cambia de estado un incidente.
+        'incident' => 'Incidentes',
     ];
 
     public function __invoke(
@@ -72,6 +76,7 @@ final class MonitoringController extends Controller
         CompanyHealthService $empresas,
         MonitoringCounters $contadores,
         MonitoringSearch $buscador,
+        IncidentService $incidentes,
     ): View {
         $filtros = MonitoringFilters::fromRequest($request, self::FAMILIAS, self::ACCIONES);
 
@@ -87,8 +92,10 @@ final class MonitoringController extends Controller
             'avisos' => $empresas->resumenDeAvisos(),
             'registro' => $filtros->pestana === 'registro' ? $buscador->registro($filtros) : $this->vacio(),
             'errores' => $filtros->pestana === 'errores' ? $buscador->errores($filtros) : $this->vacio(),
+            'incidentes' => $filtros->pestana === 'incidentes' ? $incidentes->listar($filtros) : $this->vacio(),
             'actividad' => $filtros->pestana === 'actividad' ? $buscador->actividad($filtros) : $this->vacio(),
             'erroresResumen' => $this->erroresParaElResumen(),
+            'incidentesResumen' => $this->incidentesParaElResumen(),
             'sucesosResumen' => $this->sucesosParaElResumen(),
             'familias' => self::FAMILIAS,
             'servicios' => ServiceResolver::NOMBRES,
@@ -123,6 +130,20 @@ final class MonitoringController extends Controller
             ->latest('last_seen_at')
             ->limit(5)
             ->get();
+    }
+
+    /**
+     * Los cinco incidentes activos más recientes, para el Resumen. Misma idea que los errores.
+     *
+     * @return Collection<int, Incident>
+     */
+    private function incidentesParaElResumen(): Collection
+    {
+        if (! DbTable::existe('incidents')) {
+            return collect();
+        }
+
+        return Incident::query()->activos()->latest('last_detected_at')->limit(5)->get();
     }
 
     /**

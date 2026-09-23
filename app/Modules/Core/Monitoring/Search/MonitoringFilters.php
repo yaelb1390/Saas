@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Monitoring\Search;
 
+use App\Modules\Core\Models\Incident;
 use App\Modules\Core\Models\SystemEvent;
 use Illuminate\Http\Request;
 
@@ -22,10 +23,20 @@ use Illuminate\Http\Request;
 final class MonitoringFilters
 {
     /** Las pestañas de la pantalla. La primera es la de arranque. */
-    public const PESTANAS = ['resumen', 'registro', 'errores', 'empresas', 'actividad'];
+    public const PESTANAS = ['resumen', 'registro', 'errores', 'incidentes', 'empresas', 'actividad'];
 
-    /** El estado de un error. `todos` no filtra. */
-    public const ESTADOS = ['active', 'resolved', 'ignored', 'todos'];
+    /**
+     * El estado de un error o de un incidente. `todos` no filtra; `active` es un valor COMPARTIDO
+     * que cada pantalla lee a su manera —`error_events.status = 'active'` literalmente, pero
+     * `IncidentService::listar()` lo entiende como «abierto O investigando»—, porque un incidente no
+     * tiene un estado que se llame `active`. `open`/`investigating` solo los ofrece la pestaña de
+     * incidentes; que estén en la misma lista no los hace válidos en la de errores, que nunca los
+     * pinta en su desplegable.
+     */
+    public const ESTADOS = ['active', 'resolved', 'ignored', 'open', 'investigating', 'todos'];
+
+    /** La severidad de un incidente. */
+    public const SEVERIDADES = Incident::SEVERIDADES;
 
     /** Cómo se ordenan los errores. */
     public const ORDENES = ['recientes', 'frecuentes', 'empresas'];
@@ -51,6 +62,7 @@ final class MonitoringFilters
         public readonly ?string $nivel,
         public readonly ?string $servicio,
         public readonly string $estado,
+        public readonly ?string $severidad,
         public readonly string $orden,
         public readonly ?int $ventana,
         public readonly ?string $ventanaElegida,
@@ -72,11 +84,16 @@ final class MonitoringFilters
         $accion = self::deLista($request->query('accion'), array_keys($acciones));
 
         $estadoElegido = self::deLista($request->query('estado'), self::ESTADOS);
+        $severidad = self::deLista($request->query('severidad'), self::SEVERIDADES);
         $ordenElegido = self::deLista($request->query('orden'), self::ORDENES);
 
         [$ventana, $ventanaElegida] = self::ventana($request->query('dias'), $busca !== null);
 
         return new self(
+            // La pestaña de incidentes SIEMPRE se pide explícita (`pestana=incidentes`): un filtro
+            // por severidad no la abre solo, al revés que `estado`/`orden` con Errores. Adivinarla
+            // por la severidad obligaría a esta lista a saber también de dónde viene cada valor de
+            // `estado` compartido, que es justo la ambigüedad que el comentario de ESTADOS explica.
             pestana: self::pestana(
                 $request->query('pestana'),
                 registro: $busca !== null || $familia !== null || $nivel !== null || $servicio !== null
@@ -90,6 +107,7 @@ final class MonitoringFilters
             nivel: $nivel,
             servicio: $servicio,
             estado: $estadoElegido ?? 'active',
+            severidad: $severidad,
             orden: $ordenElegido ?? 'recientes',
             ventana: $ventana,
             ventanaElegida: $ventanaElegida,
@@ -106,7 +124,7 @@ final class MonitoringFilters
     {
         return $this->busca !== null || $this->familia !== null || $this->nivel !== null
             || $this->servicio !== null || $this->empresa !== null || $this->ventana !== null
-            || $this->accion !== null || $this->estado !== 'active';
+            || $this->accion !== null || $this->estado !== 'active' || $this->severidad !== null;
     }
 
     /**

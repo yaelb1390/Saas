@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Core\Monitoring\Errors;
 
 use App\Modules\Core\Models\ErrorEvent;
+use App\Modules\Core\Monitoring\Incidents\IncidentDetector;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Support\SecretRedactor;
 use Carbon\CarbonInterface;
@@ -56,6 +57,8 @@ final class ErrorRecorder
         'status', 'resolved_at', 'resolved_by', 'service', 'route_name',
         'fingerprint_version', 'companies_count', 'users_count',
     ];
+
+    public function __construct(private readonly IncidentDetector $incidentes) {}
 
     /**
      * ¿Se aplicó ya la migración de los grupos multiempresa?
@@ -120,9 +123,23 @@ final class ErrorRecorder
             }
         }
 
+        // La ventana de la racha, para `recent_hits` (Fase 2: la usa `IncidentDetector`). Se lee de
+        // la misma configuración que el disparador, y no un número suelto aquí: si mañana se cambia
+        // la ventana en la configuración, el contador que la mide tiene que cambiar con ella.
+        $ventanaRachaMin = (int) config('bmos.monitoreo.incidentes.racha_minutos', 15);
+        $corteRacha = $ahora->clone()->subMinutes($ventanaRachaMin);
+
         $suma = $fila + [
             'hits' => DB::raw('hits + 1'),
             'updated_at' => $ahora,
+            /*
+             * Dentro de la ventana, suma; fuera de ella, la racha se reinicia en 1. El `CASE`
+             * compara con `last_seen_at` TAL COMO ESTABA antes de este UPDATE (la sentencia entera
+             * lee la fila de antes), así que no hace falta leer aparte para decidir.
+             */
+            'recent_hits' => DB::raw(
+                "CASE WHEN last_seen_at >= '{$corteRacha->toDateTimeString()}' THEN recent_hits + 1 ELSE 1 END"
+            ),
             // Reaparece un error dado por resuelto: vuelve a estar activo.
             'status' => DB::raw("CASE WHEN status = 'resolved' THEN 'active' ELSE status END"),
             'resolved_at' => DB::raw("CASE WHEN status = 'resolved' THEN NULL ELSE resolved_at END"),
@@ -140,6 +157,7 @@ final class ErrorRecorder
                     'fingerprint_version' => ErrorFingerprint::VERSION,
                     'status' => 'active',
                     'hits' => 1,
+                    'recent_hits' => 1,
                     'companies_count' => 0,
                     'users_count' => 0,
                     'first_seen_at' => $ahora,
@@ -177,6 +195,14 @@ final class ErrorRecorder
                 $grupo,
                 $ahora,
             );
+        }
+
+        // Al final del todo, con el desglose ya sumado: la detección de incidentes (Fase 2) mira
+        // cuántas empresas tiene el grupo AHORA MISMO, y eso solo es correcto después de `sumarHija`.
+        $actual = ErrorEvent::query()->find($grupo);
+
+        if ($actual !== null) {
+            $this->incidentes->evaluarError($actual);
         }
     }
 

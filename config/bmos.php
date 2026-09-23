@@ -92,6 +92,19 @@ return [
                 'api.anthropic.com' => 'ai',
             ],
         ],
+
+        /*
+         * Fase 2: cuándo un grupo de errores basta para abrir un incidente por sí solo, sin que
+         * nadie lo abra a mano. Dos disparadores, cada uno con su ventana: una RACHA (muchas veces
+         * en poco rato, sea la empresa que sea) o que el mismo fallo alcance a varias empresas a la
+         * vez (una sola vez en cada una puede no ser mucho, pero repartido entre varias sí lo es).
+         */
+        'incidentes' => [
+            'racha_umbral' => (int) env('BMOS_INCIDENTES_RACHA_UMBRAL', 25),
+            'racha_minutos' => (int) env('BMOS_INCIDENTES_RACHA_MINUTOS', 15),
+            'empresas_umbral' => (int) env('BMOS_INCIDENTES_EMPRESAS_UMBRAL', 3),
+            'empresas_minutos' => (int) env('BMOS_INCIDENTES_EMPRESAS_MINUTOS', 30),
+        ],
     ],
 
     /*

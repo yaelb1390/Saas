@@ -71,7 +71,9 @@ it('el titular no cuenta las empresas con problemas de negocio: eso es aparte', 
     $contadores = app(MonitoringCounters::class)->calcular();
 
     expect($contadores)->toHaveKey('empresas_con_problemas')
-        ->and($contadores['incidentes_activos'])->toBeNull(); // sin Fase 2 todavía: «no se sabe», no «cero»
+        // Desde la Fase 2 ya hay tabla de incidentes: sin ninguno abierto, el contador real es CERO,
+        // no null. IncidentTest cubre que cuenta de verdad cuando sí los hay.
+        ->and($contadores['incidentes_activos'])->toBe(0);
 });
 
 it('sin la tabla de errores, el contador sale en cero y no revienta', function (): void {

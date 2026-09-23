@@ -153,7 +153,7 @@
             filtros y su búsqueda, vive en las pestañas Errores y Registro. Sin esto había que
             entrar a otra pestaña para saber si había algo que mirar.
         --}}
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
             <div class="bmos-card overflow-hidden">
                 <p class="border-b border-slate-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Errores activos
@@ -185,6 +185,42 @@
                     <p class="border-t border-slate-100 p-3 text-xs">
                         <a href="{{ route('platform.monitoring', ['pestana' => 'errores']) }}" class="underline text-slate-500">
                             Ver los {{ $contadores['errores_activos'] }} errores activos
+                        </a>
+                    </p>
+                @endif
+            </div>
+
+            <div class="bmos-card overflow-hidden">
+                <p class="border-b border-slate-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Incidentes activos
+                </p>
+                @forelse ($incidentesResumen as $i)
+                    <a href="{{ route('platform.monitoring.incidents.show', $i) }}" class="bmos-suceso" style="--tono: {{ $i->severity === 'critical' ? '#e11d48' : '#f59e0b' }}">
+                        <span class="bmos-suceso-hora" title="{{ $i->last_detected_at?->format('d/m/Y H:i:s') }}">
+                            {{ $i->last_detected_at?->diffForHumans() }}
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <p class="bmos-suceso-texto">
+                                <b>{{ $i->code }}</b>
+                                {{ Str::limit($i->title, 100) }}
+                            </p>
+                            <p class="bmos-suceso-meta">
+                                <span>{{ $i->companies_count }} {{ $i->companies_count === 1 ? 'empresa' : 'empresas' }}</span>
+                            </p>
+                        </div>
+                        <span class="bmos-badge {{ $i->severity === 'critical' ? 'badge-red' : 'badge-amber' }} shrink-0">
+                            {{ number_format($i->occurrences) }} {{ $i->occurrences === 1 ? 'vez' : 'veces' }}
+                        </span>
+                    </a>
+                @empty
+                    <div class="p-6 text-center">
+                        <p class="text-sm font-medium text-emerald-700">Ningún incidente activo</p>
+                    </div>
+                @endforelse
+                @if ($contadores['incidentes_activos'] > $incidentesResumen->count())
+                    <p class="border-t border-slate-100 p-3 text-xs">
+                        <a href="{{ route('platform.monitoring', ['pestana' => 'incidentes']) }}" class="underline text-slate-500">
+                            Ver los {{ $contadores['incidentes_activos'] }} incidentes activos
                         </a>
                     </p>
                 @endif

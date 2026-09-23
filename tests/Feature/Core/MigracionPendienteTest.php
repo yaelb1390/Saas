@@ -77,6 +77,21 @@ it('Monitoreo se pinta aunque falte la tabla del registro', function (): void {
         ->assertSee('Registro del sistema');
 });
 
+it('la pestaña Incidentes se pinta aunque falte su tabla (Fase 2 sin migrar)', function (): void {
+    Schema::drop('incidents');
+    DbTable::olvidar();
+
+    $superadmin = User::create([
+        'company_id' => null, 'name' => 'Operador', 'email' => 'op3@bmos.test',
+        'password' => 'secret-password', 'is_super_admin' => true,
+    ]);
+
+    $this->actingAs($superadmin)
+        ->get(route('platform.monitoring', ['pestana' => 'incidentes']))
+        ->assertOk()
+        ->assertSee('Incidentes');
+});
+
 it('y borrar lo viejo tampoco revienta sin esa tabla', function (): void {
     Schema::drop('system_events');
     DbTable::olvidar();

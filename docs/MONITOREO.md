@@ -4,8 +4,9 @@ Pantalla: `/plataforma/monitoreo` (solo el operador de la plataforma, `platform.
 explica cómo funciona, por qué está hecho así y qué falta. Cada fase del plan añade su sección; al final,
 las discrepancias que se encontraron entre la documentación del proyecto y lo que de verdad hay.
 
-> Estado: **Fase 1a** (errores multiempresa, fingerprint y sanitización). Falta la 1b (pantalla) y las
-> fases 2 a 7. El plan completo está en la conversación de diseño; aquí solo lo ya construido.
+> Estado: **Fase 2** (incidentes) hecha y probada en local, SIN SUBIR a GitHub ni migrada en producción
+> todavía. Faltan las fases 3 a 7. El plan completo está en la conversación de diseño; aquí solo lo ya
+> construido.
 
 ## Cómo está montado el entorno (lo que condiciona todo el diseño)
 
@@ -136,6 +137,116 @@ filas; la única que toca datos es el backfill, que solo inserta y rellena colum
 
 Verificar con `migrate:status` y con `select count(*) from error_event_companies` frente a los grupos con
 `company_id`. Marcha atrás: las columnas nuevas son nulas o con valor por omisión; nunca se borra nada.
+
+## Fase 1b — Contadores reales, búsqueda, filtros y pantalla en parciales
+
+`monitoring.blade.php` pasó de calcular las cuatro pestañas en cada carga a un shell que solo incluye
+el parcial de la pestaña abierta (`?pestana=`), con «Resumen» como una pestaña más y no un bloque fijo.
+
+- `Monitoring/Search/{MonitoringFilters,MonitoringSearch}`: una búsqueda por texto que encuentra por
+  empresa o por persona (subconsulta sobre `users`/`companies`, no `join`), no solo por las columnas
+  propias de cada lista; comodines del usuario neutralizados (`BusquedaTexto`); ventana de 7 días por
+  omisión al buscar, ampliable a 30/90/todo; el `context` de un suceso solo se recorre con
+  `en_detalle=1`. Filtra Errores por empresa vía el desglose (`error_event_companies`), no por «la
+  última empresa» del grupo, así que un error compartido entre varias no se esconde al filtrar por una.
+- `Monitoring/Counters/MonitoringCounters`: los contadores del titular son totales reales (consultas
+  agregadas), no `->count()` de una lista ya recortada a 15 o 25 filas para pintarse.
+- `MonitoringErrorController` + `monitoring-error.blade.php`: el detalle de un grupo de errores, con
+  su desglose por empresa y usuario, lo no atribuido, el aviso de «histórico v1» para los grupos de
+  antes del desglose, y las acciones resolver/ignorar/reabrir.
+- **Bug real encontrado y corregido**: `PlatformHealthService::pulso()` contaba `ErrorEvent` sin
+  comprobar si `error_events` existía —solo comprobaba `system_events`—; con las migraciones de este
+  proyecto aplicadas a mano y por partes, `system_events` puede existir sin `error_events` todavía, y
+  la pantalla de monitoreo (la última que puede caerse) se caía con un 500.
+
+**Tests (1b)**: `MonitoringCountersTest`, `MonitoringSearchTest`, `MonitoringErrorTest`. Suite completa:
+1319 pasan (2 fallos preexistentes y ajenos: `HelpAssistantTest`, `SocialAutomationReportTest`).
+
+## Fase 2 — Incident management
+
+### El problema
+
+Un grupo de errores dice «esto está pasando»; no dice «esto es lo bastante grave como para que
+alguien lo mire ahora». Sin incidentes, una racha de 200 errores en diez minutos se ve exactamente
+igual en la pantalla que un error que ocurre una vez al mes: una fila más en la lista de Errores.
+
+### Qué se hizo
+
+**Tablas** (`2026_09_22_1000xx`): `incidents` (código `INC-{año}-{número}`, `severity`
+low|medium|high|critical, `status` open|investigating|resolved|ignored, `occurrences`,
+`companies_count`, `dedupe_key` con **índice único parcial** —`CREATE UNIQUE INDEX ... WHERE status IN
+('open','investigating')`, válido igual en SQLite y PostgreSQL—, `source` manual|auto);
+`incident_links` (de dónde salió: grupo de error, suceso, o —Fase 3— comprobación de salud);
+`incident_companies` (desglose por empresa, sobrevive a la poda del error que lo originó);
+`error_events.recent_hits` (la racha de los últimos 15 minutos, no el total histórico).
+
+**Detección** (`Monitoring/Incidents/IncidentDetector`, llamado desde `ErrorRecorder::grabar()` al
+final, con el desglose ya sumado): dos disparadores, configurables en
+`config('bmos.monitoreo.incidentes')` —
+
+- **Racha**: `recent_hits ≥ 25` en 15 minutos. `ErrorRecorder` mantiene `recent_hits` al día en la
+  MISMA sentencia que suma `hits` (un `CASE WHEN last_seen_at >= …` sobre la fila tal como estaba
+  antes del `UPDATE`): no hace falta una consulta aparte.
+- **Empresas**: el mismo grupo afecta a `≥ 3` empresas distintas en 30 minutos, contado sobre
+  `error_event_companies.last_seen_at` (no el total histórico del grupo).
+
+Los dos apuntan a la MISMA `dedupe_key` (`error:{huella}`): da igual cuál disparó, mientras el
+incidente siga activo lo que llega se SUMA (ocurrencias, última detección, empresas), no abre uno
+nuevo. Solo se crea uno si no hay ninguno activo con esa clave —el mismo patrón UPDATE-primero,
+INSERT-si-no-había-nada que ya usa `ErrorRecorder` con los grupos de error—. **Sin autorresolución**:
+un incidente resuelto que vuelve a cumplir el disparador abre uno NUEVO, con su propio código; el
+índice único parcial solo protege mientras el incidente sigue `open`/`investigating`.
+
+**`Monitoring/Incidents/IncidentService`**: abre/suma (con reintento si dos procesos chocan por el
+código del mismo año), cambia el estado (investigar/resolver/ignorar/reabrir, con quién y cuándo, y su
+`SystemEvent`), y lista con filtros (estado, severidad, servicio, empresa, fecha, texto por
+código/título) reutilizando `MonitoringFilters` —con `severidad` añadido y `open`/`investigating`
+sumados a la lista de estados compartida, que cada pantalla interpreta a su manera (ver el comentario
+en `MonitoringFilters::ESTADOS`)—.
+
+**Pantalla**: pestaña «Incidentes» (mismo patrón que Errores), `MonitoringIncidentController` +
+`monitoring-incident.blade.php` para el detalle (desglose por empresa, de dónde salió, acciones), y
+una tarjeta de adelanto en el Resumen. `MonitoringCounters::incidentes_activos` deja de ser `null`
+—ya hay tabla— y pasa a ser el conteo real; NO se suma a `pendientes` a propósito: casi todo incidente
+activo nace de un error que YA cuenta en `errores_activos`, y sumarlo doblaría la misma cosa.
+
+**Borrado de empresa**: `CompanyEraser` limpia `incident_companies` de la empresa borrada y recalcula
+`companies_count`, pero —al revés que con los grupos de error— NO borra el incidente aunque se quede
+sin ninguna empresa: un incidente es un hecho que ya pasó, no un contador que se vacía.
+`TenantDataPurger::KEPT` += `incident_companies` (sobrevive a una purga de prueba autoservicio, igual
+que el resto del rastro). Sin poda propia todavía: el plan no la pide en esta fase.
+
+**Familia nueva en el registro**: `'incident' => 'Incidentes'` en `MonitoringController::FAMILIAS`,
+instrumentada de verdad (`incident.opened`, `incident.status_changed`), no un filtro que nadie escribe.
+
+### Archivos
+
+Nuevos: `database/migrations/2026_09_22_1000{00,00,00,00}_*` (incidentes, enlaces, desglose,
+`recent_hits`), `app/Modules/Core/Models/{Incident,IncidentLink,IncidentCompany}.php`,
+`app/Modules/Core/Monitoring/Incidents/{IncidentService,IncidentDetector}.php`,
+`app/Modules/Core/Http/Controllers/MonitoringIncidentController.php`,
+`resources/views/panel/admin/monitoring-incident.blade.php`,
+`resources/views/panel/admin/monitoring/partials/tab-incidentes.blade.php`.
+Modificados: `Monitoring/Errors/ErrorRecorder.php` (recent_hits + llamada al detector),
+`Monitoring/Search/MonitoringFilters.php` (severidad, estados de incidente),
+`Monitoring/Counters/MonitoringCounters.php`, `Http/Controllers/MonitoringController.php`,
+`Services/{CompanyEraser,TenantDataPurger}.php`, `resources/views/panel/admin/monitoring.blade.php` +
+`partials/resumen.blade.php`, `routes/web.php`, `config/bmos.php`, `.env.example`.
+
+### Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| El código sale antes que la migración | `IncidentDetector` comprueba `DbTable::existe('incidents')`; sin ella, ningún incidente se abre y el registro de errores sigue igual. Test «sin la tabla» en `MigracionPendienteTest` e `IncidentTest` |
+| Dos procesos abren el mismo incidente a la vez | Índice único parcial + patrón UPDATE-primero con reintento en el código (year+seq) |
+| Umbrales mal calibrados (demasiados o muy pocos incidentes) | Configurables por variable de entorno, sin tocar código |
+| Un incidente que no debía juntar dos problemas distintos | Cada disparador apunta a la huella del error (`error:{huella}`), que ya distingue clase, mensaje normalizado, origen y servicio (Fase 1a) |
+
+### Aplicar las migraciones en producción
+
+Mismo procedimiento que la Fase 1a (pooler de sesión, `search_path=bmos`, `--pretend` antes). Las 4
+migraciones de esta fase solo AÑADEN tablas y una columna con valor por omisión (`recent_hits` en 0):
+nada que migrar es destructivo, y sin migrar el código sigue funcionando exactamente como en la Fase 1b.
 
 ## Discrepancias entre la documentación y la implementación real
 

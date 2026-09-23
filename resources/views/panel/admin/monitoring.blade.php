@@ -69,6 +69,7 @@
         'resumen' => ['etiqueta' => 'Resumen', 'num' => null],
         'registro' => ['etiqueta' => 'Registro del sistema', 'num' => null],
         'errores' => ['etiqueta' => 'Errores', 'num' => $contadores['errores_activos']],
+        'incidentes' => ['etiqueta' => 'Incidentes', 'num' => $contadores['incidentes_activos']],
         'empresas' => ['etiqueta' => 'Empresas', 'num' => $contadores['empresas_con_problemas']],
         'actividad' => ['etiqueta' => 'Actividad', 'num' => null],
     ];
@@ -79,6 +80,7 @@
     $vista = match ($f->pestana) {
         'registro' => 'panel.admin.monitoring.partials.tab-registro',
         'errores' => 'panel.admin.monitoring.partials.tab-errores',
+        'incidentes' => 'panel.admin.monitoring.partials.tab-incidentes',
         'empresas' => 'panel.admin.monitoring.partials.tab-empresas',
         'actividad' => 'panel.admin.monitoring.partials.tab-actividad',
         default => 'panel.admin.monitoring.partials.resumen',

@@ -116,7 +116,10 @@ final class PlatformHealthService
                 ->where('type', 'auth.login')->count(),
             'fallidos' => SystemEvent::query()->where('created_at', '>=', $desde)
                 ->where('type', 'auth.failed')->count(),
-            'errores' => ErrorEvent::query()->where('last_seen_at', '>=', $desde)->count(),
+            // `system_events` puede existir sin `error_events` todavía: son migraciones distintas.
+            'errores' => DbTable::existe('error_events')
+                ? ErrorEvent::query()->where('last_seen_at', '>=', $desde)->count()
+                : 0,
         ];
 
         /*

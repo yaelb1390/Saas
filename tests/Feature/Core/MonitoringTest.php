@@ -99,8 +99,10 @@ it('se puede filtrar la actividad por empresa', function (): void {
     Customer::create(['company_id' => $this->segunda->id, 'name' => 'De la segunda']);
     app(CurrentCompany::class)->set($this->primera->id);
 
+    // La Fase 1b solo calcula la pestaña que se pide: sin decir cuál, `empresa` sola abre el
+    // Registro, que aquí está vacío. Se pide la de Actividad, que es la que este test comprueba.
     $this->actingAs($this->super)
-        ->get(route('platform.monitoring', ['empresa' => $this->segunda->id]))
+        ->get(route('platform.monitoring', ['pestana' => 'actividad', 'empresa' => $this->segunda->id]))
         ->assertOk()
         ->assertSee('Segunda');
 });
@@ -109,7 +111,8 @@ it('los nombres de modelo salen en español', function (): void {
     // «App\Modules\CRM\Models\Customer» no es información para nadie.
     Customer::create(['company_id' => $this->primera->id, 'name' => 'Ana']);
 
-    $this->actingAs($this->super)->get(route('platform.monitoring'))
+    // Desde la Fase 1b la actividad es su propia pestaña: el Resumen ya no trae la auditoría.
+    $this->actingAs($this->super)->get(route('platform.monitoring', ['pestana' => 'actividad']))
         ->assertOk()
         ->assertSee('Cliente')
         ->assertDontSee('App\Modules\CRM\Models\Customer');
@@ -231,7 +234,9 @@ it('la pestaña de empresas enseña a cada una con lo que le pasa', function ():
     Warehouse::withoutGlobalScopes()
         ->where('company_id', $this->segunda->id)->update(['is_default' => false]);
 
-    $r = $this->actingAs($this->super)->get(route('platform.monitoring'))->assertOk();
+    // Desde la Fase 1b «Empresas» es su propia pestaña: el Resumen ya no trae la tabla entera.
+    $r = $this->actingAs($this->super)
+        ->get(route('platform.monitoring', ['pestana' => 'empresas']))->assertOk();
 
     $r->assertSee('Primera')
         ->assertSee('Segunda')
@@ -243,7 +248,7 @@ it('la pestaña de empresas enseña a cada una con lo que le pasa', function ():
 it('la empresa a la que no le pasa nada sale en orden, no en blanco', function (): void {
     // Una celda vacía se lee como «no se pudo calcular». Es un panel de control: el silencio tiene
     // que decir «está bien», y decirlo con todas las letras.
-    $this->actingAs($this->super)->get(route('platform.monitoring'))
+    $this->actingAs($this->super)->get(route('platform.monitoring', ['pestana' => 'empresas']))
         ->assertOk()
         ->assertSee('Todo en orden');
 });

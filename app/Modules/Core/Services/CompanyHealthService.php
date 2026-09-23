@@ -63,6 +63,45 @@ final class CompanyHealthService
     }
 
     /**
+     * Las señales que hacen que una empresa cuente como «con problemas». Un `array_filter` a mano por
+     * cada llamador sería repetir esta misma lista de ocho campos y dos umbrales en cada sitio que
+     * necesite el mismo criterio, y que divergieran sería el bug más silencioso posible: dos pantallas
+     * de acuerdo hoy y en desacuerdo dentro de un mes sin que nadie lo note.
+     */
+    private const SEÑALES_BOOLEANAS = [
+        'sin_almacen', 'sin_ncf', 'caja_abierta', 'sin_productos',
+        'nunca_vendio', 'sin_vender', 'pasada_de_plan', 'bot_sin_info',
+    ];
+
+    /**
+     * Cuántas empresas tienen AL MENOS UNA señal de problema.
+     *
+     * Es distinto de sumar `resumenDeAvisos()`: una empresa con tres señales a la vez contaría tres
+     * veces ahí, y el titular de la pantalla («N empresas piden atención») necesita empresas, no
+     * señales.
+     */
+    public function conAviso(): int
+    {
+        return $this->porEmpresa()
+            ->filter(fn (array $e): bool => $this->tieneAlgunaSeñal($e))
+            ->count();
+    }
+
+    /**
+     * @param  array<string, mixed>  $empresa  una fila de {@see porEmpresa()}
+     */
+    private function tieneAlgunaSeñal(array $empresa): bool
+    {
+        foreach (self::SEÑALES_BOOLEANAS as $señal) {
+            if ($empresa[$señal] === true) {
+                return true;
+            }
+        }
+
+        return $empresa['descuadres'] > 0 || $empresa['sin_precio'] > 0;
+    }
+
+    /**
      * Cuántas empresas tiene cada problema, para las tarjetas de arriba.
      *
      * @return array<string, int>

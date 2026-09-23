@@ -23,6 +23,31 @@ use PDOException;
  */
 final class ServiceResolver
 {
+    /**
+     * Cómo se llama cada servicio para quien mira la pantalla. Es la lista de lo que este resolvedor puede
+     * devolver: el filtro por servicio la usa para ofrecer solo valores que existen, sin preguntar a la
+     * base (un `select distinct` sobre una tabla que crece cada día no es un desplegable barato).
+     *
+     * @var array<string, string>
+     */
+    public const NOMBRES = [
+        'app' => 'Aplicación',
+        'database' => 'Base de datos',
+        'redis' => 'Redis',
+        'mail' => 'Correo',
+        'storage' => 'Almacenamiento',
+        'polar' => 'Cobros (Polar)',
+        'evolution' => 'WhatsApp (Evolution)',
+        'whatsapp' => 'WhatsApp',
+        'ai' => 'Inteligencia Artificial',
+        'zernio' => 'Redes sociales',
+        'auth' => 'Accesos',
+        'scheduler' => 'Tareas programadas',
+        'queue' => 'Colas',
+        'platform' => 'Plataforma',
+        'incidents' => 'Incidentes',
+    ];
+
     /** El servicio de cada familia de sucesos, por el prefijo de su tipo. */
     private const PREFIJOS_DE_SUCESO = [
         'auth.' => 'auth',

@@ -18,6 +18,7 @@ use App\Modules\Core\Http\Controllers\CompanySwitchController;
 use App\Modules\Core\Http\Controllers\DashboardController;
 use App\Modules\Core\Http\Controllers\MailTestController;
 use App\Modules\Core\Http\Controllers\MonitoringController;
+use App\Modules\Core\Http\Controllers\MonitoringErrorController;
 use App\Modules\Core\Http\Controllers\PlanController;
 use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\PublicPlanController;
@@ -348,6 +349,10 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/plataforma/monitoreo', MonitoringController::class)->name('platform.monitoring');
         Route::post('/plataforma/monitoreo/limpiar', [MonitoringController::class, 'limpiar'])
             ->name('platform.monitoring.clean');
+        Route::get('/plataforma/monitoreo/errores/{errorEvent}', [MonitoringErrorController::class, 'show'])
+            ->name('platform.monitoring.error');
+        Route::post('/plataforma/monitoreo/errores/{errorEvent}/estado', [MonitoringErrorController::class, 'status'])
+            ->middleware('throttle:60,1')->name('platform.monitoring.error.status');
 
         // Correos de prueba: manda a mano, con datos de ejemplo, los correos que reciben los clientes,
         // para comprobar que llegan a Gmail, Hotmail… sin provocar una baja real en Polar. `throttle`

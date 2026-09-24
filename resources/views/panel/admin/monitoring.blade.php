@@ -39,7 +39,8 @@
             $que, $pulso['dia'][$clave], $pulso['antes'][$clave] ?? 0),
     );
 
-    $tonos = ['bien' => '#059669', 'aviso' => '#d97706', 'apagado' => '#94a3b8'];
+    // «grave», desde la Fase 3: un servicio que respondió mal de verdad (no solo sin credencial).
+    $tonos = ['bien' => '#059669', 'aviso' => '#d97706', 'grave' => '#e11d48', 'apagado' => '#94a3b8'];
     $nivel = ['critical' => 'badge-red', 'warning' => 'badge-amber', 'info' => 'badge-blue'];
 
     // «App\Modules\Sales\Models\Sale» no es información para nadie.
@@ -70,6 +71,7 @@
         'registro' => ['etiqueta' => 'Registro del sistema', 'num' => null],
         'errores' => ['etiqueta' => 'Errores', 'num' => $contadores['errores_activos']],
         'incidentes' => ['etiqueta' => 'Incidentes', 'num' => $contadores['incidentes_activos']],
+        'servicios' => ['etiqueta' => 'Servicios', 'num' => $contadores['servicios_con_aviso']],
         'empresas' => ['etiqueta' => 'Empresas', 'num' => $contadores['empresas_con_problemas']],
         'actividad' => ['etiqueta' => 'Actividad', 'num' => null],
     ];
@@ -81,9 +83,27 @@
         'registro' => 'panel.admin.monitoring.partials.tab-registro',
         'errores' => 'panel.admin.monitoring.partials.tab-errores',
         'incidentes' => 'panel.admin.monitoring.partials.tab-incidentes',
+        'servicios' => 'panel.admin.monitoring.partials.tab-servicios',
         'empresas' => 'panel.admin.monitoring.partials.tab-empresas',
         'actividad' => 'panel.admin.monitoring.partials.tab-actividad',
         default => 'panel.admin.monitoring.partials.resumen',
+    };
+
+    // El estado general (Fase 3): manda sobre los contadores cuando algo está de verdad caído. Con
+    // «pendientes» solo (webhooks, errores…) el titular decía «N cosas piden atención» aunque la
+    // base de datos misma no respondiera; con `estado_general` unhealthy, eso pasa a ser lo primero
+    // que se lee, no una fila más entre las demás.
+    $tonoGeneral = match (true) {
+        $salud['estado_general'] === 'unhealthy' => 'grave',
+        $contadores['pendientes'] > 0 || $salud['estado_general'] === 'degraded' => 'aviso',
+        default => 'ok',
+    };
+
+    $tituloGeneral = match (true) {
+        $salud['estado_general'] === 'unhealthy' => 'BMIA no está respondiendo bien: revisa Servicios',
+        $contadores['pendientes'] > 0 => $contadores['pendientes'] === 1 ? 'Una cosa pide atención' : $contadores['pendientes'].' cosas piden atención',
+        $salud['estado_general'] === 'degraded' => 'Todo en orden, con algún servicio a medias',
+        default => 'Todo en orden',
     };
 @endphp
 
@@ -95,10 +115,8 @@
              nunca de una lista ya recortada para pintarse—, así que significa lo mismo mire quien
              mire, esté en la pestaña que esté. --}}
         <x-panel.estado
-            :tono="$contadores['pendientes'] > 0 ? 'aviso' : 'ok'"
-            :titulo="$contadores['pendientes'] > 0
-                ? ($contadores['pendientes'] === 1 ? 'Una cosa pide atención' : $contadores['pendientes'].' cosas piden atención')
-                : 'Todo en orden'"
+            :tono="$tonoGeneral"
+            :titulo="$tituloGeneral"
             :nota="$salud['empresas_activas'].' '.($salud['empresas_activas'] === 1 ? 'empresa activa' : 'empresas activas')
                 .' · '.$salud['usuarios'].' '.($salud['usuarios'] === 1 ? 'usuario' : 'usuarios')
                 .' · comprobado '.now()->format('H:i')" />

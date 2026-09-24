@@ -63,6 +63,9 @@ return [
         // Los errores agrupados, por la última vez que ocurrieron. Antes no se podaban nunca. Igual que
         // los sucesos, son NUESTRO diario de a bordo: pasados tres meses sin repetirse no le sirven a nadie.
         'errores' => (int) env('BMOS_RETENCION_ERRORES', 90),
+        // El histórico de comprobaciones de salud (Fase 3). Corto a propósito: es para ver una
+        // tendencia de los últimos días, no un archivo; `health_checks` («cómo está ahora») no se poda.
+        'salud' => (int) env('BMOS_RETENCION_SALUD', 14),
     ],
 
     /*
@@ -104,6 +107,10 @@ return [
             'racha_minutos' => (int) env('BMOS_INCIDENTES_RACHA_MINUTOS', 15),
             'empresas_umbral' => (int) env('BMOS_INCIDENTES_EMPRESAS_UMBRAL', 3),
             'empresas_minutos' => (int) env('BMOS_INCIDENTES_EMPRESAS_MINUTOS', 30),
+            // Fase 3: comprobaciones de salud SEGUIDAS y sin responder antes de abrir un incidente.
+            // Dos y no una: una sonda puede fallar suelta por una red que titubea un segundo, y eso
+            // no es un servicio caído.
+            'salud_fallos_umbral' => (int) env('BMOS_INCIDENTES_SALUD_FALLOS_UMBRAL', 2),
         ],
     ],
 

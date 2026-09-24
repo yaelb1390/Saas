@@ -4,9 +4,9 @@ Pantalla: `/plataforma/monitoreo` (solo el operador de la plataforma, `platform.
 explica cómo funciona, por qué está hecho así y qué falta. Cada fase del plan añade su sección; al final,
 las discrepancias que se encontraron entre la documentación del proyecto y lo que de verdad hay.
 
-> Estado: **Fase 2** (incidentes) hecha y probada en local, SIN SUBIR a GitHub ni migrada en producción
-> todavía. Faltan las fases 3 a 7. El plan completo está en la conversación de diseño; aquí solo lo ya
-> construido.
+> Estado: **Fase 3** (salud real de los servicios) hecha y probada en local, SIN SUBIR a GitHub ni
+> migrada en producción todavía. Faltan las fases 4 a 7. El plan completo está en la conversación de
+> diseño; aquí solo lo ya construido.
 
 ## Cómo está montado el entorno (lo que condiciona todo el diseño)
 
@@ -247,6 +247,109 @@ Modificados: `Monitoring/Errors/ErrorRecorder.php` (recent_hits + llamada al det
 Mismo procedimiento que la Fase 1a (pooler de sesión, `search_path=bmos`, `--pretend` antes). Las 4
 migraciones de esta fase solo AÑADEN tablas y una columna con valor por omisión (`recent_hits` en 0):
 nada que migrar es destructivo, y sin migrar el código sigue funcionando exactamente como en la Fase 1b.
+
+## Fase 3 — Health checks reales (configuración ≠ disponibilidad)
+
+### El problema
+
+`PlatformHealthService::integraciones()` decía «bien» con solo mirar si había una clave de API
+puesta. Una clave de Evolution caducada, un dominio de Polar caído o una cuenta de OpenAI sin saldo se
+veían tan «bien» como uno que de verdad funcionaba, hasta que un cliente delante del mostrador decía
+que el bot no contestaba. Esta fase separa las dos preguntas: `configured` (¿hay credencial?) y
+`available` (¿respondió la ÚLTIMA VEZ que se le preguntó de verdad?).
+
+### Qué se hizo
+
+**Tablas** (`2026_09_23_1000xx`): `health_checks` (una fila por servicio, lo que se sabe AHORA:
+`status` healthy|degraded|unhealthy|unknown, `configured`, `available`, `latency_ms`, `message`,
+`last_error` saneado, `last_checked/success/failure_at`, rachas de `consecutive_failures/successes`,
+`details` json); `health_check_results` (histórico compacto, se poda a los 14 días —`health_checks` NO
+se poda: sería borrar el único dato que la pantalla enseña—); índices `wa_messages(status,created_at)`
+y `(company_id,status,created_at)`.
+
+**Contrato** (`Monitoring/Health/`): `HealthStatus` (cuatro constantes, mismo estilo que el resto del
+módulo), `HealthResult` (objeto de valor que construye cada sonda), `HealthCheck` (interfaz),
+`HealthRegistry` (las sondas que existen; `queue` se añade en la Fase 4, no está aquí a propósito),
+`HealthStore` (guarda en las dos tablas y lleva las rachas), `HealthAggregator` (el estado GENERAL:
+solo `database` es crítica para la plataforma entera —un colmado sigue cobrando aunque WhatsApp no
+conteste—; un dato crítico VIEJO nunca marca DOWN por sí solo, degrada), `HealthCheckRunner`
+(candado `Cache::lock` por servicio + intervalo mínimo de 30 s salvo `--forzar`; una sonda que LANZA
+cuenta como caída, nunca tumba la comprobación).
+
+**Sondas** (`Monitoring/Health/Checks/`), las seis de esta fase (no siete: `queue` es de la Fase 4):
+
+| Sonda | Qué comprueba | Notas |
+|---|---|---|
+| `database` | `select 1` + latencia | Siempre «configurada»: sin ella la app no arranca |
+| `redis` | `ping` | Solo si caché, cola o sesión son Redis; hoy en producción ninguna lo es → «no aplica» |
+| `evolution` | `GET /instance/connectionState/{slug}` | La MISMA ruta que ya usa `EvolutionGateway::status()` en producción, contra una empresa real con la línea por QR activa. **Sin ninguna empresa así, queda «no aplica»**: no se inventó una comprobación contra la raíz del servidor (`GET {base}/`) porque no se pudo verificar contra una instancia real en esta fase —`bmos_evolution` no estaba levantado al escribir esto— y una sonda que comprueba algo distinto de lo que dice contradice el motivo de la fase |
+| `ai` | Lista modelos del proveedor CONFIGURADO en el panel (OpenAI `GET /models`, Gemini `GET /models`, Anthropic `GET /models`) | NUNCA genera nada (a diferencia de `AiSettingsController::probar()`, que sí gasta un token a propósito cuando alguien lo pide); `local` → «no aplica» |
+| `polar` | `GET /v1/products/?limit=1` con `PolarClient` (el mismo cliente que los cobros reales) | 403 (token sin ámbito de lectura) → `degraded`, no caído |
+| `mail` | `getSymfonyTransport()->start()/stop()`, solo si `MAIL_MAILER=smtp` | Nunca manda un correo de prueba (para eso está la herramienta de «Correos de prueba») |
+
+**Tercer disparador de incidentes** (cierra lo que la Fase 2 dejó pendiente: «servicio unhealthy con
+≥2 fallos, desde F3»): `IncidentDetector::evaluarSalud()`, llamado por `HealthCheckRunner` después de
+guardar cada resultado. `salud_fallos_umbral` (2, configurable) comprobaciones UNHEALTHY SEGUIDAS abren
+o suman sobre `health:{servicio}`; una sana entre medias reinicia la racha. Severidad `critical` solo
+para `database`, `high` para el resto.
+
+**Ejecución**: comando `salud:comprobar {--servicio=} {--forzar} {--presupuesto=}` (sin presupuesto,
+todas; con él, ordena por la que lleva más tiempo sin comprobarse primero y para al agotarse —pensado
+para el tope de ~10 s de una función de Vercel—); `GET /tareas/comprobar-salud` (`tasks.check-health`,
+mismo patrn `assertCron` que las demás tareas, cron diario en `vercel.json`); `POST
+/plataforma/monitoreo/salud/{servicio}` (`throttle:30,1`, JSON) que el panel llama con `fetch` SOLO
+para las sondas vencidas (más de 5 minutos sin comprobarse, calculado en el servidor) al abrir la
+pestaña «Servicios»; el render de la pantalla en sí NUNCA hace peticiones remotas.
+
+**`PlatformHealthService::integraciones()`**: las mismas cuatro tarjetas de siempre (polar, ia,
+whatsapp, redes), pero polar/ia/whatsapp ahora leen `health_checks` cuando hay algo que leer y caen al
+criterio de solo-configuración cuando no (tabla ausente, o esa sonda todavía sin su primera pasada). La
+tarjeta de WhatsApp solo mira la conectividad de Evolution cuando de verdad hay una empresa que
+dependa de ella —una instalación 100% Zernio no se ve «apagada» solo porque nadie usa Evolution— y
+suma los mensajes fallidos de las últimas 24 h (no de toda la historia, que era el bug) más los
+`pending` atascados más de 15 minutos. Nuevo tono `grave` (rojo) además de `bien`/`aviso`/`apagado`.
+
+**Pantalla**: pestaña «Servicios» con las seis sondas, su «Comprobar ahora», y el aviso de vencidas que
+se piden solas al abrir la pestaña. El titular de TODA la pantalla (la tira `<x-panel.estado>` de
+arriba, siempre visible, no solo en Resumen) ahora manda por `estado_general`
+(`PlatformHealthService::calcular()`, vía `HealthAggregator`) antes que por los contadores de
+«pendientes»: con la plataforma DOWN, eso es lo primero que se lee.
+
+**No verificado contra servicios reales en esta fase** (para que quien despliegue lo sepa antes de
+activar el cron): la ruta raíz de Evolution como respaldo (por eso no se implementó, ver arriba); los
+endpoints exactos de IA y Polar salen de la documentación de cada proveedor y de `PolarClient`, no de
+una llamada real hecha desde aquí —`bmos_evolution` no estaba arriba y no se gastaron tokens ni se
+llamó a la API de cobros real sin permiso—. Recomendado: `php artisan salud:comprobar --forzar` a mano
+contra cada servicio configurado antes de fiarse del cron.
+
+### Archivos
+
+Nuevos: `database/migrations/2026_09_23_1000{00,00,00,00}_*`, `app/Modules/Core/Monitoring/Health/`
+(contrato + `Checks/{Database,Redis,Evolution,Ai,Polar,Mail}Check.php`),
+`app/Console/Commands/CheckServiceHealth.php`,
+`app/Modules/Core/Http/Controllers/MonitoringHealthController.php`,
+`resources/views/panel/admin/monitoring/partials/tab-servicios.blade.php`.
+Modificados: `Services/PlatformHealthService.php` (reescrito `integraciones()`, `estado_general`
+nuevo), `Http/Controllers/{MonitoringController,TrialMaintenanceController}.php`,
+`Monitoring/Incidents/IncidentDetector.php` (`evaluarSalud()`), `Providers/CoreServiceProvider.php`
+(`HealthRegistry` singleton), `Console/Commands/PurgeOldRecords.php`, `config/bmos.php`, `.env.example`,
+`routes/web.php`, `vercel.json`, `resources/views/panel/admin/monitoring.blade.php` + `partials/resumen.blade.php`.
+
+### Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| El código sale antes que la migración | Todo gated tras `DbTable::existe('health_checks')`; el registro de errores y la pantalla siguen funcionando sin ella |
+| Una sonda mal escrita gasta cuota de una cuenta de pago en cada pasada | Nunca genera contenido (solo lista modelos/catálogo); intervalo mínimo de 30 s; `throttle:30,1` en el AJAX |
+| Falso DOWN por un cron que dejó de correr | Dato crítico viejo degrada, nunca apaga |
+| Endpoints de IA/Polar/Evolution no verificados contra el servicio real en esta fase | Ver «No verificado» arriba; probar a mano con `--forzar` antes de activar el cron en producción |
+| Pinger externo (GitHub Actions cada 5 min) | NO añadido: el plan pide OK explícito antes de meter ese workflow en el repo público |
+
+### Aplicar las migraciones en producción
+
+Mismo procedimiento que las fases anteriores. Las 3 migraciones solo AÑADEN (dos tablas nuevas, dos
+índices en `wa_messages`); nada destructivo, nada que migrar es obligatorio para que el código siga
+funcionando exactamente como en la Fase 2.
 
 ## Discrepancias entre la documentación y la implementación real
 

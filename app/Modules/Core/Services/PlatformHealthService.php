@@ -14,11 +14,14 @@ use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Support\PolarSignature;
 use App\Modules\Core\Support\SubscriptionNotice;
+use App\Modules\Core\Monitoring\Health\HealthAggregator;
+use App\Modules\Core\Monitoring\Health\HealthStatus;
 use App\Modules\WhatsApp\Enums\MessageStatus;
 use App\Modules\WhatsApp\Models\WaMessage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * El estado de la plataforma entera, para el operador.
@@ -35,6 +38,8 @@ use Illuminate\Support\Facades\Cache;
 final class PlatformHealthService
 {
     private const TTL = 60;
+
+    public function __construct(private readonly HealthAggregator $salud) {}
 
     /**
      * @return array<string, mixed>
@@ -75,6 +80,10 @@ final class PlatformHealthService
             'bloqueadas' => $this->bloqueadas($suscripciones),
             'por_vencer' => $porVencer,
             'integraciones' => $this->integraciones(),
+            // El estado de TODA la plataforma en una palabra (Fase 3): reutiliza el vocabulario de
+            // `HealthStatus` (`unhealthy` es DOWN). Cacheado con el resto: no vale la pena recalcular
+            // esto más a menudo que las demás cifras de este mismo resumen.
+            'estado_general' => $this->salud->estado(),
         ];
     }
 
@@ -193,47 +202,26 @@ final class PlatformHealthService
     /**
      * El estado de cada servicio externo.
      *
-     * Todo sale de comprobaciones que ya existían; aquí solo se juntan. Cada una devuelve su tono
-     * para que la vista no tenga que decidir qué es bueno y qué es malo.
+     * Desde la Fase 3, «polar», «ia» y «whatsapp» consultan `health_checks` —lo que de verdad
+     * respondió la última vez, no solo si hay una clave puesta—; antes de esta fase (o antes de que
+     * se aplique su migración) caen al criterio de solo-configuración que había, sin romperse.
+     * «redes» (Zernio) sigue igual: no tiene sonda propia en esta fase, y contar empresas sin
+     * conectar es una pregunta de configuración, no de disponibilidad.
      *
      * @return array<int, array{clave: string, nombre: string, estado: string, detalle: string}>
      */
     private function integraciones(): array
     {
-        $ajustesIa = AiSetting::query()->first();
+        $salud = DbTable::existe('health_checks')
+            ? DB::table('health_checks')->get()->keyBy('service')
+            : collect();
+
         $sinRedes = Company::query()->whereNull('social_api_key')->count();
-        $fallidos = WaMessage::query()->withoutGlobalScopes()
-            ->where('status', MessageStatus::Failed)->count();
-        // «unresolved» significa literalmente que alguien tiene que mirarlo: es la señal más
-        // accionable que hay hoy en toda la plataforma.
-        $sinResolver = PolarWebhookEvent::query()
-            ->where('result', PolarWebhookEvent::RESULT_UNRESOLVED)->count();
 
         return [
-            [
-                'clave' => 'polar',
-                'nombre' => 'Cobros (Polar)',
-                'estado' => PolarSignature::fromConfig()->isConfigured() ? 'bien' : 'apagado',
-                'detalle' => $sinResolver > 0
-                    ? $sinResolver.' '.($sinResolver === 1 ? 'aviso sin resolver' : 'avisos sin resolver')
-                    : 'sin avisos pendientes',
-            ],
-            [
-                'clave' => 'ia',
-                'nombre' => 'Inteligencia Artificial',
-                'estado' => $ajustesIa?->configurado() ? 'bien' : 'apagado',
-                'detalle' => $ajustesIa?->configurado()
-                    ? (string) $ajustesIa->provider
-                    : 'sin clave: el asistente no redacta',
-            ],
-            [
-                'clave' => 'whatsapp',
-                'nombre' => 'WhatsApp',
-                'estado' => $fallidos > 0 ? 'aviso' : 'bien',
-                'detalle' => $fallidos > 0
-                    ? $fallidos.' '.($fallidos === 1 ? 'mensaje no salió' : 'mensajes no salieron')
-                    : 'sin mensajes fallidos',
-            ],
+            $this->integracionPolar($salud->get('polar')),
+            $this->integracionIa($salud->get('ai')),
+            $this->integracionWhatsapp($salud->get('evolution')),
             [
                 'clave' => 'redes',
                 'nombre' => 'Redes sociales',
@@ -243,6 +231,114 @@ final class PlatformHealthService
                     : 'todas conectadas',
             ],
         ];
+    }
+
+    /**
+     * @return array{clave: string, nombre: string, estado: string, detalle: string}
+     */
+    private function integracionPolar(?object $fila): array
+    {
+        $sinResolver = PolarWebhookEvent::query()
+            ->where('result', PolarWebhookEvent::RESULT_UNRESOLVED)->count();
+
+        $detalleAvisos = $sinResolver > 0
+            ? $sinResolver.' '.($sinResolver === 1 ? 'aviso sin resolver' : 'avisos sin resolver')
+            : 'sin avisos pendientes';
+
+        if ($fila === null || ! $fila->configured) {
+            return [
+                'clave' => 'polar', 'nombre' => 'Cobros (Polar)',
+                'estado' => PolarSignature::fromConfig()->isConfigured() ? 'bien' : 'apagado',
+                'detalle' => $detalleAvisos,
+            ];
+        }
+
+        $tono = $this->tono($fila->status);
+
+        // Un aviso de cobro sin resolver PIDE ATENCIÓN aunque Polar responda perfectamente: no es lo
+        // mismo «el servicio funciona» que «no hay nada pendiente en él».
+        if ($tono === 'bien' && $sinResolver > 0) {
+            $tono = 'aviso';
+        }
+
+        return [
+            'clave' => 'polar', 'nombre' => 'Cobros (Polar)', 'estado' => $tono,
+            'detalle' => $tono === 'bien' ? $detalleAvisos : ($fila->message ?? $detalleAvisos),
+        ];
+    }
+
+    /**
+     * @return array{clave: string, nombre: string, estado: string, detalle: string}
+     */
+    private function integracionIa(?object $fila): array
+    {
+        $ajustesIa = AiSetting::query()->first();
+
+        if ($fila === null || ! $fila->configured) {
+            return [
+                'clave' => 'ia', 'nombre' => 'Inteligencia Artificial',
+                'estado' => $ajustesIa?->configurado() ? 'bien' : 'apagado',
+                'detalle' => $ajustesIa?->configurado() ? (string) $ajustesIa->provider : 'sin clave: el asistente no redacta',
+            ];
+        }
+
+        $tono = $this->tono($fila->status);
+
+        return [
+            'clave' => 'ia', 'nombre' => 'Inteligencia Artificial', 'estado' => $tono,
+            'detalle' => $tono === 'bien' ? (string) $ajustesIa?->provider : ($fila->message ?? (string) $ajustesIa?->provider),
+        ];
+    }
+
+    /**
+     * @return array{clave: string, nombre: string, estado: string, detalle: string}
+     */
+    private function integracionWhatsapp(?object $filaEvolution): array
+    {
+        $fallidosHoy = WaMessage::query()->withoutGlobalScopes()
+            ->where('status', MessageStatus::Failed)
+            ->where('created_at', '>=', now()->subDay())
+            ->count();
+
+        // Un mensaje `pending` desde hace más de un cuarto de hora no está «en camino»: algo lo dejó
+        // a medias (la cola, el gateway) y nadie lo está mirando.
+        $atascados = WaMessage::query()->withoutGlobalScopes()
+            ->where('status', MessageStatus::Pending)
+            ->where('created_at', '<', now()->subMinutes(15))
+            ->count();
+
+        $partes = array_filter([
+            $fallidosHoy > 0 ? $fallidosHoy.' '.($fallidosHoy === 1 ? 'mensaje no salió hoy' : 'mensajes no salieron hoy') : null,
+            $atascados > 0 ? $atascados.' '.($atascados === 1 ? 'atascado' : 'atascados') : null,
+        ]);
+
+        $detalle = $partes === [] ? 'sin mensajes fallidos' : implode(', ', $partes);
+
+        // Solo se mira la conectividad de Evolution cuando de verdad hay una empresa con línea que
+        // dependa de ella: una instalación que solo usa la vía oficial (Zernio) no tiene por qué
+        // verse «apagada» solo porque nadie usa Evolution.
+        $tonoConectividad = ($filaEvolution !== null && $filaEvolution->configured)
+            ? $this->tono($filaEvolution->status)
+            : null;
+
+        $estado = match (true) {
+            $tonoConectividad === 'grave' => 'grave',
+            $partes !== [] || $tonoConectividad === 'aviso' => 'aviso',
+            default => 'bien',
+        };
+
+        return ['clave' => 'whatsapp', 'nombre' => 'WhatsApp', 'estado' => $estado, 'detalle' => $detalle];
+    }
+
+    /** `HealthStatus` (de una sonda) al vocabulario de tono que ya usa esta pantalla. */
+    private function tono(string $estadoDeSalud): string
+    {
+        return match ($estadoDeSalud) {
+            HealthStatus::HEALTHY => 'bien',
+            HealthStatus::DEGRADED => 'aviso',
+            HealthStatus::UNHEALTHY => 'grave',
+            default => 'apagado',
+        };
     }
 
     /** Los avisos de Polar que nadie ha resuelto, con su motivo. */

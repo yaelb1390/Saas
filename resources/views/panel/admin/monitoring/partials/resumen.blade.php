@@ -43,7 +43,7 @@
                     <div class="grid grid-cols-1 gap-2">
                         @foreach ($salud['integraciones'] as $s)
                             <div class="bmos-servicio" style="--tono: {{ $tonos[$s['estado']] ?? '#94a3b8' }}">
-                                <span class="bmos-pulso {{ $s['estado'] === 'aviso' ? 'late' : '' }}" style="margin-top:.35rem"></span>
+                                <span class="bmos-pulso {{ in_array($s['estado'], ['aviso', 'grave'], true) ? 'late' : '' }}" style="margin-top:.35rem"></span>
                                 <div class="min-w-0">
                                     <p class="bmos-servicio-nombre">{{ $s['nombre'] }}</p>
                                     <p class="bmos-servicio-detalle">{{ $s['detalle'] }}</p>

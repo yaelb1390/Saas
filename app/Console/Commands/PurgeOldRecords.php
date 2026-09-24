@@ -38,6 +38,7 @@ final class PurgeOldRecords extends Command
                             {--auditoria= : Fuerza los días de la auditoría, ignorando la configuración}
                             {--sucesos= : Fuerza los días del registro de sucesos}
                             {--errores= : Fuerza los días de los errores agrupados}
+                            {--salud= : Fuerza los días del histórico de comprobaciones de salud}
                             {--simular : Cuenta lo que borraría sin borrar nada}';
 
     protected $description = 'Poda la auditoría, el registro de sucesos y los errores más viejos que su retención.';
@@ -79,6 +80,15 @@ final class PurgeOldRecords extends Command
             titulo: 'Errores agrupados',
             simular: $simular,
             columna: 'last_seen_at',
+        );
+
+        // El histórico de comprobaciones de salud (Fase 3). `health_checks` —«cómo está cada
+        // servicio AHORA»— no se poda: sería borrar el único dato que la pantalla tiene que enseñar.
+        $total += $this->podar(
+            tabla: 'health_check_results',
+            dias: $this->dias('salud', 'bmos.retencion.salud', 14),
+            titulo: 'Histórico de comprobaciones de salud',
+            simular: $simular,
         );
 
         $this->info($simular

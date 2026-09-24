@@ -143,6 +143,20 @@ final class TrialMaintenanceController extends Controller
     }
 
     /**
+     * Comprueba los servicios externos (Fase 3 del monitoreo).
+     *
+     * `--presupuesto=8`: por debajo del tope de la función de Vercel (~10 s), y ordena por la sonda
+     * que lleva más tiempo sin comprobarse primero —si el cron corta a mitad, lo que queda sin mirar
+     * es lo que menos urgía—.
+     */
+    public function checkHealth(Request $request): JsonResponse
+    {
+        $this->assertCron($request);
+
+        return $this->ejecutar('salud:comprobar', 'Comprobación de servicios externos', ['--presupuesto' => 8]);
+    }
+
+    /**
      * Exige el secreto compartido (Vercel Cron manda `Authorization: Bearer <CRON_SECRET>`). Sin el
      * secreto correcto responde 403, así que la URL no es utilizable por terceros.
      */

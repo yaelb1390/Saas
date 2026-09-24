@@ -11,6 +11,8 @@ use App\Modules\Core\Models\Incident;
 use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Monitoring\Counters\MonitoringCounters;
 use App\Modules\Core\Monitoring\Errors\ServiceResolver;
+use App\Modules\Core\Monitoring\Health\HealthRegistry;
+use App\Modules\Core\Monitoring\Health\HealthStatus;
 use App\Modules\Core\Monitoring\Incidents\IncidentService;
 use App\Modules\Core\Monitoring\MonitoringSchema;
 use App\Modules\Core\Monitoring\Search\MonitoringFilters;
@@ -25,6 +27,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\CursorPaginator as PaginadorVacio;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Monitoreo de la plataforma: qué está pasando, quién lo hizo y qué se está rompiendo.
@@ -77,6 +80,7 @@ final class MonitoringController extends Controller
         MonitoringCounters $contadores,
         MonitoringSearch $buscador,
         IncidentService $incidentes,
+        HealthRegistry $registroDeSalud,
     ): View {
         $filtros = MonitoringFilters::fromRequest($request, self::FAMILIAS, self::ACCIONES);
 
@@ -109,7 +113,28 @@ final class MonitoringController extends Controller
             'webhooks' => $salud->webhooksSinResolver(),
             'empresas' => Company::query()->orderBy('name')->get(['id', 'name']),
             'acciones' => self::ACCIONES,
+            'saludServicios' => $filtros->pestana === 'servicios' ? $this->saludServicios($registroDeSalud) : collect(),
         ]);
+    }
+
+    /**
+     * Las sondas de salud (Fase 3), con lo último que se supo de cada una. Una fila por sonda del
+     * registro, aunque `health_checks` todavía no tenga nada de ella —recién migrada, antes del
+     * primer cron— o la tabla ni siquiera exista: en los dos casos sale «unknown», nunca un hueco.
+     *
+     * @return Collection<int, array{clave: string, etiqueta: string, fila: object|null}>
+     */
+    private function saludServicios(HealthRegistry $registro): Collection
+    {
+        $filas = DbTable::existe('health_checks')
+            ? DB::table('health_checks')->get()->keyBy('service')
+            : collect();
+
+        return $registro->todas()->map(fn ($sonda): array => [
+            'clave' => $sonda->key(),
+            'etiqueta' => $sonda->label(),
+            'fila' => $filas->get($sonda->key()),
+        ])->values();
     }
 
     /**

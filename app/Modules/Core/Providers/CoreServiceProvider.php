@@ -17,6 +17,7 @@ use App\Modules\Core\Listeners\SendSubscriptionEndedEmail;
 use App\Modules\Core\Listeners\SendSubscriptionPaymentFailedEmail;
 use App\Modules\Core\Listeners\SendSubscriptionResumedEmail;
 use App\Modules\Core\Monitoring\Errors\ErrorRecorder;
+use App\Modules\Core\Monitoring\Health\HealthRegistry;
 use App\Modules\Core\Repositories\Contracts\CompanyRepositoryInterface;
 use App\Modules\Core\Repositories\EloquentCompanyRepository;
 use App\Modules\Core\Support\SubscriptionNotice;
@@ -50,6 +51,10 @@ final class CoreServiceProvider extends ServiceProvider
 
         // El cálculo del ITBIS se resuelve desde la configuración fiscal (config/billing.php).
         $this->app->bind(TaxCalculator::class, fn (): TaxCalculator => TaxCalculator::fromConfig());
+
+        // Las sondas de salud (Fase 3), resueltas por el contenedor y no con un `new` a pelo: así
+        // `PolarCheck` recibe su `PolarClient` como cualquier otra dependencia.
+        $this->app->singleton(HealthRegistry::class, fn (): HealthRegistry => HealthRegistry::porOmision());
     }
 
     public function boot(): void

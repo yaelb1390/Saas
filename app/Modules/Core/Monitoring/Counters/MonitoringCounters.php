@@ -133,6 +133,8 @@ final class MonitoringCounters
         /** @var Collection<int, array{estado: string}> $integraciones */
         $integraciones = collect($this->plataforma->resumen()['integraciones']);
 
-        return $integraciones->where('estado', 'aviso')->count();
+        // «aviso» (degradado) y «grave» (caído, Fase 3) piden atención los dos; solo «bien» y
+        // «apagado» (sin configurar: no hay nada que atender) no cuentan.
+        return $integraciones->whereIn('estado', ['aviso', 'grave'])->count();
     }
 }

@@ -7,29 +7,31 @@ namespace App\Modules\Core\Monitoring\Incidents;
 use App\Modules\Core\Models\ErrorEvent;
 use App\Modules\Core\Models\Incident;
 use App\Modules\Core\Models\IncidentLink;
+use App\Modules\Core\Monitoring\Health\HealthResult;
+use App\Modules\Core\Monitoring\Health\HealthStatus;
 use App\Modules\Core\Support\DbTable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * ¿Este error, por sí solo, es ya un incidente?
+ * ¿Esto, por sí solo, es ya un incidente? Dos orígenes posibles, con su ventana de configuración
+ * (`config('bmos.monitoreo.incidentes')`):
  *
- * Dos disparadores, cada uno con su ventana de configuración (`config('bmos.monitoreo.incidentes')`):
+ *  · UN ERROR, con dos disparadores:
+ *    - RACHA: el mismo grupo se repite `racha_umbral` veces (25 de fábrica) en los últimos
+ *      `racha_minutos` (15). Lo mide `error_events.recent_hits`, que `ErrorRecorder` ya mantiene al
+ *      día en la misma escritura que suma el error: no hace falta una consulta aparte.
+ *    - EMPRESAS: el mismo grupo afecta a `empresas_umbral` empresas (3) distintas en
+ *      `empresas_minutos` (30). Se cuenta sobre `error_event_companies.last_seen_at`, así que
+ *      empresas que lo sufrieron hace tiempo y no ahora no cuentan (aunque sigan en el histórico).
+ *    Los dos apuntan a la MISMA clave (`error:{huella}`): da igual cuál disparó, mientras el
+ *    incidente siga activo el error solo suma ocurrencias, no abre uno nuevo por cada uno.
+ *  · UN SERVICIO CAÍDO (Fase 3): `salud_fallos_umbral` (2) comprobaciones UNHEALTHY seguidas. Clave
+ *    `health:{servicio}`; lo llama `HealthCheckRunner` después de guardar cada resultado.
  *
- *  · RACHA: el mismo grupo de errores se repite `racha_umbral` veces (25 de fábrica) en los últimos
- *    `racha_minutos` (15). Lo mide `error_events.recent_hits`, que `ErrorRecorder` ya mantiene al día
- *    en la misma escritura que suma el error: no hace falta una consulta aparte.
- *  · EMPRESAS: el mismo grupo afecta a `empresas_umbral` empresas (3) distintas en `empresas_minutos`
- *    (30). Se cuenta sobre `error_event_companies.last_seen_at`, así que empresas que lo sufrieron
- *    hace tiempo y no ahora no cuentan para esto (aunque sigan en el total histórico del grupo).
- *
- * Los dos apuntan a la MISMA clave de deduplicación (`error:{huella}`): da igual cuál de los dos
- * disparó, mientras el incidente siga activo el error solo suma ocurrencias sobre el mismo, no abre
- * uno nuevo por cada disparador que se cumpla.
- *
- * NUNCA lanza. Es una detección de más, no el registro del error: que falle no puede llevarse por
- * delante la escritura que sí importa (`ErrorRecorder::record`), que es quien la llama.
+ * NUNCA lanza. Es una detección de más, no el registro que la dispara: que falle no puede llevarse
+ * por delante ni `ErrorRecorder::record` ni `HealthCheckRunner::comprobar`, que son quienes llaman.
  */
 final class IncidentDetector
 {
@@ -42,6 +44,49 @@ final class IncidentDetector
         } catch (Throwable) {
             // Detección de más: un fallo aquí no puede tumbar el registro de errores.
         }
+    }
+
+    /**
+     * @param  int  $fallosConsecutivos  ya incluye el resultado que se acaba de guardar
+     */
+    public function evaluarSalud(string $servicio, string $etiqueta, HealthResult $resultado, int $fallosConsecutivos): void
+    {
+        try {
+            $this->evaluarSaludInterno($servicio, $etiqueta, $resultado, $fallosConsecutivos);
+        } catch (Throwable) {
+            // Igual que evaluarError: una detección de más no puede tumbar la comprobación de salud.
+        }
+    }
+
+    private function evaluarSaludInterno(string $servicio, string $etiqueta, HealthResult $resultado, int $fallosConsecutivos): void
+    {
+        if (! DbTable::existe('incidents')) {
+            return;
+        }
+
+        $umbral = (int) config('bmos.monitoreo.incidentes.salud_fallos_umbral', 2);
+
+        if ($resultado->status !== HealthStatus::UNHEALTHY || $fallosConsecutivos < $umbral) {
+            return;
+        }
+
+        $checkId = (int) DB::table('health_checks')->where('service', $servicio)->value('id');
+
+        if ($checkId === 0) {
+            return;
+        }
+
+        $this->incidentes->detectarOAbrir(
+            dedupeKey: "health:{$servicio}",
+            titulo: "{$etiqueta}: no responde",
+            servicio: $servicio,
+            // Solo la base de datos es crítica para la plataforma entera (mismo criterio que
+            // `HealthAggregator`); los demás servicios son reales pero no paran el negocio.
+            severidad: $servicio === 'database' ? Incident::CRITICAL : Incident::HIGH,
+            sourceType: IncidentLink::HEALTH_CHECK,
+            sourceId: $checkId,
+            companyIds: [],
+        );
     }
 
     private function evaluar(ErrorEvent $grupo): void

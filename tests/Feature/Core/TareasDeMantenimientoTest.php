@@ -74,6 +74,23 @@ it('la purga de registros borra de verdad los sucesos viejos', function () {
     expect(DB::table('system_events')->where('message', 'viejo')->count())->toBe(0);
 });
 
+it('la comprobación de salud exige el secreto', function () {
+    config(['services.cron.secret' => 'topsecret']);
+
+    $this->get('/tareas/comprobar-salud')->assertForbidden();
+});
+
+it('la comprobación de salud corre de verdad y deja constancia', function () {
+    config(['services.cron.secret' => 'topsecret']);
+
+    $this->withHeader('Authorization', 'Bearer topsecret')
+        ->get('/tareas/comprobar-salud')
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect(DB::table('health_checks')->where('service', 'database')->exists())->toBeTrue();
+});
+
 it('con la cola vacia el drenaje contesta sin hacer nada', function () {
     config(['services.cron.secret' => 'topsecret', 'queue.default' => 'database']);
 

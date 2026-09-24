@@ -26,5 +26,8 @@ final class Observation
         public readonly float $durationMs,
         public readonly bool $isWarning = false,
         public readonly bool $isError = false,
+        // Muestreo por estratos (Fase 5): una observación normal, sacada 1 de cada N, vale por las
+        // N que no se guardaron. Un 5xx o una lenta siempre pesan 1 —esas se guardan TODAS—.
+        public readonly int $weight = 1,
     ) {}
 }

@@ -14,6 +14,7 @@ use App\Modules\Core\Monitoring\Errors\ServiceResolver;
 use App\Modules\Core\Monitoring\Health\HealthRegistry;
 use App\Modules\Core\Monitoring\Health\HealthStatus;
 use App\Modules\Core\Monitoring\Incidents\IncidentService;
+use App\Modules\Core\Monitoring\Metrics\MetricsQuery;
 use App\Modules\Core\Monitoring\Metrics\Percentiles;
 use App\Modules\Core\Monitoring\MonitoringSchema;
 use App\Modules\Core\Monitoring\Queues\QueueMonitor;
@@ -86,6 +87,7 @@ final class MonitoringController extends Controller
         IncidentService $incidentes,
         HealthRegistry $registroDeSalud,
         QueueMonitor $colas,
+        MetricsQuery $metricas,
     ): View {
         $filtros = MonitoringFilters::fromRequest($request, self::FAMILIAS, self::ACCIONES);
 
@@ -115,6 +117,8 @@ final class MonitoringController extends Controller
             'conDesgloseDeErrores' => MonitoringSchema::erroresConDesglose(),
             'salud' => $salud->resumen(),
             'pulso' => $salud->pulso(),
+            'p95App' => $metricas->resumenApp(1)['p95'],
+            'rendimiento' => $filtros->pestana === 'rendimiento' ? $this->rendimientoDetalle($metricas, $filtros->empresa) : null,
             'webhooks' => $salud->webhooksSinResolver(),
             'empresas' => Company::query()->orderBy('name')->get(['id', 'name']),
             'acciones' => self::ACCIONES,
@@ -162,6 +166,22 @@ final class MonitoringController extends Controller
                     0.95,
                 ),
             ]);
+    }
+
+    /**
+     * El detalle de la pestaña «Rendimiento» (Fase 5): resumen de la aplicación, desglose por
+     * módulo y los endpoints más lentos, las últimas 24 h. `empresa` filtra las tres a la vez —es el
+     * mismo filtro que se lleva de una pestaña a otra—.
+     *
+     * @return array{app: array<string, mixed>, por_modulo: Collection<int, array<string, mixed>>, lentos: Collection<int, array<string, mixed>>}
+     */
+    private function rendimientoDetalle(MetricsQuery $metricas, ?int $empresa): array
+    {
+        return [
+            'app' => $metricas->resumenApp(1, $empresa),
+            'por_modulo' => $metricas->porModulo(1, $empresa),
+            'lentos' => $metricas->endpointsLentos(1, 10, $empresa),
+        ];
     }
 
     /**

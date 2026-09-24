@@ -445,6 +445,83 @@ partials/{tab-servicios,resumen}.blade.php`.
 Mismo procedimiento que las fases anteriores. La única migración de esta fase solo AÑADE una tabla;
 nada que migrar es obligatorio para que el código siga funcionando exactamente como en la Fase 3.
 
+## Fase 5 — Rendimiento HTTP
+
+### El problema
+
+No había forma de saber si el panel o la API iban lentos salvo notarlo a ojo. Ni P50/P95/P99, ni
+qué endpoint concreto se está poniendo lento, ni si es un módulo entero (POS, Inventario) o uno
+suelto.
+
+### Qué se hizo
+
+**Sin migración**: reutiliza `metric_buckets` (Fase 4) con `kind='http'`. El histograma, los
+percentiles y el patrón UPDATE-primero-INSERT-si-no-existía ya estaban.
+
+**`RecordRequestMetrics`** (middleware global, `$middleware->append` en `bootstrap/app.php`):
+TERMINABLE a propósito —`handle()` no hace nada; todo el trabajo va en `terminate()`, que Laravel
+llama DESPUÉS de que la respuesta ya salió, así que medir no le añade latencia a nadie—. Excluye
+`/up` (comparado por `uri()`, no por `getName()`: la ruta de salud de Laravel se registra con un
+closure sin nombre) y los archivos estáticos por extensión.
+
+**Muestreo por estratos con peso entero** (`Observation::$weight`, nuevo): un 5xx o una petición
+lenta (`lento_ms`) se guarda SIEMPRE, con peso 1; el resto, 1 de cada N (`uno_de_cada`), con
+peso N —la petición que «gana» el sorteo representa a las N que no se guardaron—. `DatabaseSink`
+multiplica por el peso `total`, `warnings`, `errors`, `sum_ms` y el tramo del histograma que le
+toque; **`max_ms` nunca se multiplica** (es un máximo, no una suma). Con esto el total sigue siendo
+el total real sin escribir una fila por cada petición normal. Interruptor general `BMOS_METRICAS`
+(apagado en `phpunit.xml`; los tests que lo necesitan lo encienden con `config()`).
+
+**`ModuleResolver`** (memo por ruta): a qué módulo pertenece una petición, en tres pasos —
+middleware `module:X` de la ruta, namespace del controlador (`App\Modules\{X}\...`), primer
+segmento de la URI—, cada uno cruzado contra `ModuleRegistry::exists()` para que una corazonada que
+no es un módulo de verdad no cuente. Sin ninguna de las tres, `'app'` (núcleo compartido).
+
+**`MetricsQuery`**: lee lo que `RecordRequestMetrics` escribe —resumen de la aplicación (requests,
+tasa de error, P50/P95/P99), desglose por módulo, y los endpoints más lentos con un mínimo de
+muestras (`muestras_minimas`) para que un endpoint casi sin tráfico no encabece el ranking por una
+sola petición de casualidad—.
+
+**Empresa**: `TenantAttribution::companyId()`, la misma regla que ya usan `ErrorRecorder` y
+`SystemEvent` —nunca la «primera empresa» del operador de la plataforma—.
+
+**Tres fallos que el propio desarrollo encontró y quedaron corregidos desde el primer commit**:
+`LARAVEL_START` no está definida cuando la app arranca fuera de `public/index.php` (los tests, por
+ejemplo) → `terminate()` cae a `REQUEST_TIME_FLOAT`; la ruta `/up` no tiene nombre → exclusión por
+`uri()`; y un endpoint muestreado 1 de cada N debía sumar exactamente N al total, no 1 (test
+dedicado, forzando el sorteo con reintentos hasta que la petición «gana»).
+
+**Pantalla**: pestaña «Rendimiento» (filtro por empresa, banner si el interruptor está apagado,
+requests/tasa de error/P50/P95/P99, por módulo, endpoints más lentos) y una quinta tarjeta «P95 HTTP
+24 h» en el Resumen, sin tendencia frente a ayer —ese histórico no se guarda—.
+
+### Archivos
+
+Nuevos: `app/Modules/Core/Http/Middleware/RecordRequestMetrics.php`,
+`app/Modules/Core/Monitoring/Metrics/{ModuleResolver,MetricsQuery}.php`,
+`resources/views/panel/admin/monitoring/partials/tab-rendimiento.blade.php`,
+`tests/Feature/Core/Monitoring/HttpMetricsTest.php`.
+Modificados: `Monitoring/Metrics/{Observation,MetricsRecorder,DatabaseSink}.php` (peso), `bootstrap/
+app.php` (middleware global), `Http/Controllers/MonitoringController.php` (pestaña y P95 del
+Resumen), `resources/views/panel/admin/monitoring.blade.php` (pestaña nueva), `resources/views/
+panel/admin/monitoring/partials/resumen.blade.php` (quinta tarjeta), `config/bmos.php`,
+`.env.example`, `phpunit.xml`.
+
+### Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| El código sale antes que la migración | No aplica: reutiliza `metric_buckets`, ya migrada en la Fase 4 |
+| Coste por petición del middleware | Terminable: corre después de responder; sin sink (tabla ausente) es un `DbTable::existe()` memoizado y nada más |
+| Muestreo sesgado si `uno_de_cada` es alto y hay poco tráfico | Documentado; el operador ajusta `BMOS_METRICAS_UNO_DE_CADA` por variable de entorno sin desplegar |
+| Un `ModuleResolver` que adivina mal | Cruzado contra `ModuleRegistry::exists()` en los tres pasos; sin acierto, cae a `'app'`, nunca un módulo inventado |
+
+### Aplicar las migraciones en producción
+
+Ninguna. Esta fase no añade tabla ni columna: solo lee y escribe en `metric_buckets` (Fase 4). Basta
+con desplegar el código y, si se quiere, fijar `BMOS_METRICAS_*` en las variables de Vercel (los
+valores por defecto ya son razonables sin tocar nada).
+
 ## Discrepancias entre la documentación y la implementación real
 
 | La documentación dice | La realidad |

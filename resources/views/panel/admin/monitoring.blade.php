@@ -72,6 +72,7 @@
         'errores' => ['etiqueta' => 'Errores', 'num' => $contadores['errores_activos']],
         'incidentes' => ['etiqueta' => 'Incidentes', 'num' => $contadores['incidentes_activos']],
         'servicios' => ['etiqueta' => 'Servicios', 'num' => $contadores['servicios_con_aviso']],
+        'rendimiento' => ['etiqueta' => 'Rendimiento', 'num' => null],
         'empresas' => ['etiqueta' => 'Empresas', 'num' => $contadores['empresas_con_problemas']],
         'actividad' => ['etiqueta' => 'Actividad', 'num' => null],
     ];
@@ -84,6 +85,7 @@
         'errores' => 'panel.admin.monitoring.partials.tab-errores',
         'incidentes' => 'panel.admin.monitoring.partials.tab-incidentes',
         'servicios' => 'panel.admin.monitoring.partials.tab-servicios',
+        'rendimiento' => 'panel.admin.monitoring.partials.tab-rendimiento',
         'empresas' => 'panel.admin.monitoring.partials.tab-empresas',
         'actividad' => 'panel.admin.monitoring.partials.tab-actividad',
         default => 'panel.admin.monitoring.partials.resumen',

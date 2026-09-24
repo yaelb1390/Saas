@@ -30,6 +30,9 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- Fase 5: apagado por defecto (los tests que lo necesitan lo encienden con config()), para
+             que ningún test escriba métricas HTTP sin querer. -->
+        <env name="BMOS_METRICAS" value="false"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

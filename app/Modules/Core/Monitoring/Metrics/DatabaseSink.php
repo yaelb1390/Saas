@@ -38,6 +38,8 @@ final class DatabaseSink implements MetricsSink
         $bucketStart = now()->startOfHour();
         $columnaTramo = Histogram::columna($observacion->durationMs);
         $duracion = (int) round($observacion->durationMs);
+        // Nunca menor que 1: una observación siempre representa, como mínimo, a sí misma.
+        $peso = max(1, $observacion->weight);
 
         $clave = [
             'kind' => $observacion->kind,
@@ -49,12 +51,13 @@ final class DatabaseSink implements MetricsSink
         ];
 
         $suma = [
-            'total' => DB::raw('total + 1'),
-            'warnings' => $observacion->isWarning ? DB::raw('warnings + 1') : DB::raw('warnings'),
-            'errors' => $observacion->isError ? DB::raw('errors + 1') : DB::raw('errors'),
-            'sum_ms' => DB::raw("sum_ms + {$duracion}"),
+            'total' => DB::raw("total + {$peso}"),
+            'warnings' => $observacion->isWarning ? DB::raw("warnings + {$peso}") : DB::raw('warnings'),
+            'errors' => $observacion->isError ? DB::raw("errors + {$peso}") : DB::raw('errors'),
+            'sum_ms' => DB::raw('sum_ms + '.($duracion * $peso)),
+            // El máximo NUNCA se multiplica por el peso: es la duración más larga vista, no una suma.
             'max_ms' => DB::raw("CASE WHEN max_ms > {$duracion} THEN max_ms ELSE {$duracion} END"),
-            $columnaTramo => DB::raw("{$columnaTramo} + 1"),
+            $columnaTramo => DB::raw("{$columnaTramo} + {$peso}"),
             'updated_at' => now(),
         ];
 
@@ -67,12 +70,12 @@ final class DatabaseSink implements MetricsSink
         try {
             DB::table('metric_buckets')->insert($clave + [
                 'module' => $observacion->module,
-                'total' => 1,
-                'warnings' => $observacion->isWarning ? 1 : 0,
-                'errors' => $observacion->isError ? 1 : 0,
-                'sum_ms' => $duracion,
+                'total' => $peso,
+                'warnings' => $observacion->isWarning ? $peso : 0,
+                'errors' => $observacion->isError ? $peso : 0,
+                'sum_ms' => $duracion * $peso,
                 'max_ms' => $duracion,
-                $columnaTramo => 1,
+                $columnaTramo => $peso,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

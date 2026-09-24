@@ -4,8 +4,10 @@
             completo vive en Registro, Errores, Empresas y Actividad.
         --}}
 
-        {{-- El pulso de las últimas 24 horas. --}}
-        <x-panel.metricas :items="[
+        {{-- El pulso de las últimas 24 horas. La quinta tarjeta es de la Fase 5: sin tendencia frente
+             a ayer —no se guarda ese histórico— pero es lo primero que se quiere saber de golpe: ¿la
+             app responde rápido? --}}
+        <x-panel.metricas :columnas="5" :items="[
             ['valor' => $pulso['dia']['sucesos'], 'etiqueta' => 'sucesos 24 h', 'tono' => 'indigo', 'icono' => 'pulse',
                 'tendencia' => $frenteAAyer('sucesos', null, 'Sucesos registrados')],
             ['valor' => $pulso['dia']['problemas'], 'etiqueta' => 'avisos y graves', 'tono' => 'ambar', 'icono' => 'alert',
@@ -14,6 +16,7 @@
                 'tendencia' => $frenteAAyer('accesos', true, 'Entradas al sistema')],
             ['valor' => $pulso['dia']['fallidos'], 'etiqueta' => 'accesos fallidos', 'tono' => 'rojo', 'icono' => 'ban',
                 'tendencia' => $frenteAAyer('fallidos', false, 'Intentos de entrada fallidos')],
+            ['valor' => $p95App !== null ? number_format($p95App).' ms' : '—', 'etiqueta' => 'P95 HTTP 24 h', 'tono' => 'violeta'],
         ]" />
 
         {{-- Cuatro tarjetas desde que existe la de «Estado de las empresas». En pantallas medianas van de dos en dos; la serie se queda con lo que sobre, que es la que de verdad necesita ancho. --}}

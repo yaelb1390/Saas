@@ -25,6 +25,7 @@ final class MetricsRecorder
         float $durationMs,
         bool $isWarning = false,
         bool $isError = false,
+        int $weight = 1,
     ): void {
         $this->sink->record(new Observation(
             kind: $kind,
@@ -35,6 +36,7 @@ final class MetricsRecorder
             durationMs: $durationMs,
             isWarning: $isWarning,
             isError: $isError,
+            weight: $weight,
         ));
     }
 }

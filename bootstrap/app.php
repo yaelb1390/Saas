@@ -3,6 +3,7 @@
 use App\Modules\Core\Http\Middleware\EnsureFeatureEnabled;
 use App\Modules\Core\Http\Middleware\EnsureModuleActive;
 use App\Modules\Core\Http\Middleware\EnsureSubscriptionActive;
+use App\Modules\Core\Http\Middleware\RecordRequestMetrics;
 use App\Modules\Core\Http\Middleware\SetApiCompany;
 use App\Modules\Core\Http\Middleware\SetCurrentCompany;
 use App\Modules\Core\Models\ErrorEvent;
@@ -45,6 +46,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             SetApiCompany::class,
         ]);
+
+        // Fase 5: cuánto tarda cada petición. Va con `append` (no en `web`/`api`) porque es de
+        // verdad global —cubre las dos, y también cualquier ruta fuera de esos dos grupos—.
+        $middleware->append(RecordRequestMetrics::class);
 
         $middleware->alias([
             'company' => SetCurrentCompany::class,

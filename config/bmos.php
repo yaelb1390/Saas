@@ -133,6 +133,20 @@ return [
             // histograma como aviso, aunque haya terminado bien.
             'lento_segundos' => (int) env('BMOS_COLAS_LENTO_SEGUNDOS', 10),
         ],
+
+        /*
+         * Fase 5: rendimiento HTTP. `activo` es el interruptor general —apagado en `phpunit.xml`,
+         * los tests que lo necesitan lo encienden con `config()`—; `uno_de_cada` es el muestreo de
+         * las peticiones normales (los 5xx y las lentas se guardan SIEMPRE, sin muestrear);
+         * `lento_ms` decide qué es «lenta»; `muestras_minimas` evita que un endpoint casi sin
+         * tráfico encabece «los más lentos» por una sola petición de casualidad.
+         */
+        'metricas_http' => [
+            'activo' => (bool) env('BMOS_METRICAS', true),
+            'uno_de_cada' => (int) env('BMOS_METRICAS_UNO_DE_CADA', 5),
+            'lento_ms' => (int) env('BMOS_METRICAS_LENTO_MS', 1000),
+            'muestras_minimas' => (int) env('BMOS_METRICAS_MUESTRAS_MINIMAS', 20),
+        ],
     ],
 
     /*

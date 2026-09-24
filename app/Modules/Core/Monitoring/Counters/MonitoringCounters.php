@@ -9,6 +9,7 @@ use App\Modules\Core\Models\Incident;
 use App\Modules\Core\Models\PolarWebhookEvent;
 use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Monitoring\MonitoringSchema;
+use App\Modules\Core\Monitoring\Queues\QueueMonitor;
 use App\Modules\Core\Services\CompanyHealthService;
 use App\Modules\Core\Services\PlatformHealthService;
 use App\Modules\Core\Support\DbTable;
@@ -37,13 +38,14 @@ final class MonitoringCounters
     public function __construct(
         private readonly CompanyHealthService $empresas,
         private readonly PlatformHealthService $plataforma,
+        private readonly QueueMonitor $colas,
     ) {}
 
     /**
      * @return array{
      *     errores_activos: int, avisos_graves_24h: int, webhooks_pendientes: int,
      *     empresas_con_problemas: int, servicios_con_aviso: int, empresas_bloqueadas: int,
-     *     incidentes_activos: int, pendientes: int,
+     *     incidentes_activos: int, jobs_pendientes: int, pendientes: int,
      * }
      */
     public function calcular(): array
@@ -61,6 +63,12 @@ final class MonitoringCounters
             'servicios_con_aviso' => $serviciosConAviso,
             'empresas_bloqueadas' => $empresasBloqueadas,
             'incidentes_activos' => $this->incidentesActivos(),
+            // Informativo, como `incidentes_activos`: un puñado de trabajos pendientes es lo NORMAL
+            // en una cola que funciona —siempre hay algo procesándose—, así que sumarlo al titular
+            // convertiría cada carga en «N cosas piden atención» por trabajo normal y en ruido que
+            // nadie mira. Si de verdad se acumulan, `QueueCheck` (Fase 3/4) lo refleja como servicio
+            // degradado, y ESO sí es «pide atención».
+            'jobs_pendientes' => $this->colas->snapshot()['pendientes'],
             /*
              * El titular de la pantalla. Las mismas cuatro familias de antes —integraciones con
              * aviso, empresas bloqueadas, errores, webhooks—, pero contadas de verdad. Las empresas

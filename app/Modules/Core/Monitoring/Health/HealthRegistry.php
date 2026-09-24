@@ -9,15 +9,11 @@ use App\Modules\Core\Monitoring\Health\Checks\DatabaseCheck;
 use App\Modules\Core\Monitoring\Health\Checks\EvolutionCheck;
 use App\Modules\Core\Monitoring\Health\Checks\MailCheck;
 use App\Modules\Core\Monitoring\Health\Checks\PolarCheck;
+use App\Modules\Core\Monitoring\Health\Checks\QueueCheck;
 use App\Modules\Core\Monitoring\Health\Checks\RedisCheck;
 use Illuminate\Support\Collection;
 
-/**
- * Las sondas que existen, en un solo sitio.
- *
- * `queue` se añade en la Fase 4 (depende de `QueueMonitor`, que todavía no existe); no está aquí
- * a propósito y no es un olvido.
- */
+/** Las sondas que existen, en un solo sitio. */
 final class HealthRegistry
 {
     /**
@@ -33,6 +29,7 @@ final class HealthRegistry
         return new self([
             app(DatabaseCheck::class),
             app(RedisCheck::class),
+            app(QueueCheck::class),
             app(EvolutionCheck::class),
             app(AiCheck::class),
             app(PolarCheck::class),

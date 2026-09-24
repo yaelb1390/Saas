@@ -45,6 +45,58 @@
                 @endforeach
             </div>
 
+            {{-- ------------------------------------------------------------- Colas y trabajos --}}
+            <div class="border-t border-slate-100">
+                <p class="border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Colas y trabajos
+                </p>
+
+                @if (! $colas['snapshot']['aplica'])
+                    <p class="p-4 text-sm text-slate-400">
+                        Sin cola propia (driver «{{ $colas['snapshot']['driver'] }}»): cada trabajo corre
+                        dentro de su propia petición. {{ $colas['snapshot']['pendientes'] }} mensajes de
+                        WhatsApp llevan más de 15 minutos sin salir, la única señal que queda de que algo
+                        se atascó.
+                    </p>
+                @else
+                    <x-panel.metricas :columnas="4" :items="[
+                        ['valor' => $colas['snapshot']['pendientes'], 'etiqueta' => 'pendientes', 'tono' => 'indigo', 'icono' => 'pulse'],
+                        ['valor' => $colas['snapshot']['reservados'], 'etiqueta' => 'procesando', 'tono' => 'azul'],
+                        ['valor' => $colas['snapshot']['retrasados'], 'etiqueta' => 'retrasados', 'tono' => 'ambar'],
+                        ['valor' => $colas['snapshot']['antiguedad_segundos'] !== null ? intdiv($colas['snapshot']['antiguedad_segundos'], 60).' min' : '—', 'etiqueta' => 'el más viejo espera', 'tono' => 'rojo'],
+                    ]" />
+
+                    @if ($colas['p95_por_cola']->isNotEmpty())
+                        <div class="border-t border-slate-100 px-4 py-3">
+                            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">P95 por cola, últimas 24 h</p>
+                            @foreach ($colas['p95_por_cola'] as $c)
+                                <div class="flex items-center justify-between gap-3 border-b border-slate-50 py-1.5 text-sm last:border-0">
+                                    <span class="text-slate-700">{{ $c['cola'] }}</span>
+                                    <span class="bmos-mono text-slate-400">
+                                        {{ $c['p95_ms'] !== null ? number_format($c['p95_ms']).' ms' : '—' }}
+                                        · {{ number_format($c['total']) }} {{ $c['total'] === 1 ? 'trabajo' : 'trabajos' }}
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                @endif
+
+                @if ($colas['fallidos']->isNotEmpty())
+                    <div class="border-t border-slate-100 px-4 py-3">
+                        <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Fallos recientes</p>
+                        @foreach ($colas['fallidos'] as $f)
+                            <div class="flex items-center justify-between gap-3 border-b border-slate-50 py-1.5 text-sm last:border-0">
+                                <span class="text-slate-700">{{ $f->queue }}</span>
+                                <span class="bmos-mono text-xs text-slate-400" title="{{ $f->failed_at }}">
+                                    {{ \Illuminate\Support\Carbon::parse($f->failed_at)->diffForHumans() }}
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
             <script>
                 function saludServicios(vencidas) {
                     return {

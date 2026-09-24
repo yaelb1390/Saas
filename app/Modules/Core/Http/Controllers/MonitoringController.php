@@ -14,7 +14,9 @@ use App\Modules\Core\Monitoring\Errors\ServiceResolver;
 use App\Modules\Core\Monitoring\Health\HealthRegistry;
 use App\Modules\Core\Monitoring\Health\HealthStatus;
 use App\Modules\Core\Monitoring\Incidents\IncidentService;
+use App\Modules\Core\Monitoring\Metrics\Percentiles;
 use App\Modules\Core\Monitoring\MonitoringSchema;
+use App\Modules\Core\Monitoring\Queues\QueueMonitor;
 use App\Modules\Core\Monitoring\Search\MonitoringFilters;
 use App\Modules\Core\Monitoring\Search\MonitoringSearch;
 use App\Modules\Core\Services\CompanyHealthService;
@@ -71,6 +73,8 @@ final class MonitoringController extends Controller
         'webhook' => 'Webhooks',
         // Fase 2: cuando se abre o cambia de estado un incidente.
         'incident' => 'Incidentes',
+        // Fase 4: un trabajo que falló o que tardó de más.
+        'queue' => 'Colas',
     ];
 
     public function __invoke(
@@ -81,6 +85,7 @@ final class MonitoringController extends Controller
         MonitoringSearch $buscador,
         IncidentService $incidentes,
         HealthRegistry $registroDeSalud,
+        QueueMonitor $colas,
     ): View {
         $filtros = MonitoringFilters::fromRequest($request, self::FAMILIAS, self::ACCIONES);
 
@@ -114,7 +119,49 @@ final class MonitoringController extends Controller
             'empresas' => Company::query()->orderBy('name')->get(['id', 'name']),
             'acciones' => self::ACCIONES,
             'saludServicios' => $filtros->pestana === 'servicios' ? $this->saludServicios($registroDeSalud) : collect(),
+            'colas' => $filtros->pestana === 'servicios' ? $this->colasDetalle($colas) : null,
         ]);
+    }
+
+    /**
+     * El detalle de la cola para la pestaña «Servicios»: pendientes/reservados/retrasados, los P95
+     * por cola de las últimas 24 h (de `metric_buckets`, que `QueueEventSubscriber` alimenta), y los
+     * últimos fallos.
+     *
+     * @return array{snapshot: array<string, mixed>, p95_por_cola: Collection<int, array{cola: string, p95_ms: float|null, total: int}>, fallidos: Collection<int, object>}
+     */
+    private function colasDetalle(QueueMonitor $colas): array
+    {
+        return [
+            'snapshot' => $colas->snapshot(),
+            'p95_por_cola' => $this->p95PorCola(),
+            'fallidos' => $colas->fallidosRecientes(10),
+        ];
+    }
+
+    /**
+     * @return Collection<int, array{cola: string, p95_ms: float|null, total: int}>
+     */
+    private function p95PorCola(): Collection
+    {
+        if (! DbTable::existe('metric_buckets')) {
+            return collect();
+        }
+
+        return DB::table('metric_buckets')
+            ->where('kind', 'job')
+            ->where('bucket_start', '>=', now()->subDay())
+            ->selectRaw('method as cola, sum(total) as total, sum(h0) h0, sum(h1) h1, sum(h2) h2, sum(h3) h3, sum(h4) h4, sum(h5) h5, sum(h6) h6, sum(h7) h7, sum(h8) h8')
+            ->groupBy('method')
+            ->get()
+            ->map(fn (object $fila): array => [
+                'cola' => $fila->cola !== '' ? $fila->cola : 'default',
+                'total' => (int) $fila->total,
+                'p95_ms' => Percentiles::estimar(
+                    [(int) $fila->h0, (int) $fila->h1, (int) $fila->h2, (int) $fila->h3, (int) $fila->h4, (int) $fila->h5, (int) $fila->h6, (int) $fila->h7, (int) $fila->h8],
+                    0.95,
+                ),
+            ]);
     }
 
     /**

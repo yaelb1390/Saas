@@ -66,6 +66,10 @@ return [
         // El histórico de comprobaciones de salud (Fase 3). Corto a propósito: es para ver una
         // tendencia de los últimos días, no un archivo; `health_checks` («cómo está ahora») no se poda.
         'salud' => (int) env('BMOS_RETENCION_SALUD', 14),
+        // Fase 4: los trabajos que fallaron (Laravel no los poda solo) y el agregador de métricas
+        // (que la Fase 5 y 6 reutilizan para HTTP y consultas).
+        'trabajos_fallidos' => (int) env('BMOS_RETENCION_TRABAJOS_FALLIDOS', 30),
+        'metricas' => (int) env('BMOS_RETENCION_METRICAS', 30),
     ],
 
     /*
@@ -111,6 +115,23 @@ return [
             // Dos y no una: una sonda puede fallar suelta por una red que titubea un segundo, y eso
             // no es un servicio caído.
             'salud_fallos_umbral' => (int) env('BMOS_INCIDENTES_SALUD_FALLOS_UMBRAL', 2),
+        ],
+
+        /*
+         * Fase 4: cuándo la cola misma cuenta como «a medias» o «caída». Dos señales, cada una con
+         * su propio par de umbrales: CUÁNTOS trabajos esperan, y desde CUÁNTO tiempo espera el más
+         * viejo —una cola con pocos trabajos pero uno de ellos atascado desde hace una hora es tan
+         * mala señal como una cola larga—. Solo aplica con driver `database` o `redis`; con `sync`
+         * no hay cola que medir (ver `QueueMonitor::sinCola()`).
+         */
+        'colas' => [
+            'pendientes_aviso' => (int) env('BMOS_COLAS_PENDIENTES_AVISO', 100),
+            'pendientes_grave' => (int) env('BMOS_COLAS_PENDIENTES_GRAVE', 500),
+            'antiguedad_aviso_minutos' => (int) env('BMOS_COLAS_ANTIGUEDAD_AVISO_MINUTOS', 10),
+            'antiguedad_grave_minutos' => (int) env('BMOS_COLAS_ANTIGUEDAD_GRAVE_MINUTOS', 30),
+            // Un trabajo que tarda esto o más se anota como lento (`queue.slow`) y pesa en el
+            // histograma como aviso, aunque haya terminado bien.
+            'lento_segundos' => (int) env('BMOS_COLAS_LENTO_SEGUNDOS', 10),
         ],
     ],
 

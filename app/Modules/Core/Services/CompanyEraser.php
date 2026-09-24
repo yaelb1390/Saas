@@ -85,6 +85,13 @@ final class CompanyEraser
             DB::table('audits')->where('company_id', $companyId)->delete();
             $this->borrarRastroDeErrores($companyId);
             $this->borrarRastroDeIncidentes($companyId);
+
+            // Métricas (Fase 4): sin desglose que recalcular —cada fila ya es de una sola empresa,
+            // al revés que los errores y los incidentes, que pueden compartirse entre varias—, así
+            // que un DELETE liso es correcto y no deja nada que arreglar después.
+            if (DbTable::existe('metric_buckets')) {
+                DB::table('metric_buckets')->where('company_id', $companyId)->delete();
+            }
         });
 
         // Queda constancia fuera de la base: los registros de auditoría de esta empresa acaban de

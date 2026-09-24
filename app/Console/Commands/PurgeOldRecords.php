@@ -39,6 +39,8 @@ final class PurgeOldRecords extends Command
                             {--sucesos= : Fuerza los días del registro de sucesos}
                             {--errores= : Fuerza los días de los errores agrupados}
                             {--salud= : Fuerza los días del histórico de comprobaciones de salud}
+                            {--trabajos= : Fuerza los días de los trabajos fallidos}
+                            {--metricas= : Fuerza los días de las métricas agregadas}
                             {--simular : Cuenta lo que borraría sin borrar nada}';
 
     protected $description = 'Poda la auditoría, el registro de sucesos y los errores más viejos que su retención.';
@@ -89,6 +91,28 @@ final class PurgeOldRecords extends Command
             dias: $this->dias('salud', 'bmos.retencion.salud', 14),
             titulo: 'Histórico de comprobaciones de salud',
             simular: $simular,
+        );
+
+        // Trabajos fallidos (Fase 4): Laravel los deja para siempre si nadie los poda. Por cuándo
+        // fallaron, no por cuándo se despacharon: uno reintentado varias veces solo cuenta su
+        // último fallo.
+        $total += $this->podar(
+            tabla: 'failed_jobs',
+            dias: $this->dias('trabajos', 'bmos.retencion.trabajos_fallidos', 30),
+            titulo: 'Trabajos fallidos',
+            simular: $simular,
+            columna: 'failed_at',
+        );
+
+        // El agregador de métricas (Fase 4: trabajos; Fase 5 y 6 lo reutilizan para HTTP y consultas).
+        // Por el bucket que representa, no por cuándo se escribió: un bucket de la hora 3 de la
+        // tarde sigue siendo de esa hora aunque la última observación le sumara una fila a las 11.
+        $total += $this->podar(
+            tabla: 'metric_buckets',
+            dias: $this->dias('metricas', 'bmos.retencion.metricas', 30),
+            titulo: 'Métricas agregadas',
+            simular: $simular,
+            columna: 'bucket_start',
         );
 
         $this->info($simular

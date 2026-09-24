@@ -18,6 +18,9 @@ use App\Modules\Core\Listeners\SendSubscriptionPaymentFailedEmail;
 use App\Modules\Core\Listeners\SendSubscriptionResumedEmail;
 use App\Modules\Core\Monitoring\Errors\ErrorRecorder;
 use App\Modules\Core\Monitoring\Health\HealthRegistry;
+use App\Modules\Core\Monitoring\Metrics\DatabaseSink;
+use App\Modules\Core\Monitoring\Metrics\MetricsSink;
+use App\Modules\Core\Monitoring\Queues\QueueEventSubscriber;
 use App\Modules\Core\Repositories\Contracts\CompanyRepositoryInterface;
 use App\Modules\Core\Repositories\EloquentCompanyRepository;
 use App\Modules\Core\Support\SubscriptionNotice;
@@ -26,6 +29,7 @@ use App\Modules\Core\Tenancy\CurrentCompany;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -55,6 +59,10 @@ final class CoreServiceProvider extends ServiceProvider
         // Las sondas de salud (Fase 3), resueltas por el contenedor y no con un `new` a pelo: así
         // `PolarCheck` recibe su `PolarClient` como cualquier otra dependencia.
         $this->app->singleton(HealthRegistry::class, fn (): HealthRegistry => HealthRegistry::porOmision());
+
+        // A dónde van las métricas (Fase 4). Un solo binding: cambiar de sitio de guardado el día
+        // que haya Redis en producción es cambiar esta línea, no cada punto que mide algo.
+        $this->app->bind(MetricsSink::class, DatabaseSink::class);
     }
 
     public function boot(): void
@@ -79,6 +87,22 @@ final class CoreServiceProvider extends ServiceProvider
          * que acordarse de cada puerta cada vez que se añade una.
          */
         Event::subscribe(RecordAuthEvents::class);
+
+        /*
+         * Cada trabajo de cola, cuánto tardó y si falló (Fase 4).
+         *
+         * `createPayloadUsing` mete la empresa activa EN EL PROPIO PAYLOAD al despachar el trabajo,
+         * dentro de la petición que lo encola y con `CurrentCompany` todavía en su sitio. Es lo
+         * único que le permite a `QueueEventSubscriber` —que corre después, quizás en otro proceso,
+         * quizás con la cola ya vacía de tenant— saber de qué empresa era sin tocar `CurrentCompany`.
+         */
+        // `$queue` llega `null` cuando se despacha sin nombrar una cola explícita (el caso normal
+        // aquí, que no usa colas nombradas): el contrato real de Laravel lo admite así, aunque su
+        // propio docblock diga `string`.
+        Queue::createPayloadUsing(fn (?string $connection, ?string $queue, array $payload): array => [
+            'bmos_company_id' => app(CurrentCompany::class)->id(),
+        ]);
+        Event::subscribe(QueueEventSubscriber::class);
 
         // El super administrador opera por encima de los roles de empresa: pasa toda comprobación
         // de permisos. Devolver null (y no false) deja que el resto de reglas decidan al usuario

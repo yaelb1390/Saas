@@ -182,6 +182,11 @@ final class TenantDataPurger
         // hecho que ya pasó, y sobrevive incluso a la poda del error que lo originó (`incidents` no
         // se poda). `CompanyEraser` lo limpia igual que el de errores.
         'incident_companies',
+        // Las métricas agregadas (Fase 4): son observabilidad nuestra —cuánto tardó, cuántas veces
+        // falló—, no datos que el cliente escribió. `CompanyEraser` sí las borra al borrar la
+        // empresa entera: sin la empresa, una fila que solo dice «tal hora, tal trabajo, tal
+        // empresa» no se puede atribuir a nadie.
+        'metric_buckets',
         // El registro del sistema, por lo mismo: es lo que dice quién entró y qué se rompió, y la
         // cuenta sigue viva. Además contiene los intentos de acceso fallidos contra ella, que es
         // justo lo que hay que poder mirar después de un vaciado.

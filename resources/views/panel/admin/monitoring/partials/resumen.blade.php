@@ -72,6 +72,17 @@
                             @endif
                         </div>
                     @endif
+
+                    {{-- Informativo, no una alarma: un puñado de trabajos pendientes es lo normal en
+                         una cola que funciona. El detalle completo —por cola, P95, fallos— vive en
+                         la pestaña «Servicios»; aquí solo se dice que hay. --}}
+                    @if ($contadores['jobs_pendientes'] > 0)
+                        <p class="mt-3 text-xs text-slate-400">
+                            <a href="{{ route('platform.monitoring', ['pestana' => 'servicios']) }}" class="underline">
+                                {{ $contadores['jobs_pendientes'] }} {{ $contadores['jobs_pendientes'] === 1 ? 'trabajo pendiente' : 'trabajos pendientes' }} en la cola
+                            </a>
+                        </p>
+                    @endif
             </div>
 
             {{--

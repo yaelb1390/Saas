@@ -4,9 +4,9 @@ Pantalla: `/plataforma/monitoreo` (solo el operador de la plataforma, `platform.
 explica cómo funciona, por qué está hecho así y qué falta. Cada fase del plan añade su sección; al final,
 las discrepancias que se encontraron entre la documentación del proyecto y lo que de verdad hay.
 
-> Estado: **Fase 3** (salud real de los servicios) hecha y probada en local, SIN SUBIR a GitHub ni
-> migrada en producción todavía. Faltan las fases 4 a 7. El plan completo está en la conversación de
-> diseño; aquí solo lo ya construido.
+> Estado: **Fase 4** (colas y jobs) hecha y probada en local, SIN SUBIR a GitHub ni migrada en
+> producción todavía. Faltan las fases 5 a 7. El plan completo está en la conversación de diseño;
+> aquí solo lo ya construido.
 
 ## Cómo está montado el entorno (lo que condiciona todo el diseño)
 
@@ -350,6 +350,100 @@ nuevo), `Http/Controllers/{MonitoringController,TrialMaintenanceController}.php`
 Mismo procedimiento que las fases anteriores. Las 3 migraciones solo AÑADEN (dos tablas nuevas, dos
 índices en `wa_messages`); nada destructivo, nada que migrar es obligatorio para que el código siga
 funcionando exactamente como en la Fase 2.
+
+## Fase 4 — Colas y jobs (arquitectura real, sin sistema paralelo)
+
+### El problema
+
+No había forma de saber si la cola se estaba vaciando o acumulando, ni si un trabajo concreto había
+fallado, salvo mirando `failed_jobs` a mano. Y no había ningún agregador de «cuánto tarda esto» que
+las fases futuras (HTTP, consultas de PostgreSQL) pudieran reutilizar sin reinventar un histograma
+cada una.
+
+### Qué se hizo
+
+**`metric_buckets`** (`2026_09_24_100000`): el agregador ÚNICO que HTTP (Fase 5) y consultas lentas
+(Fase 6) también usarán, distinguidos por `kind` (`http`|`job`|`db`). NO es una fila por observación,
+es una fila por (kind, hora, nombre, método, empresa) que SUMA cada observación que le llega —agregada
+por hora, un año de datos son unas pocas decenas de miles de filas, no millones—. `company_id` es `0`
+y no `NULL` para «sin empresa»: en un índice único, PostgreSQL y SQLite tratan cada `NULL` como
+distinto de cualquier otro, así que dos filas «sin empresa» del mismo minuto se habrían duplicado en
+vez de sumarse.
+
+**El histograma** (`Monitoring/Metrics/Histogram`): nueve tramos fijos (`h0`..`h8`), en milisegundos,
+hasta 100/300/1000/3000/10000/30000/60000/180000 y el resto en `h8`. Sirven igual de mal —a
+propósito— para una consulta de 5 ms que para un trabajo de WhatsApp de dos minutos: un histograma por
+tipo daría tramos más finos, pero son tres tablas y tres cálculos que mantener en vez de uno.
+`Percentiles::estimar()` calcula P50/P95/P99 interpolando en línea recta DENTRO del tramo que contiene
+el percentil —es una estimación, no el valor exacto; el último tramo (sin techo) devuelve su suelo,
+nunca un número inventado por encima de lo que se sabe—.
+
+**Escritura** (`DatabaseSink`, detrás de la interfaz `MetricsSink` para el día que haya Redis en
+producción): UN solo `upsert` por observación, mismo patrón UPDATE-primero-INSERT-si-no-existía que
+`ErrorRecorder` e `IncidentService`. `MetricsRecorder` es la única puerta que el resto del código
+conoce.
+
+**`QueueMonitor`**: pendientes/reservados/retrasados y antigüedad del más viejo, según el driver:
+`database` (una consulta agrupada sobre `jobs`), `redis` (`pendingSize`/`delayedSize`/`reservedSize`
+de `RedisQueue`, con `method_exists` y no un `instanceof` contra una clase concreta), o `sync` —que no
+tiene cola propia que preguntar: cada trabajo corre dentro de su petición y ya terminó— usando como
+proxy los mensajes de WhatsApp `pending` desde hace más de 15 minutos, la misma señal que ya usa la
+tarjeta de WhatsApp desde la Fase 3.
+
+**`QueueEventSubscriber`**: anota cada trabajo (`JobProcessing` marca el inicio, `JobProcessed`/
+`JobFailed` cierran y escriben `metric_buckets` + `SystemEvent` si falló —`queue.failed`— o tardó de
+más —`queue.slow`, umbral configurable—). **NUNCA toca `CurrentCompany`**: la empresa sale del PROPIO
+payload del trabajo (`bmos_company_id`, inyectado por `Queue::createPayloadUsing` al despachar, dentro
+de la petición original con el tenant todavía en su sitio), nunca de `CurrentCompany` en el momento de
+procesar —que puede ser otro proceso, u otro tenant si la cola es `sync`—.
+
+**Bug real encontrado por los tests**: el cierre de `Queue::createPayloadUsing` tipaba `$queue` como
+`string`, pero Laravel lo llama con `null` cuando se despacha sin nombrar una cola explícita —el caso
+normal aquí, que no usa colas nombradas—. `TypeError` en cuanto se despachaba el primer trabajo.
+Corregido a `?string`.
+
+**Sonda de salud** (`QueueCheck`, ahora sí en el registro): grave si hay `pendientes_grave` trabajos o
+más, o el más viejo espera `antiguedad_grave_minutos` o más; a medias con umbrales menores; «no
+aplica» con `sync`. Alimenta el tercer disparador de incidentes que la Fase 2 dejó pendiente
+(`salud_fallos_umbral` fallos seguidos → `health:queue`).
+
+**Poda**: `failed_jobs` (por `failed_at`) y `metric_buckets` (por `bucket_start`), 30 días los dos.
+`metric_buckets` entra en `TenantDataPurger::KEPT` (es observabilidad nuestra, no datos que el cliente
+escribió) y `CompanyEraser` la borra al borrar la empresa entera —con un `DELETE` liso: al revés que
+los errores y los incidentes, cada fila ya es de una sola empresa, no hay desglose que recalcular—.
+
+**Pantalla**: tarjeta «Colas y trabajos» en la pestaña Servicios (pendientes/procesando/retrasados/
+antigüedad, P95 por cola de las últimas 24 h, últimos fallos); «N trabajos pendientes» informativo en
+el Resumen —no se suma al titular de «cosas piden atención»: un puñado de pendientes es lo NORMAL en
+una cola que funciona, y sumarlo habría convertido cada carga en ruido—. Familia `queue` en el filtro
+del Registro, instrumentada de verdad (`queue.failed`, `queue.slow`).
+
+### Archivos
+
+Nuevos: `database/migrations/2026_09_24_100000_create_metric_buckets_table.php`,
+`app/Modules/Core/Monitoring/Metrics/{Histogram,Percentiles,Observation,MetricsSink,DatabaseSink,
+MetricsRecorder}.php`, `app/Modules/Core/Monitoring/Queues/{QueueMonitor,QueueEventSubscriber}.php`,
+`app/Modules/Core/Monitoring/Health/Checks/QueueCheck.php`.
+Modificados: `Providers/CoreServiceProvider.php` (`MetricsSink` binding, `createPayloadUsing`,
+`Event::subscribe(QueueEventSubscriber::class)`), `Http/Controllers/MonitoringController.php`
+(detalle de colas para la pestaña Servicios), `Monitoring/Counters/MonitoringCounters.php`
+(`jobs_pendientes`), `Services/{TenantDataPurger,CompanyEraser}.php`, `Console/Commands/
+PurgeOldRecords.php`, `config/bmos.php`, `.env.example`, `resources/views/panel/admin/monitoring/
+partials/{tab-servicios,resumen}.blade.php`.
+
+### Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| El código sale antes que la migración | `DatabaseSink`/`QueueCheck` comprueban `DbTable::existe('metric_buckets')`; sin ella, cero filas y ningún 500 |
+| Un histograma compartido por tres tipos muy distintos en escala | Decisión ya tomada en el plan (D2); nueve tramos hasta tres minutos cubren de una consulta de PostgreSQL a un trabajo de IA |
+| `CurrentCompany` tocado desde un listener de cola | El subscriber NUNCA la toca; la empresa viaja en el payload del propio trabajo (test dedicado) |
+| Cola larga que no se nota | `QueueCheck` la refleja como servicio degradado/caído, y eso SÍ suma a «servicios con aviso» |
+
+### Aplicar las migraciones en producción
+
+Mismo procedimiento que las fases anteriores. La única migración de esta fase solo AÑADE una tabla;
+nada que migrar es obligatorio para que el código siga funcionando exactamente como en la Fase 3.
 
 ## Discrepancias entre la documentación y la implementación real
 

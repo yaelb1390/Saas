@@ -41,6 +41,7 @@ final class PurgeOldRecords extends Command
                             {--salud= : Fuerza los días del histórico de comprobaciones de salud}
                             {--trabajos= : Fuerza los días de los trabajos fallidos}
                             {--metricas= : Fuerza los días de las métricas agregadas}
+                            {--consultas= : Fuerza los días de las consultas lentas}
                             {--simular : Cuenta lo que borraría sin borrar nada}';
 
     protected $description = 'Poda la auditoría, el registro de sucesos y los errores más viejos que su retención.';
@@ -113,6 +114,16 @@ final class PurgeOldRecords extends Command
             titulo: 'Métricas agregadas',
             simular: $simular,
             columna: 'bucket_start',
+        );
+
+        // Consultas lentas (Fase 6): la MISMA retención que las métricas agregadas —son la misma
+        // familia de observabilidad—, por la última vez que se vio ese patrón, no por la primera.
+        $total += $this->podar(
+            tabla: 'slow_queries',
+            dias: $this->dias('consultas', 'bmos.retencion.metricas', 30),
+            titulo: 'Consultas lentas',
+            simular: $simular,
+            columna: 'last_seen_at',
         );
 
         $this->info($simular

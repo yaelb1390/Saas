@@ -92,6 +92,14 @@ final class CompanyEraser
             if (DbTable::existe('metric_buckets')) {
                 DB::table('metric_buckets')->where('company_id', $companyId)->delete();
             }
+
+            // Consultas lentas (Fase 6): NO se borran. Una fila es un PATRÓN de consulta que
+            // cualquier empresa puede repetir —`last_company_id` es solo quién la disparó por
+            // última vez, no una dueña—, así que solo se le quita la referencia, igual que al
+            // registro del sistema un poco más abajo.
+            if (DbTable::existe('slow_queries')) {
+                DB::table('slow_queries')->where('last_company_id', $companyId)->update(['last_company_id' => null]);
+            }
         });
 
         // Queda constancia fuera de la base: los registros de auditoría de esta empresa acaban de

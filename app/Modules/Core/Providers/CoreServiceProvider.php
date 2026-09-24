@@ -20,6 +20,7 @@ use App\Modules\Core\Monitoring\Errors\ErrorRecorder;
 use App\Modules\Core\Monitoring\Health\HealthRegistry;
 use App\Modules\Core\Monitoring\Metrics\DatabaseSink;
 use App\Modules\Core\Monitoring\Metrics\MetricsSink;
+use App\Modules\Core\Monitoring\Queries\QueryWatcher;
 use App\Modules\Core\Monitoring\Queues\QueueEventSubscriber;
 use App\Modules\Core\Repositories\Contracts\CompanyRepositoryInterface;
 use App\Modules\Core\Repositories\EloquentCompanyRepository;
@@ -27,6 +28,8 @@ use App\Modules\Core\Support\SubscriptionNotice;
 use App\Modules\Core\Support\TaxCalculator;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use Illuminate\Contracts\View\View as ViewContract;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
@@ -47,6 +50,10 @@ final class CoreServiceProvider extends ServiceProvider
         // Lleva la cuenta de cuántos errores ha anotado este proceso (su tope por minuto): tiene que ser
         // la misma instancia durante toda la petición o el tope no cuenta nada.
         $this->app->singleton(ErrorRecorder::class);
+
+        // Fase 6: acumula la aritmética de las consultas durante TODA la petición o el trabajo, para
+        // escribir una sola vez al terminar. Singleton por el mismo motivo que `ErrorRecorder`.
+        $this->app->singleton(QueryWatcher::class);
 
         $this->app->bind(
             CompanyRepositoryInterface::class,
@@ -103,6 +110,14 @@ final class CoreServiceProvider extends ServiceProvider
             'bmos_company_id' => app(CurrentCompany::class)->id(),
         ]);
         Event::subscribe(QueueEventSubscriber::class);
+
+        /*
+         * Fase 6: un único `DB::listen` para TODA la aplicación. Se registra siempre —es solo una
+         * suscripción, no un trabajo— y es el CIERRE, no `QueryWatcher` directamente, el que
+         * comprueba el interruptor en cada consulta: así un test puede encenderlo con `config()`
+         * a mitad de sesión y que surta efecto, igual que hace `RecordRequestMetrics` con el suyo.
+         */
+        DB::listen(fn (QueryExecuted $evento) => app(QueryWatcher::class)->observar($evento));
 
         // El super administrador opera por encima de los roles de empresa: pasa toda comprobación
         // de permisos. Devolver null (y no false) deja que el resto de reglas decidan al usuario

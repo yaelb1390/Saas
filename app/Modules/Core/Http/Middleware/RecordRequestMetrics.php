@@ -7,6 +7,7 @@ namespace App\Modules\Core\Http\Middleware;
 use App\Modules\Core\Monitoring\Metrics\MetricsRecorder;
 use App\Modules\Core\Monitoring\Metrics\ModuleResolver;
 use App\Modules\Core\Monitoring\Metrics\Observation;
+use App\Modules\Core\Monitoring\Queries\QueryWatcher;
 use App\Modules\Core\Support\TenantAttribution;
 use Closure;
 use Illuminate\Http\Request;
@@ -37,6 +38,7 @@ final class RecordRequestMetrics
     public function __construct(
         private readonly MetricsRecorder $metricas,
         private readonly ModuleResolver $modulos,
+        private readonly QueryWatcher $consultas,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -46,16 +48,30 @@ final class RecordRequestMetrics
 
     public function terminate(Request $request, Response $response): void
     {
-        if (! (bool) config('bmos.monitoreo.metricas_http.activo', true)) {
-            return;
-        }
-
         $ruta = $request->route();
 
         if ($this->seExcluye($request, $ruta)) {
             return;
         }
 
+        // El módulo, el endpoint y la empresa los necesitan TANTO la fila HTTP como el vaciado de
+        // consultas de la Fase 6: se calculan una vez y se comparten, en vez de que cada uno resuelva
+        // la ruta y el tenant por su cuenta.
+        $modulo = $this->modulos->resolver($ruta);
+        $endpoint = $ruta?->getName() ?? $ruta?->uri() ?? 'unmatched';
+        $companyId = TenantAttribution::companyId();
+
+        // Los dos interruptores son INDEPENDIENTES: con el de HTTP apagado y el de consultas
+        // encendido (o al revés), cada uno sigue anotando lo suyo.
+        if ((bool) config('bmos.monitoreo.metricas_http.activo', true)) {
+            $this->registrarHttp($request, $response, $endpoint, $modulo, $companyId);
+        }
+
+        $this->consultas->vaciar($endpoint, $modulo, $companyId);
+    }
+
+    private function registrarHttp(Request $request, Response $response, string $endpoint, ?string $modulo, ?int $companyId): void
+    {
         $duracionMs = (microtime(true) - $this->inicioDeLaPeticion()) * 1000;
         $status = $response->getStatusCode();
         $esError = $status >= 500;
@@ -73,15 +89,13 @@ final class RecordRequestMetrics
             $peso = $unoDeCada;
         }
 
-        $endpoint = $ruta?->getName() ?? $ruta?->uri() ?? 'unmatched';
-
         try {
             $this->metricas->anotar(
                 kind: Observation::HTTP,
                 name: $endpoint,
                 method: $request->method(),
-                module: $this->modulos->resolver($ruta),
-                companyId: TenantAttribution::companyId(),
+                module: $modulo,
+                companyId: $companyId,
                 durationMs: $duracionMs,
                 isWarning: $esLenta,
                 isError: $esError,

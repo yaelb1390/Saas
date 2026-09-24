@@ -76,3 +76,44 @@
                     @endforelse
                 </div>
             </div>
+
+            {{-- --------------------------------------------------------------- Base de datos (F6) --}}
+            <div class="border-t border-slate-100 p-4">
+                <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Base de datos, últimas 24 h</p>
+
+                @unless (config('bmos.monitoreo.consultas.activo', true))
+                    <div class="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                        El conteo de consultas está APAGADO (<code class="bmos-mono">BMOS_CONSULTAS=false</code>).
+                    </div>
+                @endunless
+
+                <x-panel.metricas :columnas="3" :items="[
+                    ['valor' => number_format($rendimiento['bd']['requests']), 'etiqueta' => 'consultas', 'tono' => 'indigo', 'icono' => 'pulse'],
+                    ['valor' => $rendimiento['bd']['p50'] !== null ? number_format($rendimiento['bd']['p50']).' ms' : '—', 'etiqueta' => 'P50', 'tono' => 'azul'],
+                    ['valor' => $rendimiento['bd']['p95'] !== null ? number_format($rendimiento['bd']['p95']).' ms' : '—', 'etiqueta' => 'P95', 'tono' => 'violeta'],
+                ]" />
+
+                @if ($rendimiento['consultas_frecuentes']->isNotEmpty())
+                    <div class="mt-4 bmos-card overflow-hidden">
+                        <p class="border-b border-slate-100 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Consultas lentas más repetidas
+                            <span class="font-normal normal-case text-slate-400">
+                                — de toda la plataforma, sin filtrar por empresa: es el patrón de SQL, no el dato
+                            </span>
+                        </p>
+                        @foreach ($rendimiento['consultas_frecuentes'] as $c)
+                            <div class="border-b border-slate-50 px-4 py-2.5 text-sm last:border-0">
+                                <p class="bmos-mono truncate text-xs text-slate-600" title="{{ $c->sql_sample }}">{{ $c->sql_sample }}</p>
+                                <p class="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-slate-400">
+                                    <span>{{ number_format($c->hits) }} {{ $c->hits === 1 ? 'vez' : 'veces' }}</span>
+                                    <span>máx {{ number_format($c->max_ms) }} ms</span>
+                                    @if ($c->last_route) <span>última: {{ $c->last_route }}</span> @endif
+                                    <span title="{{ $c->last_seen_at }}">{{ \Illuminate\Support\Carbon::parse($c->last_seen_at)->diffForHumans() }}</span>
+                                </p>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="mt-3 bmos-empty">Ninguna consulta por encima del umbral todavía.</p>
+                @endif
+            </div>

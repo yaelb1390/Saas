@@ -147,6 +147,31 @@ return [
             'lento_ms' => (int) env('BMOS_METRICAS_LENTO_MS', 1000),
             'muestras_minimas' => (int) env('BMOS_METRICAS_MUESTRAS_MINIMAS', 20),
         ],
+
+        /*
+         * Fase 6: consultas a PostgreSQL. `activo` es el interruptor del `DB::listen` único
+         * (apagado en `phpunit.xml`); `umbral_ms` decide qué consulta entra en `slow_queries` —
+         * bastante más bajo que `lento_ms` de arriba, porque una consulta SUELTA de 500 ms ya es
+         * mucho, aunque la petición entera (con caché, con la vista, con la red) tarde menos de un
+         * segundo—.
+         */
+        'consultas' => [
+            'activo' => (bool) env('BMOS_CONSULTAS', true),
+            'umbral_ms' => (int) env('BMOS_CONSULTAS_UMBRAL_MS', 500),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Base de datos (Fase 6)
+    |--------------------------------------------------------------------------
+    |
+    | El cupo de espacio que `PostgresStats` compara contra `pg_database_size()`, para que la sonda
+    | de salud avise ANTES de que Supabase corte el paso por espacio agotado, no después.
+    |
+    */
+    'base_datos' => [
+        'cupo_mb' => (int) env('BMOS_BD_CUPO_MB', 500),
     ],
 
     /*

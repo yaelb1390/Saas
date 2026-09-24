@@ -7,6 +7,7 @@ namespace App\Modules\Core\Monitoring\Queues;
 use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Monitoring\Metrics\MetricsRecorder;
 use App\Modules\Core\Monitoring\Metrics\Observation;
+use App\Modules\Core\Monitoring\Queries\QueryWatcher;
 use App\Modules\Core\Support\SecretRedactor;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Events\Dispatcher;
@@ -33,7 +34,10 @@ final class QueueEventSubscriber
     /** @var array<string, float> jobId => microtime() de cuando empezó */
     private array $inicios = [];
 
-    public function __construct(private readonly MetricsRecorder $metricas) {}
+    public function __construct(
+        private readonly MetricsRecorder $metricas,
+        private readonly QueryWatcher $consultas,
+    ) {}
 
     public function alEmpezar(JobProcessing $evento): void
     {
@@ -58,6 +62,7 @@ final class QueueEventSubscriber
 
         $duracionMs = $inicio !== null ? (microtime(true) - $inicio) * 1000 : 0.0;
         $nombre = class_basename($job->resolveName());
+        $modulo = $this->moduloDeLaClase($job->resolveName());
         $companyId = $this->companyIdDelPayload($job);
         $lento = $duracionMs >= (int) config('bmos.monitoreo.colas.lento_segundos', 10) * 1000;
 
@@ -66,7 +71,7 @@ final class QueueEventSubscriber
                 kind: Observation::JOB,
                 name: $nombre,
                 method: $job->getQueue(),
-                module: $this->moduloDeLaClase($job->resolveName()),
+                module: $modulo,
                 companyId: $companyId,
                 durationMs: $duracionMs,
                 isWarning: $lento,
@@ -75,6 +80,11 @@ final class QueueEventSubscriber
         } catch (Throwable) {
             // De más, no crítico: ver la cabecera de `DatabaseSink`.
         }
+
+        // Fase 6: las consultas que hizo ESTE trabajo, agregadas y con su propia fila `kind=db`. Va
+        // aquí y no en un listener aparte: `queue:work` reutiliza el proceso entre trabajos, y este es
+        // el único punto que sabe cuándo uno terminó de verdad (éxito o fallo).
+        $this->consultas->vaciar($nombre, $modulo, $companyId);
 
         if ($error) {
             SystemEvent::registrar(

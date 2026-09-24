@@ -33,6 +33,7 @@
         <!-- Fase 5: apagado por defecto (los tests que lo necesitan lo encienden con config()), para
              que ningún test escriba métricas HTTP sin querer. -->
         <env name="BMOS_METRICAS" value="false"/>
+        <env name="BMOS_CONSULTAS" value="false"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

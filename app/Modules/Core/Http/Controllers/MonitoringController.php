@@ -17,6 +17,7 @@ use App\Modules\Core\Monitoring\Incidents\IncidentService;
 use App\Modules\Core\Monitoring\Metrics\MetricsQuery;
 use App\Modules\Core\Monitoring\Metrics\Percentiles;
 use App\Modules\Core\Monitoring\MonitoringSchema;
+use App\Modules\Core\Monitoring\Queries\SlowQueryStore;
 use App\Modules\Core\Monitoring\Queues\QueueMonitor;
 use App\Modules\Core\Monitoring\Search\MonitoringFilters;
 use App\Modules\Core\Monitoring\Search\MonitoringSearch;
@@ -88,6 +89,7 @@ final class MonitoringController extends Controller
         HealthRegistry $registroDeSalud,
         QueueMonitor $colas,
         MetricsQuery $metricas,
+        SlowQueryStore $consultasLentas,
     ): View {
         $filtros = MonitoringFilters::fromRequest($request, self::FAMILIAS, self::ACCIONES);
 
@@ -118,7 +120,7 @@ final class MonitoringController extends Controller
             'salud' => $salud->resumen(),
             'pulso' => $salud->pulso(),
             'p95App' => $metricas->resumenApp(1)['p95'],
-            'rendimiento' => $filtros->pestana === 'rendimiento' ? $this->rendimientoDetalle($metricas, $filtros->empresa) : null,
+            'rendimiento' => $filtros->pestana === 'rendimiento' ? $this->rendimientoDetalle($metricas, $consultasLentas, $filtros->empresa) : null,
             'webhooks' => $salud->webhooksSinResolver(),
             'empresas' => Company::query()->orderBy('name')->get(['id', 'name']),
             'acciones' => self::ACCIONES,
@@ -169,18 +171,21 @@ final class MonitoringController extends Controller
     }
 
     /**
-     * El detalle de la pestaña «Rendimiento» (Fase 5): resumen de la aplicación, desglose por
-     * módulo y los endpoints más lentos, las últimas 24 h. `empresa` filtra las tres a la vez —es el
-     * mismo filtro que se lleva de una pestaña a otra—.
+     * El detalle de la pestaña «Rendimiento» (Fase 5: HTTP; Fase 6: base de datos), las últimas 24 h.
+     * `empresa` filtra la parte HTTP y la de consultas (las dos tienen `company_id` real en
+     * `metric_buckets`); las consultas MÁS FRECUENTES de `slow_queries` son siempre de toda la
+     * plataforma —un patrón de SQL no es de una empresa, ver `SlowQueryStore`—.
      *
-     * @return array{app: array<string, mixed>, por_modulo: Collection<int, array<string, mixed>>, lentos: Collection<int, array<string, mixed>>}
+     * @return array{app: array<string, mixed>, por_modulo: Collection<int, array<string, mixed>>, lentos: Collection<int, array<string, mixed>>, bd: array<string, mixed>, consultas_frecuentes: Collection<int, object>}
      */
-    private function rendimientoDetalle(MetricsQuery $metricas, ?int $empresa): array
+    private function rendimientoDetalle(MetricsQuery $metricas, SlowQueryStore $consultasLentas, ?int $empresa): array
     {
         return [
             'app' => $metricas->resumenApp(1, $empresa),
             'por_modulo' => $metricas->porModulo(1, $empresa),
             'lentos' => $metricas->endpointsLentos(1, 10, $empresa),
+            'bd' => $metricas->resumenConsultas(1, $empresa),
+            'consultas_frecuentes' => $consultasLentas->masFrecuentes(10),
         ];
     }
 

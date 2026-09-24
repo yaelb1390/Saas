@@ -522,6 +522,101 @@ Ninguna. Esta fase no añade tabla ni columna: solo lee y escribe en `metric_buc
 con desplegar el código y, si se quiere, fijar `BMOS_METRICAS_*` en las variables de Vercel (los
 valores por defecto ya son razonables sin tocar nada).
 
+## Fase 6 — PostgreSQL
+
+### El problema
+
+No había forma de saber qué consulta concreta iba lenta, cuántas veces, ni cómo está PostgreSQL por
+dentro (conexiones, bloqueos, espacio) — solo que la BD «respondía» o no (Fase 3).
+
+### Qué se hizo
+
+**`slow_queries`** (`2026_09_26_100000`): una fila por PATRÓN de consulta (`fingerprint`, sha256 del
+SQL normalizado), no por ejecución — la misma consulta lenta corriendo mil veces con ids distintos es
+una fila con `hits=1000`. `sql_sample` reutiliza `MessageNormalizer::normalizeSql()` (Fase 1a, que ya
+decía en su docblock «y, más adelante, para agrupar las consultas lentas») así que nunca lleva un
+valor real de negocio. `last_company_id` es informativo (quién la disparó por última vez), NO una
+columna `company_id` de reparto — la misma consulta la puede lanzar cualquier empresa, no hay
+«hijas por empresa» como en `error_events` — y por eso no la exige `TenantPurgeCompletenessTest`.
+
+**`QueryWatcher`** (singleton, `Monitoring/Queries/`): UN `DB::listen` para toda la aplicación
+(`CoreServiceProvider::boot()`, siempre registrado; el interruptor se comprueba DENTRO del cierre,
+igual que `RecordRequestMetrics`, para que un test pueda encenderlo con `config()` a mitad de
+sesión). Por cada consulta solo hace aritmética en memoria —contador, suma, máximo, tramo del
+histograma— y aparta CRUDAS (sql + duración, sin normalizar todavía) las que pasan `umbral_ms` en un
+búfer con tope de 20. Todo se vacía de una vez en `vaciar()`, llamado desde el MISMO punto que ya
+cierra la petición o el trabajo (`RecordRequestMetrics::terminate()`, `QueueEventSubscriber::
+registrar()`): ahí, y solo ahí, se normaliza el SQL lento y se escribe.
+
+**Peso por tramo, no por observación**: `vaciar()` no llama a `MetricsRecorder::anotar()` una vez por
+consulta —sería la misma escritura-por-observación que la Fase 5 evita con el muestreo—, sino UNA VEZ
+POR TRAMO no vacío del histograma, con el CONTEO de ese tramo como peso (la Fase 5 ya sabe pesar). El
+tramo que contiene la duración máxima real lleva esa duración exacta (para que `max_ms` no se
+pierda); el resto, cualquier punto dentro de su propio tramo, porque lo único que `DatabaseSink`
+necesita de la duración es a qué tramo pertenece.
+
+**GUARDA DE REENTRADA**: mientras `vaciar()` escribe, sus propias consultas (el UPDATE/INSERT de
+`metric_buckets` y `slow_queries`) pasan por el MISMO listener. Sin la guarda (`$procesando`), esas
+escrituras se contarían a sí mismas — y si el umbral fuera bajo, se anotarían como «consultas lentas»
+propias. Probado invirtiendo la guarda a propósito: sin ella, una sola consulta observada deja CUATRO
+filas en `slow_queries` en vez de una (el `SELECT` de verdad, más el UPDATE y el INSERT de cada una de
+las dos tablas que `vaciar()` escribe).
+
+**`queue:work` reutiliza el proceso** entre trabajos (al revés que una petición HTTP, con un
+contenedor nuevo cada vez): `vaciar()` reinicia el estado al terminar, así que las consultas del
+trabajo N nunca se suman a las del N+1.
+
+**`PostgresStats`** (`Monitoring/Queries/`): conexiones activas vs `max_connections`, locks sin
+conceder, la transacción más larga abierta, deadlocks NUEVOS desde la última comprobación (delta
+contra un valor guardado en caché) y tamaño vs `BMOS_BD_CUPO_MB`. Cada dato en su PROPIO `try/catch` —
+contra el pooler de sesión de Supabase, una vista puede no estar accesible sin que las demás fallen—.
+`null` inmediato si el driver no es `pgsql` (los tests, en SQLite). Verificado con el Postgres local
+de verdad (`docker exec bmos_app php artisan tinker`): las cinco consultas funcionan y devuelven
+valores sensatos.
+
+**`DatabaseCheck`** (Fase 3) integra `PostgresStats` en su mensaje («247/500 conexiones · 812/500
+MB») y degrada si el tamaño alcanza el cupo, además de por latencia — las estadísticas NUNCA hacen
+caer la sonda por sí solas: si `PostgresStats::leer()` devuelve `null` o algo falla, simplemente no
+hay resumen que añadir.
+
+**Pantalla**: sección «Base de datos» en «Rendimiento» (consultas/P50/P95 de `kind='db'`, y las
+consultas lentas MÁS REPETIDAS de `slow_queries` — de toda la plataforma, sin filtrar por empresa: un
+patrón de SQL no es de una empresa—); el resumen de PostgreSQL ya viaja en el mensaje de la sonda
+«Base de datos» de la pestaña «Servicios» sin tocar la vista.
+
+**Poda**: `slow_queries` entra en `registros:purgar` con la MISMA retención que las métricas
+agregadas (30 días, por `last_seen_at`). `CompanyEraser` NO borra sus filas al borrar una empresa
+—no son suyas—, solo les quita la referencia (`last_company_id = null`), igual que hace con el
+registro del sistema.
+
+### Archivos
+
+Nuevos: `database/migrations/2026_09_26_100000_create_slow_queries_table.php`,
+`app/Modules/Core/Monitoring/Queries/{QueryWatcher,SlowQueryStore,PostgresStats}.php`,
+`tests/Feature/Core/Monitoring/SlowQueryTest.php`.
+Modificados: `Providers/CoreServiceProvider.php` (`QueryWatcher` singleton, `DB::listen`), `Http/
+Middleware/RecordRequestMetrics.php` (llama a `vaciar()`), `Monitoring/Queues/
+QueueEventSubscriber.php` (llama a `vaciar()` tras cada trabajo), `Monitoring/Health/Checks/
+DatabaseCheck.php` (integra `PostgresStats`), `Monitoring/Metrics/MetricsQuery.php`
+(`resumenConsultas()`), `Http/Controllers/MonitoringController.php`, `Console/Commands/
+PurgeOldRecords.php`, `Services/CompanyEraser.php`, `resources/views/panel/admin/monitoring/
+partials/tab-rendimiento.blade.php`, `config/bmos.php`, `.env.example`, `phpunit.xml`.
+
+### Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| Contar las propias escrituras de `vaciar()` | Guarda de reentrada (`$procesando`); probado invirtiéndola a propósito (4 filas sin ella, 1 con ella) |
+| `queue:work` reutiliza el proceso entre trabajos | `vaciar()` reinicia todo el estado al terminar cada trabajo, éxito o fallo |
+| `PostgresStats` contra un pooler que no da acceso a alguna vista | Cada dato en su propio `try/catch`; `null` no rompe la sonda ni la pantalla |
+| Un `sum_ms`/`max_ms` de un tramo NO máximo queda aproximado (peso por tramo, no por observación) | A propósito: no se enseña en ninguna pantalla; `max_ms` real SÍ es exacto (va en el tramo que de verdad contiene el máximo) |
+
+### Aplicar las migraciones en producción
+
+Una tabla nueva, `slow_queries`, sin FK ni columnas obligatorias sobre tablas existentes: aplicarla es
+opcional para que el resto del código siga funcionando (`QueryWatcher::vaciar()` comprueba
+`DbTable::existe()` antes de escribir en ella). Mismo procedimiento que las fases anteriores.
+
 ## Discrepancias entre la documentación y la implementación real
 
 | La documentación dice | La realidad |

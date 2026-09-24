@@ -27,13 +27,34 @@ final class MetricsQuery
      */
     public function resumenApp(int $dias, ?int $companyId = null): array
     {
+        return $this->resumenPorTipo('http', $dias, $companyId);
+    }
+
+    /**
+     * El mismo resumen que `resumenApp()`, pero de las CONSULTAS a la base de datos (Fase 6, `kind
+     * 'db'` de `metric_buckets`, que `QueryWatcher` alimenta). `errores`/`tasa_error` siempre salen en
+     * cero: una consulta que falla es un error de aplicación (ya pasa por `ErrorEvent`), no algo que
+     * este agregador —pensado para duración, no para éxito o fracaso— tenga que repetir.
+     *
+     * @return array{requests: int, errores: int, tasa_error: float, p50: float|null, p95: float|null, p99: float|null}
+     */
+    public function resumenConsultas(int $dias, ?int $companyId = null): array
+    {
+        return $this->resumenPorTipo('db', $dias, $companyId);
+    }
+
+    /**
+     * @return array{requests: int, errores: int, tasa_error: float, p50: float|null, p95: float|null, p99: float|null}
+     */
+    private function resumenPorTipo(string $kind, int $dias, ?int $companyId): array
+    {
         $vacio = ['requests' => 0, 'errores' => 0, 'tasa_error' => 0.0, 'p50' => null, 'p95' => null, 'p99' => null];
 
         if (! DbTable::existe('metric_buckets')) {
             return $vacio;
         }
 
-        $fila = $this->baseQuery($dias, $companyId)
+        $fila = $this->baseQuery($kind, $dias, $companyId)
             ->selectRaw($this->seleccionAgregada())
             ->first();
 
@@ -67,7 +88,7 @@ final class MetricsQuery
             return collect();
         }
 
-        return $this->baseQuery($dias, $companyId)
+        return $this->baseQuery('http', $dias, $companyId)
             ->selectRaw('coalesce(module, \'app\') as modulo, '.$this->seleccionAgregada())
             ->groupBy('modulo')
             ->orderByDesc('total')
@@ -95,7 +116,7 @@ final class MetricsQuery
 
         $minimo = max(1, (int) config('bmos.monitoreo.metricas_http.muestras_minimas', 20));
 
-        $filas = $this->baseQuery($dias, $companyId)
+        $filas = $this->baseQuery('http', $dias, $companyId)
             ->selectRaw('name as endpoint, method as metodo, '.$this->seleccionAgregada())
             ->groupBy('name', 'method')
             ->havingRaw('sum(total) >= ?', [$minimo])
@@ -113,10 +134,10 @@ final class MetricsQuery
             ->values();
     }
 
-    private function baseQuery(int $dias, ?int $companyId)
+    private function baseQuery(string $kind, int $dias, ?int $companyId)
     {
         return DB::table('metric_buckets')
-            ->where('kind', 'http')
+            ->where('kind', $kind)
             ->where('bucket_start', '>=', now()->subDays($dias))
             ->when($companyId !== null, fn ($q) => $q->where('company_id', $companyId));
     }

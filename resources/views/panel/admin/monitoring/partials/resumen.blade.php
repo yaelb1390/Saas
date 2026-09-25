@@ -109,11 +109,28 @@
                     ['n' => $avisos['sin_vender'], 'texto' => 'sin vender hace semanas', 'tono' => 'text-amber-800 bg-amber-50'],
                     ['n' => $avisos['pasada_de_plan'], 'texto' => 'pasadas de su plan', 'tono' => 'text-violet-700 bg-violet-50'],
                     ['n' => $avisos['bot_sin_info'], 'texto' => 'con el bot encendido y sin información', 'tono' => 'text-amber-800 bg-amber-50'],
+                    // Fase 7: estas dos ya las contaba `resumenDeAvisos()` (y `conAviso()`, que decide
+                    // el titular de arriba), pero se quedaban fuera de ESTA lista sin ninguna razón —
+                    // el titular podía decir «2 empresas piden atención» y esta tarjeta seguir vacía.
+                    ['n' => $avisos['descuadres'], 'texto' => 'con descuadres de caja este mes', 'tono' => 'text-slate-700 bg-slate-100'],
+                    ['n' => $avisos['sin_precio'], 'texto' => 'con productos activos sin precio', 'tono' => 'text-slate-700 bg-slate-100'],
                 ])->where('n', '>', 0);
             @endphp
 
             <div class="bmos-card bmos-card-pad">
                     <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Estado de las empresas</p>
+
+                    {{-- La ficha por dominios (Fase 7): un resumen más completo que las señales de
+                         arriba —cruza con errores, incidentes, jobs y rendimiento—, así que solo se
+                         destaca cuando dice algo que la lista de abajo no dice ya: alguna crítica. --}}
+                    @if ($problemas['critical'] > 0)
+                        <p class="mb-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                            <a href="{{ route('platform.monitoring', ['pestana' => 'empresas']) }}" class="underline">
+                                {{ $problemas['critical'] }} {{ $problemas['critical'] === 1 ? 'empresa en estado crítico' : 'empresas en estado crítico' }}
+                            </a>
+                            — ver la ficha en la pestaña «Empresas».
+                        </p>
+                    @endif
 
                     @forelse ($bloqueos as $b)
                         <p class="mb-1.5 rounded-lg px-3 py-2 text-xs font-medium {{ $b['tono'] }}">

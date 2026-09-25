@@ -617,6 +617,96 @@ Una tabla nueva, `slow_queries`, sin FK ni columnas obligatorias sobre tablas ex
 opcional para que el resto del código siga funcionando (`QueryWatcher::vaciar()` comprueba
 `DbTable::existe()` antes de escribir en ella). Mismo procedimiento que las fases anteriores.
 
+## Fase 7 — Company Health integrado (cierra el plan)
+
+### El problema
+
+`CompanyHealthService::porEmpresa()` (ya existente) respondía «¿qué le impide vender HOY a esta
+empresa?» con ocho banderas sueltas sin relación aparente entre sí, y sin cruzar con nada del resto
+del monitoreo: un cliente con incidentes abiertos, errores activos o su suscripción con el cobro
+fallido se veía exactamente igual que uno sano. Y tres bugs reales: una venta cancelada, en borrador o
+borrada contaba como «la última venta»; una sucursal o un almacén por omisión BORRADOS seguían
+contando para el límite del plan y para «tiene almacén»; y la tarjeta del Resumen se olvidaba de
+enseñar `descuadres` y `sin_precio` aunque el titular de arriba SÍ los contara.
+
+### Qué se hizo
+
+**Bugs corregidos** (los tres, cazados leyendo el código antes de escribir nada nuevo, no por un test
+que fallara): `ultimaVenta()` ahora filtra `whereNull('deleted_at')` y `status = completed` —
+`withoutGlobalScopes()` es necesario para ver TODAS las empresas, pero de paso quitaba también el
+filtro de borrado, y no distinguía un borrador de una venta de verdad—; `sucursales()` y
+`conAlmacenPorOmision()` ganaron el mismo `whereNull('deleted_at')` que ya tenía `productosActivos()`
+desde antes; `resumen.blade.php` sumó `descuadres` y `sin_precio` a la lista de «Estado de las
+empresas», que ya los contaba `resumenDeAvisos()`/`conAviso()` pero no los enseñaba.
+
+**`DTOs/{CompanyHealthCard, CompanyProblem}`** (`final readonly class`, como `CreateCompanyData`):
+`CompanyHealthCard` agrupa SEIS dominios —Sistema, Facturación, WhatsApp, IA, Ventas, Caja—, cada uno
+con su estado (`HEALTHY`/`WARNING`/`CRITICAL`, mismo vocabulario de tres niveles que `HealthStatus`
+pero como constantes de clase, no un enum nativo, por la misma convención ya sentada en todo el
+módulo) y su lista de `CompanyProblem`. `estadoGeneral()` es el PEOR de los seis: un dominio crítico
+manda sobre cualquier cantidad de avisos en los demás.
+
+**`CompanyHealthService::fichas()/ficha($id)/resumenDeProblemas()`**, nuevos, `porEmpresa()` y
+`resumenDeAvisos()` SIN TOCAR (la tabla de la pestaña «Empresas» los sigue usando tal cual). Ventas y
+Caja son literalmente las señales que `calcular()` ya tenía —sin_almacen/sin_productos CRÍTICOS
+(bloquean el cobro de verdad), el resto avisa—, reempaquetadas en dos dominios. Los otros cuatro
+cruzan con el resto del monitoreo, cada uno con su PROPIA consulta agrupada (nunca una por empresa):
+
+- **Sistema**: incidentes ABIERTOS (`incident_companies` + `incidents`, CRÍTICO) y 5xx de las últimas
+  24 h (`metric_buckets kind=http`, CRÍTICO); grupos de error ACTIVOS de las últimas 24 h
+  (`error_event_companies` + `error_events`, por `last_seen_at`) y trabajos fallidos
+  (`metric_buckets kind=job`) AVISAN; P95 > 3 s (el mismo corte del tramo `h3` del histograma
+  compartido desde la Fase 4) también avisa.
+- **Facturación**: suscripción `past_due`/`suspended`/`cancelled` o sin comprobantes fiscales,
+  CRÍTICO; pasada de plan, aviso.
+- **WhatsApp**: línea desconectada CON el bot encendido de verdad (no solo «sin usar»), CRÍTICO —el
+  último `system_event` de tipo `integration.whatsapp` por empresa, un `max(id)` agrupado y una
+  segunda consulta para leer esas filas, dos consultas en total, nunca una por empresa—; bot sin
+  información, mensajes fallidos o atascados >15 min, avisan.
+- **IA**: grupos de error ACTIVOS de servicio `ai` (el mismo `ServiceResolver` de la Fase 1a) en las
+  últimas 24 h, aviso. Cuenta TAMBIÉN para Sistema —que mira todo error activo sea cual sea su
+  servicio— y eso es correcto: son dos preguntas distintas («¿algo falla?» vs. «¿falla la IA?»), no un
+  error de doble conteo.
+
+**Uptime observado** (`HealthAggregator::disponibilidad($servicio, $dias)`): `health_check_results`
+ya existía desde la Fase 3 pensada exactamente para esto —está en su propio docblock—, y nadie la
+había leído todavía. Porcentaje de comprobaciones que salieron `healthy`/`degraded` sobre las que de
+verdad se hicieron; `null` sin datos, nunca un «100 %» inventado sobre cero comprobaciones. En el
+Resumen, junto al resto del titular.
+
+**Pantalla**: la pestaña «Empresas» ganó una columna «Estado» (Sana/Con avisos/Crítica) y la columna
+«Qué le pasa» ahora sale de `ficha->problemas()` en vez de una lista de banderas repetida en la vista;
+el Resumen destaca cuántas empresas están en estado crítico (con enlace a la pestaña) cuando hay
+alguna, además de la lista de «Estado de las empresas» ya arreglada.
+
+### Archivos
+
+Nuevos: `app/Modules/Core/DTOs/{CompanyHealthCard,CompanyProblem}.php`,
+`database/migrations/2026_09_27_100000_add_company_created_at_index_to_sales_table.php`,
+`tests/Feature/Core/CompanyHealthCardTest.php`.
+Modificados: `Services/CompanyHealthService.php` (los tres bugs + `fichas()`/`ficha()`/
+`resumenDeProblemas()` y sus ocho consultas agrupadas nuevas), `Monitoring/Health/
+HealthAggregator.php` (`disponibilidad()`), `Services/PlatformHealthService.php` (`uptime_24h`/
+`uptime_7d`), `Http/Controllers/MonitoringController.php`, `resources/views/panel/admin/monitoring.blade.php`
+(uptime en la nota del estado general), `resources/views/panel/admin/monitoring/partials/
+{tab-empresas,resumen}.blade.php`, `tests/Feature/Core/CompanyHealthTest.php` (4 pruebas nuevas de
+regresión de los bugs, las 13 originales intactas).
+
+### Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| Ocho consultas agrupadas nuevas por carga de `fichas()` | Cada una en su propio método, cacheadas junto con el resto (`platform:empresas:fichas`, 60 s); probado que el coste NO crece con el número de empresas |
+| Una señal de una empresa se cuela en la ficha de otra | Es EL test que más importa, igual que en `CompanyHealthTest`: incidente + 5xx + suscripción de una empresa, verificados ausentes en la otra |
+| «Sistema» cuenta errores/incidentes/jobs/HTTP sin tabla migrada | Cada consulta nueva con su propio `DbTable::existe()`; sin la tabla, ese dominio sale `HEALTHY` en vez de romper la ficha entera |
+| Un brote de "sin productos" en toda empresa recién creada | Es correcto, no un bug: una empresa sin catálogo de verdad no puede vender — se documenta aquí para que no se confunda con un fallo la próxima vez que alguien mire una empresa de prueba recién creada |
+
+### Aplicar las migraciones en producción
+
+Una sola, y solo un índice sobre `sales` —nada que migrar es obligatorio para que el código siga
+funcionando exactamente igual que antes, `ultimaVenta()` simplemente tardaría más sin él—. Mismo
+procedimiento que las fases anteriores.
+
 ## Discrepancias entre la documentación y la implementación real
 
 | La documentación dice | La realidad |

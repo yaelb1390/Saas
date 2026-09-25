@@ -62,6 +62,38 @@ final class HealthAggregator
         return HealthStatus::HEALTHY;
     }
 
+    /**
+     * La disponibilidad OBSERVADA de un servicio, sobre `health_check_results` (Fase 3, pensada para
+     * esto desde su propio docblock). «Observada» y no «real»: es el porcentaje de comprobaciones que
+     * salieron `healthy`/`degraded` sobre las que de verdad se hicieron —si el cron dejó de correr un
+     * día entero, ese día no cuenta ni a favor ni en contra, porque no se sabe qué pasó—.
+     *
+     * `null` sin datos: un «100 %» inventado sobre cero comprobaciones sería peor que no decir nada.
+     */
+    public function disponibilidad(string $servicio, int $dias): ?float
+    {
+        if (! DbTable::existe('health_check_results')) {
+            return null;
+        }
+
+        $total = DB::table('health_check_results')
+            ->where('service', $servicio)
+            ->where('created_at', '>=', now()->subDays($dias))
+            ->count();
+
+        if ($total === 0) {
+            return null;
+        }
+
+        $arriba = DB::table('health_check_results')
+            ->where('service', $servicio)
+            ->where('created_at', '>=', now()->subDays($dias))
+            ->where('status', '!=', HealthStatus::UNHEALTHY)
+            ->count();
+
+        return round(($arriba / $total) * 100, 2);
+    }
+
     private function hayIncidenteAbierto(): bool
     {
         return DbTable::existe('incidents') && Incident::query()->activos()->exists();

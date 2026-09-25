@@ -97,12 +97,19 @@ final class MonitoringController extends Controller
         // pestaña abierta. El Resumen solo necesita el total y cuántas tienen algún problema, que ya
         // vienen resueltos y en caché en `$salud` y `$contadores`.
         $saludEmpresas = $filtros->pestana === 'empresas' ? $empresas->porEmpresa() : collect();
+        // La ficha por dominios (Fase 7), la MISMA pestaña: es lo que enseña «qué le pasa» agrupado
+        // en vez de una fila de banderas sin relación aparente entre sí.
+        $fichas = $filtros->pestana === 'empresas' ? $empresas->fichas()->keyBy('id') : collect();
 
         return view('panel.admin.monitoring', [
             'f' => $filtros,
             'contadores' => $contadores->calcular(),
             'salud_empresas' => $saludEmpresas,
+            'fichas' => $fichas,
             'avisos' => $empresas->resumenDeAvisos(),
+            // Cuántas empresas están sanas/con aviso/críticas (Fase 7): para el titular del Resumen,
+            // igual de barato que el resto de contadores —cacheado con la misma TTL—.
+            'problemas' => $empresas->resumenDeProblemas(),
             'registro' => $filtros->pestana === 'registro' ? $buscador->registro($filtros) : $this->vacio(),
             'errores' => $filtros->pestana === 'errores' ? $buscador->errores($filtros) : $this->vacio(),
             'incidentes' => $filtros->pestana === 'incidentes' ? $incidentes->listar($filtros) : $this->vacio(),

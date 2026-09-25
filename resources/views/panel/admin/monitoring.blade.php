@@ -121,6 +121,7 @@
             :titulo="$tituloGeneral"
             :nota="$salud['empresas_activas'].' '.($salud['empresas_activas'] === 1 ? 'empresa activa' : 'empresas activas')
                 .' · '.$salud['usuarios'].' '.($salud['usuarios'] === 1 ? 'usuario' : 'usuarios')
+                .($salud['uptime_7d'] !== null ? ' · uptime 7 d: '.$salud['uptime_7d'].'%' : '')
                 .' · comprobado '.now()->format('H:i')" />
 
         {{-- 2. El panel con pestañas. Solo se incluye la de la vista, no las cinco. --}}

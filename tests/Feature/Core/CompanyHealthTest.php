@@ -292,3 +292,62 @@ it('marca el bot encendido y sin información del negocio', function (): void {
 
     expect(estadoDe('La Vigilada')['bot_sin_info'])->toBeFalse();
 });
+
+// ------------------------------------------------------------ Fase 7: bugs que los tests cazaron
+
+it('una venta CANCELADA o en BORRADOR no cuenta como la última venta de verdad', function (): void {
+    /*
+     * `withoutGlobalScopes()` es necesario para ver TODAS las empresas, pero antes también quitaba
+     * el filtro de estado: una empresa con solo ventas canceladas parecía tan activa como una que
+     * factura todos los días.
+     */
+    $almacen = Warehouse::withoutGlobalScopes()->where('company_id', $this->empresa->id)->value('id');
+
+    Sale::create([
+        'company_id' => $this->empresa->id, 'code' => 'V-CANCEL', 'status' => 'cancelled',
+        'warehouse_id' => $almacen, 'subtotal' => '50.00', 'tax' => '0.00', 'total' => '50.00',
+        'paid' => '50.00', 'change' => '0.00', 'payment_method' => 'cash',
+    ]);
+    Sale::create([
+        'company_id' => $this->empresa->id, 'code' => 'V-DRAFT', 'status' => 'draft',
+        'warehouse_id' => $almacen, 'subtotal' => '50.00', 'tax' => '0.00', 'total' => '50.00',
+        'paid' => '0.00', 'change' => '0.00', 'payment_method' => 'cash',
+    ]);
+
+    expect(estadoDe('La Vigilada')['ultima_venta'])->toBeNull();
+});
+
+it('una venta BORRADA no cuenta como la última venta', function (): void {
+    $almacen = Warehouse::withoutGlobalScopes()->where('company_id', $this->empresa->id)->value('id');
+
+    $venta = Sale::create([
+        'company_id' => $this->empresa->id, 'code' => 'V-DEL', 'status' => 'completed',
+        'warehouse_id' => $almacen, 'subtotal' => '50.00', 'tax' => '0.00', 'total' => '50.00',
+        'paid' => '50.00', 'change' => '0.00', 'payment_method' => 'cash', 'completed_at' => now(),
+    ]);
+    $venta->delete();
+
+    expect(estadoDe('La Vigilada')['ultima_venta'])->toBeNull();
+});
+
+it('una sucursal BORRADA no cuenta para el límite del plan', function (): void {
+    $sucursal = \App\Modules\Core\Models\Branch::create([
+        'company_id' => $this->empresa->id, 'name' => 'De prueba', 'is_active' => true,
+    ]);
+
+    expect(estadoDe('La Vigilada')['sucursales'])->toBe(2); // la principal + esta
+
+    $sucursal->delete();
+
+    expect(estadoDe('La Vigilada')['sucursales'])->toBe(1);
+});
+
+it('un almacén por omisión BORRADO se trata como si no existiera', function (): void {
+    $almacen = Warehouse::withoutGlobalScopes()->where('company_id', $this->empresa->id)->where('is_default', true)->first();
+
+    expect(estadoDe('La Vigilada')['sin_almacen'])->toBeFalse();
+
+    $almacen->delete();
+
+    expect(estadoDe('La Vigilada')['sin_almacen'])->toBeTrue();
+});

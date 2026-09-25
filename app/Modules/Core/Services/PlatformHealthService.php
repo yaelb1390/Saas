@@ -84,6 +84,10 @@ final class PlatformHealthService
             // `HealthStatus` (`unhealthy` es DOWN). Cacheado con el resto: no vale la pena recalcular
             // esto más a menudo que las demás cifras de este mismo resumen.
             'estado_general' => $this->salud->estado(),
+            // Fase 7: cuánto ha estado de verdad la base de datos, no cuánto «debería» —sobre lo que
+            // el cron ha llegado a comprobar—. `null` cuando todavía no hay ni una comprobación.
+            'uptime_24h' => $this->salud->disponibilidad('database', 1),
+            'uptime_7d' => $this->salud->disponibilidad('database', 7),
         ];
     }
 

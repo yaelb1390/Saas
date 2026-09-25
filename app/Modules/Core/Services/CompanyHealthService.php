@@ -6,11 +6,15 @@ namespace App\Modules\Core\Services;
 
 use App\Models\User;
 use App\Modules\Cash\Models\CashSession;
+use App\Modules\Core\DTOs\CompanyHealthCard;
+use App\Modules\Core\DTOs\CompanyProblem;
 use App\Modules\Core\Models\Branch;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Core\Monitoring\Metrics\Percentiles;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Inventory\Models\Product;
+use App\Modules\Sales\Enums\SaleStatus;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -220,6 +224,7 @@ final class CompanyHealthService
         return Warehouse::query()->withoutGlobalScopes()
             ->where('is_default', true)
             ->where('is_active', true)
+            ->whereNull('deleted_at')
             ->distinct()
             ->pluck('company_id')
             ->mapWithKeys(fn ($id): array => [(int) $id => true])
@@ -307,10 +312,19 @@ final class CompanyHealthService
             ->all();
     }
 
-    /** @return array<int, Carbon> */
+    /**
+     * La ÚLTIMA venta que de verdad vale como venta: ni borrada, ni en borrador, ni cancelada. Antes
+     * `withoutGlobalScopes()` —necesario para ver TODAS las empresas— también quitaba el filtro de
+     * borrado y no distinguía un borrador de una venta completada, así que una empresa con solo
+     * ventas canceladas o una venta borrada parecía «activa».
+     *
+     * @return array<int, Carbon>
+     */
     private function ultimaVenta(): array
     {
         return Sale::query()->withoutGlobalScopes()
+            ->whereNull('deleted_at')
+            ->where('status', SaleStatus::Completed)
             ->groupBy('company_id')
             ->selectRaw('company_id, max(created_at) as ultima')
             ->pluck('ultima', 'company_id')
@@ -359,6 +373,7 @@ final class CompanyHealthService
     private function sucursales(): array
     {
         return Branch::query()->withoutGlobalScopes()
+            ->whereNull('deleted_at')
             ->groupBy('company_id')
             ->selectRaw('company_id, count(*) as total')
             ->pluck('total', 'company_id')
@@ -437,6 +452,486 @@ final class CompanyHealthService
             ->distinct()
             ->pluck('company_id')
             ->mapWithKeys(fn ($id): array => [(int) $id => true])
+            ->all();
+    }
+
+    // ==================================================================== Fase 7: la ficha por empresa
+
+    /**
+     * La ficha de CADA empresa: seis dominios (Sistema, Facturación, WhatsApp, IA, Ventas, Caja), cada
+     * uno HEALTHY/WARNING/CRITICAL con su lista de problemas. Es una lectura DISTINTA de las mismas
+     * señales que ya calcula `porEmpresa()` —Ventas y Caja son literalmente esas señales, reempaquetadas
+     * en dominios— más cuatro dominios nuevos que cruzan con el resto del monitoreo (errores, jobs,
+     * incidentes, rendimiento HTTP).
+     *
+     * Misma caché que `porEmpresa()` en espíritu, con su propia clave: son dos lecturas distintas de la
+     * plataforma y no tiene sentido que una invalide a la otra.
+     *
+     * @return Collection<int, CompanyHealthCard>
+     */
+    public function fichas(): Collection
+    {
+        /** @var list<CompanyHealthCard> $fichas */
+        $fichas = cache()->remember('platform:empresas:fichas', self::TTL, fn (): array => $this->calcularFichas());
+
+        return collect($fichas);
+    }
+
+    /** La ficha de UNA empresa, o null si no existe. */
+    public function ficha(int $companyId): ?CompanyHealthCard
+    {
+        return $this->fichas()->firstWhere('id', $companyId);
+    }
+
+    /**
+     * Cuántas empresas hay en cada estado general, para el Resumen: «2 críticas, 8 con avisos».
+     *
+     * @return array{healthy: int, warning: int, critical: int}
+     */
+    public function resumenDeProblemas(): array
+    {
+        $fichas = $this->fichas();
+
+        return [
+            'healthy' => $fichas->filter(fn (CompanyHealthCard $f): bool => $f->estadoGeneral() === CompanyHealthCard::HEALTHY)->count(),
+            'warning' => $fichas->filter(fn (CompanyHealthCard $f): bool => $f->estadoGeneral() === CompanyHealthCard::WARNING)->count(),
+            'critical' => $fichas->filter(fn (CompanyHealthCard $f): bool => $f->estadoGeneral() === CompanyHealthCard::CRITICAL)->count(),
+        ];
+    }
+
+    /**
+     * Una consulta agrupada por señal —nunca una por empresa—, igual que {@see calcular()}: con
+     * treinta empresas y seis dominios, preguntar uno a uno serían cientos de consultas en la pantalla
+     * que se abre justo cuando algo va mal.
+     *
+     * @return list<CompanyHealthCard>
+     */
+    private function calcularFichas(): array
+    {
+        $base = $this->calcular(); // Ventas y Caja ya vienen de aquí; también sin_ncf y pasada_de_plan.
+
+        $erroresActivos = $this->erroresActivos24hPorEmpresa();
+        $incidentesAbiertos = $this->incidentesAbiertosPorEmpresa();
+        $jobsFallidos = $this->jobsFallidos24hPorEmpresa();
+        $http = $this->httpResumen24hPorEmpresa();
+        $suscripciones = $this->estadoSuscripcionPorEmpresa();
+        $waDesconectada = $this->whatsappDesconectadaPorEmpresa();
+        $waFallidos = $this->whatsappFallidos24hPorEmpresa();
+        $waPendientes = $this->whatsappPendientesPorEmpresa();
+        $iaFallos = $this->iaFallos24hPorEmpresa();
+
+        return array_map(function (array $e) use (
+            $erroresActivos, $incidentesAbiertos, $jobsFallidos, $http, $suscripciones,
+            $waDesconectada, $waFallidos, $waPendientes, $iaFallos,
+        ): CompanyHealthCard {
+            $id = (int) $e['id'];
+
+            return new CompanyHealthCard(
+                id: $id,
+                nombre: $e['nombre'],
+                activa: $e['activa'],
+                plan: $e['plan'],
+                dominios: [
+                    'sistema' => $this->dominioSistema(
+                        $erroresActivos[$id] ?? 0, $incidentesAbiertos[$id] ?? 0,
+                        $jobsFallidos[$id] ?? 0, $http[$id] ?? null,
+                    ),
+                    'facturacion' => $this->dominioFacturacion($e, $suscripciones[$id] ?? null),
+                    'whatsapp' => $this->dominioWhatsapp(
+                        $e, $waDesconectada[$id] ?? false, $waFallidos[$id] ?? 0, $waPendientes[$id] ?? 0,
+                    ),
+                    'ia' => $this->dominioIa($iaFallos[$id] ?? 0),
+                    'ventas' => $this->dominioVentas($e),
+                    'caja' => $this->dominioCaja($e),
+                ],
+            );
+        }, $base);
+    }
+
+    /**
+     * @return array{estado: string, problemas: list<CompanyProblem>}
+     */
+    private function dominioSistema(int $erroresActivos, int $incidentesAbiertos, int $jobsFallidos, ?array $http): array
+    {
+        $errores5xx = $http['errores'] ?? 0;
+        $p95 = $http['p95'] ?? null;
+        $problemas = [];
+
+        if ($incidentesAbiertos > 0) {
+            $problemas[] = new CompanyProblem(
+                "{$incidentesAbiertos} ".($incidentesAbiertos === 1 ? 'incidente abierto' : 'incidentes abiertos'),
+                CompanyProblem::CRITICAL, 'incidentes',
+            );
+        }
+
+        if ($errores5xx > 0) {
+            $problemas[] = new CompanyProblem("{$errores5xx} error(es) 5xx en 24 h", CompanyProblem::CRITICAL, 'servicios');
+        }
+
+        if ($erroresActivos > 0) {
+            $problemas[] = new CompanyProblem(
+                "{$erroresActivos} ".($erroresActivos === 1 ? 'grupo de error activo' : 'grupos de error activos'),
+                CompanyProblem::WARNING, 'errores',
+            );
+        }
+
+        if ($jobsFallidos > 0) {
+            $problemas[] = new CompanyProblem("{$jobsFallidos} trabajo(s) fallido(s) en 24 h", CompanyProblem::WARNING, 'servicios');
+        }
+
+        // 3000 ms: el mismo corte del tramo `h3` del histograma compartido (Fase 4-6) — lo que ya se
+        // considera «empieza a ser mucho» en cualquier otra pantalla de rendimiento.
+        if ($p95 !== null && $p95 > 3000) {
+            $problemas[] = new CompanyProblem('P95 de sus peticiones por encima de 3 s', CompanyProblem::WARNING, 'rendimiento');
+        }
+
+        return $this->dominioDeProblemas($problemas);
+    }
+
+    /**
+     * @param  array<string, mixed>  $empresa  una fila de {@see calcular()}
+     * @return array{estado: string, problemas: list<CompanyProblem>}
+     */
+    private function dominioFacturacion(array $empresa, ?string $estadoSuscripcion): array
+    {
+        $problemas = [];
+
+        if ($empresa['sin_ncf']) {
+            $problemas[] = new CompanyProblem('Sin comprobantes fiscales disponibles', CompanyProblem::CRITICAL, 'empresas');
+        }
+
+        if (in_array($estadoSuscripcion, ['past_due', 'suspended', 'cancelled'], true)) {
+            $problemas[] = new CompanyProblem('Suscripción '.match ($estadoSuscripcion) {
+                'past_due' => 'con el cobro fallido',
+                'suspended' => 'suspendida',
+                default => 'cancelada',
+            }, CompanyProblem::CRITICAL, 'empresas');
+        }
+
+        if ($empresa['pasada_de_plan']) {
+            $problemas[] = new CompanyProblem('Pasada de los límites de su plan', CompanyProblem::WARNING, 'empresas');
+        }
+
+        return $this->dominioDeProblemas($problemas);
+    }
+
+    /**
+     * @param  array<string, mixed>  $empresa  una fila de {@see calcular()}
+     * @return array{estado: string, problemas: list<CompanyProblem>}
+     */
+    private function dominioWhatsapp(array $empresa, bool $desconectada, int $fallidos, int $pendientes): array
+    {
+        $problemas = [];
+
+        // Desconectada Y con el bot encendido: no es «una línea sin usar», es que NADIE recibe
+        // respuesta ahora mismo. Silenciosa de verdad, no solo un aviso de configuración.
+        if ($desconectada && ! $empresa['bot_sin_info']) {
+            $problemas[] = new CompanyProblem('La línea de WhatsApp está desconectada', CompanyProblem::CRITICAL, 'servicios');
+        }
+
+        if ($empresa['bot_sin_info']) {
+            $problemas[] = new CompanyProblem('El bot está encendido sin información del negocio', CompanyProblem::WARNING, 'empresas');
+        }
+
+        if ($fallidos > 0) {
+            $problemas[] = new CompanyProblem("{$fallidos} mensaje(s) fallido(s) en 24 h", CompanyProblem::WARNING, 'servicios');
+        }
+
+        if ($pendientes > 0) {
+            $problemas[] = new CompanyProblem("{$pendientes} mensaje(s) atascado(s) hace más de 15 min", CompanyProblem::WARNING, 'servicios');
+        }
+
+        return $this->dominioDeProblemas($problemas);
+    }
+
+    /**
+     * @return array{estado: string, problemas: list<CompanyProblem>}
+     */
+    private function dominioIa(int $fallos): array
+    {
+        $problemas = $fallos > 0
+            ? [new CompanyProblem("{$fallos} fallo(s) de IA en 24 h", CompanyProblem::WARNING, 'errores')]
+            : [];
+
+        return $this->dominioDeProblemas($problemas);
+    }
+
+    /**
+     * Lo que le impide vender HOY, reempaquetado desde {@see calcular()}: `sin_almacen` y
+     * `sin_productos` son críticos (el cobro directamente no funciona); el resto informa.
+     *
+     * @param  array<string, mixed>  $empresa
+     * @return array{estado: string, problemas: list<CompanyProblem>}
+     */
+    private function dominioVentas(array $empresa): array
+    {
+        $problemas = [];
+
+        if ($empresa['sin_almacen']) {
+            // Mismo texto que la pantalla ya enseñaba antes de la Fase 7 (`MonitoringTest` lo fija):
+            // no hay razón para que cambie solo porque ahora sale de un dominio en vez de una bandera.
+            $problemas[] = new CompanyProblem('Sin almacén: no puede cobrar', CompanyProblem::CRITICAL, 'empresas');
+        }
+
+        if ($empresa['sin_productos']) {
+            $problemas[] = new CompanyProblem('Sin productos que vender', CompanyProblem::CRITICAL, 'empresas');
+        }
+
+        if ($empresa['sin_precio'] > 0) {
+            $problemas[] = new CompanyProblem("{$empresa['sin_precio']} producto(s) activo(s) sin precio", CompanyProblem::WARNING, 'empresas');
+        }
+
+        if ($empresa['nunca_vendio']) {
+            $problemas[] = new CompanyProblem('Nunca ha vendido', CompanyProblem::WARNING, 'empresas');
+        }
+
+        if ($empresa['sin_vender']) {
+            $problemas[] = new CompanyProblem('Sin vender hace semanas', CompanyProblem::WARNING, 'empresas');
+        }
+
+        return $this->dominioDeProblemas($problemas);
+    }
+
+    /**
+     * @param  array<string, mixed>  $empresa
+     * @return array{estado: string, problemas: list<CompanyProblem>}
+     */
+    private function dominioCaja(array $empresa): array
+    {
+        $problemas = [];
+
+        if ($empresa['caja_abierta']) {
+            $problemas[] = new CompanyProblem('Caja abierta desde hace más de un día', CompanyProblem::WARNING, 'empresas');
+        }
+
+        if ($empresa['descuadres'] > 0) {
+            $problemas[] = new CompanyProblem("{$empresa['descuadres']} descuadre(s) de caja este mes", CompanyProblem::WARNING, 'empresas');
+        }
+
+        return $this->dominioDeProblemas($problemas);
+    }
+
+    /**
+     * @param  list<CompanyProblem>  $problemas
+     * @return array{estado: string, problemas: list<CompanyProblem>}
+     */
+    private function dominioDeProblemas(array $problemas): array
+    {
+        $peor = CompanyHealthCard::HEALTHY;
+
+        foreach ($problemas as $problema) {
+            if ($problema->severidad === CompanyProblem::CRITICAL) {
+                $peor = CompanyHealthCard::CRITICAL;
+                break;
+            }
+
+            $peor = CompanyHealthCard::WARNING;
+        }
+
+        return ['estado' => $peor, 'problemas' => $problemas];
+    }
+
+    /**
+     * Grupos de error ACTIVOS que tocaron a cada empresa en las últimas 24 h —por `last_seen_at`, no
+     * por cuándo nació el grupo: uno viejo que sigue repitiéndose hoy SÍ cuenta—.
+     *
+     * @return array<int, int>
+     */
+    private function erroresActivos24hPorEmpresa(): array
+    {
+        if (! DbTable::existe('error_event_companies') || ! DbTable::existe('error_events')) {
+            return [];
+        }
+
+        return DB::table('error_event_companies as ec')
+            ->join('error_events as e', 'e.id', '=', 'ec.error_event_id')
+            ->where('e.status', 'active')
+            ->where('ec.last_seen_at', '>=', now()->subDay())
+            ->groupBy('ec.company_id')
+            ->selectRaw('ec.company_id, count(distinct ec.error_event_id) as total')
+            ->pluck('total', 'company_id')
+            ->mapWithKeys(fn ($n, $id): array => [(int) $id => (int) $n])
+            ->all();
+    }
+
+    /**
+     * Incidentes ABIERTOS (open|investigating) que afectan a cada empresa ahora mismo.
+     *
+     * @return array<int, int>
+     */
+    private function incidentesAbiertosPorEmpresa(): array
+    {
+        if (! DbTable::existe('incident_companies') || ! DbTable::existe('incidents')) {
+            return [];
+        }
+
+        return DB::table('incident_companies as ic')
+            ->join('incidents as i', 'i.id', '=', 'ic.incident_id')
+            ->whereIn('i.status', ['open', 'investigating'])
+            ->groupBy('ic.company_id')
+            ->selectRaw('ic.company_id, count(distinct ic.incident_id) as total')
+            ->pluck('total', 'company_id')
+            ->mapWithKeys(fn ($n, $id): array => [(int) $id => (int) $n])
+            ->all();
+    }
+
+    /**
+     * Trabajos fallidos de cada empresa en las últimas 24 h, del agregador compartido (`kind=job`,
+     * Fase 4): `errors` ya cuenta los fallos, sin tener que leer `failed_jobs` fila a fila.
+     *
+     * @return array<int, int>
+     */
+    private function jobsFallidos24hPorEmpresa(): array
+    {
+        if (! DbTable::existe('metric_buckets')) {
+            return [];
+        }
+
+        return DB::table('metric_buckets')
+            ->where('kind', 'job')
+            ->where('company_id', '>', 0)
+            ->where('bucket_start', '>=', now()->subDay())
+            ->groupBy('company_id')
+            ->selectRaw('company_id, sum(errors) as total')
+            ->pluck('total', 'company_id')
+            ->mapWithKeys(fn ($n, $id): array => [(int) $id => (int) $n])
+            ->all();
+    }
+
+    /**
+     * HTTP de cada empresa en las últimas 24 h (`kind=http`, Fase 5): 5xx y P95, del mismo histograma
+     * que ya calcula `MetricsQuery` para la aplicación entera, aquí agrupado por empresa.
+     *
+     * @return array<int, array{errores: int, p95: float|null}>
+     */
+    private function httpResumen24hPorEmpresa(): array
+    {
+        if (! DbTable::existe('metric_buckets')) {
+            return [];
+        }
+
+        $columnas = ['h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8'];
+        $tramos = implode(', ', array_map(fn (string $c): string => "sum({$c}) as {$c}", $columnas));
+
+        return DB::table('metric_buckets')
+            ->where('kind', 'http')
+            ->where('company_id', '>', 0)
+            ->where('bucket_start', '>=', now()->subDay())
+            ->groupBy('company_id')
+            ->selectRaw("company_id, sum(errors) as errores, {$tramos}")
+            ->get()
+            ->mapWithKeys(function (object $fila) use ($columnas): array {
+                $conteos = array_map(fn (string $c): int => (int) $fila->{$c}, $columnas);
+
+                return [(int) $fila->company_id => [
+                    'errores' => (int) $fila->errores,
+                    'p95' => Percentiles::estimar($conteos, 0.95),
+                ]];
+            })
+            ->all();
+    }
+
+    /**
+     * El estado de la suscripción de cada empresa, tal cual —Polar/`SubscriptionService` deciden qué
+     * significa cada valor, aquí solo se lee—.
+     *
+     * @return array<int, string>
+     */
+    private function estadoSuscripcionPorEmpresa(): array
+    {
+        return DB::table('subscriptions')
+            ->pluck('status', 'company_id')
+            ->mapWithKeys(fn ($s, $id): array => [(int) $id => (string) $s])
+            ->all();
+    }
+
+    /**
+     * Si la ÚLTIMA vez que se supo de la línea de WhatsApp de cada empresa fue una desconexión. Un
+     * `max(id)` agrupado y no `max(created_at)`: el id ya es el orden de llegada, y así evita tener que
+     * volver a la tabla dos veces para leer el mensaje del último.
+     *
+     * @return array<int, bool>
+     */
+    private function whatsappDesconectadaPorEmpresa(): array
+    {
+        if (! DbTable::existe('system_events')) {
+            return [];
+        }
+
+        $ultimos = DB::table('system_events')
+            ->where('type', 'integration.whatsapp')
+            ->whereNotNull('company_id')
+            ->groupBy('company_id')
+            ->selectRaw('max(id) as id')
+            ->pluck('id');
+
+        if ($ultimos->isEmpty()) {
+            return [];
+        }
+
+        return DB::table('system_events')
+            ->whereIn('id', $ultimos)
+            ->get(['company_id', 'message'])
+            ->mapWithKeys(fn (object $f): array => [(int) $f->company_id => str_contains((string) $f->message, 'desconectó')])
+            ->all();
+    }
+
+    /** @return array<int, int> */
+    private function whatsappFallidos24hPorEmpresa(): array
+    {
+        if (! DbTable::existe('wa_messages')) {
+            return [];
+        }
+
+        return DB::table('wa_messages')
+            ->where('status', 'failed')
+            ->where('created_at', '>=', now()->subDay())
+            ->groupBy('company_id')
+            ->selectRaw('company_id, count(*) as total')
+            ->pluck('total', 'company_id')
+            ->mapWithKeys(fn ($n, $id): array => [(int) $id => (int) $n])
+            ->all();
+    }
+
+    /** @return array<int, int> */
+    private function whatsappPendientesPorEmpresa(): array
+    {
+        if (! DbTable::existe('wa_messages')) {
+            return [];
+        }
+
+        return DB::table('wa_messages')
+            ->where('status', 'pending')
+            ->where('created_at', '<', now()->subMinutes(15))
+            ->groupBy('company_id')
+            ->selectRaw('company_id, count(*) as total')
+            ->pluck('total', 'company_id')
+            ->mapWithKeys(fn ($n, $id): array => [(int) $id => (int) $n])
+            ->all();
+    }
+
+    /**
+     * Grupos de error ACTIVOS de servicio `ai` que tocaron a cada empresa en las últimas 24 h —misma
+     * consulta que {@see erroresActivos24hPorEmpresa()}, filtrada al servicio que `ServiceResolver`
+     * (Fase 1a) ya distingue—.
+     *
+     * @return array<int, int>
+     */
+    private function iaFallos24hPorEmpresa(): array
+    {
+        if (! DbTable::existe('error_event_companies') || ! DbTable::tieneColumna('error_events', 'service')) {
+            return [];
+        }
+
+        return DB::table('error_event_companies as ec')
+            ->join('error_events as e', 'e.id', '=', 'ec.error_event_id')
+            ->where('e.status', 'active')
+            ->where('e.service', 'ai')
+            ->where('ec.last_seen_at', '>=', now()->subDay())
+            ->groupBy('ec.company_id')
+            ->selectRaw('ec.company_id, count(distinct ec.error_event_id) as total')
+            ->pluck('total', 'company_id')
+            ->mapWithKeys(fn ($n, $id): array => [(int) $id => (int) $n])
             ->all();
     }
 }

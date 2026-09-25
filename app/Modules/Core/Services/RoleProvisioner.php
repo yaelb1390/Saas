@@ -95,6 +95,11 @@ final class RoleProvisioner
         'social.publish',
         // Conectar y desconectar cuentas mueve credenciales de las redes del negocio: aparte.
         'social.connect',
+        // Social Commerce. Módulo propio, vendido aparte de «social»: mismo criterio de tres
+        // permisos (ver, gestionar reglas, conectar la cuenta) que su vecino de arriba.
+        'social_commerce.view',
+        'social_commerce.manage',
+        'social_commerce.connect',
         // IA
         'ai.documents.manage',
         'ai.assistant.use',
@@ -208,6 +213,9 @@ final class RoleProvisioner
             'social.view',
             'social.publish',
             'social.connect',
+            'social_commerce.view',
+            'social_commerce.manage',
+            'social_commerce.connect',
             'ai.documents.manage',
             'ai.assistant.use',
             'ai.sentiment.view',

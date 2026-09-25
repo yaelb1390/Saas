@@ -16,6 +16,7 @@ use App\Modules\Purchasing\Providers\PurchasingServiceProvider;
 use App\Modules\Rental\Providers\RentalServiceProvider;
 use App\Modules\Reports\Providers\ReportsServiceProvider;
 use App\Modules\Sales\Providers\SalesServiceProvider;
+use App\Modules\SocialCommerce\Providers\SocialCommerceServiceProvider;
 use App\Modules\WhatsApp\Providers\WhatsAppServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\FortifyServiceProvider;
@@ -32,6 +33,7 @@ return [
     BillingServiceProvider::class,
     CrmServiceProvider::class,
     WhatsAppServiceProvider::class,
+    SocialCommerceServiceProvider::class,
     AiServiceProvider::class,
     DeliveryServiceProvider::class,
     FinanceServiceProvider::class,

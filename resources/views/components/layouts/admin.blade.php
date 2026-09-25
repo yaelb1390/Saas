@@ -55,6 +55,7 @@
             ['panel.customers', 'CRM', 'users', 'customers.view', 'crm'],
             ['panel.whatsapp', 'WhatsApp', 'chat', 'whatsapp.view', 'whatsapp'],
             ['panel.social', 'Redes sociales', 'spark', 'social.view', 'social'],
+            ['panel.social-commerce.index', 'Social Commerce', 'spark', 'social_commerce.view', 'social_commerce'],
             ['panel.deliveries', 'Entregas', 'truck', 'delivery.view', 'delivery'],
         ],
         'Finanzas' => [

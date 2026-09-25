@@ -31,6 +31,10 @@ final class ModuleRegistry
         // Publicar en Instagram, Facebook y demás desde el panel. Va aparte de «whatsapp» porque son
         // dos cosas distintas: aquello es conversación con un cliente concreto, esto es difusión.
         'social' => 'Redes sociales',
+        // Contestar preguntas de precio en los comentarios de Instagram con reglas por producto.
+        // Aparte de «social» a propósito: se vende como producto propio, no como una pestaña más de
+        // publicación (ver docs/social-commerce/SOCIAL_COMMERCE_ARCHITECTURE.md, sección 1).
+        'social_commerce' => 'Social Commerce',
         'billing' => 'Facturación',
         'finance' => 'Finanzas',
         'loans' => 'Préstamos',
@@ -69,6 +73,7 @@ final class ModuleRegistry
         'crm' => 'Ficha de cada cliente, su historial y las oportunidades de venta.',
         'whatsapp' => 'Atiende y responde a tus clientes por WhatsApp desde el sistema.',
         'social' => 'Publica en Instagram, Facebook y TikTok a la vez, ahora o programado.',
+        'social_commerce' => 'Contesta el precio en los comentarios de Instagram al momento, con tus productos y sin escribir cada respuesta a mano.',
         'billing' => 'Comprobantes fiscales con NCF y los reportes 606 y 607 de la DGII.',
         'finance' => 'Cuentas, ingresos y gastos para saber en qué se va el dinero.',
         'loans' => 'Préstamos con sus cuotas, pagos y mora al día.',

@@ -71,6 +71,12 @@ use App\Modules\Sales\Http\Controllers\SaleController;
 use App\Modules\Social\Http\Controllers\SocialAutomationController;
 use App\Modules\Social\Http\Controllers\SocialController;
 use App\Modules\Social\Http\Controllers\ZernioWebhookController;
+use App\Modules\SocialCommerce\Http\Controllers\ConversationController as SocialCommerceConversationController;
+use App\Modules\SocialCommerce\Http\Controllers\DashboardController as SocialCommerceDashboardController;
+use App\Modules\SocialCommerce\Http\Controllers\RuleController as SocialCommerceRuleController;
+use App\Modules\SocialCommerce\Http\Controllers\SandboxController as SocialCommerceSandboxController;
+use App\Modules\SocialCommerce\Http\Controllers\SettingsController as SocialCommerceSettingsController;
+use App\Modules\SocialCommerce\Http\Controllers\WebhookController as SocialCommerceWebhookController;
 use App\Modules\WhatsApp\Http\Controllers\EvolutionWebhookController;
 use App\Modules\WhatsApp\Http\Controllers\WhatsAppController;
 use Illuminate\Support\Facades\Route;
@@ -862,6 +868,63 @@ Route::middleware(['auth'])->group(function (): void {
     });
 
     /*
+     * Social Commerce: reglas palabra clave → producto → precio → plantilla para Instagram.
+     *
+     * Módulo vendido aparte de `social` (arquitectura, sección 1), con sus propios tres permisos y
+     * el mismo criterio de reparto: VER es inofensivo, GESTIONAR (crear/editar/borrar reglas) habla
+     * en nombre del negocio, y CONECTAR mueve la credencial de Zernio.
+     */
+    Route::middleware('module:social_commerce')->group(function (): void {
+        Route::get('/panel/social-commerce/dashboard', [SocialCommerceDashboardController::class, 'index'])
+            ->middleware('can:social_commerce.view')->name('panel.social-commerce.dashboard');
+
+        Route::controller(SocialCommerceRuleController::class)
+            ->prefix('panel/social-commerce')->name('panel.social-commerce')
+            ->middleware('can:social_commerce.view')->group(function (): void {
+                Route::get('/', 'index')->name('.index');
+                Route::get('/nueva', 'create')->name('.create')->middleware('can:social_commerce.manage');
+                Route::post('/', 'store')->name('.store')->middleware('can:social_commerce.manage');
+                Route::get('/{rule}/editar', 'edit')->name('.edit')->middleware('can:social_commerce.manage');
+                Route::put('/{rule}', 'update')->name('.update')->middleware('can:social_commerce.manage');
+                Route::post('/{rule}/estado', 'toggle')->name('.toggle')->middleware('can:social_commerce.manage');
+                Route::delete('/{rule}', 'destroy')->name('.destroy')->middleware('can:social_commerce.manage');
+                // Trae publicaciones subidas fuera del panel; llama a Zernio, de ahí el throttle.
+                Route::post('/sincronizar', 'syncPosts')
+                    ->middleware(['can:social_commerce.manage', 'throttle:10,1'])->name('.sync');
+            });
+
+        Route::get('/panel/social-commerce-ajustes', [SocialCommerceSettingsController::class, 'index'])
+            ->middleware('can:social_commerce.view')->name('panel.social-commerce.settings');
+        Route::put('/panel/social-commerce-ajustes', [SocialCommerceSettingsController::class, 'update'])
+            ->middleware('can:social_commerce.manage')->name('panel.social-commerce.settings.update');
+        Route::put('/panel/social-commerce-ajustes/clave', [SocialCommerceSettingsController::class, 'saveKey'])
+            ->middleware('can:social_commerce.connect')->name('panel.social-commerce.settings.key');
+        Route::post('/panel/social-commerce-ajustes/conectar', [SocialCommerceSettingsController::class, 'connect'])
+            ->middleware('can:social_commerce.connect')->name('panel.social-commerce.connect');
+
+        // Conversaciones que el webhook ya fue guardando, y el puente hacia el CRM.
+        Route::controller(SocialCommerceConversationController::class)
+            ->prefix('panel/social-commerce/conversaciones')->name('panel.social-commerce.conversations')
+            ->middleware('can:social_commerce.view')->group(function (): void {
+                Route::get('/', 'index')->name('.index');
+                Route::get('/{conversation}', 'show')->name('.show');
+                Route::post('/{conversation}/cliente', 'linkCustomer')
+                    ->middleware('can:social_commerce.manage')->name('.link-customer');
+                Route::post('/{conversation}/oportunidad', 'createOpportunity')
+                    ->middleware('can:social_commerce.manage')->name('.opportunity');
+            });
+
+        // Modo prueba: simula un comentario sin publicar nada. Mismo permiso que gestionar, no el
+        // de solo ver: sirve para afinar una regla antes de guardarla, tarea de quien la escribe.
+        Route::controller(SocialCommerceSandboxController::class)
+            ->prefix('panel/social-commerce/sandbox')->name('panel.social-commerce.sandbox')
+            ->middleware('can:social_commerce.manage')->group(function (): void {
+                Route::get('/', 'index')->name('');
+                Route::post('/simular', 'simulate')->name('.simulate');
+            });
+    });
+
+    /*
      * Reparto. Hasta ahora la única ruta de Entregas era la pantalla de solo lectura: no había forma
      * de crear una, ni de asignarla, ni de cambiarle el estado, así que la tabla solo podía estar
      * vacía. Estas son las puertas que faltaban.
@@ -1014,6 +1077,15 @@ Route::post('/webhooks/polar', PolarWebhookController::class)->name('webhooks.po
  * para eso. La exención de CSRF ya la cubre el patrón `webhooks/*` de bootstrap/app.php.
  */
 Route::post('/webhooks/redes/{token}', ZernioWebhookController::class)->name('webhooks.social');
+
+/*
+ * Avisos de Zernio para Social Commerce: mensajes entrantes/salientes de Instagram y Facebook.
+ *
+ * Webhook PROPIO, distinto del de arriba (arquitectura, sección 2): token y secreto propios en
+ * `social_commerce_settings`, para que una empresa pueda tener Social Commerce sin depender de que
+ * `social` también esté contratado.
+ */
+Route::post('/webhooks/social-commerce/{token}', SocialCommerceWebhookController::class)->name('webhooks.social-commerce');
 
 // Mantenimiento disparado por el cron de Vercel (sin sesión; protegido por CRON_SECRET en el header).
 // Purga los datos de las pruebas self-service vencidas hace más de 24 h.

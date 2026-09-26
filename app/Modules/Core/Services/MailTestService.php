@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Core\Services;
 
+use App\Modules\Core\Mail\PasswordResetCodeMail;
 use App\Modules\Core\Mail\SubscriptionCancelledMail;
 use App\Modules\Core\Mail\SubscriptionCardExpiringMail;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
@@ -46,6 +47,7 @@ final class MailTestService
             'terminada' => ['Suscripción terminada', '«Tu suscripción ha terminado · Tus datos siguen guardados»'],
             'termina_pronto' => ['Acceso a punto de terminar (baja pedida)', '«Tu acceso termina el … · Aún puedes reactivarla»'],
             'tarjeta_por_vencer' => ['Tarjeta por vencer', '«Tu tarjeta vence antes de tu próxima renovación · Actualízala»'],
+            'codigo_reset' => ['Código para recuperar contraseña', '«Tu código para recuperar la contraseña de BM Business OS»'],
         ];
     }
 
@@ -107,6 +109,10 @@ final class MailTestService
                 billingCycleLabel: 'Mensual', cardBrand: 'Visa', cardLast4: '4242',
                 cardExpiry: now()->format('m/Y'), renewsAt: now()->addDays(5), failsAtRenewal: true,
                 accountUrl: route('panel.account'), updateCardUrl: route('panel.account.portal'),
+                supportWhatsapp: $whatsapp, supportEmail: $support,
+            ),
+            'codigo_reset' => new PasswordResetCodeMail(
+                ownerName: $operatorName, code: '482913', expiresInMinutes: 15,
                 supportWhatsapp: $whatsapp, supportEmail: $support,
             ),
             default => throw new InvalidArgumentException("Plantilla desconocida: {$template}"),

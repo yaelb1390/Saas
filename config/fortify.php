@@ -179,7 +179,14 @@ return [
          *    debería poder crearse.
          */
         // Features::registration(),
-        Features::resetPasswords(),
+        //
+        // Recuperar contraseña queda FUERA de Fortify a propósito. Reemplazado por un código de 6
+        // dígitos por correo (App\Modules\Core\Http\Controllers\PasswordResetCodeController +
+        // App\Modules\Core\Services\PasswordResetCodeService), en vez del enlace clicable que
+        // generaba el broker de contraseñas de Laravel. Activar esto de nuevo resucitaría las
+        // rutas `password.request/email/reset/update` con los controladores headless de Fortify,
+        // que chocarían con las que ahora registra routes/web.php a mano con esos mismos nombres.
+        // Features::resetPasswords(),
         // Features::emailVerification(),
         Features::updateProfileInformation(),
         Features::updatePasswords(),

@@ -21,6 +21,7 @@ use App\Modules\Core\Http\Controllers\MonitoringController;
 use App\Modules\Core\Http\Controllers\MonitoringErrorController;
 use App\Modules\Core\Http\Controllers\MonitoringHealthController;
 use App\Modules\Core\Http\Controllers\MonitoringIncidentController;
+use App\Modules\Core\Http\Controllers\PasswordResetCodeController;
 use App\Modules\Core\Http\Controllers\PlanController;
 use App\Modules\Core\Http\Controllers\PolarWebhookController;
 use App\Modules\Core\Http\Controllers\PublicPlanController;
@@ -116,6 +117,31 @@ Route::middleware(['guest'])->group(function (): void {
     // por correo verificado. `guest` evita reiniciar el flujo si ya hay sesión.
     Route::get('/auth/google/redirect', [GoogleController::class, 'redirect'])->name('auth.google.redirect');
     Route::get('/auth/google/callback', [GoogleController::class, 'callback'])->name('auth.google.callback');
+
+    /*
+     * Recuperar contraseña con un código de 6 dígitos por correo, en vez del enlace clicable que
+     * traía Fortify (`resetPasswords()` queda apagado en config/fortify.php). Mismos cuatro
+     * nombres de ruta que usaba Fortify, para que `route('password.request')` en login.blade.php
+     * y cualquier otro sitio que ya los use no se entere del cambio.
+     *
+     * `throttle` en las dos rutas que escriben: Fortify no le ponía límite propio a esto, y con un
+     * código de 6 dígitos conviene una capa más de protección contra fuerza bruta, además del
+     * contador de intentos que ya lleva la propia fila en `password_reset_codes`.
+     *
+     * El tercer parámetro (el "prefijo") es obligatorio y distinto en cada ruta: sin él, la firma
+     * que usa Laravel para este limitador es solo dominio+IP (`ThrottleRequests::resolveRequestSignature`),
+     * así que /forgot-password y /reset-password compartirían un mismo cupo de 5 por minuto. Con
+     * un límite tan bajo, pedir un código y luego equivocarse una sola vez ya lo agotaría.
+     * /reset-password además necesita más cupo que 5: un intento legítimo normal ya son hasta 5
+     * códigos equivocados más el correcto (6 peticiones), y esas deben resolverlas el contador de
+     * `attempts` de la fila (que sí corta a los 5 intentos), no este límite de peticiones HTTP.
+     */
+    Route::get('/forgot-password', [PasswordResetCodeController::class, 'create'])->name('password.request');
+    Route::post('/forgot-password', [PasswordResetCodeController::class, 'store'])
+        ->middleware('throttle:5,1,password-email')->name('password.email');
+    Route::get('/reset-password', [PasswordResetCodeController::class, 'edit'])->name('password.reset');
+    Route::post('/reset-password', [PasswordResetCodeController::class, 'update'])
+        ->middleware('throttle:10,1,password-update')->name('password.update');
 });
 
 Route::middleware(['auth'])->group(function (): void {

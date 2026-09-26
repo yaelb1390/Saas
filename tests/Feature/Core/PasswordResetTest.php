@@ -4,23 +4,20 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Modules\Core\DTOs\CreateCompanyData;
-use App\Modules\Core\Mail\PasswordResetMail;
+use App\Modules\Core\Mail\PasswordResetCodeMail;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Password;
 
 /*
- * Recuperación de contraseña por correo.
- *
- * Estas rutas llevaban tiempo publicadas y ROTAS: Fortify es headless y nadie había registrado sus
- * dos vistas, así que `/forgot-password` devolvía un 500. Pasó desapercibido porque no existía un
- * solo test del flujo; el primero de aquí es exactamente el que lo habría cazado.
- *
- * Lo demás cubre las dos cosas que pueden salir caras: filtrar qué correos tienen cuenta, y dejar
- * que una cuenta desactivada se ponga contraseña nueva.
+ * Recuperación de contraseña con un código de 6 dígitos por correo, en vez del enlace clicable que
+ * traía Fortify. Lo que puede salir caro es lo mismo de siempre: filtrar qué correos tienen cuenta,
+ * dejar que una cuenta desactivada se ponga contraseña nueva, y que el código se pueda adivinar a
+ * fuerza bruta.
  */
 
 uses(RefreshDatabase::class);
@@ -28,6 +25,10 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     app(CurrentCompany::class)->forget();
     Mail::fake();
+    // El limitador de las rutas throttled vive en la caché `array`, que persiste entre pruebas
+    // dentro del mismo proceso: sin esto, las peticiones de pruebas anteriores a /reset-password
+    // cuentan para el límite de esta y la hacen fallar por un 429, no por la lógica de intentos.
+    Cache::flush();
 
     $this->company = app(CompanyService::class)->create(new CreateCompanyData(name: 'Heladería'));
 
@@ -39,63 +40,65 @@ beforeEach(function (): void {
     app(CurrentCompany::class)->forget();
 });
 
+/** El código de prueba mandado por el último correo capturado por Mail::fake(). */
+function ultimoCodigoEnviado(): string
+{
+    $codigo = null;
+
+    Mail::assertSent(PasswordResetCodeMail::class, function (PasswordResetCodeMail $mail) use (&$codigo): bool {
+        $codigo = $mail->code;
+
+        return true;
+    });
+
+    return (string) $codigo;
+}
+
 // ---------------------------------------------------------------- Pantallas
 
 it('la pantalla de recuperación existe y no revienta', function (): void {
-    // El test que faltaba: estas rutas devolvían 500 por no tener vista registrada.
     $this->get('/forgot-password')
         ->assertOk()
         ->assertSee('¿Olvidaste tu contraseña?');
 });
 
 it('el login enseña el enlace para recuperarla', function (): void {
-    // Sin enlace, el flujo existe pero es inalcanzable.
     $this->get('/login')
         ->assertOk()
         ->assertSee('¿Olvidaste tu contraseña?');
 });
 
 it('la pantalla de nueva contraseña existe', function (): void {
-    $this->get('/reset-password/un-token-cualquiera?email='.urlencode($this->user->email))
+    $this->get('/reset-password?email='.urlencode($this->user->email))
         ->assertOk()
         ->assertSee('Crea tu nueva contraseña')
-        // Sin este campo la validación `confirmed` nunca pasaría.
+        // Sin estos dos campos la validación nunca podría pasar.
+        ->assertSee('name="code"', false)
         ->assertSee('password_confirmation', false);
 });
 
-// ---------------------------------------------------------------- Envío
+// ---------------------------------------------------------------- Envío del código
 
-it('envía el enlace a una cuenta activa', function (): void {
+it('envía el código a una cuenta activa, sin encolar', function (): void {
     $this->post('/forgot-password', ['email' => 'duena@heladeria.test'])
         ->assertSessionHasNoErrors();
 
-    Mail::assertSent(PasswordResetMail::class, fn (PasswordResetMail $mail): bool => $mail->hasTo('duena@heladeria.test')
-        && str_contains($mail->resetUrl, '/reset-password/'));
+    Mail::assertSent(PasswordResetCodeMail::class, fn (PasswordResetCodeMail $mail): bool => $mail->hasTo('duena@heladeria.test'));
+    // El correo no se pidió en el momento de escribir esto, pero un enlace/código que llega diez
+    // minutos tarde ya no sirve, y en producción no hay worker que vacíe una cola.
+    Mail::assertNotQueued(PasswordResetCodeMail::class);
 });
 
-it('el correo NO se encola: el enlace tiene que salir en el momento', function (): void {
-    // Encolarlo lo dejaría a merced de que exista un proceso que vacíe la cola —en producción no lo
-    // hay— y quien lo pidió está mirando la pantalla, esperando.
-    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
-
-    Mail::assertSent(PasswordResetMail::class);
-    Mail::assertNotQueued(PasswordResetMail::class);
-});
-
-it('con un correo que no existe responde igual y no envía nada', function (): void {
-    // Si la respuesta cambiara, cualquiera podría averiguar qué direcciones tienen cuenta probando
-    // una por una.
+it('con un correo que no existe responde igual y no manda nada', function (): void {
     $conCuenta = $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
     $sinCuenta = $this->post('/forgot-password', ['email' => 'nadie@ninguna.test']);
 
     expect($sinCuenta->getStatusCode())->toBe($conCuenta->getStatusCode());
 
-    Mail::assertSent(PasswordResetMail::class, 1); // solo el de la cuenta real
+    Mail::assertSent(PasswordResetCodeMail::class, 1); // solo el de la cuenta real
 });
 
-it('una cuenta desactivada no recibe el enlace, y no se nota', function (): void {
-    // Hoy el login la rechaza pero el restablecimiento iba por otro camino: acababa con una clave
-    // nueva que no le servía para entrar. La respuesta sigue siendo la misma para no revelar nada.
+it('una cuenta desactivada no recibe el código, y no se nota', function (): void {
     $this->user->update(['is_active' => false]);
 
     $this->post('/forgot-password', ['email' => 'duena@heladeria.test'])
@@ -104,31 +107,47 @@ it('una cuenta desactivada no recibe el enlace, y no se nota', function (): void
     Mail::assertNothingSent();
 });
 
-// ---------------------------------------------------------------- Cambio
+it('pedir el código dos veces seguidas no genera uno nuevo', function (): void {
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+    $primerCodigo = ultimoCodigoEnviado();
 
-it('el flujo completo cambia la contraseña y permite entrar con la nueva', function (): void {
-    $token = Password::broker()->createToken($this->user);
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+
+    Mail::assertSent(PasswordResetCodeMail::class, 1); // el segundo intento no mandó nada más
+    expect(DB::table('password_reset_codes')->where('email', 'duena@heladeria.test')->count())->toBe(1);
+    expect(Hash::check($primerCodigo, DB::table('password_reset_codes')->where('email', 'duena@heladeria.test')->value('code_hash')))->toBeTrue();
+});
+
+// ---------------------------------------------------------------- Cambio de contraseña
+
+it('el flujo completo cambia la contraseña, autentica y borra el código', function (): void {
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+    $codigo = ultimoCodigoEnviado();
 
     $this->post('/reset-password', [
-        'token' => $token,
         'email' => 'duena@heladeria.test',
+        'code' => $codigo,
         'password' => 'ClaveNueva123!',
         'password_confirmation' => 'ClaveNueva123!',
-    ])->assertSessionHasNoErrors();
+    ])->assertSessionHasNoErrors()->assertRedirect(route('dashboard'));
 
     expect(Hash::check('ClaveNueva123!', $this->user->fresh()->password))->toBeTrue();
+    $this->assertAuthenticatedAs($this->user->fresh());
 
-    $this->post('/login', ['email' => 'duena@heladeria.test', 'password' => 'ClaveNueva123!']);
-    $this->assertAuthenticated();
+    // De un solo uso: no queda fila para volver a intentarlo con el mismo código.
+    expect(DB::table('password_reset_codes')->where('email', 'duena@heladeria.test')->exists())->toBeFalse();
 });
 
 it('la contraseña vieja deja de servir', function (): void {
-    $token = Password::broker()->createToken($this->user);
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+    $codigo = ultimoCodigoEnviado();
 
     $this->post('/reset-password', [
-        'token' => $token, 'email' => 'duena@heladeria.test',
+        'email' => 'duena@heladeria.test', 'code' => $codigo,
         'password' => 'ClaveNueva123!', 'password_confirmation' => 'ClaveNueva123!',
     ]);
+
+    auth()->logout();
 
     $this->post('/login', ['email' => 'duena@heladeria.test', 'password' => 'clave-vieja-123'])
         ->assertSessionHasErrors();
@@ -136,42 +155,82 @@ it('la contraseña vieja deja de servir', function (): void {
     $this->assertGuest();
 });
 
-it('un token inventado no cambia nada', function (): void {
+it('un código inventado no cambia nada', function (): void {
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+
     $this->post('/reset-password', [
-        'token' => 'me-lo-invento',
         'email' => 'duena@heladeria.test',
+        'code' => '000000',
         'password' => 'ClaveNueva123!',
         'password_confirmation' => 'ClaveNueva123!',
-    ])->assertSessionHasErrors();
+    ])->assertSessionHasErrors('code');
 
     expect(Hash::check('clave-vieja-123', $this->user->fresh()->password))->toBeTrue();
+    $this->assertGuest();
 });
 
-it('el token de una cuenta no sirve para otra', function (): void {
+it('el código de una cuenta no sirve para otra', function (): void {
     $otro = User::create([
         'company_id' => $this->company->id, 'name' => 'Otro',
         'email' => 'otro@heladeria.test', 'password' => 'su-clave-123', 'is_active' => true,
     ]);
 
-    $token = Password::broker()->createToken($this->user);
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+    $codigo = ultimoCodigoEnviado();
 
     $this->post('/reset-password', [
-        'token' => $token,
-        'email' => 'otro@heladeria.test', // token de la dueña, correo de otro
+        'email' => 'otro@heladeria.test', // código de la dueña, correo de otro
+        'code' => $codigo,
         'password' => 'ClaveNueva123!',
         'password_confirmation' => 'ClaveNueva123!',
-    ])->assertSessionHasErrors();
+    ])->assertSessionHasErrors('code');
 
     expect(Hash::check('su-clave-123', $otro->fresh()->password))->toBeTrue();
 });
 
 it('exige repetir la contraseña', function (): void {
-    $token = Password::broker()->createToken($this->user);
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+    $codigo = ultimoCodigoEnviado();
 
     $this->post('/reset-password', [
-        'token' => $token, 'email' => 'duena@heladeria.test',
+        'email' => 'duena@heladeria.test', 'code' => $codigo,
         'password' => 'ClaveNueva123!', 'password_confirmation' => 'otra-distinta',
     ])->assertSessionHasErrors('password');
+
+    expect(Hash::check('clave-vieja-123', $this->user->fresh()->password))->toBeTrue();
+});
+
+it('un código caducado se rechaza', function (): void {
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+    $codigo = ultimoCodigoEnviado();
+
+    DB::table('password_reset_codes')->where('email', 'duena@heladeria.test')
+        ->update(['expires_at' => now()->subMinute()]);
+
+    $this->post('/reset-password', [
+        'email' => 'duena@heladeria.test', 'code' => $codigo,
+        'password' => 'ClaveNueva123!', 'password_confirmation' => 'ClaveNueva123!',
+    ])->assertSessionHasErrors('code');
+
+    expect(Hash::check('clave-vieja-123', $this->user->fresh()->password))->toBeTrue();
+});
+
+it('al quinto intento fallido el código queda invalidado, aunque el sexto sea el correcto', function (): void {
+    $this->post('/forgot-password', ['email' => 'duena@heladeria.test']);
+    $codigo = ultimoCodigoEnviado();
+
+    for ($i = 0; $i < 5; $i++) {
+        $this->post('/reset-password', [
+            'email' => 'duena@heladeria.test', 'code' => '111111',
+            'password' => 'ClaveNueva123!', 'password_confirmation' => 'ClaveNueva123!',
+        ])->assertSessionHasErrors('code');
+    }
+
+    // El código de verdad, después de agotar los intentos: ya no sirve, hay que pedir uno nuevo.
+    $this->post('/reset-password', [
+        'email' => 'duena@heladeria.test', 'code' => $codigo,
+        'password' => 'ClaveNueva123!', 'password_confirmation' => 'ClaveNueva123!',
+    ])->assertSessionHasErrors('code');
 
     expect(Hash::check('clave-vieja-123', $this->user->fresh()->password))->toBeTrue();
 });

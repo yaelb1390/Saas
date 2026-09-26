@@ -10,21 +10,22 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Enlace para crear una contraseña nueva.
+ * Código de 6 dígitos para crear una contraseña nueva.
  *
  * A diferencia de los otros correos del sistema, este NO se encola: quien acaba de pedirlo está
- * mirando la pantalla, esperando. Un enlace que llega diez minutos tarde ya no sirve, y encolarlo lo
- * dejaría además a merced de que haya un proceso que vacíe la cola.
+ * mirando la pantalla, esperando el código para teclearlo. Encolarlo lo dejaría además a merced de
+ * que haya un proceso que vacíe la cola, y en producción no lo hay.
  *
- * Sustituye a la notificación que trae Laravel, que llega en inglés y con otra plantilla.
+ * Reemplaza a `PasswordResetMail` (enlace clicable, ya retirado): ver config/fortify.php,
+ * `resetPasswords()` queda apagado.
  */
-final class PasswordResetMail extends Mailable
+final class PasswordResetCodeMail extends Mailable
 {
     use SerializesModels;
 
     public function __construct(
         public readonly string $ownerName,
-        public readonly string $resetUrl,
+        public readonly string $code,
         public readonly int $expiresInMinutes,
         public readonly string $supportWhatsapp,
         public readonly string $supportEmail,
@@ -32,15 +33,14 @@ final class PasswordResetMail extends Mailable
 
     public function envelope(): Envelope
     {
-        // El remitente sale de config('mail.from'); no hace falta fijarlo aquí.
-        return new Envelope(subject: 'Recupera tu contraseña de BM Business OS');
+        return new Envelope(subject: 'Tu código para recuperar la contraseña de BM Business OS');
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.password-reset',
-            text: 'emails.password-reset-text',
+            view: 'emails.password-reset-code',
+            text: 'emails.password-reset-code-text',
         );
     }
 }

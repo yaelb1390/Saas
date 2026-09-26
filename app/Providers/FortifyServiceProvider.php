@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
-use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
 use App\Models\User;
@@ -34,19 +33,21 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
-        Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
 
-        // Vistas (Fortify es headless): registramos las pantallas de autenticación.
+        // Vista de login (Fortify es headless): sin registrarla, Fortify no cae en una vista por
+        // defecto ni devuelve un 404, intenta resolver una interfaz que nadie ha enlazado y
+        // revienta con un 500.
         //
-        // Sin registrar, Fortify NO cae en una vista por defecto ni devuelve un 404: intenta
-        // resolver una interfaz que nadie ha enlazado y revienta con un 500. Es lo que le pasaba a
-        // la recuperación de contraseña, cuyas rutas llevaban tiempo publicadas y rotas.
+        // Las vistas de recuperación de contraseña (`requestPasswordResetLinkView`,
+        // `resetPasswordView`) y el binding `resetUserPasswordsUsing` ya NO se registran aquí:
+        // `resetPasswords()` está apagado en config/fortify.php, así que Fortify no vuelve a pedir
+        // ninguna de las dos. Las pantallas las sirve ahora
+        // App\Modules\Core\Http\Controllers\PasswordResetCodeController, y la Action
+        // `ResetUserPassword` se sigue llamando directamente desde
+        // App\Modules\Core\Services\PasswordResetCodeService — no hace falta el binding de
+        // Fortify para reutilizarla.
         Fortify::loginView(fn () => view('auth.login'));
-        Fortify::requestPasswordResetLinkView(fn () => view('auth.forgot-password'));
-        Fortify::resetPasswordView(fn (Request $request) => view('auth.reset-password', [
-            'request' => $request,
-        ]));
 
         // La autenticación valida credenciales Y que la cuenta esté activa: un usuario desactivado
         // no puede iniciar sesión, aunque su contraseña sea correcta.

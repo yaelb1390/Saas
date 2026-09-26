@@ -30,7 +30,7 @@
             @endif
 
             <h1 class="text-center text-2xl font-bold tracking-tight text-slate-900">Crea tu nueva contraseña</h1>
-            <p class="bmos-auth-sub">Elige una que no uses en otros sitios.</p>
+            <p class="bmos-auth-sub">Escribe el código de 6 dígitos que te mandamos por correo.</p>
 
             @if ($hasError)
                 <div class="bmos-auth-error">
@@ -44,11 +44,6 @@
             <form method="POST" action="{{ route('password.update') }}" class="bmos-auth-form">
                 @csrf
 
-                {{-- El token identifica la petición y el correo, a quién pertenece. Van ocultos
-                     porque vienen del enlace: si el usuario pudiera editarlos, cambiaría la
-                     contraseña de otra persona. --}}
-                <input type="hidden" name="token" value="{{ $request->route('token') }}">
-
                 <div>
                     <label for="email" class="bmos-field-label">Correo electrónico</label>
                     <input id="email" name="email" type="email" required readonly
@@ -57,8 +52,16 @@
                 </div>
 
                 <div>
+                    <label for="code" class="bmos-field-label">Código de 6 dígitos</label>
+                    <input id="code" name="code" required autofocus inputmode="numeric" maxlength="6"
+                           autocomplete="one-time-code" pattern="[0-9]{6}" placeholder="123456"
+                           value="{{ old('code') }}"
+                           class="bmos-input {{ $hasError ? 'has-error' : '' }} text-center tracking-[0.5em]">
+                </div>
+
+                <div>
                     <label for="password" class="bmos-field-label">Nueva contraseña</label>
-                    <input id="password" name="password" required autofocus autocomplete="new-password"
+                    <input id="password" name="password" required autocomplete="new-password"
                            placeholder="••••••••" :type="show ? 'text' : 'password'" class="bmos-input">
                 </div>
 
@@ -81,6 +84,9 @@
                 </button>
             </form>
 
+            <p class="bmos-auth-alt text-center text-sm text-slate-500">
+                <a href="{{ route('password.request') }}" class="font-semibold text-indigo-600 hover:underline">¿No te llegó? Pedir otro código</a>
+            </p>
             <p class="bmos-auth-alt text-center text-sm text-slate-500">
                 <a href="{{ route('login') }}" class="font-semibold text-indigo-600 hover:underline">← Volver a iniciar sesión</a>
             </p>

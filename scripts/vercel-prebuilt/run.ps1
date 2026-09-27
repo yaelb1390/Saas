@@ -31,7 +31,13 @@ param(
     [switch]$Prod,
     [switch]$DiagnosticoPuente,
     [ValidateSet('array', 'cookie')][string]$Sesion = 'array',
-    [string]$SesionCli = (Join-Path $env:APPDATA 'xdg.data\com.vercel.cli'),
+    # OJO: el CLI de Vercel dejó de usar `xdg.data\com.vercel.cli` en algún momento entre versiones
+    # y pasó a `com.vercel.cli\Data` (sin el prefijo `xdg.data`), sin avisar ni migrar la sesión
+    # vieja. La carpeta antigua se queda con un token que YA NO se refresca —`vercel whoami` en el
+    # host sigue funcionando porque lee la nueva—, así que un deploy que copie la vieja falla con
+    # «Error: Not authorized» aunque el host esté con la sesión perfectamente iniciada. Detectado el
+    # 2026-09-27 tras una incidencia real en producción.
+    [string]$SesionCli = (Join-Path $env:APPDATA 'com.vercel.cli\Data'),
     [string]$Imagen = 'node:22'
 )
 

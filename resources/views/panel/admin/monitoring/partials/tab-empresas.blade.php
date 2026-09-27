@@ -18,6 +18,7 @@
                                 <th>Estado</th>
                                 <th>Empresa</th>
                                 <th>Plan</th>
+                                <th>Suscripción</th>
                                 <th>Última venta</th>
                                 <th>Último acceso</th>
                                 <th>Qué le pasa</th>
@@ -47,6 +48,31 @@
                                         </span>
                                     </td>
                                     <td class="text-sm text-slate-500">{{ $e['plan'] ?? '—' }}</td>
+                                    <td class="text-sm">
+                                        @php
+                                            $s = $e['suscripcion'];
+                                            $diasSuscripcion = $s?->daysUntilRenewal();
+                                            $usable = $s?->isUsable() ?? false;
+                                        @endphp
+                                        @if ($s === null)
+                                            <span class="text-slate-400">—</span>
+                                        @else
+                                            <span class="bmos-badge {{ $usable ? $s->status->badge() : 'badge-red' }}">
+                                                {{ $s->status->label() }}
+                                            </span>
+                                            @if ($diasSuscripcion !== null)
+                                                <span class="block text-xs {{ $diasSuscripcion < 0 ? 'text-rose-500' : 'text-slate-400' }}">
+                                                    @if ($diasSuscripcion < 0)
+                                                        venció hace {{ abs($diasSuscripcion) }} {{ abs($diasSuscripcion) === 1 ? 'día' : 'días' }}
+                                                    @elseif ($diasSuscripcion === 0)
+                                                        vence hoy
+                                                    @else
+                                                        vence en {{ $diasSuscripcion }} {{ $diasSuscripcion === 1 ? 'día' : 'días' }}
+                                                    @endif
+                                                </span>
+                                            @endif
+                                        @endif
+                                    </td>
                                     {{-- La fecha Y el «hace cuánto»: la fecha sola obliga a contar
                                          días de cabeza, que es justo lo que se quiere saber. --}}
                                     <td class="text-sm">
@@ -78,7 +104,7 @@
                             @endforeach
 
                             @if (count($salud_empresas) === 0)
-                                <tr><td colspan="6" class="py-6 text-center text-sm text-slate-400">No hay empresas todavía.</td></tr>
+                                <tr><td colspan="7" class="py-6 text-center text-sm text-slate-400">No hay empresas todavía.</td></tr>
                             @endif
                         </tbody>
                     </table>

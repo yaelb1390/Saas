@@ -351,3 +351,24 @@ it('un almacén por omisión BORRADO se trata como si no existiera', function ()
 
     expect(estadoDe('La Vigilada')['sin_almacen'])->toBeTrue();
 });
+
+// -------------------------------------------------------------------------------- Suscripción
+
+it('una empresa sin fila en subscriptions trae "suscripcion" en null', function (): void {
+    // `CompanyService::create()` no crea una suscripción por su cuenta (ver comentario en
+    // `CompanyHealthCardTest`), así que este es el estado real de una empresa recién creada.
+    expect(estadoDe('La Vigilada')['suscripcion'])->toBeNull();
+});
+
+it('"suscripcion" trae la instancia real de Subscription, no solo el status', function (): void {
+    DB::table('subscriptions')->updateOrInsert(
+        ['company_id' => $this->empresa->id],
+        ['status' => 'active', 'current_period_end' => now()->addDays(10), 'created_at' => now(), 'updated_at' => now()],
+    );
+
+    $suscripcion = estadoDe('La Vigilada')['suscripcion'];
+
+    expect($suscripcion)->toBeInstanceOf(\App\Modules\Core\Models\Subscription::class)
+        ->and($suscripcion->isUsable())->toBeTrue()
+        ->and($suscripcion->daysUntilRenewal())->toBe(10);
+});

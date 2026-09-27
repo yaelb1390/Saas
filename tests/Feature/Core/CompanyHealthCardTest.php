@@ -170,6 +170,46 @@ it('una suscripción con el cobro fallido pone Facturación en crítico', functi
     expect(fichaDe('La Vigilada')->estadoDe('facturacion'))->toBe(CompanyHealthCard::CRITICAL);
 });
 
+it('una prueba con el trial ya vencido pone Facturación en crítico, aunque el status siga en trialing', function (): void {
+    // Así es como de verdad vence una prueba: por FECHA, sin que nada cambie el `status`. Antes del
+    // arreglo, `dominioFacturacion()` solo miraba el `status` y esto pasaba en blanco.
+    DB::table('subscriptions')->updateOrInsert(
+        ['company_id' => $this->empresa->id],
+        ['status' => 'trialing', 'trial_ends_at' => now()->subDays(3), 'created_at' => now(), 'updated_at' => now()],
+    );
+
+    expect(fichaDe('La Vigilada')->estadoDe('facturacion'))->toBe(CompanyHealthCard::CRITICAL);
+});
+
+it('una suscripción activa con el período pagado ya vencido pone Facturación en crítico', function (): void {
+    // El caso real de producción que motivó este arreglo: `status` sigue en «active» —Polar no lo
+    // cambia solo—, pero `current_period_end` ya pasó sin que se renovara.
+    DB::table('subscriptions')->updateOrInsert(
+        ['company_id' => $this->empresa->id],
+        ['status' => 'active', 'current_period_end' => now()->subDays(16), 'created_at' => now(), 'updated_at' => now()],
+    );
+
+    expect(fichaDe('La Vigilada')->estadoDe('facturacion'))->toBe(CompanyHealthCard::CRITICAL);
+});
+
+it('una suscripción activa y vigente NO pone ningún problema en Facturación', function (): void {
+    DB::table('subscriptions')->updateOrInsert(
+        ['company_id' => $this->empresa->id],
+        ['status' => 'active', 'current_period_end' => now()->addDays(20), 'created_at' => now(), 'updated_at' => now()],
+    );
+
+    expect(fichaDe('La Vigilada')->estadoDe('facturacion'))->toBe(CompanyHealthCard::HEALTHY);
+});
+
+it('una prueba todavía vigente NO pone ningún problema en Facturación', function (): void {
+    DB::table('subscriptions')->updateOrInsert(
+        ['company_id' => $this->empresa->id],
+        ['status' => 'trialing', 'trial_ends_at' => now()->addDays(5), 'created_at' => now(), 'updated_at' => now()],
+    );
+
+    expect(fichaDe('La Vigilada')->estadoDe('facturacion'))->toBe(CompanyHealthCard::HEALTHY);
+});
+
 // ---------------------------------------------------------------------------------- WhatsApp
 
 it('la línea desconectada, con el bot con información, pone WhatsApp en crítico', function (): void {

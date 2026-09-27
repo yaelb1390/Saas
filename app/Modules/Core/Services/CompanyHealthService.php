@@ -8,8 +8,10 @@ use App\Models\User;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\DTOs\CompanyHealthCard;
 use App\Modules\Core\DTOs\CompanyProblem;
+use App\Modules\Core\Enums\SubscriptionStatus;
 use App\Modules\Core\Models\Branch;
 use App\Modules\Core\Models\Company;
+use App\Modules\Core\Models\Subscription;
 use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Monitoring\Metrics\Percentiles;
 use App\Modules\Core\Support\DbTable;
@@ -153,10 +155,11 @@ final class CompanyHealthService
         $limites = $this->limitesDelPlan();
         $descuadres = $this->descuadresDeCaja();
         $botSinInfo = $this->botEncendidoSinInformacion();
+        $suscripciones = $this->suscripcionesPorEmpresa();
 
         return $empresas->map(function (Company $empresa) use (
             $conAlmacen, $sinNcf, $cajaVieja, $productos, $sinPrecio, $ultimaVenta,
-            $ultimoAcceso, $usuarios, $sucursales, $limites, $descuadres, $botSinInfo,
+            $ultimoAcceso, $usuarios, $sucursales, $limites, $descuadres, $botSinInfo, $suscripciones,
         ): array {
             $id = (int) $empresa->id;
             $venta = $ultimaVenta[$id] ?? null;
@@ -183,6 +186,7 @@ final class CompanyHealthService
                 'activa' => (bool) $empresa->is_active,
                 'plan' => $limite['plan'],
                 'creada' => $empresa->created_at,
+                'suscripcion' => $suscripciones[$id] ?? null,
 
                 // 1. Lo que le impide vender hoy.
                 'sin_almacen' => ! ($conAlmacen[$id] ?? false),
@@ -514,14 +518,13 @@ final class CompanyHealthService
         $incidentesAbiertos = $this->incidentesAbiertosPorEmpresa();
         $jobsFallidos = $this->jobsFallidos24hPorEmpresa();
         $http = $this->httpResumen24hPorEmpresa();
-        $suscripciones = $this->estadoSuscripcionPorEmpresa();
         $waDesconectada = $this->whatsappDesconectadaPorEmpresa();
         $waFallidos = $this->whatsappFallidos24hPorEmpresa();
         $waPendientes = $this->whatsappPendientesPorEmpresa();
         $iaFallos = $this->iaFallos24hPorEmpresa();
 
         return array_map(function (array $e) use (
-            $erroresActivos, $incidentesAbiertos, $jobsFallidos, $http, $suscripciones,
+            $erroresActivos, $incidentesAbiertos, $jobsFallidos, $http,
             $waDesconectada, $waFallidos, $waPendientes, $iaFallos,
         ): CompanyHealthCard {
             $id = (int) $e['id'];
@@ -536,7 +539,7 @@ final class CompanyHealthService
                         $erroresActivos[$id] ?? 0, $incidentesAbiertos[$id] ?? 0,
                         $jobsFallidos[$id] ?? 0, $http[$id] ?? null,
                     ),
-                    'facturacion' => $this->dominioFacturacion($e, $suscripciones[$id] ?? null),
+                    'facturacion' => $this->dominioFacturacion($e, $e['suscripcion']),
                     'whatsapp' => $this->dominioWhatsapp(
                         $e, $waDesconectada[$id] ?? false, $waFallidos[$id] ?? 0, $waPendientes[$id] ?? 0,
                     ),
@@ -592,7 +595,7 @@ final class CompanyHealthService
      * @param  array<string, mixed>  $empresa  una fila de {@see calcular()}
      * @return array{estado: string, problemas: list<CompanyProblem>}
      */
-    private function dominioFacturacion(array $empresa, ?string $estadoSuscripcion): array
+    private function dominioFacturacion(array $empresa, ?Subscription $suscripcion): array
     {
         $problemas = [];
 
@@ -600,12 +603,14 @@ final class CompanyHealthService
             $problemas[] = new CompanyProblem('Sin comprobantes fiscales disponibles', CompanyProblem::CRITICAL, 'empresas');
         }
 
-        if (in_array($estadoSuscripcion, ['past_due', 'suspended', 'cancelled'], true)) {
-            $problemas[] = new CompanyProblem('Suscripción '.match ($estadoSuscripcion) {
-                'past_due' => 'con el cobro fallido',
-                'suspended' => 'suspendida',
-                default => 'cancelada',
-            }, CompanyProblem::CRITICAL, 'empresas');
+        // El mismo criterio que ya usa `PlatformHealthService::bloqueadas()`: una suscripción no da
+        // acceso cuando `isUsable()` dice que no, y eso puede ser por el `status` (suspendida,
+        // cancelada, cobro fallido) O por la FECHA ya vencida con un `status` que sigue diciendo
+        // «trialing»/«active» —así es como Polar deja una prueba o un período sin renovar, sin tocar
+        // el status—. Mirar solo el `status` (como se hacía antes) dejaba pasar justo ese segundo
+        // caso, que es el más común en la práctica.
+        if ($suscripcion !== null && ! $suscripcion->isUsable()) {
+            $problemas[] = new CompanyProblem($this->motivoSuscripcionBloqueada($suscripcion), CompanyProblem::CRITICAL, 'empresas');
         }
 
         if ($empresa['pasada_de_plan']) {
@@ -613,6 +618,29 @@ final class CompanyHealthService
         }
 
         return $this->dominioDeProblemas($problemas);
+    }
+
+    /** Por qué una suscripción no usable no da acceso, para el aviso de Facturación. */
+    private function motivoSuscripcionBloqueada(Subscription $suscripcion): string
+    {
+        return match ($suscripcion->status) {
+            SubscriptionStatus::PastDue => 'Suscripción con el cobro fallido',
+            SubscriptionStatus::Suspended => 'Suscripción suspendida',
+            SubscriptionStatus::Cancelled => 'Suscripción cancelada',
+            SubscriptionStatus::Trialing => 'Prueba vencida hace '.$this->diasVencidos($suscripcion).' '.$this->dias($this->diasVencidos($suscripcion)),
+            SubscriptionStatus::Active => 'Suscripción vencida hace '.$this->diasVencidos($suscripcion).' '.$this->dias($this->diasVencidos($suscripcion)),
+        };
+    }
+
+    /** Días de calendario desde que venció (siempre positivo: aquí ya se sabe que no es usable). */
+    private function diasVencidos(Subscription $suscripcion): int
+    {
+        return abs($suscripcion->daysUntilRenewal() ?? 0);
+    }
+
+    private function dias(int $n): string
+    {
+        return $n === 1 ? 'día' : 'días';
     }
 
     /**
@@ -832,17 +860,15 @@ final class CompanyHealthService
     }
 
     /**
-     * El estado de la suscripción de cada empresa, tal cual —Polar/`SubscriptionService` deciden qué
-     * significa cada valor, aquí solo se lee—.
+     * La suscripción completa de cada empresa —no solo el `status`—: `dominioFacturacion()` necesita
+     * `isUsable()` y `daysUntilRenewal()`, que dependen también de `trial_ends_at`/`current_period_end`.
+     * Mismo criterio que ya usa `PlatformHealthService::calcular()` para lo mismo.
      *
-     * @return array<int, string>
+     * @return array<int, Subscription>
      */
-    private function estadoSuscripcionPorEmpresa(): array
+    private function suscripcionesPorEmpresa(): array
     {
-        return DB::table('subscriptions')
-            ->pluck('status', 'company_id')
-            ->mapWithKeys(fn ($s, $id): array => [(int) $id => (string) $s])
-            ->all();
+        return Subscription::query()->get()->keyBy('company_id')->all();
     }
 
     /**

@@ -62,7 +62,12 @@ final class CompanyLogoStore
     public function store(Company $company, UploadedFile $file): void
     {
         $bytes = (string) file_get_contents((string) $file->getRealPath());
-        $extension = mb_strtolower($file->getClientOriginalExtension()) === 'png' ? 'png' : 'jpg';
+
+        // El TIPO REAL del archivo (detectado por su contenido), no el nombre que traiga: el
+        // navegador ya convierte todo a JPG, pero renombra el archivo conservando el nombre original
+        // (p. ej. "logo.png" con bytes de JPG). Fiarse de la extensión guardaría un .png con
+        // contenido JPG, o viceversa, y un PNG de verdad revienta el PDF en producción (sin GD).
+        $extension = $file->getMimeType() === 'image/png' ? 'png' : 'jpg';
 
         $path = self::DIR.'/'.Str::ulid()->toBase32().'.'.$extension;
 

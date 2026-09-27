@@ -255,14 +255,18 @@
 
     <script>
         /**
-         * Ajusta el logo en el NAVEGADOR antes de subirlo.
+         * Ajusta el logo en el NAVEGADOR antes de subirlo, y siempre lo entrega en JPG.
          *
-         * En producción no hay GD ni Imagick, así que redimensionar en el servidor sería escribir
-         * código que solo corre en local. Aquí, además, es donde está el archivo: se sube ya pequeño
-         * en vez de mandar cinco megas para tirarlos después.
+         * En producción (vercel-php) no hay GD ni Imagick, así que redimensionar en el servidor sería
+         * escribir código que solo corre en local. Aquí, además, es donde está el archivo: se sube ya
+         * pequeño en vez de mandar cinco megas para tirarlos después.
          *
-         * Se conserva el PNG con su transparencia: aplanarlo a blanco dejaría un recuadro visible
-         * sobre el papel del recibo.
+         * Antes se conservaba el PNG con su transparencia, pero incrustar UN PNG en el PDF —no ya
+         * redimensionarlo— pasa igual por dompdf/Cpdf::addPngFromFile(), que exige GD sin excepción;
+         * sin GD, el documento entero salía con 500 (visto en producción con un logo real). El fondo
+         * de recibo y factura es blanco (`documents/layouts/document.blade.php`, `sales/receipt-pdf`),
+         * así que aplanar la transparencia sobre blanco se ve exactamente igual y evita el problema
+         * de raíz: nunca vuelve a salir un PNG de aquí.
          */
         function logoEmpresa() {
             return {
@@ -280,10 +284,12 @@
                     this._ajustado = null;
 
                     try {
-                        const nuevo = await this.encoger(archivo);
-                        if (nuevo && nuevo.size < archivo.size) {
+                        const nuevo = await this.aJpg(archivo);
+                        if (nuevo) {
                             this._ajustado = nuevo;
-                            this.aviso = `Se ajustó de ${this.kb(archivo.size)} a ${this.kb(nuevo.size)}.`;
+                            this.aviso = nuevo.size < archivo.size
+                                ? `Se ajustó de ${this.kb(archivo.size)} a ${this.kb(nuevo.size)}.`
+                                : '';
                         }
                     } catch (err) {
                         // Si el navegador no puede con la imagen se sube tal cual y la valida el
@@ -294,27 +300,35 @@
 
                 kb(bytes) { return Math.round(bytes / 1024) + ' KB'; },
 
-                encoger(archivo) {
+                aJpg(archivo) {
                     return new Promise((resolve, reject) => {
+                        // Ya es un JPG pequeño: no reprocesar, solo perdería nitidez de balde.
+                        const MAX_ANCHO = 600, MAX_ALTO = 300;
+                        if (archivo.type === 'image/jpeg' && archivo.size <= 150 * 1024) {
+                            return resolve(null);
+                        }
+
                         const img = new Image();
                         img.onerror = reject;
                         img.onload = () => {
-                            const MAX_ANCHO = 600, MAX_ALTO = 300;
                             const escala = Math.min(1, MAX_ANCHO / img.width, MAX_ALTO / img.height);
-
-                            // Ya es pequeño: no se toca. Reprocesarlo solo perdería nitidez.
-                            if (escala >= 1) return resolve(null);
+                            const ancho = Math.round(img.width * escala);
+                            const alto = Math.round(img.height * escala);
 
                             const lienzo = document.createElement('canvas');
-                            lienzo.width = Math.round(img.width * escala);
-                            lienzo.height = Math.round(img.height * escala);
-                            lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+                            lienzo.width = ancho;
+                            lienzo.height = alto;
 
-                            const png = archivo.type === 'image/png';
+                            const ctx = lienzo.getContext('2d');
+                            ctx.fillStyle = '#fff';
+                            ctx.fillRect(0, 0, ancho, alto);
+                            ctx.drawImage(img, 0, 0, ancho, alto);
+
+                            const nombre = archivo.name.replace(/\.\w+$/, '') + '.jpg';
                             lienzo.toBlob(
-                                (b) => resolve(b ? new File([b], archivo.name, { type: b.type }) : null),
-                                png ? 'image/png' : 'image/jpeg',
-                                png ? undefined : 0.88,
+                                (b) => resolve(b ? new File([b], nombre, { type: 'image/jpeg' }) : null),
+                                'image/jpeg',
+                                0.88,
                             );
                         };
                         img.src = URL.createObjectURL(archivo);

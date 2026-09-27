@@ -46,6 +46,20 @@ final class CompanyProfileController extends Controller
             $ajustes['features'][$clave] = (bool) ($enviadas[$clave] ?? false);
         }
 
+        // Personalización de documentos: mismo criterio que arriba con los interruptores
+        // (mostrar firma/ITBIS/descuento), y los colores/textos se guardan tal cual si llegaron.
+        $documentos = $datos['documents'] ?? [];
+
+        foreach (['show_signature', 'show_tax_breakdown', 'show_discount'] as $interruptor) {
+            $ajustes['documents'][$interruptor] = (bool) ($documentos[$interruptor] ?? false);
+        }
+
+        foreach (['primary_color', 'secondary_color', 'footer_text', 'terms_text'] as $campo) {
+            if (filled($documentos[$campo] ?? null)) {
+                $ajustes['documents'][$campo] = (string) $documentos[$campo];
+            }
+        }
+
         $empresa->update([
             'name' => $datos['name'],
             'legal_name' => $datos['legal_name'] ?? null,

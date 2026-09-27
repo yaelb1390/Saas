@@ -383,6 +383,29 @@ window.confirmarBorrarProductos = ({ cantidad, exigirCifra, formulario }) => {
 };
 
 /**
+ * Borrado múltiple de cotizaciones.
+ *
+ * Es borrado lógico (`SoftDeletes`), igual que los productos. Las que ya se convirtieron en venta se
+ * saltan en el servidor y no en el diálogo: aquí no hace falta pedir la cifra escrita porque una
+ * cotización no mueve inventario ni dinero por sí sola, al revés que borrar productos en lote.
+ *
+ * @param {{cantidad: number, formulario: string}} datos
+ */
+window.confirmarBorrarCotizaciones = ({ cantidad, formulario }) => {
+    if (cantidad < 1) return Promise.resolve(false);
+
+    const plural = cantidad === 1 ? 'cotización' : 'cotizaciones';
+
+    return window.confirmarAccion({
+        titulo: `¿Eliminar ${cantidad} ${plural}?`,
+        mensaje: 'Dejarán de aparecer en la lista.',
+        aviso: 'Las que ya se convirtieron en venta se saltan: esa venta no se toca ni se pierde.',
+        confirmar: `Eliminar ${cantidad} ${plural}`,
+        formulario,
+    });
+};
+
+/**
  * Anulación múltiple de ventas.
  *
  * Aquí SIEMPRE se pide teclear la cantidad, sin importar cuántas sean: en el inventario unos pocos

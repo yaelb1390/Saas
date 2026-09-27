@@ -63,4 +63,15 @@ enum QuoteStatus: string
     {
         return in_array($this, [self::Draft, self::Sent], true);
     }
+
+    /**
+     * ¿Se puede eliminar? Solo una CONVERTIDA no: ya es una venta de verdad —con su cobro, su
+     * descuento de existencias, tal vez su factura—, y borrar la cotización no debe desligar ni
+     * esconder nada de eso. Las demás (rechazada, caducada, borrador…) se pueden quitar de en medio
+     * sin que le falte nada a ningún otro registro.
+     */
+    public function sePuedeEliminar(): bool
+    {
+        return $this !== self::Converted;
+    }
 }

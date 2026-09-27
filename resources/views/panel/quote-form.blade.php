@@ -1,9 +1,31 @@
-<x-layouts.admin title="Nueva cotización" heading="Nueva cotización"
+@php
+    // La MISMA vista sirve para crear y para editar: son el mismo formulario, con las líneas
+    // precargadas o no. Duplicarla sería mantener dos veces el Alpine de las líneas dinámicas, que
+    // es la parte con más riesgo de desincronizarse entre las dos copias.
+    $editando = isset($quote);
+@endphp
+
+<x-layouts.admin :title="$editando ? 'Editar '.$quote->code : 'Nueva cotización'"
+                :heading="$editando ? 'Editar '.$quote->code : 'Nueva cotización'"
                 subheading="Lo que ofrezcas aquí queda por escrito, con su fecha">
 
-    <form method="POST" action="{{ route('panel.quotes.store') }}"
-          x-data="cotizador(@js($productos), @js($clientes))" class="space-y-5">
+    <form method="POST" action="{{ $editando ? route('panel.quotes.update', $quote) : route('panel.quotes.store') }}"
+          x-data="cotizador(@js($productos), @js($clientes), @js($editando ? [
+              'clienteId' => (string) ($quote->customer_id ?? ''),
+              'nombre' => $quote->customer_name,
+              'telefono' => $quote->customer_phone ?? '',
+              'descuento' => (float) $quote->discount_total,
+              'validoHasta' => $quote->valid_until?->format('Y-m-d'),
+              'lineas' => $quote->items->map(fn ($item) => [
+                  'libre' => $item->product_id === null,
+                  'product_id' => (string) ($item->product_id ?? ''),
+                  'description' => $item->description,
+                  'quantity' => (float) $item->quantity,
+                  'unit_price' => (float) $item->unit_price,
+              ])->values(),
+          ] : null))" class="space-y-5">
         @csrf
+        @if ($editando) @method('PUT') @endif
 
         <div class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <div class="space-y-5">
@@ -40,8 +62,8 @@
 
                         <div>
                             <label class="bmos-field-label">Válida hasta</label>
-                            <input type="date" name="valid_until" class="bmos-input"
-                                   value="{{ now()->addDays($validezPorOmision)->format('Y-m-d') }}">
+                            <input type="date" name="valid_until" x-model="validoHasta" class="bmos-input"
+                                   value="{{ $editando ? $quote->valid_until?->format('Y-m-d') : now()->addDays($validezPorOmision)->format('Y-m-d') }}">
                             <p class="mt-1 text-xs text-slate-400">
                                 Pasada esta fecha, la cotización deja de poder cobrarse sin revisarla.
                             </p>
@@ -54,13 +76,32 @@
                     <div class="flex items-center justify-between border-b border-slate-100 p-5">
                         <p class="font-semibold text-slate-800">¿Qué se le ofrece?</p>
                         <div class="flex gap-2">
-                            <button type="button" @click="agregar()" class="bmos-btn">+ Producto</button>
+                            <button type="button" @click="agregar()" class="bmos-btn bmos-btn-suave">+ Producto</button>
                             {{-- La mano de obra y el transporte se cotizan igual que un tornillo y no
                                  están en el catálogo. Obligar a crearlos como producto llenaría el
                                  inventario de cosas que nadie va a contar nunca. --}}
-                            <button type="button" @click="agregar(true)" class="bmos-btn">+ Concepto libre</button>
+                            <button type="button" @click="agregar(true)" class="bmos-btn bmos-btn-suave">+ Concepto libre</button>
                         </div>
                     </div>
+
+                    @if (count($rapidos) > 0)
+                        {{-- Los más vendidos en los últimos 30 días: un toque y la línea ya queda
+                             con producto y precio puestos, sin abrir el desplegable ni buscar. --}}
+                        <div class="border-b border-slate-100 bg-slate-50 p-3">
+                            <p class="mb-2 px-1 text-[0.7rem] font-semibold uppercase tracking-wide text-slate-400">
+                                Productos rápidos
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach ($rapidos as $p)
+                                    <button type="button" @click="agregarRapido(@js($p))"
+                                            class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700">
+                                        {{ $p['name'] }}
+                                        <span class="text-slate-400">· {{ money((float) $p['price']) }}</span>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
 
                     <div class="divide-y divide-slate-50">
                         <template x-for="(linea, i) in lineas" :key="linea.uid">
@@ -69,21 +110,34 @@
                                     <label class="bmos-field-label" x-show="i === 0">Concepto</label>
 
                                     <template x-if="!linea.libre">
-                                        {{-- Las opciones las pinta Blade, no Alpine.
-                                             Con un <template x-for> dentro del select, el x-model se
-                                             aplica ANTES de que existan las opciones, y asignarle a un
-                                             select un valor que todavía no está entre sus opciones lo
-                                             deja vacío sin dar ningún error: la línea viajaba sin
-                                             producto y el servidor la rechazaba sin que se entendiera
-                                             por qué. El catálogo no cambia mientras se escribe, así
-                                             que no hay motivo para pintarlo en el navegador. --}}
-                                        <select :name="`lines[${i}][product_id]`" x-model="linea.product_id"
-                                                @change="ponerPrecio(linea)" class="bmos-input" required>
-                                            <option value="">Elige un producto…</option>
-                                            @foreach ($productos as $producto)
-                                                <option value="{{ $producto['id'] }}">{{ $producto['name'] }}</option>
-                                            @endforeach
-                                        </select>
+                                        <div>
+                                            {{-- Busca por código o nombre SIN tocar cómo se generan las
+                                                 opciones: solo oculta/enseña las que ya están en el select
+                                                 (ver el porqué justo debajo). Nunca las quita ni las vuelve
+                                                 a crear, así que el valor elegido no se pierde al buscar. --}}
+                                            <input type="text" placeholder="Buscar por código o nombre…"
+                                                   class="bmos-input mb-1 text-xs" autocomplete="off"
+                                                   @input="filtrarProductos($event)">
+
+                                            {{-- Las opciones las pinta Blade, no Alpine.
+                                                 Con un <template x-for> dentro del select, el x-model se
+                                                 aplica ANTES de que existan las opciones, y asignarle a un
+                                                 select un valor que todavía no está entre sus opciones lo
+                                                 deja vacío sin dar ningún error: la línea viajaba sin
+                                                 producto y el servidor la rechazaba sin que se entendiera
+                                                 por qué. El catálogo no cambia mientras se escribe, así
+                                                 que no hay motivo para pintarlo en el navegador. --}}
+                                            <select :name="`lines[${i}][product_id]`" x-model="linea.product_id"
+                                                    @change="ponerPrecio(linea)" class="bmos-input" required>
+                                                <option value="">Elige un producto…</option>
+                                                @foreach ($productos as $producto)
+                                                    <option value="{{ $producto['id'] }}"
+                                                            data-buscar="{{ strtolower(trim(($producto['sku'] ?? '').' '.$producto['name'])) }}">
+                                                        {{ $producto['sku'] ? $producto['sku'].' — ' : '' }}{{ $producto['name'] }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
                                     </template>
 
                                     <template x-if="linea.libre">
@@ -130,7 +184,8 @@
                 <div class="bmos-card bmos-card-pad">
                     <label class="bmos-field-label">Notas <span class="font-normal text-slate-400">— salen en el PDF</span></label>
                     <textarea name="notes" rows="3" class="bmos-input" maxlength="2000"
-                              placeholder="Incluye instalación. No incluye transporte fuera de la ciudad."></textarea>
+                              placeholder="Incluye instalación. No incluye transporte fuera de la ciudad."
+                              >{{ $editando ? $quote->notes : '' }}</textarea>
                 </div>
             </div>
 
@@ -155,7 +210,7 @@
 
                 <button type="submit" :disabled="lineas.length === 0"
                         class="bmos-btn bmos-btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">
-                    Crear cotización
+                    {{ $editando ? 'Guardar cambios' : 'Crear cotización' }}
                 </button>
             </div>
         </div>
@@ -164,18 +219,30 @@
     {{-- El script va aquí mismo. Este layout no tiene pila de scripts, así que apilarlo se
          perdería en silencio y el formulario quedaría muerto sin dar un solo error. --}}
     <script>
-        function cotizador(productos, clientes) {
+        // `datosIniciales`: null al crear (arranca con una línea vacía). Al editar, trae lo que la
+        // cotización ya tiene —incluidas sus líneas, con la misma forma que `agregar()`/`agregarRapido()`
+        // ya producen— para que Alpine parta de ahí en vez de un formulario en blanco.
+        function cotizador(productos, clientes, datosIniciales = null) {
             return {
                 productos,
                 clientes,
-                clienteId: '',
-                nombre: '',
-                telefono: '',
-                descuento: '',
+                clienteId: datosIniciales?.clienteId ?? '',
+                nombre: datosIniciales?.nombre ?? '',
+                telefono: datosIniciales?.telefono ?? '',
+                descuento: datosIniciales?.descuento ?? '',
+                validoHasta: datosIniciales?.validoHasta ?? document.querySelector('[name="valid_until"]')?.value ?? '',
                 lineas: [],
                 proximo: 1,
 
                 init() {
+                    if (datosIniciales?.lineas?.length) {
+                        for (const linea of datosIniciales.lineas) {
+                            this.lineas.push({ uid: this.proximo++, ...linea });
+                        }
+
+                        return;
+                    }
+
                     this.agregar();
                 },
 
@@ -190,8 +257,52 @@
                     });
                 },
 
+                /*
+                 * Un toque y la línea ya queda con producto y precio de hoy: no hace falta abrir
+                 * el desplegable ni buscar. Si ya hay una línea de ese mismo producto SIN tocar
+                 * (recién añadida, cantidad 1), se le suma uno en vez de crear una línea repetida
+                 * al lado —así diez toques seguidos al mismo botón arman "10", no diez filas de "1".
+                 */
+                agregarRapido(p) {
+                    const existente = this.lineas.find((l) => !l.libre && String(l.product_id) === String(p.id));
+
+                    if (existente) {
+                        existente.quantity = (Number(existente.quantity) || 0) + 1;
+                        return;
+                    }
+
+                    this.lineas.push({
+                        uid: this.proximo++,
+                        libre: false,
+                        product_id: String(p.id),
+                        description: p.name,
+                        quantity: 1,
+                        unit_price: Number(p.price),
+                    });
+                },
+
                 quitar(i) {
                     this.lineas.splice(i, 1);
+                },
+
+                /**
+                 * Oculta/enseña las opciones YA PINTADAS del <select> vecino, nunca las regenera —ver
+                 * el comentario junto al <select> sobre por qué—. `hidden` en una <option> es DOM
+                 * nativo, no Alpine: se cambia a mano sobre el elemento real, sin pasar por `x-model`
+                 * ni por el estado de la línea, así que el valor ya elegido no se toca aunque deje de
+                 * verse en la lista mientras se escribe.
+                 */
+                filtrarProductos(event) {
+                    const texto = event.target.value.trim().toLowerCase();
+                    const select = event.target.nextElementSibling;
+
+                    if (!select) return;
+
+                    for (const opcion of select.options) {
+                        if (opcion.value === '') continue; // "Elige un producto…" siempre visible
+
+                        opcion.hidden = texto !== '' && !(opcion.dataset.buscar || '').includes(texto);
+                    }
                 },
 
                 /*

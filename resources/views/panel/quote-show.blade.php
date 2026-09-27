@@ -106,6 +106,7 @@
                         <form method="POST" action="{{ route('panel.quotes.send', $quote) }}">
                             @csrf
                             <button type="submit" class="bmos-btn bmos-btn-primary w-full justify-center">
+                                <x-icono name="chat" class="h-4 w-4" />
                                 {{ $puedeAdjuntar ? 'Enviar el PDF por WhatsApp' : 'Enviar el enlace por WhatsApp' }}
                             </button>
                         </form>
@@ -118,14 +119,23 @@
                          además como manda las cotizaciones un negocio pequeño: desde su número, con
                          su nombre y su foto. --}}
                     <a href="{{ $enlaceWa }}" target="_blank" rel="noopener"
-                       class="bmos-btn w-full justify-center">Abrir en mi WhatsApp</a>
+                       class="bmos-btn w-full justify-center border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                        <x-icono name="chat" class="h-4 w-4" />
+                        Abrir en mi WhatsApp
+                    </a>
                 @endif
 
                 <div class="flex gap-2">
                     <a href="{{ route('panel.quotes.pdf', $quote) }}" target="_blank" rel="noopener"
-                       class="bmos-btn flex-1 justify-center">Ver PDF</a>
+                       class="bmos-btn flex-1 justify-center border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                        <x-icono name="doc" class="h-4 w-4" />
+                        Ver PDF
+                    </a>
                     <a href="{{ route('panel.quotes.pdf', ['quote' => $quote, 'mode' => 'descargar']) }}"
-                       class="bmos-btn flex-1 justify-center">Descargar</a>
+                       class="bmos-btn flex-1 justify-center border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100">
+                        <x-icono name="bajada" class="h-4 w-4" />
+                        Descargar
+                    </a>
                 </div>
 
                 {{-- El enlace que ve el cliente, para poder pegarlo donde haga falta. --}}
@@ -134,7 +144,7 @@
                     <div class="flex gap-2">
                         <input type="text" readonly :value="$el.dataset.enlace" data-enlace="{{ $enlace }}"
                                class="bmos-input text-xs" x-ref="enlace" @focus="$refs.enlace.select()">
-                        <button type="button" class="bmos-btn"
+                        <button type="button" class="bmos-btn bmos-btn-suave"
                                 @click="navigator.clipboard.writeText($refs.enlace.value); copiado = true; setTimeout(() => copiado = false, 1800)">
                             <span x-text="copiado ? '¡Copiado!' : 'Copiar'"></span>
                         </button>
@@ -195,6 +205,58 @@
                         </form>
                     </div>
                 @endcan
+
+                @if ($puedeFacturar)
+                    @can('invoices.issue')
+                        <div class="bmos-card bmos-card-pad space-y-3" x-data="{ abierto: false }">
+                            <p class="font-semibold text-slate-800">Cobrar y facturar</p>
+                            <p class="text-xs text-slate-500">
+                                Registra la venta y emite el comprobante fiscal (NCF) en un solo paso.
+                            </p>
+
+                            <button type="button" @click="abierto = !abierto"
+                                    class="bmos-btn w-full justify-center border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                                <x-icono name="receipt" class="h-4 w-4" />
+                                Cobrar y facturar
+                            </button>
+
+                            <form x-show="abierto" x-cloak method="POST"
+                                  action="{{ route('panel.quotes.invoice', $quote) }}" class="space-y-2">
+                                @csrf
+                                <div>
+                                    <label class="bmos-field-label">¿Cómo paga?</label>
+                                    <select name="payment_method" class="bmos-input">
+                                        @foreach (\App\Modules\Sales\Enums\PaymentMethod::counterOptions() as $forma)
+                                            <option value="{{ $forma->value }}">{{ $forma->label() }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="bmos-field-label">¿Cuánto recibiste?</label>
+                                    <input type="number" step="0.01" min="0" name="paid" class="bmos-input"
+                                           value="{{ number_format((float) $quote->total, 2, '.', '') }}">
+                                </div>
+                                <div>
+                                    <label class="bmos-field-label">Tipo de comprobante</label>
+                                    <select name="type" class="bmos-input" required>
+                                        @foreach ($ncfTypes as $t)
+                                            <option value="{{ $t->value }}">
+                                                {{ $t->value }} — {{ $t->label() }}{{ $t->requiresTaxId() ? ' (exige RNC)' : '' }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="bmos-field-label">RNC / Cédula del cliente</label>
+                                    <input type="text" name="customer_tax_id" class="bmos-input" placeholder="130123456">
+                                </div>
+                                <button type="submit" class="bmos-btn bmos-btn-primary w-full justify-center">
+                                    Confirmar cobro y factura
+                                </button>
+                            </form>
+                        </div>
+                    @endcan
+                @endif
             @endif
 
             {{-- ── El estado, a mano ─────────────────────────────────────────────────── --}}
@@ -204,10 +266,20 @@
                         <p class="mb-2 font-semibold text-slate-800">Marcar</p>
                         <div class="flex flex-wrap gap-2">
                             @foreach ([QuoteStatus::Accepted, QuoteStatus::Rejected] as $opcion)
+                                @php
+                                    $esAceptar = $opcion === QuoteStatus::Accepted;
+                                @endphp
                                 <form method="POST" action="{{ route('panel.quotes.status', $quote) }}">
                                     @csrf @method('PUT')
                                     <input type="hidden" name="status" value="{{ $opcion->value }}">
-                                    <button type="submit" class="bmos-btn">{{ $opcion->label() }}</button>
+                                    <button type="submit" @class([
+                                        'bmos-btn',
+                                        'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' => $esAceptar,
+                                        'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100' => ! $esAceptar,
+                                    ])>
+                                        <x-icono :name="$esAceptar ? 'check' : 'ban'" class="h-4 w-4" />
+                                        {{ $opcion->label() }}
+                                    </button>
                                 </form>
                             @endforeach
                         </div>

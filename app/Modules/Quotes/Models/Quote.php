@@ -127,6 +127,16 @@ class Quote extends Model implements Auditable, HasCompany
         return $this->estadoReal()->sePuedeConvertir();
     }
 
+    public function sePuedeEditar(): bool
+    {
+        return $this->estadoReal()->sePuedeEditar();
+    }
+
+    public function sePuedeEliminar(): bool
+    {
+        return $this->estadoReal()->sePuedeEliminar();
+    }
+
     /** Cuántos días le quedan. Negativo si ya pasó; null si no caduca. */
     public function diasDeVigencia(): ?int
     {

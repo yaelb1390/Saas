@@ -75,6 +75,16 @@ class Invoice extends Model implements Auditable, HasCompany
     }
 
     /**
+     * Número interno legible, para mostrarlo junto al NCF (que es el que de verdad manda ante la
+     * DGII). Usa el id autoincremental ya existente: cero riesgo de concurrencia porque no crea
+     * ninguna secuencia nueva, solo lo formatea.
+     */
+    public function numeroInterno(): string
+    {
+        return 'FAC-'.str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * Cliente del CRM al que se facturó. Null si la factura no lo identificó (consumo final).
      * El nombre y el RNC impresos en el documento fiscal viven aparte, en customer_name y
      * customer_tax_id: son un snapshot y no cambian aunque se corrija la ficha del CRM.

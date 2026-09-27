@@ -75,6 +75,81 @@ final class QuoteService
     }
 
     /**
+     * Actualiza los datos propios de una cotización (a quién, hasta cuándo, notas…) y sus líneas,
+     * de una sola vez. Reutiliza `reemplazarLineas()`, que ya guarda la regla de «solo se edita en
+     * borrador o enviada» — aquí se repite ANTES de tocar nada, para no dejar el nombre del cliente
+     * cambiado si luego el reemplazo de líneas falla.
+     *
+     * El código NO cambia: sigue siendo la misma cotización, no una nueva.
+     *
+     * @param  array<int, array<string, mixed>>  $lineas
+     * @param  array<string, mixed>  $datos
+     */
+    public function actualizar(Quote $quote, array $lineas, array $datos): Quote
+    {
+        return DB::transaction(function () use ($quote, $lineas, $datos): Quote {
+            if (! $quote->estadoReal()->sePuedeEditar()) {
+                throw new RuntimeException('Esta cotización ya no se puede editar.');
+            }
+
+            $cliente = $this->cliente($datos);
+
+            $quote->forceFill([
+                'customer_id' => $cliente?->id,
+                'customer_name' => $this->nombre($datos, $cliente),
+                'customer_phone' => $this->telefono($datos, $cliente),
+                'valid_until' => $this->validez($datos),
+                'notes' => filled($datos['notes'] ?? null) ? (string) $datos['notes'] : null,
+                'discount_total' => $this->aDecimal($datos['discount_total'] ?? '0'),
+            ])->save();
+
+            $this->reemplazarLineas($quote, $lineas);
+
+            return $quote->refresh()->load('items');
+        });
+    }
+
+    /**
+     * Elimina UNA cotización. Es borrado lógico (`SoftDeletes`): sigue en la base, solo deja de
+     * aparecer en la lista y en las consultas normales.
+     */
+    public function eliminar(Quote $quote): void
+    {
+        if (! $quote->sePuedeEliminar()) {
+            throw new RuntimeException('Esta cotización ya se convirtió en venta y no se puede eliminar.');
+        }
+
+        $quote->delete();
+    }
+
+    /**
+     * Elimina VARIAS de una vez. Las que ya se convirtieron en venta se saltan en vez de romper todo
+     * el lote por una sola: quien marcó veinte cotizaciones para limpiar la lista no tiene por qué
+     * saber de memoria cuáles de ellas ya son ventas.
+     *
+     * @param  list<int>  $ids
+     * @return array{eliminadas: int, omitidas: int}
+     */
+    public function eliminarVarias(array $ids): array
+    {
+        $eliminadas = 0;
+        $omitidas = 0;
+
+        // Una a una, y no un DELETE masivo: cada una pasa por sePuedeEliminar() y por los observers
+        // del modelo (SoftDeletes, auditoría), igual que si se borrara sola desde su ficha.
+        foreach (Quote::query()->whereIn('id', $ids)->get() as $quote) {
+            if ($quote->sePuedeEliminar()) {
+                $quote->delete();
+                $eliminadas++;
+            } else {
+                $omitidas++;
+            }
+        }
+
+        return ['eliminadas' => $eliminadas, 'omitidas' => $omitidas];
+    }
+
+    /**
      * Cambia las líneas de una cotización y vuelve a sumar.
      *
      * Se borran y se vuelven a crear en vez de casarlas una a una: una cotización tiene cinco líneas,

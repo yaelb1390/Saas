@@ -117,6 +117,76 @@
                     </label>
                 </div>
 
+                {{-- Cómo se ven tus cotizaciones y facturas en PDF: no es el estilo del panel, es
+                     el del papel que recibe tu cliente. --}}
+                <div class="mt-5 bmos-card bmos-card-pad" x-data="{
+                        primario: '{{ old('documents.primary_color', $company->documentSetting('primary_color')) }}',
+                        secundario: '{{ old('documents.secondary_color', $company->documentSetting('secondary_color')) }}',
+                     }">
+                    <p class="font-semibold text-slate-800">Documentos (cotizaciones y facturas)</p>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Los colores, el pie y las condiciones que salen en el PDF que le mandas al cliente.
+                    </p>
+
+                    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[auto_1fr]">
+                        <div class="flex gap-4">
+                            <div>
+                                <label class="bmos-field-label">Color principal</label>
+                                <input type="color" name="documents[primary_color]" x-model="primario"
+                                       class="h-10 w-16 cursor-pointer rounded-lg border border-slate-200">
+                            </div>
+                            <div>
+                                <label class="bmos-field-label">Color secundario</label>
+                                <input type="color" name="documents[secondary_color]" x-model="secundario"
+                                       class="h-10 w-16 cursor-pointer rounded-lg border border-slate-200">
+                            </div>
+                        </div>
+
+                        {{-- Miniatura en vivo: solo la cabecera, que es donde de verdad se ve el color. --}}
+                        <div class="overflow-hidden rounded-xl border border-slate-200">
+                            <div class="flex items-center justify-between px-3 py-2" :style="`background:${secundario}`">
+                                <span class="text-xs font-bold text-white">{{ $company->nombreParaDocumentos() }}</span>
+                                <span class="text-[10px] font-semibold text-white/90">FACTURA</span>
+                            </div>
+                            <div class="h-1.5" :style="`background:${primario}`"></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <label class="bmos-field-label">Pie del documento</label>
+                            <textarea name="documents[footer_text]" rows="2" class="bmos-input"
+                                      placeholder="Gracias por su preferencia.">{{ old('documents.footer_text', $company->documentSetting('footer_text')) }}</textarea>
+                        </div>
+                        <div>
+                            <label class="bmos-field-label">Condiciones</label>
+                            <textarea name="documents[terms_text]" rows="2" class="bmos-input"
+                                      placeholder="Precios sujetos a cambio sin previo aviso.">{{ old('documents.terms_text', $company->documentSetting('terms_text')) }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap gap-4">
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="documents[show_signature]" value="1"
+                                   @checked(old('documents.show_signature', $company->documentSetting('show_signature')))
+                                   class="rounded border-slate-300 text-indigo-600">
+                            Mostrar firma
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="documents[show_tax_breakdown]" value="1"
+                                   @checked(old('documents.show_tax_breakdown', $company->documentSetting('show_tax_breakdown')))
+                                   class="rounded border-slate-300 text-indigo-600">
+                            Mostrar desglose de ITBIS
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="documents[show_discount]" value="1"
+                                   @checked(old('documents.show_discount', $company->documentSetting('show_discount')))
+                                   class="rounded border-slate-300 text-indigo-600">
+                            Mostrar descuento
+                        </label>
+                    </div>
+                </div>
+
                 <div class="mt-5 flex justify-end">
                     <button type="submit" class="bmos-btn bmos-btn-primary" x-bind:disabled="ajustando">
                         <span x-text="ajustando ? 'Ajustando el logo...' : 'Guardar'"></span>

@@ -14,8 +14,11 @@ use App\Modules\Billing\Http\Requests\StoreFiscalSequenceRequest;
 use App\Modules\Billing\Models\FiscalSequence;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Services\InvoiceService;
+use App\Modules\Core\Support\CompanyLogoStore;
 use App\Modules\Sales\Models\Sale;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 
 /**
@@ -56,6 +59,24 @@ final class InvoiceController extends Controller
         }
 
         return back()->with('panel_ok', "Comprobante {$invoice->ncf} anulado. Se reportará en el 608.");
+    }
+
+    /**
+     * El PDF del comprobante ya emitido, en A4, con el mismo layout compartido que la cotización.
+     */
+    public function pdf(Invoice $invoice, ?string $mode = null): Response
+    {
+        $invoice->loadMissing('items', 'customer', 'sale', 'user');
+
+        $pdf = Pdf::loadView('invoices.pdf', [
+            'invoice' => $invoice,
+            'company' => $invoice->company,
+            'logo' => $invoice->company?->hasLogo() ? CompanyLogoStore::dataUri($invoice->company) : null,
+        ])->setPaper('a4');
+
+        $nombre = 'factura-'.$invoice->numeroInterno().'.pdf';
+
+        return $mode === 'descargar' ? $pdf->download($nombre) : $pdf->stream($nombre);
     }
 
     public function storeSequence(StoreFiscalSequenceRequest $request): RedirectResponse

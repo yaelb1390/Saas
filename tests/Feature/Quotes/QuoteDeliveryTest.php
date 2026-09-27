@@ -206,10 +206,11 @@ it('el papel dice de quién viene: el nombre del negocio sale aunque no haya log
         ->and($html)->toContain('COTIZACIÓN')
         ->and($html)->toContain($this->quote->code)
         // Las columnas del impreso, con los nombres que se ven en el papel.
-        ->and($html)->toContain('PRODUCTO')
-        ->and($html)->toContain('CANTIDAD')
+        ->and($html)->toContain('Descripción')
+        ->and($html)->toContain('Cantidad')
         // Y las dos firmas, que es lo que convierte la hoja en algo que se puede aceptar por escrito.
-        ->and($html)->toContain('Firma de Cliente');
+        ->and($html)->toContain('Firma autorizada')
+        ->and($html)->toContain('Recibido por');
 });
 
 it('con logo se pinta el logo Y sigue saliendo el nombre debajo', function (): void {
@@ -249,8 +250,7 @@ it('el vendedor sale en el papel, y sin vendedor no queda un rótulo huérfano',
     ])->render();
 
     expect($con)->toContain('Juliana Silva')
-        ->and($con)->toContain('Vendedor:')
-        ->and($con)->toContain('Firma de Vendedor');
+        ->and($con)->toContain('Vendedor:');
 
     $this->quote->forceFill(['user_id' => null])->save();
 
@@ -260,9 +260,10 @@ it('el vendedor sale en el papel, y sin vendedor no queda un rótulo huérfano',
         'logo' => null,
     ])->render();
 
+    // Sin vendedor no queda un rótulo huérfano: el bloque de «Vendedor:» simplemente no aparece.
+    // La firma (genérica: «Firma autorizada») no depende de si hubo vendedor o no.
     expect($sin)->not->toContain('Vendedor:')
-        // Sin vendedor la firma pasa a ser la del negocio: la línea sigue estando, sin mentir.
-        ->and($sin)->toContain('Firma de la Empresa');
+        ->and($sin)->toContain('Firma autorizada');
 });
 
 it('las cotizaciones de otra empresa no se ven en el listado', function (): void {

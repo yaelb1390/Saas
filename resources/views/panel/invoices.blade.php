@@ -161,6 +161,10 @@
                             </td>
                             <td data-rotulo="Emitida" class="text-slate-400">{{ $invoice->issued_at?->format('d/m/Y H:i') }}</td>
                             <td class="text-right">
+                                <a href="{{ route('panel.invoices.pdf', $invoice) }}" target="_blank" rel="noopener"
+                                   class="rounded-lg p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Ver PDF">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.1rem;height:1.1rem"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h1M6 4h8l4 4v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/></svg>
+                                </a>
                                 @unless ($invoice->isCancelled())
                                     @can('invoices.cancel')
                                     <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Anular"

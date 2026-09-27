@@ -233,6 +233,27 @@ class Company extends Model implements Auditable
         return (bool) data_get($this->settings, "features.{$key}", false);
     }
 
+    /**
+     * Lo que la empresa personalizó de sus documentos (factura/cotización): colores, pie,
+     * condiciones y qué bloques mostrar. Vive en `settings` bajo `documents.*`, con la misma
+     * convención que `features.*` (ver `usesFeature()`): un interruptor que va y viene no merece
+     * una columna propia.
+     */
+    public const DOCUMENT_DEFAULTS = [
+        'primary_color' => '#1677FF',
+        'secondary_color' => '#0B3D91',
+        'footer_text' => null,
+        'terms_text' => null,
+        'show_signature' => true,
+        'show_tax_breakdown' => true,
+        'show_discount' => true,
+    ];
+
+    public function documentSetting(string $key): mixed
+    {
+        return data_get($this->settings, "documents.{$key}", self::DOCUMENT_DEFAULTS[$key] ?? null);
+    }
+
     public function hasLogo(): bool
     {
         return $this->logo_path !== null && $this->logo_path !== '';

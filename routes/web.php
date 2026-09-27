@@ -427,11 +427,21 @@ Route::middleware(['auth'])->group(function (): void {
             Route::get('/', 'index')->middleware('can:quotes.view')->name('index');
             Route::get('/nueva', 'create')->middleware('can:quotes.manage')->name('create');
             Route::post('/', 'store')->middleware('can:quotes.manage')->name('store');
+            // De la selección múltiple en la lista: va ANTES de «/{quote}» solo por orden de
+            // lectura, no por necesidad —los verbos y las formas de ruta ya no chocan entre sí—.
+            Route::delete('/', 'destroyMultiple')->middleware('can:quotes.manage')->name('destroyMultiple');
             Route::get('/{quote}', 'show')->middleware('can:quotes.view')->name('show');
+            Route::get('/{quote}/editar', 'edit')->middleware('can:quotes.manage')->name('edit');
+            Route::put('/{quote}', 'update')->middleware('can:quotes.manage')->name('update');
+            Route::delete('/{quote}', 'destroy')->middleware('can:quotes.manage')->name('destroy');
             Route::get('/{quote}/pdf/{mode?}', 'pdf')->middleware('can:quotes.view')->name('pdf');
             Route::post('/{quote}/enviar', 'send')->middleware(['can:quotes.send', 'throttle:20,1'])->name('send');
             Route::put('/{quote}/estado', 'status')->middleware('can:quotes.manage')->name('status');
             Route::post('/{quote}/cobrar', 'convert')->middleware('can:quotes.convert')->name('convert');
+            // Cobrar + emitir NCF en un solo paso. Exige los dos permisos: el de cobrar la
+            // cotización y el de emitir comprobantes fiscales.
+            Route::post('/{quote}/facturar', 'invoice')
+                ->middleware(['can:quotes.convert', 'can:invoices.issue', 'module:billing'])->name('invoice');
         });
 
     // Exportaciones a CSV: exigen el mismo permiso (y módulo) que ver los datos que exportan.
@@ -1005,6 +1015,8 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:invoices.issue')->name('panel.invoices.issue');
         Route::post('/panel/facturas/{invoice}/anular', [InvoiceController::class, 'cancel'])
             ->middleware('can:invoices.cancel')->name('panel.invoices.cancel');
+        Route::get('/panel/facturas/{invoice}/pdf/{mode?}', [InvoiceController::class, 'pdf'])
+            ->middleware('can:invoices.view')->name('panel.invoices.pdf');
         Route::post('/panel/facturas/secuencias', [InvoiceController::class, 'storeSequence'])
             ->middleware('can:fiscal_sequences.manage')->name('panel.sequences.store');
         Route::get('/panel/facturas/dgii/607', [DgiiReportController::class, 'sales607'])

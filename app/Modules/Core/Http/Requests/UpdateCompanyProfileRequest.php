@@ -36,6 +36,19 @@ final class UpdateCompanyProfileRequest extends FormRequest
             // no venga es «apagado».
             'features' => ['nullable', 'array'],
             'features.*' => ['nullable', 'boolean'],
+
+            // Personalización del PDF de facturas/cotizaciones. Los colores son del <input
+            // type="color"> del navegador, que siempre manda #rrggbb: la regex es la red de
+            // seguridad para quien lo mande por otra vía.
+            'documents' => ['nullable', 'array'],
+            'documents.primary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'documents.secondary_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'documents.footer_text' => ['nullable', 'string', 'max:500'],
+            'documents.terms_text' => ['nullable', 'string', 'max:1000'],
+            'documents.show_signature' => ['nullable', 'boolean'],
+            'documents.show_tax_breakdown' => ['nullable', 'boolean'],
+            'documents.show_discount' => ['nullable', 'boolean'],
+
             'logo' => [
                 'nullable', 'image', 'mimes:png,jpg,jpeg',
                 // El navegador ya lo recorta antes de subirlo; este tope es la red de seguridad para

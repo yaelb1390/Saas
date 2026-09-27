@@ -118,7 +118,18 @@ final class CompanyLogoStore
             return null;
         }
 
-        $mime = str_ends_with($path, '.png') ? 'image/png' : 'image/jpeg';
+        $esPng = str_ends_with($path, '.png');
+
+        // dompdf incrusta JPG sin GD ("using no GD commands", según su propio código), pero un PNG
+        // pasa por addPngFromFile(), que exige `imagecreatefrompng` incondicionalmente —ni para
+        // redimensionar, para abrir el archivo—. En producción (vercel-php) no hay GD ni Imagick
+        // (mismo límite ya documentado arriba), así que un logo PNG ahí no se degrada: revienta el
+        // PDF entero con un 500. Mejor sin logo que sin factura.
+        if ($esPng && ! function_exists('imagecreatefrompng')) {
+            return null;
+        }
+
+        $mime = $esPng ? 'image/png' : 'image/jpeg';
 
         return 'data:'.$mime.';base64,'.base64_encode($bytes);
     }

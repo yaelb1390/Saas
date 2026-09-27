@@ -32,9 +32,35 @@
                     <p class="mt-3 text-lg font-semibold text-slate-800">Conecta tu cuenta de Zernio</p>
                     <p class="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">
                         Tus redes se conectan a través de <b>Zernio</b>, que es quien publica en Instagram,
-                        Facebook y las demás. Necesitas una cuenta suya y su clave; se crea en
-                        <a href="https://zernio.com" target="_blank" rel="noopener" class="font-medium text-indigo-600 hover:underline">zernio.com</a>.
+                        Facebook y las demás. Sigue estos 4 pasos, con tu propia cuenta de Zernio:
                     </p>
+
+                    <ol class="mt-4 max-w-xl space-y-3">
+                        <li class="flex items-start gap-2.5">
+                            <span class="bmos-paso-num shrink-0" style="position:static">1</span>
+                            <p class="text-sm text-slate-700">
+                                <a href="https://zernio.com" target="_blank" rel="noopener"
+                                   class="bmos-btn bmos-btn-ghost !inline-flex px-2 py-1 font-medium text-indigo-600">
+                                    Crea tu cuenta gratis en zernio.com ↗
+                                </a>
+                            </p>
+                        </li>
+                        <li class="flex items-start gap-2.5">
+                            <span class="bmos-paso-num shrink-0" style="position:static">2</span>
+                            <p class="text-sm text-slate-700">Ya dentro, entra a <b>«Claves API»</b> en el menú de la izquierda.</p>
+                        </li>
+                        <li class="flex items-start gap-2.5">
+                            <span class="bmos-paso-num shrink-0" style="position:static">3</span>
+                            <p class="text-sm text-slate-700">Dale a <b>«+ Crear clave»</b>, ponle un nombre y elige el permiso <b>«Leer y escribir»</b>.</p>
+                        </li>
+                        <li class="flex items-start gap-2.5">
+                            <span class="bmos-paso-num shrink-0" style="position:static">4</span>
+                            <p class="text-sm text-slate-700">
+                                Copia la clave <b>completa</b> con el ícono de copiar de esa fila
+                                (no el texto recortado que se ve en la tabla) y pégala aquí abajo.
+                            </p>
+                        </li>
+                    </ol>
                 </div>
 
                 @can('social.connect')
@@ -326,6 +352,26 @@
                                         </div>
                                         <p class="mt-2 text-xs text-slate-400">Toca las que quieras: sale en todas a la vez.</p>
                                     @endif
+                                </div>
+
+                                {{-- Solo aparece con Instagram elegido: Zernio no lo admite en ninguna otra
+                                     red, y agregarlo después de publicar tampoco se puede — es ahora o nunca. --}}
+                                <div x-show="redesElegidas.includes('instagram')" x-cloak>
+                                    <label class="bmos-field-label">Colaboradores de Instagram (opcional)</label>
+                                    <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 p-2">
+                                        <template x-for="(u, i) in colaboradores" :key="i">
+                                            <span class="bmos-clave">
+                                                <input type="hidden" name="collaborators[]" :value="u">
+                                                <span x-text="'@' + u"></span>
+                                                <button type="button" class="ml-1 text-slate-400 hover:text-rose-500" @click="colaboradores.splice(i, 1)">✕</button>
+                                            </span>
+                                        </template>
+                                        <input type="text" x-model="nuevoColaborador" x-show="colaboradores.length < 3"
+                                               @keydown.enter.prevent="agregarColaborador()" @blur="agregarColaborador()"
+                                               class="min-w-[8rem] flex-1 border-0 p-1 text-sm focus:ring-0"
+                                               placeholder="usuario_de_instagram y Enter">
+                                    </div>
+                                    <p class="mt-1 text-xs text-slate-400">Hasta 3 cuentas Business o Creator, públicas. No aplica a Historias, y no se puede agregar después de publicado.</p>
                                 </div>
 
                                 {{-- La imagen se sube DIRECTAMENTE del navegador a Zernio: en producción el
@@ -728,6 +774,17 @@
 
                     /* Las redes elegidas, para poder avisar antes de pulsar. */
                     destinos: [],
+
+                    /* Colaboradores de Instagram para esta publicación (hasta 3, sin el «@»). */
+                    colaboradores: [],
+                    nuevoColaborador: '',
+                    agregarColaborador() {
+                        const u = this.nuevoColaborador.trim().replace(/^@/, '');
+                        if (u && this.colaboradores.length < 3 && !this.colaboradores.includes(u)) {
+                            this.colaboradores.push(u);
+                        }
+                        this.nuevoColaborador = '';
+                    },
 
                     /* Las que no publican texto suelto. La lista la manda el servidor desde la
                        enumeración, para que no haya dos versiones de la regla. */

@@ -138,9 +138,30 @@ final class SocialController extends Controller
             'updated_at' => now(),
         ]);
 
-        return back()->with('panel_ok', filled($datos['api_key'] ?? null)
-            ? 'Clave guardada. Ya puedes conectar tus redes.'
-            : 'Clave borrada. Tus redes dejan de estar conectadas al sistema.');
+        if (blank($datos['api_key'] ?? null)) {
+            return back()->with('panel_ok', 'Clave borrada. Tus redes dejan de estar conectadas al sistema.');
+        }
+
+        /*
+         * Confirmación en vivo: hablar con Zernio en este mismo instante, en vez de solo decir
+         * "guardado" y que el dueño se entere de que la clave estaba mal diez minutos después,
+         * al intentar conectar una red.
+         *
+         * En memoria, SIN volver a leer de la base: el mutator de `Company` (cast `encrypted`)
+         * cifra esto al vuelo, y el getter que usa `ZernioClient` lo descifra de vuelta — mismo
+         * cifrado ida y vuelta, no la fila vieja que causó el incidente del DecryptException.
+         */
+        $company->social_api_key = $datos['api_key'];
+
+        try {
+            (new ZernioClient($company))->accounts();
+
+            return back()->with('panel_ok', 'Clave guardada y confirmada con Zernio. Ya puedes conectar tus redes.');
+        } catch (Throwable $e) {
+            report($e);
+
+            return back()->with('panel_ok', 'Clave guardada, pero no pudimos confirmarla con Zernio ahora mismo. Prueba a conectar una red: si falla, revisa que la copiaste completa.');
+        }
     }
 
     /**

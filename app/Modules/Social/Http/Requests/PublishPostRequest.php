@@ -35,6 +35,11 @@ final class PublishPostRequest extends FormRequest
             'scheduled_for' => ['nullable', 'date', 'after:now'],
             'media_url' => ['nullable', 'url', 'max:2000'],
             'media_type' => ['nullable', 'in:image,video'],
+            // Límite y formato de Zernio: hasta 3 usuarios públicos de Business/Creator, sin el
+            // «@» (se acepta con o sin él y se limpia en objetivos()). Solo aplica a Instagram, y
+            // solo al crear la publicación — Zernio no lo admite agregado después.
+            'collaborators' => ['nullable', 'array', 'max:3'],
+            'collaborators.*' => ['string', 'max:30', 'regex:/^@?[a-zA-Z0-9._]+$/'],
         ];
     }
 
@@ -42,7 +47,7 @@ final class PublishPostRequest extends FormRequest
     {
         return [
             'content' => 'texto', 'accounts' => 'cuentas',
-            'scheduled_for' => 'fecha de publicación',
+            'scheduled_for' => 'fecha de publicación', 'collaborators' => 'colaboradores',
         ];
     }
 
@@ -51,17 +56,20 @@ final class PublishPostRequest extends FormRequest
         return [
             'accounts.required' => 'Elige al menos una red donde publicar.',
             'scheduled_for.after' => 'Esa fecha ya pasó. Elige una futura o publica ahora.',
+            'collaborators.max' => 'Instagram admite hasta 3 colaboradores por publicación.',
+            'collaborators.*.regex' => 'Ese usuario de Instagram no parece válido.',
         ];
     }
 
     /**
      * Las cuentas elegidas, en la forma que espera Zernio.
      *
-     * @return array<int, array{platform: string, accountId: string}>
+     * @return array<int, array{platform: string, accountId: string, platformSpecificData?: array{collaborators: array<int, string>}}>
      */
     public function objetivos(): array
     {
         $objetivos = [];
+        $colaboradores = $this->colaboradores();
 
         foreach ((array) $this->input('accounts', []) as $valor) {
             [$plataforma, $id] = array_pad(explode('|', (string) $valor, 2), 2, null);
@@ -72,10 +80,31 @@ final class PublishPostRequest extends FormRequest
                 continue;
             }
 
-            $objetivos[] = ['platform' => (string) $plataforma, 'accountId' => (string) $id];
+            $objetivo = ['platform' => (string) $plataforma, 'accountId' => (string) $id];
+
+            // Zernio solo admite colaboradores en Instagram (ni Historias): mandarlo con otra red
+            // no haría nada útil y arriesgaría un 400 que tumbe TODA la publicación.
+            if ($plataforma === SocialPlatform::Instagram->value && $colaboradores !== []) {
+                $objetivo['platformSpecificData'] = ['collaborators' => $colaboradores];
+            }
+
+            $objetivos[] = $objetivo;
         }
 
         return $objetivos;
+    }
+
+    /**
+     * Los usuarios a invitar como colaboradores, sin el «@» y sin duplicados.
+     *
+     * @return array<int, string>
+     */
+    public function colaboradores(): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $u): string => ltrim(trim((string) $u), '@'),
+            (array) $this->input('collaborators', []),
+        ), static fn (string $u): bool => $u !== '')));
     }
 
     /**

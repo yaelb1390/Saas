@@ -72,6 +72,8 @@ function zernioResponde(): void
 it('la clave se guarda cifrada: no queda legible en la tabla', function (): void {
     // Quien la tenga puede publicar en el Instagram del cliente. Que un volcado de la base la
     // enseñe en claro sería regalar esa cuenta a cualquiera con acceso de lectura.
+    zernioResponde();
+
     $this->actingAs($this->owner)
         ->put(route('panel.social.key'), ['api_key' => CLAVE])
         ->assertSessionHasNoErrors();
@@ -89,11 +91,32 @@ it('guardar una clave nueva funciona aunque la fila ya traiga algo ilegible', fu
     // mano, o de un entorno distinto) hacía que GUARDAR la clave nueva reventara con un 500 —
     // `$company->update()` decide si el campo "cambió" descifrando el valor VIEJO para comparar, y
     // eso no es válido aquí. Guardar debe funcionar siempre, sea lo que sea que hubiera antes.
+    zernioResponde();
     DB::table('companies')->where('id', $this->company->id)->update(['social_api_key' => 'esto-no-es-un-cifrado-valido']);
 
     $this->actingAs($this->owner)
         ->put(route('panel.social.key'), ['api_key' => CLAVE])
         ->assertSessionHasNoErrors();
+
+    expect(Company::find($this->company->id)->social_api_key)->toBe(CLAVE);
+});
+
+it('confirma en vivo con Zernio al guardar una clave que sí funciona', function (): void {
+    zernioResponde();
+
+    $this->actingAs($this->owner)
+        ->put(route('panel.social.key'), ['api_key' => CLAVE])
+        ->assertSessionHas('panel_ok', 'Clave guardada y confirmada con Zernio. Ya puedes conectar tus redes.');
+});
+
+it('si Zernio no responde, guarda la clave igual pero avisa que no se pudo confirmar', function (): void {
+    // No se pierde lo que el dueño acaba de pegar solo porque Zernio esté lento o la rechace: se
+    // guarda de todas formas, y lo único que cambia es el mensaje.
+    Http::fake(['api.zernio.com/v1/accounts*' => Http::response(['error' => 'Unauthorized'], 401)]);
+
+    $this->actingAs($this->owner)
+        ->put(route('panel.social.key'), ['api_key' => CLAVE])
+        ->assertSessionHas('panel_ok', 'Clave guardada, pero no pudimos confirmarla con Zernio ahora mismo. Prueba a conectar una red: si falla, revisa que la copiaste completa.');
 
     expect(Company::find($this->company->id)->social_api_key)->toBe(CLAVE);
 });
@@ -168,6 +191,70 @@ it('publica en las cuentas elegidas y manda el texto tal cual', function (): voi
             && $request->data()['platforms'] === [['platform' => 'instagram', 'accountId' => 'acc_1']]
             && ($request->data()['publishNow'] ?? false) === true;
     });
+});
+
+it('manda los colaboradores de Instagram dentro de platformSpecificData', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+    zernioResponde();
+
+    $this->actingAs($this->owner)->post(route('panel.social.publish'), [
+        'content' => 'Colaboración con una amiga',
+        'accounts' => ['instagram|acc_1'],
+        'collaborators' => ['@amiga_creadora', 'otra_marca'],
+        'media_url' => 'https://cdn.zernio.com/foto.jpg', 'media_type' => 'image',
+    ])->assertSessionHasNoErrors();
+
+    Http::assertSent(function ($request): bool {
+        if (! str_contains($request->url(), '/v1/posts') || $request->method() !== 'POST') {
+            return false;
+        }
+
+        $destino = $request->data()['platforms'][0] ?? [];
+
+        // El «@» se limpia: Zernio pide el usuario tal cual, sin el símbolo.
+        return $destino['platformSpecificData']['collaborators'] === ['amiga_creadora', 'otra_marca'];
+    });
+});
+
+it('no manda platformSpecificData si no se pidió ningún colaborador', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+    zernioResponde();
+
+    $this->actingAs($this->owner)->post(route('panel.social.publish'), [
+        'content' => 'Sin colaboradores',
+        'accounts' => ['instagram|acc_1'],
+        'media_url' => 'https://cdn.zernio.com/foto.jpg', 'media_type' => 'image',
+    ])->assertSessionHasNoErrors();
+
+    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), '/v1/posts')
+        || $request->method() !== 'POST'
+        || ! array_key_exists('platformSpecificData', $request->data()['platforms'][0] ?? []));
+});
+
+it('no manda colaboradores a una red que no sea Instagram', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+    zernioResponde();
+
+    $this->actingAs($this->owner)->post(route('panel.social.publish'), [
+        'content' => 'Solo en Facebook',
+        'accounts' => ['facebook|acc_1'],
+        'collaborators' => ['amiga_creadora'],
+    ])->assertSessionHasNoErrors();
+
+    Http::assertSent(fn ($request): bool => ! str_contains($request->url(), '/v1/posts')
+        || $request->method() !== 'POST'
+        || ! array_key_exists('platformSpecificData', $request->data()['platforms'][0] ?? []));
+});
+
+it('rechaza más de 3 colaboradores', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+
+    $this->actingAs($this->owner)->post(route('panel.social.publish'), [
+        'content' => 'Demasiados colaboradores',
+        'accounts' => ['instagram|acc_1'],
+        'collaborators' => ['uno', 'dos', 'tres', 'cuatro'],
+        'media_url' => 'https://cdn.zernio.com/foto.jpg', 'media_type' => 'image',
+    ])->assertSessionHasErrors('collaborators');
 });
 
 it('al programar viaja la zona horaria DEL NEGOCIO, no la del servidor', function (): void {

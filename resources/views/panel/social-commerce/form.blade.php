@@ -21,6 +21,7 @@
         <form method="POST" action="{{ $rule ? route('panel.social-commerce.update', $rule) : route('panel.social-commerce.store') }}"
               x-data="{
                   cuenta: @js(old('zernio_account_id', $rule?->zernio_account_id ?? ($cuentas[0]['id'] ?? ''))),
+                  origen: @js(old('origen_precio', $rule?->esManual() ? 'manual' : 'producto')),
                   disparador: @js(old('trigger', $rule?->trigger ?? 'comment')),
                   get enHistoria() { return this.disparador === 'story_reply'; },
                   modo: @js(old('match_mode', $rule?->match_mode ?? 'word')),
@@ -70,17 +71,51 @@
                 </div>
 
                 <div class="mt-3">
-                    <label class="bmos-field-label">Producto <span class="text-rose-500">*</span></label>
+                    <label class="bmos-field-label">¿De dónde sale el precio? <span class="text-rose-500">*</span></label>
+
                     @if ($rule === null)
-                        <select name="product_id" class="bmos-input" required>
-                            <option value="">Elige un producto</option>
-                            @foreach ($productos as $p)
-                                <option value="{{ $p->id }}" @selected((string) old('product_id') === (string) $p->id)>
-                                    {{ $p->name }} ({{ $p->sku }}) — {{ number_format((float) $p->price, 2) }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <p class="mt-1 text-xs text-slate-400">El precio de la plantilla sale de este producto, no de lo que escribas: si lo cambias en Inventario, la respuesta se actualiza sola la próxima vez que se sincronice.</p>
+                        <div class="mb-2 flex gap-2">
+                            <button type="button" class="bmos-btn"
+                                    :class="origen === 'producto' ? 'bmos-btn-primary' : 'bmos-btn-ghost'"
+                                    @click="origen = 'producto'">Producto del inventario</button>
+                            <button type="button" class="bmos-btn"
+                                    :class="origen === 'manual' ? 'bmos-btn-primary' : 'bmos-btn-ghost'"
+                                    @click="origen = 'manual'">Precio manual</button>
+                        </div>
+                        <input type="hidden" name="origen_precio" :value="origen">
+
+                        <div x-show="origen === 'producto'">
+                            <select name="product_id" class="bmos-input" :required="origen === 'producto'">
+                                <option value="">Elige un producto</option>
+                                @foreach ($productos as $p)
+                                    <option value="{{ $p->id }}" @selected((string) old('product_id') === (string) $p->id)>
+                                        {{ $p->name }} ({{ $p->sku }}) — {{ number_format((float) $p->price, 2) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-xs text-slate-400">El precio de la plantilla sale de este producto, no de lo que escribas: si lo cambias en Inventario, la respuesta se actualiza sola la próxima vez que se sincronice.</p>
+                        </div>
+
+                        <div x-show="origen === 'manual'" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                                <input type="text" name="manual_name" class="bmos-input" maxlength="120"
+                                       :required="origen === 'manual'"
+                                       value="{{ old('manual_name') }}" placeholder="Tenis Jordan talla 42">
+                            </div>
+                            <div>
+                                <input type="number" name="manual_price" class="bmos-input" step="0.01" min="0.01"
+                                       :required="origen === 'manual'"
+                                       value="{{ old('manual_price') }}" placeholder="2500.00">
+                            </div>
+                            <p class="col-span-full text-xs text-slate-400">Para algo que vendes por Instagram pero no está en Inventario. El precio se queda tal cual lo escribas — no se actualiza solo.</p>
+                        </div>
+                    @elseif ($rule->esManual())
+                        <input type="hidden" name="manual_name" value="{{ $rule->manual_name }}">
+                        <input type="hidden" name="manual_price" value="{{ $rule->manual_price }}">
+                        <p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                            {{ $rule->manual_name }} — {{ number_format((float) $rule->manual_price, 2) }} (precio manual)
+                        </p>
+                        <p class="mt-1 text-xs text-slate-400">Para cambiar el nombre o el precio, crea una regla nueva y borra esta.</p>
                     @else
                         <input type="hidden" name="product_id" value="{{ $rule->product_id }}">
                         <p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">

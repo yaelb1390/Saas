@@ -25,15 +25,17 @@ final class ZernioAutomationPayload
      */
     public function build(Rule $rule): array
     {
-        $product = $rule->product;
+        $item = $rule->esManual()
+            ? PricedItem::manual((string) $rule->manual_name, $rule->precioDelArticulo())
+            : PricedItem::fromProduct($rule->product);
         $company = $rule->company;
 
         $dm = $rule->dmTemplates()->get()
-            ->map(fn ($t): string => $this->renderer->render($t->body, $product, $company))
+            ->map(fn ($t): string => $this->renderer->render($t->body, $item, $company))
             ->values();
 
         $publicas = $rule->publicTemplates()->get()
-            ->map(fn ($t): string => $this->renderer->render($t->body, $product, $company))
+            ->map(fn ($t): string => $this->renderer->render($t->body, $item, $company))
             ->values();
 
         $cuerpo = [

@@ -109,6 +109,46 @@ it('el producto tiene que ser de la empresa activa', function (): void {
     expect(Rule::count())->toBe(0);
 });
 
+// ---------------------------------------------------------------- Precio manual
+
+it('crea una regla con precio manual, sin producto de inventario', function (): void {
+    fakeZernioAutomations();
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.social-commerce.store'), [
+            'name' => 'Precio tenis', 'zernio_account_id' => 'acc_1', 'trigger' => 'comment',
+            'manual_name' => 'Tenis Jordan talla 42', 'manual_price' => '2500.00',
+            'keywords' => ['precio'], 'match_mode' => 'word',
+            'dm_templates' => ['El {producto} cuesta {precio}.'],
+        ])
+        ->assertRedirect(route('panel.social-commerce.index'));
+
+    $rule = Rule::first();
+    expect($rule->product_id)->toBeNull()
+        ->and($rule->esManual())->toBeTrue()
+        ->and($rule->manual_name)->toBe('Tenis Jordan talla 42')
+        ->and((float) $rule->manual_price)->toBe(2500.0)
+        ->and($rule->zernio_automation_id)->toBe('auto_1');
+});
+
+it('rechaza mandar producto Y precio manual a la vez', function (): void {
+    $this->actingAs($this->owner)
+        ->post(route('panel.social-commerce.store'), datosDeRegla($this->product->id, [
+            'manual_name' => 'Tenis Jordan', 'manual_price' => '2500',
+        ]))
+        ->assertSessionHasErrors('product_id');
+
+    expect(Rule::count())->toBe(0);
+});
+
+it('rechaza no mandar ni producto ni precio manual', function (): void {
+    $this->actingAs($this->owner)
+        ->post(route('panel.social-commerce.store'), datosDeRegla($this->product->id, ['product_id' => null]))
+        ->assertSessionHasErrors('product_id');
+
+    expect(Rule::count())->toBe(0);
+});
+
 it('rechaza una plantilla con una variable que no existe', function (): void {
     $this->actingAs($this->owner)
         ->post(route('panel.social-commerce.store'), datosDeRegla($this->product->id, [

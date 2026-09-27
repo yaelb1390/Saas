@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\SocialCommerce\Services;
 
 use App\Modules\Core\Models\Company;
-use App\Modules\Inventory\Models\Product;
+use App\Modules\SocialCommerce\Support\PricedItem;
 
 /**
  * Rellena `{producto}`, `{precio}`, etc. en el texto de una plantilla.
@@ -27,9 +27,9 @@ final class TemplateRenderer
 
     public function __construct(private readonly WhatsAppLinkBuilder $whatsapp) {}
 
-    public function render(string $body, Product $product, Company $company, ?string $customerName = null): string
+    public function render(string $body, PricedItem $item, Company $company, ?string $customerName = null): string
     {
-        $valores = $this->valores($product, $company, $customerName);
+        $valores = $this->valores($item, $company, $customerName);
 
         return preg_replace_callback(
             '/\{([a-z_]+)\}/',
@@ -53,16 +53,16 @@ final class TemplateRenderer
     /**
      * @return array<string, string>
      */
-    private function valores(Product $product, Company $company, ?string $customerName): array
+    private function valores(PricedItem $item, Company $company, ?string $customerName): array
     {
         return [
-            'producto' => $product->name,
-            'precio' => $company->currency.' '.number_format((float) $product->price, 2),
+            'producto' => $item->name,
+            'precio' => $company->currency.' '.number_format($item->price, 2),
             'moneda' => (string) $company->currency,
-            'sku' => (string) $product->sku,
-            'categoria' => $product->category?->name ?? '',
+            'sku' => (string) $item->sku,
+            'categoria' => $item->categoryName ?? '',
             'url_producto' => '',
-            'url_whatsapp' => $this->whatsapp->build($company, $product) ?? '',
+            'url_whatsapp' => $this->whatsapp->build($company, $item) ?? '',
             'nombre_cliente' => $customerName ?? '',
         ];
     }

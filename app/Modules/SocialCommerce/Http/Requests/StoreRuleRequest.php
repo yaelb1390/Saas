@@ -43,7 +43,9 @@ final class StoreRuleRequest extends FormRequest
             'zernio_account_id' => ['required', 'string'],
             'trigger' => ['nullable', ValidationRule::in(['comment', 'story_reply'])],
             'post' => ['nullable', 'string', 'max:200'],
-            'product_id' => ['required', 'integer'],
+            'product_id' => ['nullable', 'integer'],
+            'manual_name' => ['nullable', 'string', 'max:120'],
+            'manual_price' => ['nullable', 'numeric', 'min:0.01', 'max:999999999999.99'],
             'price_mode' => ['nullable', ValidationRule::in(['normal', 'promotional'])],
             'keywords' => ['required', 'array', 'min:1'],
             'keywords.*' => ['required', 'string', 'max:50'],
@@ -64,10 +66,27 @@ final class StoreRuleRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $v): void {
+            // Producto de inventario O nombre+precio a mano — nunca las dos cosas ni ninguna. Se
+            // comprueba aquí y no con un `required_without` cruzado en las reglas de arriba:
+            // `required_without` no cubre el caso de que vengan LAS DOS, que es tan inválido como
+            // que no venga ninguna (una regla no puede decidir sola de dónde sale el precio).
+            $tieneProducto = filled($this->input('product_id'));
+            $tieneManual = filled($this->input('manual_name')) || filled($this->input('manual_price'));
+
+            if ($tieneProducto === $tieneManual) {
+                $v->errors()->add('product_id', $tieneProducto
+                    ? 'Elige un producto del inventario O pon un precio manual, no las dos cosas.'
+                    : 'Elige un producto del inventario o pon un nombre y un precio manual.');
+            } elseif ($tieneManual && blank($this->input('manual_name'))) {
+                $v->errors()->add('manual_name', 'Ponle un nombre a lo que estás vendiendo.');
+            } elseif ($tieneManual && blank($this->input('manual_price'))) {
+                $v->errors()->add('manual_price', 'Ponle un precio.');
+            }
+
             // El producto tiene que ser de la empresa activa. Product::find() pasa por el global
             // scope de BelongsToCompany, así que un identificador de otra empresa no aparece —no
             // es una comprobación de más, es la única que de verdad aísla por tenant aquí.
-            if (Product::find($this->input('product_id')) === null) {
+            if ($tieneProducto && Product::find($this->input('product_id')) === null) {
                 $v->errors()->add('product_id', 'Ese producto no existe o no es de tu empresa.');
             }
 
@@ -97,6 +116,7 @@ final class StoreRuleRequest extends FormRequest
     {
         return [
             'name' => 'nombre', 'zernio_account_id' => 'cuenta', 'product_id' => 'producto',
+            'manual_name' => 'nombre', 'manual_price' => 'precio',
             'keywords' => 'palabras clave', 'dm_templates' => 'mensajes privados',
             'button_title' => 'texto del botón', 'button_url' => 'enlace del botón',
         ];
@@ -146,6 +166,7 @@ final class StoreRuleRequest extends FormRequest
     {
         [$postId, $platformPostId] = $this->publicacionElegida();
         $disparador = AutomationTrigger::tryFrom((string) $this->input('trigger', '')) ?? AutomationTrigger::POR_OMISION;
+        $tieneManual = filled($this->input('manual_name')) || filled($this->input('manual_price'));
 
         return [
             'name' => (string) $this->input('name'),
@@ -153,7 +174,12 @@ final class StoreRuleRequest extends FormRequest
             'trigger' => $disparador->value,
             'zernio_post_id' => $disparador === AutomationTrigger::Comment ? $postId : null,
             'platform_post_id' => $disparador === AutomationTrigger::Comment ? $platformPostId : null,
-            'product_id' => (int) $this->input('product_id'),
+            // Nunca las dos a la vez: si es manual, product_id sale null; si no, se limpian los
+            // campos manuales para no dejar basura de un cambio de idea antes de enviar el
+            // formulario (ver la comprobación de "las dos o ninguna" en withValidator()).
+            'product_id' => $tieneManual ? null : (int) $this->input('product_id'),
+            'manual_name' => $tieneManual ? trim((string) $this->input('manual_name')) : null,
+            'manual_price' => $tieneManual ? (float) $this->input('manual_price') : null,
             'price_mode' => (string) ($this->input('price_mode') ?: 'normal'),
             'keywords' => array_values(array_filter(array_map('trim', (array) $this->input('keywords', [])))),
             'match_mode' => (string) ($this->input('match_mode') ?: 'word'),

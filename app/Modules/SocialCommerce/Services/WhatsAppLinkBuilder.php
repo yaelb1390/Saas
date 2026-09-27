@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\SocialCommerce\Services;
 
 use App\Modules\Core\Models\Company;
-use App\Modules\Inventory\Models\Product;
 use App\Modules\SocialCommerce\Models\Settings;
+use App\Modules\SocialCommerce\Support\PricedItem;
 
 /**
  * El enlace `wa.me/...` con el texto ya escrito, para la variable `{url_whatsapp}` y el botón de
@@ -14,7 +14,7 @@ use App\Modules\SocialCommerce\Models\Settings;
  */
 final class WhatsAppLinkBuilder
 {
-    public function build(Company $company, Product $product): ?string
+    public function build(Company $company, PricedItem $item): ?string
     {
         $ajustes = Settings::withoutGlobalScopes()->where('company_id', $company->id)->first();
         $numero = $ajustes?->whatsapp_number;
@@ -23,7 +23,7 @@ final class WhatsAppLinkBuilder
             return null;
         }
 
-        $mensaje = "Hola, estoy interesado en {$product->name}.";
+        $mensaje = "Hola, estoy interesado en {$item->name}.";
 
         return 'https://wa.me/'.ltrim((string) $numero, '+').'?text='.rawurlencode($mensaje);
     }

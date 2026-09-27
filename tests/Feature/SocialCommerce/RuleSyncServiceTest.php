@@ -58,6 +58,28 @@ it('crea la automatización en Zernio activa desde el principio y guarda el iden
         && str_contains($request['dmMessage'], 'DOP 1,500.00'));
 });
 
+it('sincroniza igual una regla con precio manual, sin producto de inventario', function (): void {
+    Http::fake([
+        'api.zernio.com/v1/profiles' => Http::response(['profiles' => [['_id' => 'perfil_1', 'isDefault' => true]]], 200),
+        'api.zernio.com/v1/comment-automations' => Http::response(['automation' => ['id' => 'auto_2', 'isActive' => true]], 200),
+    ]);
+
+    $reglaManual = Rule::factory()->create([
+        'product_id' => null, 'manual_name' => 'Tenis Jordan talla 42', 'manual_price' => 2500,
+        'zernio_account_id' => 'acc_456',
+    ]);
+    $reglaManual->templates()->create(['channel' => TemplateChannel::Dm->value, 'body' => 'La {producto} cuesta {precio}.', 'position' => 0]);
+
+    $rule = app(RuleSyncService::class)->sync($reglaManual);
+
+    expect($rule->zernio_automation_id)->toBe('auto_2')
+        ->and($rule->sync_error)->toBeNull();
+
+    Http::assertSent(fn ($request): bool => $request->url() === 'https://api.zernio.com/v1/comment-automations'
+        && str_contains($request['dmMessage'], 'Tenis Jordan talla 42')
+        && str_contains($request['dmMessage'], 'DOP 2,500.00'));
+});
+
 it('marca la regla en error si Zernio rechaza la automatización, sin lanzar', function (): void {
     Http::fake([
         'api.zernio.com/v1/profiles' => Http::response(['profiles' => [['_id' => 'perfil_1', 'isDefault' => true]]], 200),

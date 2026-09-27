@@ -48,9 +48,9 @@
                     <div class="min-w-0">
                         <p class="font-semibold text-slate-800">{{ $rule->name }}</p>
                         <p class="mt-1 text-sm text-slate-600">
-                            {{ $rule->product?->name ?? 'Producto borrado' }}
-                            @if ($rule->product)
-                                · {{ $rule->company->currency }} {{ number_format((float) $rule->product->price, 2) }}
+                            {{ $rule->esManual() ? $rule->manual_name : ($rule->product?->name ?? 'Producto borrado') }}
+                            @if ($rule->esManual() || $rule->product)
+                                · {{ $rule->company->currency }} {{ number_format($rule->precioDelArticulo(), 2) }}
                             @endif
                         </p>
 

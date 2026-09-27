@@ -7,6 +7,7 @@ use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\SocialCommerce\Services\TemplateRenderer;
+use App\Modules\SocialCommerce\Support\PricedItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -20,15 +21,27 @@ beforeEach(function (): void {
 });
 
 it('rellena las variables conocidas', function (): void {
-    $texto = app(TemplateRenderer::class)->render('La {producto} cuesta {precio}.', $this->product, $this->company);
+    $texto = app(TemplateRenderer::class)->render('La {producto} cuesta {precio}.', PricedItem::fromProduct($this->product), $this->company);
 
     expect($texto)->toBe('La Camisa Nike Air cuesta DOP 1,500.00.');
 });
 
 it('deja tal cual una variable que no reconoce, sin adivinar nada', function (): void {
-    $texto = app(TemplateRenderer::class)->render('Hola {inventado}', $this->product, $this->company);
+    $texto = app(TemplateRenderer::class)->render('Hola {inventado}', PricedItem::fromProduct($this->product), $this->company);
 
     expect($texto)->toBe('Hola {inventado}');
+});
+
+it('un precio manual (sin producto) rellena igual, y sku/categoría salen vacíos', function (): void {
+    $item = PricedItem::manual('Tenis Jordan talla 42', 2500.0);
+
+    $texto = app(TemplateRenderer::class)->render(
+        'La {producto} cuesta {precio}. SKU: [{sku}] Categoría: [{categoria}]',
+        $item,
+        $this->company,
+    );
+
+    expect($texto)->toBe('La Tenis Jordan talla 42 cuesta DOP 2,500.00. SKU: [] Categoría: []');
 });
 
 it('detecta las variables desconocidas para que el formulario las rechace', function (): void {

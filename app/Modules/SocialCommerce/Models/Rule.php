@@ -29,7 +29,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $trigger
  * @property string|null $zernio_post_id
  * @property string|null $platform_post_id
- * @property int $product_id
+ * @property int|null $product_id
+ * @property string|null $manual_name
+ * @property string|null $manual_price
  * @property array<int, string> $keywords
  * @property string $match_mode
  * @property bool $typo_tolerance
@@ -63,14 +65,16 @@ final class Rule extends Model implements HasCompany
 
     protected $fillable = [
         'company_id', 'name', 'zernio_account_id', 'trigger', 'zernio_post_id', 'platform_post_id',
-        'product_id', 'price_mode', 'keywords', 'match_mode', 'typo_tolerance', 'also_in_dms',
-        'follow_gate', 'dm_delay_seconds', 'button_title', 'button_url', 'status', 'user_id',
+        'product_id', 'manual_name', 'manual_price', 'price_mode', 'keywords', 'match_mode',
+        'typo_tolerance', 'also_in_dms', 'follow_gate', 'dm_delay_seconds', 'button_title',
+        'button_url', 'status', 'user_id',
     ];
 
     protected function casts(): array
     {
         return [
             'keywords' => 'array',
+            'manual_price' => 'decimal:2',
             'typo_tolerance' => 'boolean',
             'also_in_dms' => 'boolean',
             'follow_gate' => 'boolean',
@@ -140,5 +144,21 @@ final class Rule extends Model implements HasCompany
     public function estaSincronizada(): bool
     {
         return filled($this->zernio_automation_id);
+    }
+
+    /** Sin producto de inventario: el nombre y el precio se pusieron a mano al crearla. */
+    public function esManual(): bool
+    {
+        return $this->product_id === null;
+    }
+
+    public function nombreDelArticulo(): string
+    {
+        return $this->esManual() ? (string) $this->manual_name : (string) $this->product?->name;
+    }
+
+    public function precioDelArticulo(): float
+    {
+        return $this->esManual() ? (float) $this->manual_price : (float) ($this->product?->price ?? 0);
     }
 }

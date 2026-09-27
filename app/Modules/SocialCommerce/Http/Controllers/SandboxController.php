@@ -9,6 +9,7 @@ use App\Modules\SocialCommerce\Enums\RuleStatus;
 use App\Modules\SocialCommerce\Models\Rule;
 use App\Modules\SocialCommerce\Services\KeywordMatcher;
 use App\Modules\SocialCommerce\Services\TemplateRenderer;
+use App\Modules\SocialCommerce\Support\PricedItem;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -55,11 +56,13 @@ final class SandboxController extends Controller
             }
 
             $company = $currentCompany->model();
-            $producto = $rule->product;
+            $item = $rule->esManual()
+                ? PricedItem::manual((string) $rule->manual_name, $rule->precioDelArticulo())
+                : PricedItem::fromProduct($rule->product);
 
             $pasos[] = ['ok' => true, 'texto' => "Palabra clave encontrada: «{$palabra}» (regla «{$rule->name}»)"];
-            $pasos[] = ['ok' => true, 'texto' => "Producto identificado: {$producto->name}"];
-            $pasos[] = ['ok' => true, 'texto' => "Precio identificado: {$company->currency} ".number_format((float) $producto->price, 2)];
+            $pasos[] = ['ok' => true, 'texto' => ($rule->esManual() ? 'Nombre' : 'Producto')." identificado: {$item->name}"];
+            $pasos[] = ['ok' => true, 'texto' => "Precio identificado: {$company->currency} ".number_format($item->price, 2)];
 
             $plantilla = $rule->dmTemplates->count() > 0 ? $rule->dmTemplates->random() : null;
 
@@ -69,7 +72,7 @@ final class SandboxController extends Controller
                 return response()->json(['coincide' => true, 'regla' => $rule->name, 'pasos' => $pasos]);
             }
 
-            $texto = $renderer->render($plantilla->body, $producto, $company);
+            $texto = $renderer->render($plantilla->body, $item, $company);
 
             $pasos[] = ['ok' => true, 'texto' => $rule->dmTemplates->count() > 1
                 ? "Plantilla elegida al azar entre {$rule->dmTemplates->count()} (así decide Zernio en la vida real)"

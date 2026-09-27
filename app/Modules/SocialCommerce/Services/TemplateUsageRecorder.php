@@ -8,6 +8,7 @@ use App\Modules\Core\Models\Company;
 use App\Modules\SocialCommerce\Enums\RuleStatus;
 use App\Modules\SocialCommerce\Models\Rule;
 use App\Modules\SocialCommerce\Models\RuleTemplateUsage;
+use App\Modules\SocialCommerce\Support\PricedItem;
 use Illuminate\Support\Carbon;
 
 /**
@@ -34,15 +35,17 @@ final class TemplateUsageRecorder
         }
 
         foreach (Rule::where('status', RuleStatus::Active)->get() as $rule) {
-            $producto = $rule->product;
-
-            if ($producto === null) {
+            if (! $rule->esManual() && $rule->product === null) {
                 continue;
             }
 
+            $item = $rule->esManual()
+                ? PricedItem::manual((string) $rule->manual_name, $rule->precioDelArticulo())
+                : PricedItem::fromProduct($rule->product);
+
             foreach (['dmTemplates', 'publicTemplates'] as $relacion) {
                 foreach ($rule->{$relacion}()->get() as $plantilla) {
-                    if (trim($this->renderer->render($plantilla->body, $producto, $company)) !== $texto) {
+                    if (trim($this->renderer->render($plantilla->body, $item, $company)) !== $texto) {
                         continue;
                     }
 

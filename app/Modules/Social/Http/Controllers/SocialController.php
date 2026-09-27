@@ -19,6 +19,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Throwable;
 
@@ -118,7 +120,23 @@ final class SocialController extends Controller
             'api_key.regex' => 'Esa no parece una clave de Zernio: empiezan por «sk_» y siguen 64 caracteres.',
         ]);
 
-        $company->update(['social_api_key' => $datos['api_key'] ?: null]);
+        /*
+         * Por consulta directa (`DB::table`), NO por `$company->update()`.
+         *
+         * `social_api_key` está cifrada (`'encrypted'` en los casts de Company). El `update()` de
+         * Eloquent, antes de guardar, decide si el valor "cambió" comparando contra el ORIGINAL —y
+         * para eso lo DESCIFRA—. Si la fila ya trae algo que no es un cifrado válido de esta app
+         * (una clave puesta a mano, una migración de otro entorno, un texto plano por error), ese
+         * descifrado revienta con `DecryptException` y la pantalla entera cae con un 500, ANTES de
+         * llegar a guardar el valor nuevo. Pasó de verdad: revisar tests/Feature/Social/*.
+         *
+         * `DB::table()` no pasa por los casts de Eloquent: se cifra a mano con `Crypt` y se escribe
+         * tal cual, sin mirar ni tocar lo que hubiera antes.
+         */
+        DB::table('companies')->where('id', $company->id)->update([
+            'social_api_key' => filled($datos['api_key'] ?? null) ? Crypt::encryptString($datos['api_key']) : null,
+            'updated_at' => now(),
+        ]);
 
         return back()->with('panel_ok', filled($datos['api_key'] ?? null)
             ? 'Clave guardada. Ya puedes conectar tus redes.'

@@ -84,6 +84,20 @@ it('la clave se guarda cifrada: no queda legible en la tabla', function (): void
         ->and(Company::find($this->company->id)->social_api_key)->toBe(CLAVE);
 });
 
+it('guardar una clave nueva funciona aunque la fila ya traiga algo ilegible', function (): void {
+    // Pasó de verdad en producción: una fila con texto plano en vez de un cifrado válido (puesto a
+    // mano, o de un entorno distinto) hacía que GUARDAR la clave nueva reventara con un 500 —
+    // `$company->update()` decide si el campo "cambió" descifrando el valor VIEJO para comparar, y
+    // eso no es válido aquí. Guardar debe funcionar siempre, sea lo que sea que hubiera antes.
+    DB::table('companies')->where('id', $this->company->id)->update(['social_api_key' => 'esto-no-es-un-cifrado-valido']);
+
+    $this->actingAs($this->owner)
+        ->put(route('panel.social.key'), ['api_key' => CLAVE])
+        ->assertSessionHasNoErrors();
+
+    expect(Company::find($this->company->id)->social_api_key)->toBe(CLAVE);
+});
+
 it('rechaza algo que no parece una clave de Zernio', function (): void {
     // Un dedazo se convertiría en «no pudimos hablar con el servicio» diez minutos después, sin que
     // nadie relacione una cosa con la otra.

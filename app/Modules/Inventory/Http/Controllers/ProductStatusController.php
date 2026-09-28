@@ -20,14 +20,10 @@ final class ProductStatusController extends Controller
 {
     public function __invoke(Request $request, Product $product): RedirectResponse
     {
-        $activo = $request->boolean('is_active');
+        // Sin `panel_ok`: el interruptor ya se ve cambiado en la propia fila, y un aviso por
+        // cada clic estorba más de lo que informa en una acción tan frecuente como esta.
+        $product->update(['is_active' => $request->boolean('is_active')]);
 
-        $product->update(['is_active' => $activo]);
-
-        $mensaje = $activo
-            ? "«{$product->name}» vuelve a estar activo."
-            : "«{$product->name}» queda inactivo: no aparece para vender.";
-
-        return back()->with('panel_ok', $mensaje);
+        return back();
     }
 }

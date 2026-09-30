@@ -146,6 +146,15 @@ it('el interruptor de Activo/Inactivo retira o devuelve el producto al catálogo
     expect($this->agua->refresh()->is_active)->toBeTrue();
 });
 
+it('el interruptor de Activo/Inactivo responde en JSON cuando lo pide la pantalla, sin redirigir', function (): void {
+    $this->actingAs($this->duena)
+        ->postJson(route('panel.products.status', $this->agua), ['is_active' => '0'])
+        ->assertOk()
+        ->assertExactJson(['is_active' => false]);
+
+    expect($this->agua->refresh()->is_active)->toBeFalse();
+});
+
 it('con products.view el interruptor no es clicable y el POST directo se rechaza', function (): void {
     $soloLectura = User::create([
         'company_id' => $this->company->id, 'name' => 'Solo lectura',

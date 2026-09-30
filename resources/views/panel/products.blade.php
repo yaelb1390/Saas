@@ -5,22 +5,25 @@
             <div class="bmos-stat">
                 <div class="bmos-stat-icon tone-indigo"><x-icono name="cube" /></div>
                 <p class="bmos-stat-label">Total de productos</p>
-                <p class="bmos-stat-value">{{ number_format($resumen['total']) }}</p>
+                <p class="bmos-stat-value text-indigo-600">{{ number_format($resumen['total']) }}</p>
             </div>
             <div class="bmos-stat">
                 <div class="bmos-stat-icon tone-sky"><x-icono name="truck" /></div>
                 <p class="bmos-stat-label">Stock total</p>
-                <p class="bmos-stat-value">{{ number_format((float) $resumen['stockTotal'], 0) }}</p>
+                <p class="bmos-stat-value text-blue-600">{{ number_format((float) $resumen['stockTotal'], 0) }}</p>
             </div>
             <div class="bmos-stat">
                 <div class="bmos-stat-icon tone-emerald"><x-icono name="cash" /></div>
                 <p class="bmos-stat-label">Valor en inventario</p>
-                <p class="bmos-stat-value">{{ number_format((float) $resumen['valorInventario'], 2) }}</p>
+                <p class="bmos-stat-value text-emerald-600">{{ number_format((float) $resumen['valorInventario'], 2) }}</p>
             </div>
+            {{-- Este número SÍ cambia de color según su condición: en cero está todo bien (verde);
+                 en cuanto hay uno solo por debajo de su mínimo, pasa a rojo, icono incluido, para
+                 que se note sin tener que leer la cifra. --}}
             <div class="bmos-stat">
-                <div class="bmos-stat-icon tone-amber"><x-icono name="alert" /></div>
+                <div class="bmos-stat-icon {{ $resumen['bajoStock'] > 0 ? 'tone-rose' : 'tone-emerald' }}"><x-icono name="alert" /></div>
                 <p class="bmos-stat-label">Bajo stock</p>
-                <p class="bmos-stat-value">{{ number_format($resumen['bajoStock']) }}</p>
+                <p class="bmos-stat-value {{ $resumen['bajoStock'] > 0 ? 'text-rose-600' : 'text-emerald-600' }}">{{ number_format($resumen['bajoStock']) }}</p>
             </div>
         </div>
 
@@ -320,17 +323,18 @@
                                 <td data-rotulo="Estado">
                                     @can('products.manage')
                                         {{-- Con permiso de gestión SÍ es un interruptor de verdad: activar o
-                                             retirar un producto del catálogo (ver ProductStatusController). --}}
-                                        <form method="POST" action="{{ route('panel.products.status', $product) }}">
-                                            @csrf
-                                            <input type="hidden" name="is_active" value="{{ $product->is_active ? '0' : '1' }}">
-                                            <button type="submit" class="flex items-center gap-2" title="{{ $product->is_active ? 'Activo — clic para retirar del catálogo' : 'Inactivo — clic para activar' }}">
-                                                <span class="inline-flex h-5 w-9 shrink-0 items-center rounded-full {{ $product->is_active ? 'bg-emerald-500' : 'bg-slate-300' }}">
-                                                    <span class="h-4 w-4 rounded-full bg-white shadow transition-transform {{ $product->is_active ? 'translate-x-4' : 'translate-x-0.5' }}"></span>
-                                                </span>
-                                                <span class="text-xs font-medium {{ $product->is_active ? 'text-emerald-600' : 'text-slate-500' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
-                                            </button>
-                                        </form>
+                                             retirar un producto del catálogo (ver ProductStatusController).
+                                             Por fetch y no por formulario: un POST con redirección recarga la
+                                             página entera por un solo interruptor, que se siente como un
+                                             pantallazo cada vez que se activa o desactiva algo. --}}
+                                        <button type="button" data-activo="{{ $product->is_active ? '1' : '0' }}"
+                                                @click="alternarEstado($event, {{ $product->id }})"
+                                                class="flex items-center gap-2" title="{{ $product->is_active ? 'Activo — clic para retirar del catálogo' : 'Inactivo — clic para activar' }}">
+                                            <span class="inline-flex h-5 w-9 shrink-0 items-center rounded-full {{ $product->is_active ? 'bg-emerald-500' : 'bg-slate-300' }}">
+                                                <span class="h-4 w-4 rounded-full bg-white shadow transition-transform {{ $product->is_active ? 'translate-x-4' : 'translate-x-0.5' }}"></span>
+                                            </span>
+                                            <span class="text-xs font-medium {{ $product->is_active ? 'text-emerald-600' : 'text-slate-500' }}">{{ $product->is_active ? 'Activo' : 'Inactivo' }}</span>
+                                        </button>
                                     @else
                                         {{-- Solo lectura: se enseña de un vistazo, pero no es clicable. --}}
                                         <div class="flex items-center gap-2" title="{{ $product->is_active ? 'Activo' : 'Inactivo' }}">
@@ -840,6 +844,48 @@
                         exigirCifra: this.todos,
                         formulario: 'borrar_productos',
                     });
+                },
+
+                /**
+                 * Activa o retira un producto del catálogo sin recargar la pantalla.
+                 *
+                 * Se pinta el cambio ANTES de que responda el servidor —el mismo criterio que ya usa
+                 * el POS rápido con «hoy no hay»— y se deshace si el servidor lo rechaza. El estado
+                 * actual se lee de `data-activo` del propio botón, no de un valor fijado al cargar la
+                 * página: así un segundo clic sin recargar sigue alternando bien.
+                 */
+                alternarEstado(event, id) {
+                    const boton = event.currentTarget;
+                    const pastilla = boton.children[0];
+                    const bolita = pastilla.children[0];
+                    const etiqueta = boton.children[1];
+                    const nuevo = boton.dataset.activo !== '1';
+
+                    const pintar = (activo) => {
+                        boton.dataset.activo = activo ? '1' : '0';
+                        boton.title = activo ? 'Activo — clic para retirar del catálogo' : 'Inactivo — clic para activar';
+                        pastilla.classList.toggle('bg-emerald-500', activo);
+                        pastilla.classList.toggle('bg-slate-300', !activo);
+                        bolita.classList.toggle('translate-x-4', activo);
+                        bolita.classList.toggle('translate-x-0.5', !activo);
+                        etiqueta.textContent = activo ? 'Activo' : 'Inactivo';
+                        etiqueta.classList.toggle('text-emerald-600', activo);
+                        etiqueta.classList.toggle('text-slate-500', !activo);
+                    };
+
+                    pintar(nuevo);
+
+                    fetch(`{{ url('panel/inventario') }}/${id}/estado`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: JSON.stringify({ is_active: nuevo }),
+                    }).then((res) => {
+                        if (!res.ok) throw new Error('rechazado');
+                    }).catch(() => pintar(!nuevo));
                 },
                 init() {
                     @if (old('_form') === 'product_edit')

@@ -51,7 +51,21 @@
 
             <div class="mt-3 flex items-center justify-between gap-3">
                 <label class="text-sm text-slate-600" for="copias-{{ $documentType }}">Copias</label>
-                <input id="copias-{{ $documentType }}" type="number" x-model.number="copies" min="1" max="20" class="bmos-input w-20 text-center">
+
+                {{-- El spinner nativo del navegador desentonaba con el resto del modal; este es un
+                     +/- con el mismo lenguaje visual (bordes suaves, gris discreto) que ya usa el
+                     panel. El input sigue siendo de verdad —se puede teclear un número— solo que
+                     sin sus flechitas por defecto. --}}
+                <div class="flex items-center overflow-hidden rounded-lg border border-slate-200">
+                    <button type="button" @click="copies = Math.max(1, copies - 1)"
+                            class="px-3 py-1.5 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                            aria-label="Menos copias">&minus;</button>
+                    <input id="copias-{{ $documentType }}" type="number" x-model.number="copies" min="1" max="20"
+                           class="w-12 border-x border-slate-200 bg-white py-1.5 text-center text-sm font-medium tabular-nums text-slate-800 focus:outline-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none">
+                    <button type="button" @click="copies = Math.min(20, copies + 1)"
+                            class="px-3 py-1.5 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+                            aria-label="Más copias">+</button>
+                </div>
             </div>
 
             <div class="mt-4 flex justify-end gap-2">

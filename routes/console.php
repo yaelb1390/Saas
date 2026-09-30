@@ -46,3 +46,8 @@ Schedule::command('conversaciones:purgar')->dailyAt('03:00')->withoutOverlapping
  * pierda un solo registro del negocio: de serie solo se lleva los sucesos de más de 90 días.
  */
 Schedule::command('registros:purgar')->dailyAt('04:00')->withoutOverlapping();
+
+// Trae, para cada empresa con redes conectadas, lo publicado en Instagram/Facebook fuera del panel
+// (desde el celular). En Vercel lo dispara el cron (endpoint /tareas/sincronizar-redes); aquí para
+// entornos con scheduler.
+Schedule::command('redes:sincronizar-publicaciones')->dailyAt('05:00')->withoutOverlapping();

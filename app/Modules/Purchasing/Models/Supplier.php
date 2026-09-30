@@ -31,12 +31,14 @@ class Supplier extends Model implements Auditable, HasCompany
         'phone',
         'address',
         'is_active',
+        'payment_terms_days',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'payment_terms_days' => 'integer',
         ];
     }
 

@@ -45,4 +45,55 @@ final class FinanceException extends DomainException
     {
         return new self("«{$nombre}» tiene {$cuantos} gasto(s) registrados. Desactívalo en vez de borrarlo para no perder el histórico.");
     }
+
+    // ------------------------------------------------------------- Cuentas por cobrar/pagar
+
+    public static function invalidPaymentAmount(): self
+    {
+        return new self('El monto del abono debe ser mayor que cero.');
+    }
+
+    public static function alreadySettled(): self
+    {
+        return new self('Esta cuenta ya está saldada: no admite más abonos.');
+    }
+
+    public static function paymentExceedsBalance(string $balance): self
+    {
+        return new self("El abono no puede superar el saldo pendiente ({$balance}).");
+    }
+
+    public static function customerNotInCompany(): self
+    {
+        return new self('El cliente seleccionado no pertenece a esta empresa.');
+    }
+
+    public static function supplierNotInCompany(): self
+    {
+        return new self('El proveedor seleccionado no pertenece a esta empresa.');
+    }
+
+    public static function saleAlreadyHasReceivable(string $code): self
+    {
+        return new self("Esta venta ya tiene una cuenta por cobrar ({$code}).");
+    }
+
+    public static function purchaseOrderAlreadyHasPayable(string $code): self
+    {
+        return new self("Esta orden de compra ya tiene una cuenta por pagar ({$code}).");
+    }
+
+    /**
+     * Igual que `LoanException::hasPayments()`: una cuenta con abonos ya es historial de dinero
+     * que entró o salió de verdad. Borrarla lo haría desaparecer sin dejar rastro.
+     */
+    public static function hasPayments(): self
+    {
+        return new self('Esta cuenta ya tiene abonos registrados: no se puede eliminar sin perder ese historial.');
+    }
+
+    public static function cannotEditTotalWithPayments(): self
+    {
+        return new self('Ya se registraron abonos sobre esta cuenta: el monto original no se puede cambiar.');
+    }
 }

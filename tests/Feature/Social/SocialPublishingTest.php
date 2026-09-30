@@ -159,6 +159,67 @@ it('con clave, enseña las cuentas y lo publicado', function (): void {
         ->assertSee('Publicado');
 });
 
+it('con cuentas conectadas, el Historial ofrece sincronizar lo publicado fuera del panel', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+    zernioResponde();
+
+    $this->actingAs($this->owner)->get(route('panel.social'))
+        ->assertOk()
+        ->assertSee('Sincronizar');
+});
+
+it('sincronizar trae lo publicado fuera de Zernio, solo de las redes que lo admiten', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+
+    // Una cuenta de Instagram y una de TikTok: solo la primera admite traer lo publicado desde el
+    // celular, así que pedírselo a la segunda sería una llamada que no puede servir para nada.
+    Http::fake([
+        '*/v1/accounts*' => Http::response(['accounts' => [
+            ['_id' => 'ig_1', 'platform' => 'instagram', 'displayName' => 'La Batidera', 'needsReconnection' => false],
+            ['_id' => 'tk_1', 'platform' => 'tiktok', 'displayName' => 'TikTok', 'needsReconnection' => false],
+        ]]),
+        '*/v1/posts/sync-external' => Http::response(['synced' => ['postsFound' => 3]]),
+    ]);
+
+    $this->actingAs($this->owner)->post(route('panel.social.sync'))->assertSessionHasNoErrors();
+
+    expect(session('panel_ok'))->toContain('3');
+
+    Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sync-external')
+        && $request->data()['accountId'] === 'ig_1');
+});
+
+it('sincronizar una cuenta caducada no la intenta: hay que reconectarla primero', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+
+    Http::fake([
+        '*/v1/accounts*' => Http::response(['accounts' => [
+            ['_id' => 'ig_1', 'platform' => 'instagram', 'displayName' => 'Caducada', 'needsReconnection' => true],
+        ]]),
+        '*/v1/posts/sync-external' => Http::response(['synced' => ['postsFound' => 5]]),
+    ]);
+
+    $this->actingAs($this->owner)->post(route('panel.social.sync'));
+
+    Http::assertNotSent(fn ($request): bool => str_contains($request->url(), 'sync-external'));
+    expect(session('panel_ok'))->toContain('No encontramos publicaciones nuevas');
+});
+
+it('sincronizar sin nada nuevo lo dice en vez de callar', function (): void {
+    $this->company->update(['social_api_key' => CLAVE]);
+
+    Http::fake([
+        '*/v1/accounts*' => Http::response(['accounts' => [
+            ['_id' => 'ig_1', 'platform' => 'instagram', 'displayName' => 'La Batidera', 'needsReconnection' => false],
+        ]]),
+        '*/v1/posts/sync-external' => Http::response(['synced' => ['postsFound' => 0]]),
+    ]);
+
+    $this->actingAs($this->owner)->post(route('panel.social.sync'));
+
+    expect(session('panel_ok'))->toContain('No encontramos publicaciones nuevas');
+});
+
 it('si el servicio no responde, la pantalla se pinta igual y dice por qué', function (): void {
     // Dejarla en blanco —o peor, con un error 500— haría creer que se perdió lo publicado.
     $this->company->update(['social_api_key' => CLAVE]);
@@ -373,6 +434,9 @@ it('un cajero no entra a redes sociales', function (): void {
 
     // Cancelar es la vuelta atrás de publicar: quien no puede lo uno tampoco puede lo otro.
     $this->actingAs($cajero)->delete(route('panel.social.posts.cancel', 'post_prog'))->assertForbidden();
+
+    // Sincronizar solo LEE —no publica nada—, pero sigue exigiendo poder ver la pantalla.
+    $this->actingAs($cajero)->post(route('panel.social.sync'))->assertForbidden();
 });
 
 it('sin el módulo contratado no hay pantalla', function (): void {

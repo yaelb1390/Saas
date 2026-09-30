@@ -559,28 +559,41 @@
                             <p class="mt-0.5 font-semibold text-slate-800">Últimas publicaciones</p>
                         </div>
 
-                        @if ($publicaciones !== [])
-                            @php
-                                // Se cuentan aquí y no en el navegador: la cifra tiene que estar bien
-                                // desde el primer instante, antes de que Alpine arranque.
-                                $porEstado = collect($publicaciones)->groupBy('estado')->map->count();
-                                $pestanas = [
-                                    'todas' => 'Todas ('.count($publicaciones).')',
-                                    'scheduled' => 'Programadas ('.($porEstado['scheduled'] ?? 0).')',
-                                    'published' => 'Publicadas ('.($porEstado['published'] ?? 0).')',
-                                    'failed' => 'Fallidas ('.($porEstado['failed'] ?? 0).')',
-                                ];
-                            @endphp
-                            <div class="bmos-pestanas">
-                                @foreach ($pestanas as $clave => $rotulo)
-                                    {{-- Las que están a cero se ofrecen igual: que no haya ninguna fallida
-                                         es justamente lo que se quiere poder comprobar de un vistazo. --}}
-                                    <button type="button" @click="filtro = '{{ $clave }}'"
-                                            :class="filtro === '{{ $clave }}' && 'is-activa'"
-                                            class="bmos-pestana">{{ $rotulo }}</button>
-                                @endforeach
-                            </div>
-                        @endif
+                        <div class="flex flex-wrap items-center gap-3">
+                            @if ($publicaciones !== [])
+                                @php
+                                    // Se cuentan aquí y no en el navegador: la cifra tiene que estar bien
+                                    // desde el primer instante, antes de que Alpine arranque.
+                                    $porEstado = collect($publicaciones)->groupBy('estado')->map->count();
+                                    $pestanas = [
+                                        'todas' => 'Todas ('.count($publicaciones).')',
+                                        'scheduled' => 'Programadas ('.($porEstado['scheduled'] ?? 0).')',
+                                        'published' => 'Publicadas ('.($porEstado['published'] ?? 0).')',
+                                        'failed' => 'Fallidas ('.($porEstado['failed'] ?? 0).')',
+                                    ];
+                                @endphp
+                                <div class="bmos-pestanas">
+                                    @foreach ($pestanas as $clave => $rotulo)
+                                        {{-- Las que están a cero se ofrecen igual: que no haya ninguna fallida
+                                             es justamente lo que se quiere poder comprobar de un vistazo. --}}
+                                        <button type="button" @click="filtro = '{{ $clave }}'"
+                                                :class="filtro === '{{ $clave }}' && 'is-activa'"
+                                                class="bmos-pestana">{{ $rotulo }}</button>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if ($configurado && $cuentas !== [])
+                                {{-- Esta pantalla solo conoce lo publicado DESDE aquí. Lo subido directo
+                                     desde el celular no aparece hasta que se trae a propósito. --}}
+                                <form method="POST" action="{{ route('panel.social.sync') }}" class="shrink-0">
+                                    @csrf
+                                    <button type="submit" class="bmos-btn bmos-btn-ghost text-sm" title="Trae también lo publicado directo desde el celular">
+                                        Sincronizar
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
                     </div>
                 </div>
 

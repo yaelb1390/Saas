@@ -49,12 +49,14 @@ class Customer extends Model implements Auditable, HasCompany
         'longitude',
         'notes',
         'is_active',
+        'payment_terms_days',
     ];
 
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'payment_terms_days' => 'integer',
             // Cadena y no float, igual que en la entrega: siete decimales son ~1 cm, y en coma
             // flotante dos lecturas idénticas pueden no comparar iguales.
             'latitude' => 'decimal:7',

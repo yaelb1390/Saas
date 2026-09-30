@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\CRM\Models\Customer;
+use App\Modules\Finance\Models\Payable;
+use App\Modules\Finance\Models\Receivable;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Reports\Services\ReportService;
 use App\Modules\Sales\Models\Sale;
@@ -87,6 +89,42 @@ final class ExportController extends Controller
 
         return $this->download('facturas',
             ['NCF', 'Tipo', 'Cliente', 'Subtotal', 'ITBIS', 'Total', 'Estado', 'Emitida'], $rows);
+    }
+
+    public function receivables(): Response
+    {
+        $q = request('q');
+        $rows = Receivable::query()
+            ->when($q, fn ($query, $q) => $query->where(
+                fn ($s) => $s->whereLike('code', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")
+            ))
+            ->when(request('estado'), fn ($query, $estado) => $query->where('status', $estado))
+            ->latest()->get()
+            ->map(fn (Receivable $r) => [
+                $r->code, $r->customer_name, (float) $r->total, (float) $r->balance,
+                $r->due_date?->format('Y-m-d'), $r->status->label(),
+            ]);
+
+        return $this->download('cuentas-por-cobrar',
+            ['Código', 'Cliente', 'Total', 'Saldo', 'Vencimiento', 'Estado'], $rows);
+    }
+
+    public function payables(): Response
+    {
+        $q = request('q');
+        $rows = Payable::query()
+            ->when($q, fn ($query, $q) => $query->where(
+                fn ($s) => $s->whereLike('code', "%{$q}%")->orWhereLike('supplier_name', "%{$q}%")
+            ))
+            ->when(request('estado'), fn ($query, $estado) => $query->where('status', $estado))
+            ->latest()->get()
+            ->map(fn (Payable $p) => [
+                $p->code, $p->supplier_name, (float) $p->total, (float) $p->balance,
+                $p->due_date?->format('Y-m-d'), $p->status->label(),
+            ]);
+
+        return $this->download('cuentas-por-pagar',
+            ['Código', 'Proveedor', 'Total', 'Saldo', 'Vencimiento', 'Estado'], $rows);
     }
 
     public function salesReport(ReportService $reports): Response

@@ -157,6 +157,18 @@ final class TrialMaintenanceController extends Controller
     }
 
     /**
+     * Trae, para cada empresa con redes conectadas, lo publicado en Instagram/Facebook fuera del
+     * panel (desde el celular). Sin esto, el Historial de cada empresa solo se completa si alguien
+     * entra y pulsa «Sincronizar» a mano.
+     */
+    public function syncSocialPosts(Request $request): JsonResponse
+    {
+        $this->assertCron($request);
+
+        return $this->ejecutar('redes:sincronizar-publicaciones', 'Sincronización de publicaciones externas');
+    }
+
+    /**
      * Exige el secreto compartido (Vercel Cron manda `Authorization: Bearer <CRON_SECRET>`). Sin el
      * secreto correcto responde 403, así que la URL no es utilizable por terceros.
      */

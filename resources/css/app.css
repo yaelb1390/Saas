@@ -44,7 +44,7 @@
      * borde para saber dónde empezaba. La diferencia entre superficie y fondo es lo que hace que se
      * lea «esto es un bloque» sin tener que fijarse, y aquí no llegaba.
      */
-    --bmos-bg: #edf0f7;
+    --bmos-bg: #dde3f0;
     --bmos-surface: #ffffff;
     --bmos-border: #e2e6f0;
     --bmos-text: #1e2230;

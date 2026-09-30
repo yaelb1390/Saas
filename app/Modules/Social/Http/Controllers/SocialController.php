@@ -37,6 +37,9 @@ use Throwable;
  */
 final class SocialController extends Controller
 {
+    /** Solo estas admiten traer lo publicado fuera de Zernio; pedírselo a otra red no sirve de nada. */
+    private const REDES_SINCRONIZABLES = ['instagram', 'facebook'];
+
     public function index(CurrentCompany $currentCompany): View
     {
         $company = $currentCompany->model();
@@ -104,6 +107,37 @@ final class SocialController extends Controller
                 ->mapWithKeys(static fn (SocialPlatform $r): array => [$r->value => $r->label()])
                 ->all(),
         ]);
+    }
+
+    /**
+     * Trae de la red las publicaciones que no se hicieron desde aquí.
+     *
+     * `/v1/posts` (lo que pinta el Historial) solo conoce lo publicado A TRAVÉS de Zernio, y la
+     * mayoría de un negocio pequeño sube fotos directo desde el celular. Sin esto, el Historial
+     * mentiría por omisión: mostraría solo una parte de lo que de verdad hay en el perfil.
+     */
+    public function syncPosts(CurrentCompany $currentCompany): RedirectResponse
+    {
+        $company = $currentCompany->model();
+        abort_if($company === null, 403);
+
+        $cliente = new ZernioClient($company);
+
+        try {
+            $encontradas = 0;
+
+            foreach ($cliente->accounts() as $cuenta) {
+                if (in_array($cuenta['platform'], self::REDES_SINCRONIZABLES, true) && ! $cuenta['necesita_reconectar']) {
+                    $encontradas += $cliente->syncExternalPosts($cuenta['id']);
+                }
+            }
+        } catch (SocialException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
+
+        return back()->with('panel_ok', $encontradas > 0
+            ? "Encontramos {$encontradas} ".($encontradas === 1 ? 'publicación nueva' : 'publicaciones nuevas').'.'
+            : 'No encontramos publicaciones nuevas fuera de lo que ya se ve aquí.');
     }
 
     /** Guarda (o borra) la clave de Zernio de la empresa. */

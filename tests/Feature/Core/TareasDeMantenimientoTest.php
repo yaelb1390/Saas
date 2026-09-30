@@ -91,6 +91,24 @@ it('la comprobación de salud corre de verdad y deja constancia', function () {
     expect(DB::table('health_checks')->where('service', 'database')->exists())->toBeTrue();
 });
 
+it('la sincronización de redes exige el secreto', function () {
+    config(['services.cron.secret' => 'topsecret']);
+
+    $this->get('/tareas/sincronizar-redes')->assertForbidden();
+});
+
+it('la sincronización de redes corre de verdad y deja constancia', function () {
+    config(['services.cron.secret' => 'topsecret']);
+
+    $this->withHeader('Authorization', 'Bearer topsecret')
+        ->get('/tareas/sincronizar-redes')
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    expect(DB::table('system_events')->where('type', 'task.run')
+        ->where('message', 'Sincronización de publicaciones externas: ejecutada')->exists())->toBeTrue();
+});
+
 it('con la cola vacia el drenaje contesta sin hacer nada', function () {
     config(['services.cron.secret' => 'topsecret', 'queue.default' => 'database']);
 

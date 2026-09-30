@@ -42,6 +42,12 @@
             </div>
         @endif
 
+        @if ($diagnostico['aviso'])
+            <div class="bmos-card bmos-card-pad mb-4 border border-amber-200 bg-amber-50">
+                <p class="text-sm text-amber-800">{{ $diagnostico['aviso'] }}</p>
+            </div>
+        @endif
+
         @forelse ($rules as $rule)
             <div class="bmos-card bmos-card-pad mb-4 {{ $rule->status->value === 'active' ? '' : 'is-apagada' }}">
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -71,6 +77,45 @@
                                 · sincronizada {{ $rule->last_synced_at->diffForHumans() }}
                             @endif
                         </p>
+
+                        {{-- Lo que BMOS guarda es la intención; esto es lo que Zernio confirma ahora
+                             mismo. Las dos pueden separarse sin que nadie se entere —alguien pausó la
+                             automatización directo en Zernio, la cuenta perdió el permiso, o la
+                             borraron allá—, y es justo lo que esto saca a la luz. --}}
+                        @if ($rule->estaSincronizada() && ! $diagnostico['aviso'])
+                            @php
+                                $real = $diagnostico['automatizaciones'][$rule->zernio_automation_id] ?? null;
+                                $cuentaReal = $diagnostico['cuentas'][$rule->zernio_account_id] ?? null;
+                                $coincide = $real !== null && $real['isActive'] === ($rule->status->value === 'active');
+                            @endphp
+
+                            @if ($real === null)
+                                <p class="mt-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
+                                    No aparece en Zernio ahora mismo: puede que se haya borrado allá directamente.
+                                </p>
+                            @else
+                                <p class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500">
+                                    <span>En Zernio ahora:</span>
+                                    <span class="font-semibold {{ $real['isActive'] ? 'text-emerald-700' : 'text-rose-700' }}">
+                                        {{ $real['isActive'] ? 'Activa' : 'Apagada' }}
+                                    </span>
+                                    <span>{{ $real['postId'] ? 'en una publicación concreta' : 'en cualquier publicación' }}</span>
+                                    <span>· {{ $real['stats']['triggered'] }} {{ $real['stats']['triggered'] === 1 ? 'disparo' : 'disparos' }}</span>
+                                </p>
+
+                                @unless ($coincide)
+                                    <p class="mt-1 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700">
+                                        No coincide: aquí dice «{{ $rule->status->label() }}» y Zernio dice {{ $real['isActive'] ? 'activa' : 'apagada' }}.
+                                    </p>
+                                @endunless
+                            @endif
+
+                            @if (($cuentaReal['necesita_reconectar'] ?? false) === true)
+                                <p class="mt-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
+                                    La cuenta de esta regla necesita reconectarse: no va a contestar hasta que la reconectes.
+                                </p>
+                            @endif
+                        @endif
                     </div>
 
                     @can('social_commerce.manage')

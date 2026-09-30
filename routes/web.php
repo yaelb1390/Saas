@@ -47,6 +47,8 @@ use App\Modules\Dealer\Http\Controllers\VehiclePhotoController;
 use App\Modules\Delivery\Http\Controllers\DeliveryController;
 use App\Modules\Delivery\Http\Controllers\DriverPortalController;
 use App\Modules\Finance\Http\Controllers\ExpenseController;
+use App\Modules\Finance\Http\Controllers\PayableController;
+use App\Modules\Finance\Http\Controllers\ReceivableController;
 use App\Modules\Help\Http\Controllers\AssistantController;
 use App\Modules\Help\Http\Controllers\HelpController;
 use App\Modules\HR\Http\Controllers\EmployeeController;
@@ -451,6 +453,8 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/clientes', 'customers')->middleware(['can:customers.view', 'module:crm'])->name('customers');
         Route::get('/facturas', 'invoices')->middleware(['can:invoices.view', 'module:billing'])->name('invoices');
         Route::get('/reporte-ventas', 'salesReport')->middleware(['can:reports.view', 'module:reports'])->name('sales-report');
+        Route::get('/cuentas-por-cobrar', 'receivables')->middleware(['can:finance.view', 'module:finance'])->name('receivables');
+        Route::get('/cuentas-por-pagar', 'payables')->middleware(['can:finance.view', 'module:finance'])->name('payables');
     });
 
     // Motor de cobro, compartido por las dos pantallas de venta. El módulo se declara como
@@ -845,6 +849,30 @@ Route::middleware(['auth'])->group(function (): void {
     });
 
     /*
+     * Cuentas por cobrar/pagar. Mismos dos permisos que el resto de Finanzas: ver es inofensivo,
+     * dar de alta o abonar mueve dinero de verdad. Nacen solas de una venta a crédito o de una
+     * orden de compra recibida (ver los listeners en FinanceServiceProvider); estas rutas cubren
+     * el alta manual y el registro de abonos.
+     */
+    Route::middleware(['can:finance.view', 'module:finance'])->group(function (): void {
+        Route::get('/panel/cuentas-por-cobrar', [ReceivableController::class, 'index'])->name('panel.receivables');
+        Route::get('/panel/cuentas-por-cobrar/{receivable}', [ReceivableController::class, 'show'])->name('panel.receivables.show');
+        Route::get('/panel/cuentas-por-pagar', [PayableController::class, 'index'])->name('panel.payables');
+        Route::get('/panel/cuentas-por-pagar/{payable}', [PayableController::class, 'show'])->name('panel.payables.show');
+    });
+
+    Route::middleware(['can:finance.manage', 'module:finance'])->group(function (): void {
+        Route::post('/panel/cuentas-por-cobrar', [ReceivableController::class, 'store'])->name('panel.receivables.store');
+        Route::put('/panel/cuentas-por-cobrar/{receivable}', [ReceivableController::class, 'update'])->name('panel.receivables.update');
+        Route::delete('/panel/cuentas-por-cobrar/{receivable}', [ReceivableController::class, 'destroy'])->name('panel.receivables.destroy');
+        Route::post('/panel/cuentas-por-cobrar/{receivable}/abonos', [ReceivableController::class, 'pay'])->name('panel.receivables.pay');
+        Route::post('/panel/cuentas-por-pagar', [PayableController::class, 'store'])->name('panel.payables.store');
+        Route::put('/panel/cuentas-por-pagar/{payable}', [PayableController::class, 'update'])->name('panel.payables.update');
+        Route::delete('/panel/cuentas-por-pagar/{payable}', [PayableController::class, 'destroy'])->name('panel.payables.destroy');
+        Route::post('/panel/cuentas-por-pagar/{payable}/abonos', [PayableController::class, 'pay'])->name('panel.payables.pay');
+    });
+
+    /*
      * Redes sociales: publicar en Instagram, Facebook y demás desde el panel.
      *
      * Tres permisos y no uno, porque son tres riesgos distintos: VER qué se publicó es inofensivo;
@@ -864,6 +892,11 @@ Route::middleware(['auth'])->group(function (): void {
         // quien puede decidir que algo salga puede decidir que ya no.
         Route::delete('/panel/redes/publicaciones/{post}', [SocialController::class, 'cancelPost'])
             ->middleware('can:social.publish')->name('panel.social.posts.cancel');
+        // Trae de la red lo publicado desde el móvil, para que el Historial no mienta por omisión.
+        // Solo LEE —no publica nada—, así que va con el mismo permiso que ver la pantalla y no con
+        // el de publicar. `throttle` porque cada llamada va a Instagram/Facebook a leer de verdad.
+        Route::post('/panel/redes/sincronizar', [SocialController::class, 'syncPosts'])
+            ->middleware(['can:social.view', 'throttle:10,1'])->name('panel.social.sync');
 
         /*
          * Respuestas automáticas a comentarios y mensajes.
@@ -1144,6 +1177,11 @@ Route::get('/tareas/drenar-cola', [TrialMaintenanceController::class, 'drainQueu
 // correo. Cron diario, aparte del que ya corre cada 5 min localmente por el scheduler (sin sesión;
 // protegido por CRON_SECRET).
 Route::get('/tareas/comprobar-salud', [TrialMaintenanceController::class, 'checkHealth'])->name('tasks.check-health');
+
+// Trae, para cada empresa con redes conectadas, lo publicado en Instagram/Facebook fuera del panel
+// (desde el celular), para que el Historial de Redes no dependa de que alguien pulse «Sincronizar»
+// a mano (sin sesión; protegido por CRON_SECRET).
+Route::get('/tareas/sincronizar-redes', [TrialMaintenanceController::class, 'syncSocialPosts'])->name('tasks.sync-social-posts');
 
 // Previsualización de correos (SOLO local): abre el HTML del correo en el navegador para revisar el
 // diseño sin tener que registrarse. Nunca se activa en producción.

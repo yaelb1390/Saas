@@ -212,3 +212,103 @@ it('borrar una regla la quita también de Zernio y de la base', function (): voi
     expect(Rule::find($rule->id))->toBeNull()
         ->and(Rule::withoutGlobalScopes()->find($rule->id))->not->toBeNull();
 });
+
+// ---------------------------------------------------------------- Diagnóstico contra Zernio
+
+/**
+ * Lo que BMOS guarda es la intención; el diagnóstico compara eso contra lo que Zernio confirma
+ * ahora mismo (GET /v1/comment-automations y GET /v1/accounts). La regla se crea DIRECTO en la
+ * base —no vía POST /store— para no acumular fakes de dos llamadas a `Http::fake()` en la misma
+ * prueba: el segundo `Http::fake()` no sustituye al primero, se suma, y gana el que casó primero
+ * (ver memoria del proyecto); con un solo `Http::fake()` por prueba no hay ambigüedad posible.
+ */
+function reglaActiva(int $productId, array $overrides = []): Rule
+{
+    return Rule::factory()->activa()->create(array_merge([
+        'product_id' => $productId,
+        'zernio_account_id' => 'acc_1',
+        'zernio_automation_id' => 'auto_1',
+        'keywords' => ['precio'],
+    ], $overrides));
+}
+
+it('el diagnóstico confirma cuando Zernio coincide con lo guardado aquí', function (): void {
+    reglaActiva($this->product->id);
+
+    Http::fake([
+        'api.zernio.com/v1/comment-automations' => Http::response(
+            ['automations' => [['id' => 'auto_1', 'isActive' => true, 'stats' => ['triggered' => 4]]]], 200,
+        ),
+        'api.zernio.com/v1/accounts' => Http::response(
+            ['accounts' => [['_id' => 'acc_1', 'platform' => 'instagram', 'needsReconnection' => false]]], 200,
+        ),
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.social-commerce.index'))
+        ->assertOk()
+        ->assertSee('en cualquier publicación')
+        ->assertSee('4 disparos')
+        ->assertDontSee('No coincide')
+        ->assertDontSee('No aparece en Zernio');
+});
+
+it('el diagnóstico avisa cuando Zernio dice algo distinto a lo guardado aquí', function (): void {
+    // BMOS quedó «Activa», pero alguien la apagó directo en Zernio.
+    reglaActiva($this->product->id);
+
+    Http::fake([
+        'api.zernio.com/v1/comment-automations' => Http::response(
+            ['automations' => [['id' => 'auto_1', 'isActive' => false, 'stats' => ['triggered' => 0]]]], 200,
+        ),
+        'api.zernio.com/v1/accounts' => Http::response(
+            ['accounts' => [['_id' => 'acc_1', 'platform' => 'instagram', 'needsReconnection' => false]]], 200,
+        ),
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.social-commerce.index'))
+        ->assertOk()
+        ->assertSee('No coincide');
+});
+
+it('el diagnóstico avisa cuando la automatización ya no existe en Zernio', function (): void {
+    reglaActiva($this->product->id);
+
+    // La lista de Zernio vuelve vacía: la automatización se borró allá directamente.
+    Http::fake([
+        'api.zernio.com/v1/comment-automations' => Http::response(['automations' => []], 200),
+        'api.zernio.com/v1/accounts' => Http::response(
+            ['accounts' => [['_id' => 'acc_1', 'platform' => 'instagram', 'needsReconnection' => false]]], 200,
+        ),
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.social-commerce.index'))
+        ->assertOk()
+        ->assertSee('No aparece en Zernio ahora mismo');
+});
+
+it('el diagnóstico avisa cuando la cuenta de la regla necesita reconectarse', function (): void {
+    reglaActiva($this->product->id);
+
+    Http::fake([
+        'api.zernio.com/v1/comment-automations' => Http::response(
+            ['automations' => [['id' => 'auto_1', 'isActive' => true, 'stats' => ['triggered' => 0]]]], 200,
+        ),
+        'api.zernio.com/v1/accounts' => Http::response(
+            ['accounts' => [['_id' => 'acc_1', 'platform' => 'instagram', 'needsReconnection' => true]]], 200,
+        ),
+    ]);
+
+    $this->actingAs($this->owner)->get(route('panel.social-commerce.index'))
+        ->assertOk()
+        ->assertSee('necesita reconectarse');
+});
+
+it('si Zernio no responde, la pantalla se pinta igual con un aviso en vez de romperse', function (): void {
+    reglaActiva($this->product->id);
+
+    Http::fake(['api.zernio.com/*' => Http::response(['detail' => 'caído'], 500)]);
+
+    $this->actingAs($this->owner)->get(route('panel.social-commerce.index'))
+        ->assertOk()
+        ->assertSee('No se pudo comparar contra Zernio en este momento');
+});

@@ -75,6 +75,8 @@ final class Icons
         // del logo (una runa vikinga, en realidad) con el mismo trazo redondeado que el resto.
         'bluetooth' => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m0-18 5.25 4.5L12 12l5.25 4.5L12 21m0-9L6.75 7.5M12 12l-5.25 4.5"/>',
         'usb' => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10.5m0 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm-3 2.25L6 18m9-2.25L18 18M9.75 3h1.5v3h-1.5V3Z"/>',
+        // Tarjeta de crédito/débito, para elegir la forma de pago al registrar un abono.
+        'tarjeta' => '<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z"/>',
     ];
 
     /**

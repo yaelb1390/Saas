@@ -18,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -40,7 +41,42 @@ final class RuleController extends Controller
         return view('panel.social-commerce.index', [
             'rules' => $rules,
             'cuentas' => $this->cuentas($currentCompany),
+            'diagnostico' => $this->diagnostico($currentCompany, $rules),
         ]);
+    }
+
+    /**
+     * Compara cada regla contra lo que Zernio dice AHORA MISMO: activa de verdad, con o sin
+     * publicación concreta, cuántas veces ha disparado. La regla local es la intención; esto es la
+     * realidad, y las dos pueden separarse sin que nadie se entere —alguien la pausó directo en
+     * Zernio, la cuenta perdió el permiso, o la borraron allá—.
+     *
+     * @return array{automatizaciones: array<string, array<string, mixed>>, cuentas: array<string, array<string, mixed>>, aviso: string|null}
+     */
+    private function diagnostico(CurrentCompany $currentCompany, Collection $rules): array
+    {
+        $company = $currentCompany->model();
+        abort_if($company === null, 403);
+
+        $cliente = new ZernioClient($company);
+        $vacio = ['automatizaciones' => [], 'cuentas' => [], 'aviso' => null];
+
+        if (! $cliente->isConfigured() || $rules->isEmpty()) {
+            return $vacio;
+        }
+
+        try {
+            return [
+                'automatizaciones' => collect($cliente->automations())->keyBy('id')->all(),
+                // Sin filtrar por red ni por «necesita reconectar»: aquí hace falta saber justo eso.
+                'cuentas' => collect($cliente->accounts())->keyBy('id')->all(),
+                'aviso' => null,
+            ];
+        } catch (Throwable $e) {
+            report($e);
+
+            return [...$vacio, 'aviso' => 'No se pudo comparar contra Zernio en este momento. Lo de abajo es solo lo guardado aquí.'];
+        }
     }
 
     public function create(CurrentCompany $currentCompany): View

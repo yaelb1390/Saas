@@ -11,6 +11,7 @@
     },
     "crons": [
         { "path": "/tareas/purgar-registros", "schedule": "0 4 * * *" },
+        { "path": "/tareas/sincronizar-redes", "schedule": "0 5 * * *" },
         { "path": "/tareas/purgar-pruebas", "schedule": "0 6 * * *" },
         { "path": "/tareas/avisar-vencimientos", "schedule": "0 7 * * *" },
         { "path": "/tareas/comprobar-salud", "schedule": "0 8 * * *" }

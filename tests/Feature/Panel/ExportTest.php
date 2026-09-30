@@ -61,3 +61,58 @@ it('exporta los productos a XLSX válido', function (): void {
 
     expect($sheet)->toContain('SKU')->toContain('Alfa')->toContain('Beta');
 });
+
+it('exporta como una tabla dinámica de Excel, con el azul de la app', function (): void {
+    // "Tabla dinámica" aquí es la tabla de Excel de verdad (filtros en el encabezado, franjas de
+    // color) y no una tabla dinámica de análisis (pivot): para un listado plano de dos productos
+    // no hay nada que resumir. El azul lo pone Excel con su estilo nativo "TableStyleMedium2" —el
+    // mismo que usa por defecto al insertar una tabla con Ctrl+T—, sin inventar un tema a mano.
+    $response = $this->actingAs($this->user)->get(route('panel.export.products', ['format' => 'xlsx']));
+    $bytes = $response->baseResponse->getFile()->getContent();
+
+    $tmp = (string) tempnam(sys_get_temp_dir(), 'xlsxtable');
+    file_put_contents($tmp, $bytes);
+    $zip = new ZipArchive;
+    $zip->open($tmp);
+    $contentTypes = (string) $zip->getFromName('[Content_Types].xml');
+    $sheetRels = (string) $zip->getFromName('xl/worksheets/_rels/sheet1.xml.rels');
+    $table = (string) $zip->getFromName('xl/tables/table1.xml');
+    $zip->close();
+
+    // Las tres partes tienen que existir Y ser XML válido: un zip con partes rotas es exactamente
+    // lo que hace que Excel pida "reparar" el archivo en vez de abrirlo.
+    expect($contentTypes)->not->toBe('')
+        ->and($sheetRels)->not->toBe('')
+        ->and($table)->not->toBe('')
+        ->and(@simplexml_load_string($contentTypes))->not->toBeFalse()
+        ->and(@simplexml_load_string($sheetRels))->not->toBeFalse()
+        ->and(@simplexml_load_string($table))->not->toBeFalse();
+
+    expect($contentTypes)->toContain('spreadsheetml.table+xml')
+        ->and($sheetRels)->toContain('../tables/table1.xml')
+        ->and($table)->toContain('TableStyleMedium2')
+        // 2 productos + encabezado = 3 filas; 3 columnas exportadas (SKU, Nombre... hasta Estado).
+        ->and($table)->toContain('ref="A1:H3"')
+        ->and($table)->toContain('name="SKU"');
+});
+
+it('el ancho de columna se calcula por el contenido, no queda en el de Excel por omisión', function (): void {
+    // "Alfa"/"Beta" son cortos: la columna Nombre debe quedar en el MÍNIMO (10), no en su longitud
+    // real (4). Y ninguna columna se manda sin `customWidth`, que es lo que hace que Excel de
+    // verdad respete la medida en vez de usar la suya.
+    $response = $this->actingAs($this->user)->get(route('panel.export.products', ['format' => 'xlsx']));
+    $bytes = $response->baseResponse->getFile()->getContent();
+
+    $tmp = (string) tempnam(sys_get_temp_dir(), 'xlsxcols');
+    file_put_contents($tmp, $bytes);
+    $zip = new ZipArchive;
+    $zip->open($tmp);
+    $sheet = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+    $zip->close();
+
+    expect($sheet)->toContain('<cols>')
+        ->and($sheet)->toContain('customWidth="1"')
+        ->and($sheet)->toContain('width="10"');
+
+    expect(@simplexml_load_string($sheet))->not->toBeFalse();
+});

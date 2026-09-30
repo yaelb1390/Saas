@@ -167,9 +167,13 @@
                                         Es tu plan actual
                                     </span>
                                 @elseif (! auth()->check())
+                                    {{-- «Empezar gratis» miente en un plan sin período de prueba: Pro y
+                                         Empresarial se cobran desde el primer día (ver el aviso arriba,
+                                         "Plan de pago, sin período de prueba"), así que ahí el botón dice
+                                         lo que de verdad va a pasar. --}}
                                     <a href="{{ route('register.form') }}"
                                        class="bmos-pricing-btn {{ $recomendado ? '' : 'bmos-pricing-btn--suave' }}">
-                                        Empezar gratis
+                                        {{ $plan->trial_days > 0 ? 'Empezar gratis' : 'Comprar' }}
                                     </a>
                                 @elseif ($puedeContratar)
                                     @php

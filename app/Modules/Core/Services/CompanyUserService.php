@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Core\Services;
 
 use App\Models\User;
+use App\Modules\Core\Exceptions\CoreException;
 use App\Modules\HR\Models\Employee;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -26,6 +27,8 @@ final class CompanyUserService
      */
     public function create(int $companyId, array $data, string $role): User
     {
+        $this->assertDentroDelTope($companyId);
+
         return DB::transaction(function () use ($companyId, $data, $role): User {
             $user = User::create([
                 'company_id' => $companyId,
@@ -41,6 +44,36 @@ final class CompanyUserService
 
             return $user;
         });
+    }
+
+    /**
+     * El tope de usuarios del plan. `null` significa sin plan o plan sin tope, y no se comprueba
+     * nada: es el mismo criterio «null = sin límite» que ya usa `CompanyHealthService`.
+     *
+     * Cuenta TODOS los usuarios de la empresa —activos e inactivos, salvo el super admin—, igual
+     * que ya lo hace el panel de salud: si contara solo los activos, desactivar y reactivar gente
+     * sería una forma de esquivar el tope del plan.
+     */
+    private function assertDentroDelTope(int $companyId): void
+    {
+        $plan = DB::table('subscriptions')
+            ->join('plans', 'plans.id', '=', 'subscriptions.plan_id')
+            ->where('subscriptions.company_id', $companyId)
+            ->select('plans.name', 'plans.max_users')
+            ->first();
+
+        if ($plan === null || $plan->max_users === null) {
+            return;
+        }
+
+        $actuales = User::query()
+            ->where('company_id', $companyId)
+            ->where('is_super_admin', false)
+            ->count();
+
+        if ($actuales >= $plan->max_users) {
+            throw CoreException::maxUsersReached((int) $plan->max_users, (string) $plan->name);
+        }
     }
 
     /**

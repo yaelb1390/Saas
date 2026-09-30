@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Core\Http\Controllers;
 
 use App\Models\User;
+use App\Modules\Core\Exceptions\CoreException;
 use App\Modules\Core\Http\Requests\StoreUserRequest;
 use App\Modules\Core\Http\Requests\UpdateUserRequest;
 use App\Modules\Core\Services\CompanyUserService;
@@ -29,7 +30,12 @@ final class UserController extends Controller
         abort_if($companyId === null, 403);
 
         $data = $request->validated();
-        $users->create($companyId, $data, $data['role']);
+
+        try {
+            $users->create($companyId, $data, $data['role']);
+        } catch (CoreException $e) {
+            return back()->withInput()->with('panel_error', $e->getMessage());
+        }
 
         return back()->with('panel_ok', 'Usuario creado correctamente.');
     }

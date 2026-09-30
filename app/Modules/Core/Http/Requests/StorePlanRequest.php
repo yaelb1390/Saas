@@ -38,6 +38,7 @@ final class StorePlanRequest extends FormRequest
             'trial_days' => ['required', 'integer', 'min:0', 'max:365'],
             'max_users' => ['nullable', 'integer', 'min:1'],
             'max_branches' => ['nullable', 'integer', 'min:1'],
+            'ai_daily_limit' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
             'modules' => ['present', 'array'],
             'modules.*' => ['string', Rule::in(ModuleRegistry::keys())],

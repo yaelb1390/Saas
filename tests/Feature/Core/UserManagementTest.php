@@ -7,6 +7,7 @@ use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
@@ -124,4 +125,71 @@ it('no permite administrar un usuario de otra empresa', function (): void {
         ->assertNotFound();
 
     expect($foreign->fresh()->name)->toBe('Ajeno');
+});
+
+// ---------------------------------------------------------------- Tope de usuarios del plan
+
+/** Pone a la empresa del test en un plan con el tope de usuarios que se le pida. */
+function conTopeDeUsuarios(int $companyId, ?int $maxUsers): void
+{
+    $planId = DB::table('plans')->insertGetId([
+        'name' => 'Con tope', 'slug' => 'con-tope-'.uniqid(), 'price' => '100', 'billing_cycle' => 'monthly',
+        'max_users' => $maxUsers, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    DB::table('subscriptions')->where('company_id', $companyId)->delete();
+    DB::table('subscriptions')->insert([
+        'company_id' => $companyId, 'plan_id' => $planId, 'status' => 'active',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+}
+
+it('no deja crear un usuario más si la empresa ya llegó al tope de su plan', function (): void {
+    // El dueño ya creado en el beforeEach cuenta como el primer usuario: con tope 1, ya está lleno.
+    conTopeDeUsuarios($this->company->id, maxUsers: 1);
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.users.store'), [
+            'name' => 'De más', 'email' => 'demas@users.test', 'role' => 'staff',
+            'password' => 'contrasena-larga', 'password_confirmation' => 'contrasena-larga',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('panel_error');
+
+    expect(User::where('email', 'demas@users.test')->exists())->toBeFalse();
+});
+
+it('sí deja crear mientras no se llegue al tope del plan', function (): void {
+    conTopeDeUsuarios($this->company->id, maxUsers: 2);
+
+    $this->actingAs($this->owner)
+        ->post(route('panel.users.store'), [
+            'name' => 'Cabe bien', 'email' => 'cabebien@users.test', 'role' => 'staff',
+            'password' => 'contrasena-larga', 'password_confirmation' => 'contrasena-larga',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('panel_ok');
+
+    expect(User::where('email', 'cabebien@users.test')->exists())->toBeTrue();
+});
+
+it('un plan sin tope de usuarios (null) no bloquea nada', function (): void {
+    conTopeDeUsuarios($this->company->id, maxUsers: null);
+
+    foreach (range(1, 5) as $n) {
+        $this->actingAs($this->owner)->post(route('panel.users.store'), [
+            'name' => "Extra {$n}", 'email' => "extra{$n}@users.test", 'role' => 'staff',
+            'password' => 'contrasena-larga', 'password_confirmation' => 'contrasena-larga',
+        ])->assertSessionHas('panel_ok');
+    }
+
+    expect(User::where('company_id', $this->company->id)->count())->toBe(6); // dueño + 5
+});
+
+it('una empresa sin suscripción (sin plan) tampoco tiene tope', function (): void {
+    // El beforeEach no crea ninguna suscripción: este es justo ese caso, sin tocar nada más.
+    $this->actingAs($this->owner)->post(route('panel.users.store'), [
+        'name' => 'Sin Plan', 'email' => 'sinplan@users.test', 'role' => 'staff',
+        'password' => 'contrasena-larga', 'password_confirmation' => 'contrasena-larga',
+    ])->assertSessionHas('panel_ok');
 });

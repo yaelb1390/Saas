@@ -206,6 +206,41 @@ it('el tope cuenta por empresa: una no se come la cuota de la otra', function ()
         ->assertJsonPath('agotada', false);
 });
 
+it('el plan puede tener su propio tope de IA, más bajo que el de la plataforma', function (): void {
+    conGemini();
+    AiSetting::query()->update(['daily_limit' => 50]);
+
+    // El plan de esta empresa se queda con solo 1 pregunta al día, aunque la plataforma permita 50.
+    $this->company->fresh(['subscription.plan'])->subscription->plan->update(['ai_daily_limit' => 1]);
+
+    $this->actingAs($this->owner)
+        ->postJson(route('panel.assistant.ask'), ['pregunta' => 'como anulo una venta'])->assertOk();
+
+    Http::assertSentCount(1);
+
+    $this->actingAs($this->owner)
+        ->postJson(route('panel.assistant.ask'), ['pregunta' => 'como cierro la caja'])
+        ->assertOk()
+        ->assertJsonPath('agotada', true);
+
+    // La segunda no llegó a salir, a pesar de que a la plataforma todavía le quedaban 49.
+    Http::assertSentCount(1);
+});
+
+it('sin tope propio en el plan (null), la empresa usa el de la plataforma', function (): void {
+    conGemini();
+    AiSetting::query()->update(['daily_limit' => 1]);
+
+    // El plan de este test nunca tocó `ai_daily_limit`: queda null y hereda el de la plataforma.
+    $this->actingAs($this->owner)
+        ->postJson(route('panel.assistant.ask'), ['pregunta' => 'como anulo una venta'])->assertOk();
+
+    $this->actingAs($this->owner)
+        ->postJson(route('panel.assistant.ask'), ['pregunta' => 'como cierro la caja'])
+        ->assertOk()
+        ->assertJsonPath('agotada', true);
+});
+
 // ------------------------------------------------------------ El registro de lo preguntado
 
 it('una pregunta que el manual no cubre se guarda como tal', function (): void {

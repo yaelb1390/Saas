@@ -68,6 +68,12 @@ final class TenantDataPurger
         'expenses',
         'expense_categories',
         'financial_movements',
+        // Cuentas por cobrar/pagar. Los abonos/pagos ANTES que la cuenta de la que cuelgan, y las
+        // dos ANTES que `accounts`: cada abono/pago apunta a la cuenta financiera con `restrict`.
+        'receivable_payments',
+        'receivables',
+        'payable_payments',
+        'payables',
         'accounts',
         // Entregas
         'deliveries',
@@ -133,6 +139,18 @@ final class TenantDataPurger
         'held_orders',
         'cash_movements',
         'cash_sessions',
+        // Social Commerce (contesta precios en comentarios de Instagram/Facebook). La configuración
+        // —social_commerce_settings— se conserva: ver KEPT, mismo motivo que
+        // social_welcome_settings/wa_bot_settings (el webhook ya registrado en Zernio quedaría
+        // huérfano). `social_commerce_rules` va antes que `products` porque apunta ahí con
+        // `restrict`; el resto son hijas suyas o de las conversaciones.
+        'social_commerce_rule_template_usage',
+        'social_commerce_opportunity_links',
+        'social_commerce_messages',
+        'social_commerce_conversations',
+        'social_commerce_contact_identities',
+        'social_commerce_rule_templates',
+        'social_commerce_rules',
         // CRM (los pipelines/stages se conservan)
         'customer_documents',
         'opportunities',
@@ -218,6 +236,16 @@ final class TenantDataPurger
          * seguiría disparando contra una dirección que no atiende a nadie.
          */
         'wa_bot_settings',
+
+        // Los ajustes de Social Commerce, por los mismos dos motivos que `wa_bot_settings`: es
+        // configuración del dueño (número de WhatsApp para el traspaso, si está encendido) y
+        // borrarla dejaría el webhook de Zernio huérfano.
+        'social_commerce_settings',
+        // Bitácora de los avisos crudos que llegan del webhook de Social Commerce, por lo mismo que
+        // `polar_webhook_events`: es rastro nuestro de lo que Zernio mandó, no datos que el cliente
+        // escribió, y su `company_id` ya es nullable en la propia tabla para sobrevivir al borrado
+        // de la empresa.
+        'social_commerce_webhook_events',
 
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',

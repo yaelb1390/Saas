@@ -69,7 +69,7 @@ final class PostgresStats
         try {
             $tamano = DB::selectOne('select pg_database_size(current_database()) as bytes');
             $stats['tamano_mb'] = (int) round(((int) $tamano->bytes) / 1024 / 1024);
-            $stats['cupo_mb'] = (int) config('bmos.monitoreo.base_datos.cupo_mb', 500);
+            $stats['cupo_mb'] = (int) config('bmos.base_datos.cupo_mb', 500);
         } catch (Throwable) {
         }
 

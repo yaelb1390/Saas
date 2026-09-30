@@ -28,9 +28,10 @@
                 </div>
                 <x-panel.field name="trial_days" label="Días de prueba" type="number" value="0" required />
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-3 gap-3">
                 <x-panel.field name="max_users" label="Máx. usuarios (opcional)" type="number" />
                 <x-panel.field name="max_branches" label="Máx. sucursales (opcional)" type="number" />
+                <x-panel.field name="ai_daily_limit" label="Preguntas de IA al día (opcional)" type="number" />
             </div>
             <div>
                 <label class="bmos-field-label">Módulos incluidos</label>
@@ -163,9 +164,10 @@
                             </div>
                             <x-panel.field name="trial_days" label="Días de prueba" type="number" required :value="$plan->trial_days" />
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-3 gap-3">
                             <x-panel.field name="max_users" label="Máx. usuarios (opcional)" type="number" :value="$plan->max_users" />
                             <x-panel.field name="max_branches" label="Máx. sucursales (opcional)" type="number" :value="$plan->max_branches" />
+                            <x-panel.field name="ai_daily_limit" label="Preguntas de IA al día (opcional)" type="number" :value="$plan->ai_daily_limit" />
                         </div>
                         <div>
                             <label class="bmos-field-label">Módulos incluidos</label>

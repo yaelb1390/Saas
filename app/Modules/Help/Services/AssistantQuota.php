@@ -6,6 +6,7 @@ namespace App\Modules\Help\Services;
 
 use App\Modules\AI\Models\AiSetting;
 use App\Modules\Help\Models\AssistantQuestion;
+use Illuminate\Support\Facades\DB;
 
 /**
  * El tope diario de preguntas por empresa.
@@ -37,7 +38,7 @@ final class AssistantQuota
             ->whereDate('created_at', now()->toDateString())
             ->count();
 
-        return max(0, $this->tope() - $usadas);
+        return max(0, $this->tope($companyId) - $usadas);
     }
 
     public function agotada(int $companyId): bool
@@ -45,9 +46,18 @@ final class AssistantQuota
         return $this->restantes($companyId) === 0;
     }
 
-    /** El techo configurado en Administración › IA de la plataforma. */
-    public function tope(): int
+    /**
+     * El techo de esta empresa: el de su plan si lo tiene puesto, si no el de Administración › IA
+     * de la plataforma. `null` en el plan significa «usa el de la plataforma», el mismo criterio
+     * que ya siguen `max_users`/`max_branches`.
+     */
+    public function tope(int $companyId): int
     {
-        return max(0, AiSetting::actual()->daily_limit ?? 0);
+        $propio = DB::table('subscriptions')
+            ->join('plans', 'plans.id', '=', 'subscriptions.plan_id')
+            ->where('subscriptions.company_id', $companyId)
+            ->value('plans.ai_daily_limit');
+
+        return max(0, $propio ?? AiSetting::actual()->daily_limit ?? 0);
     }
 }

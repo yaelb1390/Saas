@@ -33,6 +33,7 @@ class Plan extends Model implements Auditable
         'modules',
         'max_users',
         'max_branches',
+        'ai_daily_limit',
         'is_active',
     ];
 
@@ -45,6 +46,7 @@ class Plan extends Model implements Auditable
             'modules' => 'array',
             'max_users' => 'integer',
             'max_branches' => 'integer',
+            'ai_daily_limit' => 'integer',
             'is_active' => 'boolean',
         ];
     }

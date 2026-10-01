@@ -8,7 +8,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Planes y precios · BM Business OS</title>
+
+    {{-- Para cuando el enlace se comparte por Instagram/WhatsApp, mismo patrón que landing/index. --}}
+    <meta name="description" content="Elige el plan de BM Business OS para tu negocio: ventas, inventario, facturación con NCF y WhatsApp en un solo lugar. Prueba gratis por 15 días.">
+    <meta property="og:title" content="Planes y precios · BM Business OS">
+    <meta property="og:description" content="Ventas, inventario, facturación con NCF y WhatsApp en un solo lugar. Prueba gratis por 15 días.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
     @if (file_exists(public_path('images/bm-mark.png')))
+        <meta property="og:image" content="{{ asset('images/bm-mark.png') }}">
         <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
     @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])

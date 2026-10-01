@@ -3048,6 +3048,58 @@ body {
     font-weight: 600;
 }
 
+/* ---------- Tarjeta apagada ----------
+   Genérico a propósito: cualquier `.bmos-card` que lleve `is-apagada` (una regla pausada, una
+   automatización sin publicar) se atenúa en vez de desaparecer o verse igual que una activa —la
+   fila sigue siendo clicable, solo no compite por la mirada con lo que sí está funcionando—. */
+.bmos-card.is-apagada {
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.bmos-card.is-apagada:hover {
+    opacity: 0.9;
+}
+
+/* ---------- Subnavegación en píldoras ----------
+   Para pantallas que enlazan con varias hermanas (Social Commerce: panel, ajustes, conversaciones,
+   sandbox). Una lista de textos subrayados se leía como un pie de página; esto se lee como menú. */
+.sc-subnav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.sc-subnav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.65rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #475569;
+    background: #f1f5f9;
+    transition: background 0.15s, color 0.15s;
+}
+
+.sc-subnav-link:hover {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.sc-regla-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    background: #eef2ff;
+    color: #4f46e5;
+    flex-shrink: 0;
+}
+
 /* ---------- Desglose de estados ----------
    Barra apilada de CSS puro, sin JavaScript. Una tarta con uno o dos segmentos
    —que es el caso normal— se lee peor que los propios números. */

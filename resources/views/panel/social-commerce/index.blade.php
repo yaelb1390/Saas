@@ -67,11 +67,15 @@
 
                     <div class="min-w-0">
                         <p class="font-semibold text-slate-800">{{ $rule->name }}</p>
-                        <p class="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-slate-600">
-                            {{ $rule->esManual() ? $rule->manual_name : ($rule->product?->name ?? 'Producto borrado') }}
-                            @if ($rule->esManual() || $rule->product)
-                                <span class="inline-flex items-center gap-1 font-semibold text-slate-700">
-                                    <x-icono name="tag" class="h-3.5 w-3.5 text-slate-400" />
+                        <p class="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm">
+                            @if (! $rule->esManual() && ! $rule->product)
+                                {{-- Una regla sin producto ya no tiene qué vender: no es un dato
+                                     cualquiera, es la razón por la que puede estar fallando. --}}
+                                <span class="font-semibold text-rose-600">Producto borrado</span>
+                            @else
+                                <span class="text-slate-600">{{ $rule->esManual() ? $rule->manual_name : $rule->product->name }}</span>
+                                <span class="inline-flex items-center gap-1 font-semibold text-indigo-600">
+                                    <x-icono name="tag" class="h-3.5 w-3.5 text-indigo-400" />
                                     {{ $rule->company->currency }} {{ number_format($rule->precioDelArticulo(), 2) }}
                                 </span>
                             @endif

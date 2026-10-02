@@ -148,6 +148,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? 'BM Business OS' }}</title>
+    @if (file_exists(public_path('images/bm-mark.png')))
+        <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
+    @endif
     {{-- Inter se sirve auto-alojada vía el bundle de Vite (resources/css/app.css); ya no se pide a
          Google Fonts: se elimina la latencia externa y el render no espera a un tercero. --}}
     @include('partials.pwa-head')

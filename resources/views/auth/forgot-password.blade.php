@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Recuperar contraseña · BM Business OS</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('images/favicon-32.png') }}">
+    @if (file_exists(public_path('images/bm-mark.png')))
+        <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
+    @endif
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>[x-cloak]{display:none!important}</style>
 </head>

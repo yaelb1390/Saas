@@ -27,7 +27,9 @@
 
 <script>
     (function () {
-        var deferred = null;
+        // El evento vive en `window` y no en una variable local: el icono de instalar de la barra
+        // superior (`components/panel/install-app`) usa el MISMO, y solo se puede lanzar una vez.
+        window.bmosInstalarEvento = window.bmosInstalarEvento || null;
         var dismissed = false;
         try { dismissed = localStorage.getItem('pwa_install_banner') === '1'; } catch (e) {}
 
@@ -36,16 +38,17 @@
 
         window.addEventListener('beforeinstallprompt', function (e) {
             e.preventDefault();          // evita el mini-infobar por defecto; usamos nuestro botón
-            deferred = e;
+            window.bmosInstalarEvento = e;
             if (banner && !dismissed) { banner.style.display = 'block'; }
         });
 
         if (btn) {
             btn.addEventListener('click', function () {
+                var deferred = window.bmosInstalarEvento;
                 if (!deferred) { return; }
+                window.bmosInstalarEvento = null;
                 deferred.prompt();
                 deferred.userChoice.finally(function () {
-                    deferred = null;
                     if (banner) { banner.style.display = 'none'; }
                 });
             });

@@ -278,6 +278,8 @@
             </div>
 
             <div class="flex items-center gap-3">
+                <x-panel.install-app />
+
                 {{-- La ayuda se pide en el momento en que uno se atasca, así que tiene que estar en
                      todas las pantallas y no escondida en un menú. --}}
                 <a href="{{ route('panel.help') }}" title="Ayuda"

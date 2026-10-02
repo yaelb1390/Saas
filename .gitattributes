@@ -1,5 +1,9 @@
 * text=auto eol=lf
 
+# Esquemas oficiales de la DGII: se guardan byte a byte como los publica la DGII (con CRLF y BOM).
+# Convertir los saltos de línea cambia su huella sha256 y el módulo e-CF los daría por alterados.
+/resources/dgii/** -text
+
 *.blade.php diff=html
 *.css diff=css
 *.html diff=html

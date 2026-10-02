@@ -21,7 +21,7 @@
     <meta property="og:url" content="{{ url()->current() }}">
     @if (file_exists(public_path('images/bm-mark.png')))
         <meta property="og:image" content="{{ asset('images/bm-mark.png') }}">
-        <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('images/favicon-32.png') }}">
     @endif
 
     {{-- Cargamos CSS y JS para activar Alpine.js --}}

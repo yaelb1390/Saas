@@ -6,7 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Acceso Suspendido · {{ $platformName }}</title>
     @if (file_exists(public_path('images/bm-mark.png')))
-        <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('images/favicon-32.png') }}">
     @endif
     <style>
         :root {

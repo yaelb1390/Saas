@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Nueva contraseña · BM Business OS</title>
-    @if (file_exists(public_path('images/bm-mark.png')))
-        <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
-    @endif
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('images/favicon-32.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     {{-- Respaldo para `npm run dev`: ahí Vite inyecta el CSS por JavaScript y llegaría tarde.
          En producción esta regla ya viaja en app.css; aquí va en el <head> y no al final del

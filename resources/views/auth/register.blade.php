@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Crear cuenta · BM Business OS</title>
-    @if (file_exists(public_path('images/bm-mark.png')))
-        <link rel="icon" type="image/png" href="{{ asset('images/bm-mark.png') }}">
-    @endif
     @include('partials.pwa-head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     {{-- Respaldo para `npm run dev`: ahí Vite inyecta el CSS por JavaScript y llegaría tarde.

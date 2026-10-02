@@ -15,6 +15,7 @@ use App\Modules\Help\Models\AssistantQuestion;
 use App\Modules\Help\Services\AssistantAnswerer;
 use App\Modules\Help\Services\HelpAnswerer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -270,11 +271,13 @@ it('el hilo se recuerda entre preguntas y se puede borrar', function (): void {
     $this->actingAs($this->owner)
         ->postJson(route('panel.assistant.ask'), ['pregunta' => 'como anulo una venta'])->assertOk();
 
-    expect(session()->get('asistente.hilo.'.$this->company->id))->toHaveCount(1);
+    $clave = AssistantAnswerer::claveDeHilo($this->company->id);
+
+    expect(Cache::get($clave))->toHaveCount(1);
 
     $this->actingAs($this->owner)->deleteJson(route('panel.assistant.reset'))->assertOk();
 
-    expect(session()->get('asistente.hilo.'.$this->company->id))->toBeNull();
+    expect(Cache::get($clave))->toBeNull();
 });
 
 // -------------------------------------------------- La empresa activa no es la del usuario

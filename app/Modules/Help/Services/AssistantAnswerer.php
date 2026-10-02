@@ -6,6 +6,7 @@ namespace App\Modules\Help\Services;
 
 use App\Models\User;
 use App\Modules\Help\Models\AssistantQuestion;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
@@ -29,18 +30,34 @@ final class AssistantAnswerer
      */
     private const TURNOS_RECORDADOS = 3;
 
+    /**
+     * Cuánto sobrevive el hilo sin preguntas nuevas.
+     *
+     * Una conversación de ayuda es corta por naturaleza; media hora de silencio ya es otra sesión de
+     * trabajo, no una pausa a media pregunta.
+     */
+    private const MINUTOS_VIVO = 30;
+
     public function __construct(private readonly HelpAnswerer $answerer) {}
 
     /**
-     * La clave del hilo en la sesión, por empresa.
+     * La clave del hilo en caché, por usuario y por empresa.
      *
-     * Lleva la empresa porque el operador de la plataforma cambia de una a otra sin cerrar sesión: sin
-     * esto, se llevaría el hilo de una empresa a la siguiente y el asistente contestaría con contexto
-     * ajeno.
+     * No va en la sesión HTTP a propósito: con la sesión en cookie (sin Redis en producción, y la
+     * alternativa —sesión en la base de datos— paga un viaje a la BD en CADA petición del panel, no
+     * solo al preguntarle algo al asistente), un hilo de tres turnos con hasta 1500 caracteres cada uno
+     * se sale del límite de una cookie. El historial de la conversación es estado efímero, no identidad
+     * de sesión, así que vive en caché —que en producción también es la base de datos, pero se lee una
+     * vez por pregunta, no en cada clic—.
+     *
+     * Por usuario y no por ID de sesión: el ID de sesión se regenera al iniciar sesión (y en los tests,
+     * entre peticiones separadas), así que un hilo indexado por sesión se perdería solo. Lleva la
+     * empresa porque el operador de la plataforma cambia de una a otra sin cerrar sesión y, sin esto, se
+     * llevaría el hilo de una empresa a la siguiente y el asistente contestaría con contexto ajeno.
      */
     public static function claveDeHilo(int $companyId): string
     {
-        return "asistente.hilo.{$companyId}";
+        return 'asistente.hilo.'.(auth()->id() ?? 'anon').'.'.$companyId;
     }
 
     /**
@@ -57,7 +74,7 @@ final class AssistantAnswerer
         $clave = self::claveDeHilo($companyId);
 
         /** @var list<array{pregunta: string, respuesta: string}> $hilo */
-        $hilo = session()->get($clave, []);
+        $hilo = Cache::get($clave, []);
 
         $resultado = $this->answerer->answer($pregunta, $usuario, $hilo);
 
@@ -80,7 +97,7 @@ final class AssistantAnswerer
 
         if ($texto !== null) {
             $hilo[] = ['pregunta' => $pregunta, 'respuesta' => Str::limit($texto, 1500, '')];
-            session()->put($clave, array_slice($hilo, -self::TURNOS_RECORDADOS));
+            Cache::put($clave, array_slice($hilo, -self::TURNOS_RECORDADOS), now()->addMinutes(self::MINUTOS_VIVO));
         }
 
         return [

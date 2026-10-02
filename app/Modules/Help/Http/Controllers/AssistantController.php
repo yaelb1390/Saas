@@ -10,6 +10,7 @@ use App\Modules\Help\Services\AssistantAnswerer;
 use App\Modules\Help\Services\AssistantQuota;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * El asistente de la burbuja: una pregunta, una respuesta, sin salir de la pantalla.
@@ -62,8 +63,8 @@ final class AssistantController extends Controller
     /**
      * Empezar de cero.
      *
-     * Hace falta de verdad: el hilo vive en la sesión y va con el usuario de pantalla en pantalla, así
-     * que sin esto una conversación sobre las ventas de ayer seguiría dando contexto a una pregunta de
+     * Hace falta de verdad: el hilo vive en caché y va con la sesión de pantalla en pantalla, así que
+     * sin esto una conversación sobre las ventas de ayer seguiría dando contexto a una pregunta de
      * inventario tres horas después.
      */
     public function reset(CurrentCompany $actual): JsonResponse
@@ -72,7 +73,7 @@ final class AssistantController extends Controller
 
         abort_unless($empresa !== null && $empresa->usaAsistente(), 403);
 
-        session()->forget(AssistantAnswerer::claveDeHilo($empresa->id));
+        Cache::forget(AssistantAnswerer::claveDeHilo($empresa->id));
 
         return response()->json(['ok' => true]);
     }

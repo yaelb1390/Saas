@@ -29,3 +29,17 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="{{ $barraEstado }}">
 <meta name="apple-mobile-web-app-title" content="BM Business">
 <link rel="apple-touch-icon" href="{{ asset('images/apple-touch-icon.png') }}">
+
+{{-- Icono de pestaña y de la barra de la app instalada: transparente, para que sobre la barra oscura
+     no se vea como un cuadro blanco. `/favicon.ico` queda de reserva para navegadores viejos. --}}
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('images/favicon-32.png') }}">
+
+{{-- Instalada, la ventana ya enseña el nombre de la app delante del título: quitar el «· BM Business
+     OS» del final evita que salga dos veces («BM Business OS - Ventas · BM Business OS»). --}}
+<script>
+    if (window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches) {
+        document.addEventListener('DOMContentLoaded', function () {
+            document.title = document.title.replace(/\s*[·|-]\s*BM Business OS\s*$/, '');
+        });
+    }
+</script>

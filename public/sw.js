@@ -16,7 +16,8 @@
 // v3: se añade la reserva de las pantallas del POS para poder vender sin conexión. Subir la versión
 // es obligatorio o los navegadores que ya tienen cacheada la v2 nunca la verían.
 // v4: página de resguardo propia cuando una pantalla no abre por falta de red.
-const VERSION = 'v4';
+// v5: iconos nuevos en los manifiestos; sin esto la caché seguiría sirviendo el manifiesto viejo.
+const VERSION = 'v5';
 const STATIC_CACHE = `bmos-static-${VERSION}`;
 const POS_CACHE = `bmos-pos-${VERSION}`;
 

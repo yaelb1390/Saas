@@ -1,0 +1,136 @@
+{
+  "version": "1.0",
+  "descargado": "2026-10-02",
+  "fuente": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Paginas/documentacionSobreE-CF.aspx",
+  "nota": "Archivos oficiales sin modificar (algunos traen BOM UTF-8). La DGII cambia contenido sin subir la versión 1.0: registrar la fecha_dgii, no solo la versión. Ver docs/FACTURACION_ELECTRONICA.md.",
+  "documentos_de_referencia": {
+    "Formato Comprobante Fiscal Electrónico (e-CF) V1.0": "2025-10-30",
+    "Descripción Técnica Servicios DGII": "2026-05-29",
+    "Descripción Técnica Servicios Emisores Electrónicos": "2026-05-29",
+    "Informe Técnico e-CF v1.0": "2026-04-06",
+    "Firmado de e-CF": "2023-11-22",
+    "Representación Impresa (Modelos ilustrativos)": "2025-04-22"
+  },
+  "archivos": {
+    "ecf-31.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 31 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 31 v.1.0.xsd",
+      "bytes": 123019,
+      "sha256": "6f2909a93d84919518d2ae3c77fead4b35c3e8c95996b8af67b0040c2e2be298"
+    },
+    "ecf-32.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 32 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 32 v.1.0.xsd",
+      "bytes": 122998,
+      "sha256": "151676df03c61335b4ac1eca97f99395488d57ea92793b49353602871e651f3c"
+    },
+    "ecf-33.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 33 v.1.0.xsd",
+      "fecha_dgii": "2026-04-01",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 33 v.1.0.xsd",
+      "bytes": 124484,
+      "sha256": "087cd71beba11c19cf548e22b96363cb4aa210dc6f5c3c8a62122a42c88d2866"
+    },
+    "ecf-34.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 34 v.1.0.xsd",
+      "fecha_dgii": "2026-04-01",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 34 v.1.0.xsd",
+      "bytes": 122024,
+      "sha256": "6c62ebabdea9a6f6d62ae85d9e1c2eb788f44f3f0b61945fe116700c4eaac2da"
+    },
+    "ecf-41.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 41 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 41 v.1.0.xsd",
+      "bytes": 111171,
+      "sha256": "eae1993c637375bc1cbe80932411d87f5680cd54e77e4d1b2752d72a6c8b2ab3"
+    },
+    "ecf-43.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 43 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 43 v.1.0.xsd",
+      "bytes": 96111,
+      "sha256": "776f030980c2c50cf0221e9263c55f367c8631727adff00ab45e2c7c1abafc52"
+    },
+    "ecf-44.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 44 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 44 v.1.0.xsd",
+      "bytes": 114302,
+      "sha256": "19834f37a9f0e2db40f00c80d07c2bf92f9019f23474480f32cef1ba06af4e67"
+    },
+    "ecf-45.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 45 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 45 v.1.0.xsd",
+      "bytes": 121785,
+      "sha256": "030492cc8ef7d1a09a89b16b241f8e5c4920dfd09c0b629b1db8e68406ecd6ca"
+    },
+    "ecf-46.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 46 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 46 v.1.0.xsd",
+      "bytes": 115951,
+      "sha256": "e7f8613ade25c7efb88e84d34d7c0ad330d1b22238ad9ef90c80aed01911d67b"
+    },
+    "ecf-47.xsd": {
+      "raiz": "ECF",
+      "titulo_dgii": "e-CF 47 v.1.0.xsd",
+      "fecha_dgii": "2025-10-16",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/e-CF 47 v.1.0.xsd",
+      "bytes": 101382,
+      "sha256": "14daf18f52f63dd80e439a18fb60a102d74e71243ee90ee253367f61ce8e1994"
+    },
+    "rfce-32.xsd": {
+      "raiz": "RFCE",
+      "titulo_dgii": "RFCE 32 v.1.0.xsd",
+      "fecha_dgii": "2023-06-20",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/RFCE 32 v.1.0.xsd",
+      "bytes": 15325,
+      "sha256": "6aad535875661b05eef072963295202fc94b3b320b257791feb8d3c39a5f8ee6"
+    },
+    "arecf.xsd": {
+      "raiz": "ARECF",
+      "titulo_dgii": "ARECF v1.0.xsd",
+      "fecha_dgii": "2023-06-20",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/ARECF v1.0.xsd",
+      "bytes": 2871,
+      "sha256": "c6d186167159110959eb3f54706ecc7462ad9128fc2c3e03440c8352b1c66f10"
+    },
+    "anecf.xsd": {
+      "raiz": "ANECF",
+      "titulo_dgii": "ANECF v.1.0.xsd",
+      "fecha_dgii": "2023-06-20",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/ANECF v.1.0.xsd",
+      "bytes": 5160,
+      "sha256": "af2e6a16c2900dfa55264d6ebec58ccbbbb25c1eb9821ee18ccc44fc142d0e78"
+    },
+    "acecf.xsd": {
+      "raiz": "ACECF",
+      "titulo_dgii": "ACECF v.1.0.xsd",
+      "fecha_dgii": "2022-12-21",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/ACECF v.1.0.xsd",
+      "bytes": 3567,
+      "sha256": "072f65de202df8ec136a8d4493e0592172690a4e181047245401cc2e7b23c095"
+    },
+    "semilla.xsd": {
+      "raiz": "SemillaModel",
+      "titulo_dgii": "Semilla v.1.0.xsd",
+      "fecha_dgii": "2020-11-12",
+      "url": "https://dgii.gov.do/cicloContribuyente/facturacion/comprobantesFiscalesElectronicosE-CF/Documentacin sobre eCF/Documentación Técnica (XSD)/Semilla v.1.0.xsd",
+      "bytes": 487,
+      "sha256": "bebef2033c930a30c8cef45b513db00403423125a7f3f48e100a73e3e355f67e"
+    }
+  }
+}

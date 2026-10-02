@@ -78,6 +78,18 @@ final class RoleProvisioner
         'fiscal_sequences.manage',
         'purchase_invoices.view',   // comprobantes de compra recibidos (606)
         'purchase_invoices.manage',
+        // Facturación electrónica (e-CF). Un permiso por paso del ciclo y no uno general: firmar usa
+        // el certificado de la empresa y anular inutiliza números autorizados por la DGII, así que
+        // quien consulta documentos no tiene por qué poder hacer ninguna de las dos cosas.
+        'ecf.view',
+        'ecf.configure',
+        'ecf.issue',
+        'ecf.sign',
+        'ecf.send',
+        'ecf.cancel',
+        'ecf.query',
+        'ecf.download',
+        'ecf.audit',
         // CRM
         'customers.view',
         'customers.manage',
@@ -202,6 +214,15 @@ final class RoleProvisioner
             'fiscal_sequences.manage',
             'purchase_invoices.view',
             'purchase_invoices.manage',
+            'ecf.view',
+            'ecf.configure',
+            'ecf.issue',
+            'ecf.sign',
+            'ecf.send',
+            'ecf.cancel',
+            'ecf.query',
+            'ecf.download',
+            'ecf.audit',
             'customers.view',
             'customers.manage',
             'opportunities.view',

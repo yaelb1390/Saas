@@ -11,6 +11,7 @@ use App\Modules\Billing\Http\Controllers\DgiiReportController;
 use App\Modules\Billing\Http\Controllers\InvoiceController;
 use App\Modules\Billing\Http\Controllers\PartsCounterController;
 use App\Modules\Billing\Http\Controllers\PurchaseInvoiceController;
+use App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicInvoicingController;
 use App\Modules\Core\Http\Controllers\CompanyAdminController;
 use App\Modules\Core\Http\Controllers\CompanyDeletionController;
 use App\Modules\Core\Http\Controllers\CompanyProfileController;
@@ -1073,6 +1074,13 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware('can:purchase_invoices.manage')->name('panel.purchase-invoices.update');
         Route::delete('/panel/compras-606/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])
             ->middleware('can:purchase_invoices.manage')->name('panel.purchase-invoices.destroy');
+    });
+
+    // Facturación Electrónica (e-CF). Módulo propio: la configuración, el certificado y el envío a
+    // la DGII son otro circuito que el NCF en papel (ver docs/FACTURACION_ELECTRONICA.md).
+    Route::middleware('module:e_invoicing')->group(function (): void {
+        Route::get('/panel/facturacion-electronica', [ElectronicInvoicingController::class, 'index'])
+            ->middleware('can:ecf.view')->name('panel.e-invoicing');
     });
 
     // Bandeja de WhatsApp. Vincular la línea afecta a toda la empresa: permiso aparte.

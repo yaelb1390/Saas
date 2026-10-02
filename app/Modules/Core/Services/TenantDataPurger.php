@@ -247,6 +247,11 @@ final class TenantDataPurger
         // de la empresa.
         'social_commerce_webhook_events',
 
+        // Configuración de facturación electrónica: datos fiscales del emisor, ambiente y
+        // credenciales del proveedor. Es configuración del dueño, no datos de prueba; y todo lo
+        // fiscal de este módulo se conserva por norma (ver docs/FACTURACION_ELECTRONICA.md).
+        'electronic_invoicing_settings',
+
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',
         'users',

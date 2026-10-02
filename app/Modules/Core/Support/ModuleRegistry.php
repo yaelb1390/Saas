@@ -36,6 +36,10 @@ final class ModuleRegistry
         // publicación (ver docs/social-commerce/SOCIAL_COMMERCE_ARCHITECTURE.md, sección 1).
         'social_commerce' => 'Social Commerce',
         'billing' => 'Facturación',
+        // Comprobantes fiscales electrónicos (e-CF) de la DGII. Aparte de «billing» porque es otro
+        // circuito —XML, firma con certificado, envío y respuesta de la DGII— y necesita su propia
+        // configuración por empresa; se concede a quien ya tiene Facturación.
+        'e_invoicing' => 'Facturación Electrónica',
         'finance' => 'Finanzas',
         'loans' => 'Préstamos',
         'delivery' => 'Entregas',
@@ -75,6 +79,7 @@ final class ModuleRegistry
         'social' => 'Publica en Instagram, Facebook y TikTok a la vez, ahora o programado.',
         'social_commerce' => 'Contesta el precio en los comentarios de Instagram al momento, con tus productos y sin escribir cada respuesta a mano.',
         'billing' => 'Comprobantes fiscales con NCF y los reportes 606 y 607 de la DGII.',
+        'e_invoicing' => 'Prepara tu negocio para emitir comprobantes fiscales electrónicos (e-CF) ante la DGII.',
         'finance' => 'Cuentas, ingresos y gastos para saber en qué se va el dinero.',
         'loans' => 'Préstamos con sus cuotas, pagos y mora al día.',
         'delivery' => 'Reparto a domicilio con seguimiento de cada entrega.',

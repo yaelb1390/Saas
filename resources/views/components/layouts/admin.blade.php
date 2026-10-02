@@ -97,6 +97,7 @@
         'Administración' => [
             ['panel.company-profile', 'Mi empresa', 'id', 'company.manage', null],
             ['panel.printing.index', 'Centro de Impresión', 'printer', 'printing.view', 'printing'],
+            ['panel.e-invoicing', 'Facturación Electrónica', 'receipt', 'ecf.view', 'e_invoicing'],
             ['panel.users', 'Usuarios', 'shield', 'users.manage', null],
             // Estaba solo en el desplegable del avatar: quien no lo abriera nunca encontraba dónde
             // ver su plan ni dónde pagar. Sin módulo asociado: la suscripción no se contrata.
@@ -208,7 +209,7 @@
          no deja encoger esta columna y estira toda la página (en móvil se ve diminuta). --}}
     <div class="flex min-h-screen min-w-0 flex-col">
         <header class="bmos-topbar">
-            <div class="flex items-center gap-3">
+            <div class="flex min-w-0 items-center gap-3">
                 <button class="lg:hidden text-white/90 hover:text-white" @click="open = !open" aria-label="Menú">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-6 h-6">
                         <path stroke-linecap="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
@@ -242,12 +243,13 @@
                     </svg>
                 </button>
                 @if ($isSuper)
-                    <div x-data="{ open: false }" class="relative">
+                    <div x-data="{ open: false }" class="relative min-w-0">
                         <button type="button" @click="open = !open" class="bmos-company-chip">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/>
                             </svg>
-                            {{ $activeCompany?->name ?? 'Plataforma' }}
+                            {{-- Se recorta con «…» si no cabe: un nombre largo empujaba la barra fuera de pantalla. --}}
+                            <span class="min-w-0 truncate">{{ $activeCompany?->name ?? 'Plataforma' }}</span>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
                         </button>
                         <div x-show="open" @click.outside="open = false" x-transition x-cloak
@@ -272,12 +274,14 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/>
                         </svg>
-                        {{ $activeCompany?->name ?? 'Plataforma' }}
+                        <span class="min-w-0 truncate">{{ $activeCompany?->name ?? 'Plataforma' }}</span>
                     </span>
                 @endif
             </div>
 
-            <div class="flex items-center gap-3">
+            {{-- Menos separación en el teléfono: con instalar + ayuda + campana + avatar, el espacio de
+                 escritorio (gap-3) empujaba el avatar 26 px fuera de una pantalla de 390 px. --}}
+            <div class="flex shrink-0 items-center gap-1 sm:gap-3">
                 <x-panel.install-app />
 
                 {{-- La ayuda se pide en el momento en que uno se atasca, así que tiene que estar en
@@ -295,7 +299,7 @@
                     <button class="flex items-center gap-2" @click="menu = !menu">
                         <span class="bmos-avatar">{{ $initial }}</span>
                         <span class="hidden sm:block text-sm font-semibold text-white">{{ $authUser?->name }}</span>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4 text-white/70">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="hidden w-4 h-4 text-white/70 sm:block">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
                         </svg>
                     </button>

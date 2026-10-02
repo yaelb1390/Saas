@@ -6,6 +6,7 @@ use App\Modules\Cash\Providers\CashServiceProvider;
 use App\Modules\Core\Providers\CoreServiceProvider;
 use App\Modules\CRM\Providers\CrmServiceProvider;
 use App\Modules\Dealer\Providers\DealerServiceProvider;
+use App\Modules\ElectronicInvoicing\Providers\ElectronicInvoicingServiceProvider;
 use App\Modules\Delivery\Providers\DeliveryServiceProvider;
 use App\Modules\Finance\Providers\FinanceServiceProvider;
 use App\Modules\HR\Providers\HrServiceProvider;
@@ -31,6 +32,7 @@ return [
     SalesServiceProvider::class,
     POSServiceProvider::class,
     BillingServiceProvider::class,
+    ElectronicInvoicingServiceProvider::class,
     CrmServiceProvider::class,
     WhatsAppServiceProvider::class,
     SocialCommerceServiceProvider::class,

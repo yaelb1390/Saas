@@ -15,9 +15,17 @@
  */
 // v3: se añade la reserva de las pantallas del POS para poder vender sin conexión. Subir la versión
 // es obligatorio o los navegadores que ya tienen cacheada la v2 nunca la verían.
-const VERSION = 'v3';
+// v4: página de resguardo propia cuando una pantalla no abre por falta de red.
+const VERSION = 'v4';
 const STATIC_CACHE = `bmos-static-${VERSION}`;
 const POS_CACHE = `bmos-pos-${VERSION}`;
+
+/**
+ * Lo que se enseña cuando una pantalla no se puede abrir sin red, en vez del dinosaurio del
+ * navegador. No lleva datos —el criterio de arriba sigue en pie—: solo avisa, deja reintentar y
+ * ofrece ir a cobrar, que es lo único que sí funciona sin conexión.
+ */
+const OFFLINE_URL = '/offline.html';
 
 // Todas las cachés que esta versión usa. Las que no estén aquí se borran al activar.
 const CACHES_VIVAS = [STATIC_CACHE, POS_CACHE];
@@ -42,10 +50,28 @@ function esPantallaDeCobro(url) {
     return url.pathname === '/panel/pos' || url.pathname === '/panel/pos-rapido';
 }
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
+    event.waitUntil((async () => {
+        // Se guarda AL INSTALAR y no la primera vez que hace falta: el día que hace falta es
+        // justamente el día que no hay red para ir a buscarla.
+        try {
+            const cache = await caches.open(STATIC_CACHE);
+            await cache.add(new Request(OFFLINE_URL, { cache: 'reload' }));
+        } catch {
+            // Sin la página de resguardo el SW sigue sirviendo: no puede impedir que se instale la
+            // versión que mantiene el cobro sin conexión.
+        }
+    })());
+
     // Activa la versión nueva sin esperar a que se cierren las pestañas viejas.
     self.skipWaiting();
 });
+
+/** La página de resguardo guardada, o un error de red si por algo no llegó a guardarse. */
+async function paginaSinConexion() {
+    const cache = await caches.open(STATIC_CACHE);
+    return (await cache.match(OFFLINE_URL)) ?? Response.error();
+}
 
 self.addEventListener('activate', (event) => {
     event.waitUntil((async () => {
@@ -103,15 +129,23 @@ self.addEventListener('fetch', (event) => {
                 }
 
                 return res;
-            } catch (fallo) {
+            } catch {
                 const enCache = await cache.match(url.pathname);
                 if (enCache) return enCache;
 
-                throw fallo;
+                // El terminal nunca se abrió con red en este equipo: no hay copia que dar.
+                return paginaSinConexion();
             }
         })());
         return;
     }
 
-    // Todo lo demás —páginas y API—: siempre a la red. Sin datos rancios fuera del mostrador.
+    if (req.mode === 'navigate') {
+        // Abrir una pantalla: siempre a la red. Solo si la red FALLA se enseña la página de
+        // resguardo, que no tiene datos. Un 500 o un 302 del servidor pasan tal cual.
+        event.respondWith(fetch(req).catch(() => paginaSinConexion()));
+        return;
+    }
+
+    // Todo lo demás —peticiones de datos—: siempre a la red. Sin datos rancios fuera del mostrador.
 });

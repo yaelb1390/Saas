@@ -81,6 +81,57 @@ final class EcfDataMapper
         ];
     }
 
+    /**
+     * Resumen de la factura de consumo (RFCE) [DT p.15]: por definición es un SUBCONJUNTO de los
+     * datos del e-CF 32 (encabezado y totales, sin detalle) más el código de seguridad del 32 firmado.
+     * Por eso aquí sí se recorta al esquema: se parte del árbol completo del 32 y se queda solo lo
+     * que el XSD del RFCE tiene.
+     *
+     * @return array<string, mixed>
+     */
+    public function toRfceArray(EcfDocument $doc, TaxResult $tax, string $securityCode): array
+    {
+        $rfce = $this->xsd->root($this->schemas->validationPath((string) config('ecf.schemas.rfce')));
+        $completo = $this->toArray($doc, $tax);
+
+        // En el XSD del RFCE, CodigoSeguridadeCF es el último hijo del Encabezado (tras Totales).
+        return [
+            'Encabezado' => [
+                ...$this->recortar($completo['Encabezado'], $rfce->child('Encabezado')),
+                'CodigoSeguridadeCF' => $securityCode,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     * @return array<string, mixed>
+     */
+    private function recortar(array $datos, ?XsdNode $nodo): array
+    {
+        if ($nodo === null) {
+            return [];
+        }
+
+        $resultado = [];
+
+        foreach ($datos as $clave => $valor) {
+            $hijo = $nodo->child((string) $clave);
+
+            if ($hijo === null || $valor === null) {
+                continue;
+            }
+
+            $resultado[$clave] = match (true) {
+                ! is_array($valor) || $hijo->children === [] => $valor,
+                $hijo->isRepeatable() => array_map(fn ($o) => is_array($o) ? $this->recortar($o, $hijo) : $o, $valor),
+                default => $this->recortar($valor, $hijo),
+            };
+        }
+
+        return $resultado;
+    }
+
     /** @return array<string, mixed> */
     private function emisor(EcfParty $p, CarbonInterface $fecha): array
     {

@@ -200,6 +200,60 @@ Los diez tipos (31, 32, 33, 34, 41, 43, 44, 45, 46, 47) generan XML válido cont
 el código de seguridad de la firma → fase 3. Impuestos adicionales, otra moneda, paginación y descuentos
 globales se añadirán cuando un origen de emisión los necesite.
 
+## Fase 3 — Certificado digital y firma (2026-10-03)
+
+### Certificado (`Signature/CertificateVault`, tabla `electronic_certificates`)
+
+- Al subirlo se comprueba de verdad: se abre con su contraseña (`openssl_pkcs12_read`), la clave
+  corresponde al certificado y está vigente. Un certificado que no sirve no se guarda.
+- El `.p12` se **cifra** con la clave de la aplicación (`Crypt`) antes de tocar el disco privado
+  `fiscal_documents` (`FISCAL_DOCUMENTS_DISK`; en producción, S3/R2 privado). La contraseña va con cast
+  `encrypted`. Ninguno de los dos va a la auditoría ni se serializa.
+- Se abre **solo en memoria** (`LoadedCertificate`): la clave privada no se escribe en claro en ningún
+  sitio; `__debugInfo` la oculta y serializarla lanza un error.
+- Reemplazar desactiva el anterior sin borrarlo (para saber con cuál se firmó cada documento).
+- Estado: vigente / por vencer (aviso a 30 días, ajuste de BMIA) / vencido / aún no válido.
+- Pantalla: sección «Certificado digital» (permiso `ecf.configure`, máx. 10 intentos por minuto).
+
+### Firma (`Signature/XmlSigner`)
+
+Perfil verificado [FIR pp.2–3; FMT §G–H]: XMLDSig envuelta, `Reference URI=""`, C14N inclusiva 20010315,
+RSA-SHA256, resumen SHA-256, `KeyInfo` solo con `X509Certificate`, `<Signature>` sin prefijo como último
+hijo (el `xs:any` del XSD) y `<FechaHoraFirma>` GMT-4 escrita antes de firmar.
+
+- **Desvío del plan:** `robrichards/xmlseclibs` 3.1.5 en vez de `selective/xmldsig`. El ejemplo oficial
+  de la DGII usa el segundo, pero está **abandonado** y su autor remite al primero. Mismo perfil de firma.
+- Comprobado en pruebas: la firma se verifica de forma independiente; cambiar un dato la invalida; el XML
+  firmado **valida contra el XSD oficial sin marcador**.
+
+### Código de seguridad (`Signature/SecurityCode`)
+
+[DT p.28; IT p.36]: «primeros seis dígitos del hash generado en el SignatureValue». Implementado como los
+primeros 6 caracteres del SignatureValue: es la única lectura compatible con el ejemplo oficial («dcp79q»,
+alfanumérico; un hash hexadecimal no tendría «p» ni «q»), y el XSD del RFCE solo exige 6 caracteres
+cualesquiera (`.{6}`). **Es una interpretación**: sigue en `pending_verification` hasta confirmarla con el
+servicio de timbre de la DGII en pre-certificación.
+
+### Resumen de factura de consumo (RFCE)
+
+- `EcfXmlGenerator::sendsSummary()`: tipo 32 con total < RD$250.000 [DT pp.12,15].
+- `generateRfce()`: subconjunto del encabezado y totales del 32 (sin detalle) + `CodigoSeguridadeCF` del 32
+  ya firmado, dentro del `Encabezado`. Se firma sin `FechaHoraFirma` (su XSD no la tiene). Validado contra
+  `rfce-32.xsd` (con su errata).
+- El e-CF 32 completo se genera, firma y conserva igual: el RFCE solo cambia qué se envía.
+
+### Migración de la fase
+
+```
+2026_10_03_100200_create_electronic_certificates_table
+```
+
+### Avisos de seguridad de dependencias (preexistentes, fuera de esta fase)
+
+`composer audit` reporta 28 avisos en 7 paquetes que ya estaban en el proyecto (guzzle y commonmark con
+alguno de gravedad alta; dompdf, livewire, phpseclib, laravel/framework, flysystem). Ninguno en xmlseclibs.
+Conviene actualizarlos en una tarea aparte.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

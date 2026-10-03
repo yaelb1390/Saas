@@ -9,7 +9,10 @@ use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\ElectronicInvoicing\Application\RuntimeRequirements;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
 use App\Modules\ElectronicInvoicing\Domain\Environment;
+use App\Modules\ElectronicInvoicing\Http\Requests\StoreCertificateRequest;
 use App\Modules\ElectronicInvoicing\Http\Requests\StoreElectronicNcfSequenceRequest;
+use App\Modules\ElectronicInvoicing\Signature\CertificateException;
+use App\Modules\ElectronicInvoicing\Signature\CertificateVault;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
 use App\Modules\ElectronicInvoicing\Models\ElectronicNcfSequence;
 use App\Modules\ElectronicInvoicing\Ncf\ElectronicNcfService;
@@ -46,6 +49,7 @@ final class ElectronicInvoicingController extends Controller
             'secuencias' => DbTable::existe('electronic_ncf_sequences')
                 ? ElectronicNcfSequence::query()->orderBy('environment')->orderBy('ecf_type')->orderBy('id')->get()
                 : collect(),
+            'certificado' => DbTable::existe('electronic_certificates') ? app(CertificateVault::class)->active($empresa) : null,
             'ambientes' => Environment::cases(),
             'ncf' => $ncf,
             'migracionPendiente' => $migracionPendiente,
@@ -55,6 +59,33 @@ final class ElectronicInvoicingController extends Controller
             'requisitos' => $requisitos->check(),
             'pendientes' => (array) config('ecf.pending_verification', []),
         ]);
+    }
+
+    /**
+     * Sube (o reemplaza) el certificado digital de firma. El anterior queda desactivado, no borrado.
+     */
+    public function storeCertificate(StoreCertificateRequest $request, CurrentCompany $actual, CertificateVault $vault): RedirectResponse
+    {
+        if (! DbTable::existe('electronic_certificates')) {
+            return back()->with('panel_error', 'Falta aplicar las migraciones de facturación electrónica.');
+        }
+
+        $empresa = $actual->model();
+        abort_if($empresa === null, 404);
+
+        try {
+            $cert = $vault->store(
+                $empresa,
+                (string) file_get_contents((string) $request->file('certificate')->getRealPath()),
+                (string) $request->input('password'),
+                $request->user()?->id,
+            );
+        } catch (CertificateException $e) {
+            // El mensaje nunca incluye la contraseña ni la clave.
+            return back()->withErrors(['certificate' => $e->getMessage()]);
+        }
+
+        return back()->with('panel_ok', "Certificado guardado. Vence el {$cert->valid_to->format('d/m/Y')}.");
     }
 
     /**

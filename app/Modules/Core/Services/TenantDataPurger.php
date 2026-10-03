@@ -255,6 +255,8 @@ final class TenantDataPurger
         // volver a entregar números ya usados al registrar otra vez el mismo rango.
         'electronic_ncf_sequences',
         'electronic_ncf_releases',
+        // El certificado de firma es una credencial del dueño, no un dato de prueba.
+        'electronic_certificates',
 
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',

@@ -210,6 +210,24 @@ return [
     'retention_years' => 10,
 
     /*
+     * Ajuste de BMIA (no es una regla de la DGII): con cuántos días de antelación se avisa de que el
+     * certificado de firma va a vencer.
+     */
+    'certificate_warning_days' => 30,
+
+    /*
+     * Código de seguridad: «los primeros seis (6) dígitos del hash generado en el SignatureValue»
+     * [DT p.28; IT p.36]. El texto no define el algoritmo de ese «hash»; el ejemplo oficial («dcp79q»)
+     * es alfanumérico, compatible con los primeros 6 caracteres del propio SignatureValue (base64) y NO
+     * con un hash hexadecimal (no lleva «p» ni «q»). Se implementa esa lectura como INTERPRETACIÓN,
+     * pendiente de confirmar en pre-certificación (el servicio de timbre de la DGII lo valida).
+     */
+    'security_code' => [
+        'strategy' => 'signature_value_prefix',
+        'length' => 6,
+    ],
+
+    /*
      * Plazos de contingencia [IT §19, Decreto 587-24]. Solo se usan para AVISAR; el procedimiento
      * en sí sigue la documentación oficial.
      */

@@ -32,7 +32,10 @@ final class XmlValidator
         $raiz = $copia->documentElement;
 
         if ($raiz instanceof DOMElement && $this->esquemaPideFirma($xsdPath)) {
-            if ($this->hijo($raiz, 'FechaHoraFirma') === null) {
+            // Solo si el esquema la tiene: el RFCE, por ejemplo, se firma sin FechaHoraFirma.
+            $tieneFecha = (new XsdTree)->root($xsdPath)->child('FechaHoraFirma') !== null;
+
+            if ($tieneFecha && $this->hijo($raiz, 'FechaHoraFirma') === null) {
                 $fecha = $copia->createElement('FechaHoraFirma');
                 $fecha->appendChild($copia->createTextNode(now()->setTimezone((string) config('ecf.formats.signature_utc_offset', '-04:00'))->format((string) config('ecf.formats.datetime', 'd-m-Y H:i:s'))));
                 $raiz->appendChild($fecha);

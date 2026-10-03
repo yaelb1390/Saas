@@ -65,6 +65,14 @@ return [
     'company_logos' => env('COMPANY_LOGO_DISK', env('PRODUCT_IMAGE_DISK', 'local')),
 
     /*
+     * Documentos fiscales electrónicos: certificados (.p12, CIFRADOS), XML firmados y respuestas de la
+     * DGII. Nunca públicos: no se sirven por URL, solo los lee el servidor. En Vercel el sistema de
+     * ficheros es de solo lectura, así que en producción debe ser un disco S3/R2 privado
+     * (FISCAL_DOCUMENTS_DISK). Lo que se guarda aquí se conserva 10 años (config/ecf.php).
+     */
+    'fiscal_documents' => env('FISCAL_DOCUMENTS_DISK', env('PRODUCT_IMAGE_DISK', 'local')),
+
+    /*
     |--------------------------------------------------------------------------
     | Entregar los ficheros con una dirección firmada
     |--------------------------------------------------------------------------

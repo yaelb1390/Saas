@@ -59,9 +59,19 @@
                     <dt class="text-slate-500">Usuario administrador e-CF</dt>
                     <dd class="text-slate-800">{{ $ajustes?->ecf_admin_user ?: 'Sin configurar' }}</dd>
                 </div>
+                @php
+                    $estadoCert = $certificado?->status();
+                    $etiquetaCert = match ($estadoCert) {
+                        'vigente' => ['Vigente hasta '.$certificado->valid_to->format('d/m/Y'), 'badge-green'],
+                        'por_vencer' => ['Vence el '.$certificado->valid_to->format('d/m/Y'), 'badge-amber'],
+                        'vencido' => ['Vencido', 'badge-red'],
+                        'aun_no_valido' => ['Aún no es válido', 'badge-amber'],
+                        default => ['No configurado', 'badge-gray'],
+                    };
+                @endphp
                 <div class="flex items-center justify-between gap-3 py-2">
                     <dt class="text-slate-500">Certificado digital</dt>
-                    <dd class="text-slate-800">No configurado</dd>
+                    <dd><span class="bmos-badge {{ $etiquetaCert[1] }}">{{ $etiquetaCert[0] }}</span></dd>
                 </div>
                 <div class="flex items-center justify-between gap-3 py-2">
                     <dt class="text-slate-500">Última comunicación con la DGII</dt>
@@ -72,6 +82,59 @@
                     <dd class="text-slate-800">0 · 0 · 0</dd>
                 </div>
             </dl>
+        </div>
+
+        <div class="bmos-card bmos-card-pad">
+            <p class="font-semibold text-slate-800">Certificado digital</p>
+            <p class="mt-1 text-xs text-slate-500">
+                El certificado para procesos tributarios con el que se firman los e-CF, emitido por una prestadora acreditada
+                por INDOTEL. Se guarda cifrado y la clave privada nunca se muestra.
+            </p>
+
+            @if ($certificado)
+                <dl class="mt-4 divide-y divide-slate-100 text-sm">
+                    <div class="flex items-start justify-between gap-3 py-2">
+                        <dt class="shrink-0 text-slate-500">Titular</dt>
+                        <dd class="min-w-0 break-words text-right text-slate-800">{{ $certificado->subject }}</dd>
+                    </div>
+                    <div class="flex items-start justify-between gap-3 py-2">
+                        <dt class="shrink-0 text-slate-500">Emitido por</dt>
+                        <dd class="min-w-0 break-words text-right text-slate-600">{{ $certificado->issuer }}</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 py-2">
+                        <dt class="text-slate-500">Válido</dt>
+                        <dd class="text-slate-800">{{ $certificado->valid_from->format('d/m/Y') }} – {{ $certificado->valid_to->format('d/m/Y') }}</dd>
+                    </div>
+                </dl>
+            @else
+                <p class="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-500">Todavía no hay un certificado cargado.</p>
+            @endif
+
+            @can('ecf.configure')
+                @if (! $migracionPendiente)
+                    <form method="POST" action="{{ route('panel.e-invoicing.certificate.store') }}" enctype="multipart/form-data"
+                          class="mt-4 rounded-lg border border-slate-200 p-3">
+                        @csrf
+                        <p class="text-sm font-medium text-slate-800">{{ $certificado ? 'Reemplazar el certificado' : 'Subir el certificado' }}</p>
+                        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div class="sm:col-span-2">
+                                <label class="bmos-field-label" for="cert-archivo">Archivo .p12 o .pfx</label>
+                                <input id="cert-archivo" name="certificate" type="file" accept=".p12,.pfx" class="bmos-input">
+                            </div>
+                            <div>
+                                <label class="bmos-field-label" for="cert-clave">Contraseña</label>
+                                <input id="cert-clave" name="password" type="password" autocomplete="off" class="bmos-input">
+                            </div>
+                        </div>
+                        <div class="mt-3 flex justify-end">
+                            <button type="submit" class="bmos-btn bmos-btn-primary">Guardar certificado</button>
+                        </div>
+                        @error('certificate')
+                            <p class="mt-2 text-xs text-rose-600">{{ $message }}</p>
+                        @enderror
+                    </form>
+                @endif
+            @endcan
         </div>
 
         <div class="bmos-card bmos-card-pad">
@@ -164,9 +227,10 @@
                                 <button type="submit" class="bmos-btn bmos-btn-primary w-full justify-center">Registrar</button>
                             </div>
                         </div>
-                        @if ($errors->any())
+                        @php($erroresSecuencia = collect(['environment', 'ecf_type', 'range_from', 'range_to', 'authorized_at', 'expires_at'])->flatMap(fn ($c) => $errors->get($c)))
+                        @if ($erroresSecuencia->isNotEmpty())
                             <ul class="mt-3 space-y-1 text-xs text-rose-600">
-                                @foreach ($errors->all() as $error)
+                                @foreach ($erroresSecuencia as $error)
                                     <li>{{ $error }}</li>
                                 @endforeach
                             </ul>

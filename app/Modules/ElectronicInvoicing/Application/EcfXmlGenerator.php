@@ -64,4 +64,34 @@ final class EcfXmlGenerator
             $this->schemas->schemaDate($doc->type),
         );
     }
+
+    /**
+     * ¿Esta factura se envía como resumen (RFCE) en vez de completa? Solo el tipo 32 con total por
+     * debajo del umbral oficial [DT pp.12,15; IT §9]. El e-CF completo se genera, firma y conserva
+     * igual: lo que cambia es qué se ENVÍA.
+     */
+    public function sendsSummary(EcfDocument $doc, ?string $total): bool
+    {
+        return $doc->type->value === 32
+            && $total !== null
+            && bccomp($total, (string) config('ecf.consumo.rfce_threshold', '250000.00'), 2) < 0;
+    }
+
+    /**
+     * El RFCE de una factura de consumo YA firmada: necesita su código de seguridad.
+     */
+    public function generateRfce(EcfDocument $doc, string $securityCode): EcfGenerationResult
+    {
+        $base = $this->generate($doc);
+
+        if (! $base->isValid() || $base->tax === null) {
+            return $base;
+        }
+
+        $ruta = $this->schemas->validationPath((string) config('ecf.schemas.rfce'));
+        $xml = $this->builder->buildFromSchema($ruta, $this->mapper->toRfceArray($doc, $base->tax, $securityCode));
+        $errores = $this->xmlValidator->validateUnsigned($xml, $ruta);
+
+        return new EcfGenerationResult($errores === [] ? $xml : null, $errores, $base->tax, null);
+    }
 }

@@ -58,11 +58,15 @@ class Product extends Model implements Auditable, HasCompany
         'tracks_serials',
         'is_active',
         'is_available',
+        // Indicador de facturación del e-CF (1 = ITBIS 18 %, 2 = 16 %, 3 = 0 %, 4 = exento). Entero y
+        // no el enum del módulo de facturación electrónica: Inventario no depende de ese módulo.
+        'itbis_indicator',
     ];
 
     protected function casts(): array
     {
         return [
+            'itbis_indicator' => 'integer',
             'cost' => 'decimal:2',
             'price' => 'decimal:2',
             'year_from' => 'integer',

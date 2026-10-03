@@ -138,6 +138,16 @@
                         <x-panel.field name="cost" label="Costo" type="number" step="0.01" value="0" />
                         <x-panel.field name="price" label="Precio" type="number" step="0.01" value="0" />
                     </div>
+                    @if ($pideIndicadorItbis)
+                        <div>
+                            <label class="bmos-field-label" for="crear-itbis">ITBIS en la factura electrónica</label>
+                            <select id="crear-itbis" name="itbis_indicator" class="bmos-input">
+                                @foreach (\App\Modules\ElectronicInvoicing\Tax\BillingIndicator::forProducts() as $ind)
+                                    <option value="{{ $ind->value }}" @selected((int) old('itbis_indicator', 1) === $ind->value)>{{ $ind->label() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     <div class="grid grid-cols-2 gap-3">
                         <x-panel.field name="unit" label="Unidad" value="unidad" />
                         <x-panel.field name="initial_stock" label="Stock inicial" type="number" step="1" value="0" />
@@ -401,7 +411,7 @@
                                         @endcan
                                         @can('products.manage')
                                         <button type="button" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600" title="Editar"
-                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), description: @js($product->description), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, tracks_serials: {{ $product->tracks_serials ? 'true' : 'false' }}, image: @js($product->imageUrl()) })">
+                                                @click="edit({ id: {{ $product->id }}, sku: @js($product->sku), name: @js($product->name), barcode: @js($product->barcode), category_id: '{{ $product->category_id }}', unit: @js($product->unit), cost: '{{ $product->cost }}', price: '{{ $product->price }}', part_number: @js($product->part_number), brand: @js($product->brand), vehicle_make: @js($product->vehicle_make), vehicle_model: @js($product->vehicle_model), year_from: '{{ $product->year_from }}', year_to: '{{ $product->year_to }}', location: @js($product->location), description: @js($product->description), track_stock: {{ $product->track_stock ? 'true' : 'false' }}, tracks_serials: {{ $product->tracks_serials ? 'true' : 'false' }}, itbis_indicator: '{{ $product->itbis_indicator ?? 1 }}', image: @js($product->imageUrl()) })">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-4.5 w-4.5" style="width:1.15rem;height:1.15rem"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"/></svg>
                                         </button>
                                         {{-- Copia los datos de catálogo a un producto nuevo, con SKU
@@ -497,6 +507,16 @@
                         <div><label class="bmos-field-label">Costo</label><input name="cost" type="number" step="0.01" x-model="row.cost" class="bmos-input"></div>
                         <div><label class="bmos-field-label">Precio</label><input name="price" type="number" step="0.01" x-model="row.price" class="bmos-input"></div>
                     </div>
+                    @if ($pideIndicadorItbis)
+                        <div>
+                            <label class="bmos-field-label">ITBIS en la factura electrónica</label>
+                            <select name="itbis_indicator" x-model="row.itbis_indicator" class="bmos-input">
+                                @foreach (\App\Modules\ElectronicInvoicing\Tax\BillingIndicator::forProducts() as $ind)
+                                    <option value="{{ $ind->value }}">{{ $ind->label() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     <div><label class="bmos-field-label">Unidad</label><input name="unit" x-model="row.unit" class="bmos-input"></div>
                     <label class="flex items-center gap-2 text-sm text-slate-600">
                         <input type="hidden" name="track_stock" value="0">
@@ -799,7 +819,7 @@
                     };
                 },
 
-                row: { id: '', sku: '', name: '', barcode: '', category_id: '', unit: '', cost: '', price: '', track_stock: true, tracks_serials: false,
+                row: { id: '', sku: '', name: '', barcode: '', category_id: '', unit: '', cost: '', price: '', track_stock: true, tracks_serials: false, itbis_indicator: '1',
                        part_number: '', brand: '', vehicle_make: '', vehicle_model: '', year_from: '', year_to: '', location: '' },
                 get editUrl() { return '{{ url('panel/inventario') }}/' + this.row.id; },
                 edit(data) { this.row = { ...data }; this.open = true; },
@@ -899,6 +919,7 @@
                             year_from: '{{ old('year_from') }}', year_to: '{{ old('year_to') }}', location: @js(old('location')),
                             track_stock: {{ old('track_stock', 1) ? 'true' : 'false' }},
                             tracks_serials: {{ old('tracks_serials', 0) ? 'true' : 'false' }},
+                            itbis_indicator: '{{ (int) old('itbis_indicator', 1) }}',
                         };
                         this.open = true;
                     @endif

@@ -77,6 +77,8 @@ final class StoreProductRequest extends FormRequest
             // Desmarcar «controla stock» convierte el producto en un servicio (no descuenta stock).
             'track_stock' => ['nullable', 'boolean'],
             'tracks_serials' => ['nullable', 'boolean'],
+            // Indicador de ITBIS para el e-CF: 1, 2, 3 (tasas) o 4 (exento) [Formato e-CF, campo 4].
+            'itbis_indicator' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
             // Foto del producto (opcional).
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:15360'],
             ...$this->partFieldRules(),

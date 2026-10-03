@@ -30,6 +30,9 @@ final class FiscalSequenceService
                 ->where('company_id', $companyId)
                 ->where('type', $type)
                 ->where('is_active', true)
+                // Sin orden, con dos secuencias activas del mismo tipo la base devolvía cualquiera
+                // y se podía consumir la nueva antes de agotar la vieja. La más antigua primero.
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->first();
 

@@ -75,7 +75,77 @@ tocar el XSD.
 
 Idempotentes y solo aditivas. El código es seguro sin ellas (la pantalla avisa).
 
-### Corrección incluida: barra superior en el teléfono
+## Fase 1 — Datos fiscales y e-NCF (2026-10-03)
+
+### Motor de impuestos por línea (`Tax/TaxEngine`)
+
+Reglas tomadas del Formato e-CF [FMT]:
+
+| Regla | Campo [FMT] |
+|---|---|
+| Indicador de facturación: 0 no facturable · 1 ITBIS 18 % · 2 ITBIS 16 % · 3 ITBIS 0 % · 4 exento | sección B, campo 4 |
+| Monto del ítem = precio × cantidad − descuento + recargo | campo 39 |
+| Precios con ITBIS incluido (indicador monto gravado = 1): gravado = suma de la tasa ÷ (1 + tasa) | campos 7, 93–95 |
+| ITBIS de una tasa = monto gravado × tasa | campos 101–103 |
+| Exento = suma de ítems con indicador 4 | campo 96 |
+| Total = gravado + exento + ITBIS | campo 110 |
+
+- Tasas en `config/ecf.php` (`itbis.rates`), no en código.
+- `Core\Support\TaxCalculator` (serie B) **no se toca**: sigue calculando el documento entero al 18 %.
+- **Hallazgo — diferencia de un céntimo.** Con precios con ITBIS incluido, la fórmula oficial no siempre
+  vuelve a sumar lo cobrado. Ejemplo: cobrado RD$100,00 → gravado 84,75 → ITBIS 15,26 → total declarado
+  100,01; la serie B declara ITBIS = cobrado − base = 15,25. El motor lo expone en `TaxResult::difference`.
+  Un barrido de RD$0,01 a RD$500 confirma que nunca pasa de ±0,01.
+- **Pendiente de verificar:** [FMT nota 11] cita «la regla de redondeos» sin definirla, y ningún documento
+  revisado dice si la DGII tolera esa diferencia. Redondeo actual: mitad hacia arriba (configurable,
+  `itbis.rounding`). Se confirmará con las primeras pruebas contra el ambiente de pre-certificación.
+- Impuestos adicionales (selectivos, ad valorem) y retenciones: se añadirán con los tipos de e-CF que los
+  usan, desde su especificación.
+
+### Indicador de ITBIS por producto
+
+- Columna `products.itbis_indicator` (por omisión 1 = 18 %, lo mismo que hoy: no cambia nada para nadie).
+- Selector «ITBIS en la factura electrónica» en alta y edición de productos, **solo** si la empresa tiene
+  el módulo `e_invoicing` (la serie B no lo lee; enseñarlo sin el módulo haría creer que «exento» cambia el
+  ticket). Duplicar un producto conserva el indicador.
+- Sin la columna (código antes que migración), el campo se descarta en vez de dar un 500.
+
+### Secuencias de e-NCF (`Ncf/ElectronicNcfService`)
+
+- **Desvío del plan, a propósito:** tabla propia `electronic_ncf_sequences` en vez de extender
+  `fiscal_sequences`. El tipo de NCF de la serie B (`NcfType`) se usa en cuatro pantallas y cuatro
+  validaciones; meterle los tipos E los habría mostrado en los desplegables de papel y permitido emitir un
+  e-NCF por ese circuito. Riesgo cero para la serie B.
+- e-NCF = `E` + tipo (2) + secuencial de 10 dígitos [IT §7]; `bigInteger` (10 dígitos no caben en 32 bits).
+- El ambiente es parte de la secuencia: un número de pruebas nunca sale de producción ni al revés.
+- Transacción + bloqueo de fila; se agota la secuencia más antigua antes de abrir la siguiente.
+- `release()`: devuelve al uso un número que la DGII rechazó con `secuenciaUtilizada = false` [DT p.24]
+  (tabla `electronic_ncf_releases`). Se reutiliza **antes** de abrir uno nuevo y **una sola vez**. Solo debe
+  llamarlo quien procese esa respuesta de la DGII (fase 4).
+- Alta de rangos en la pantalla (permiso `ecf.configure`): rechaza rangos que se crucen con otro del mismo
+  tipo y ambiente. BMIA no pide números a la DGII: solo anota los ya autorizados en la Oficina Virtual.
+
+### Arreglo en la serie B
+
+`Billing\Services\FiscalSequenceService::allocate()` no ordenaba: con dos secuencias activas del mismo tipo
+consumía cualquiera. Ahora toma la más antigua primero.
+
+### Migraciones de la fase
+
+```
+2026_10_03_100000_add_itbis_indicator_to_products_table
+2026_10_03_100100_create_electronic_ncf_sequences_table   (crea también electronic_ncf_releases)
+```
+
+### Pospuesto a la fase 5 (con su motivo)
+
+- Índice único `invoices (company_id, sale_id)`: solo estorba al emitir notas de crédito/débito (33/34), que
+  llegan en la fase 5; cambiarlo antes no aporta nada y toca una tabla con datos.
+- Razón social / tipo de identificación del cliente: el tipo ya se deduce del documento (`TaxId`: RNC de 9
+  dígitos o cédula de 11) y el nombre del cliente sirve de razón social; se revisará contra los campos del
+  comprador del XSD en la fase 2 antes de añadir columnas.
+
+## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el
 bloque de la empresa se encoge y recorta su nombre con «…», el de iconos no se encoge y la barra usa menos

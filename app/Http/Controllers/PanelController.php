@@ -16,6 +16,7 @@ use App\Modules\Billing\Models\FiscalSequence;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Services\PolarCheckoutService;
 use App\Modules\Core\Support\RoleCatalog;
 use App\Modules\Core\Tenancy\CurrentCompany;
@@ -129,6 +130,15 @@ final class PanelController extends Controller
              * subidas NO se borran: vuelven a verse en cuanto se encienda.
              */
             'usaFotos' => $company !== null && $company->usesFeature('product_images'),
+
+            /*
+             * El ITBIS de cada producto para el e-CF (gravado 18/16/0 % o exento). Solo con el módulo
+             * de facturación electrónica: hoy la serie B en papel calcula todo al 18 % y no lee este
+             * campo, así que enseñarlo sin el módulo haría creer que «exento» cambia el ticket.
+             * Y solo si la columna existe: el código llega a producción antes que la migración.
+             */
+            'pideIndicadorItbis' => $company !== null && $company->hasModule('e_invoicing')
+                && DbTable::tieneColumna('products', 'itbis_indicator'),
 
             // Los del vehículo son otra cosa: solo tienen sentido donde se venden piezas.
             'showVehicleFields' => $company !== null && PosProfile::pideVehiculo(PosProfile::for($company)['profile']),

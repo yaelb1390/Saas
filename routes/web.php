@@ -1081,6 +1081,8 @@ Route::middleware(['auth'])->group(function (): void {
     Route::middleware('module:e_invoicing')->group(function (): void {
         Route::get('/panel/facturacion-electronica', [ElectronicInvoicingController::class, 'index'])
             ->middleware('can:ecf.view')->name('panel.e-invoicing');
+        Route::post('/panel/facturacion-electronica/secuencias', [ElectronicInvoicingController::class, 'storeSequence'])
+            ->middleware('can:ecf.configure')->name('panel.e-invoicing.sequences.store');
     });
 
     // Bandeja de WhatsApp. Vincular la línea afecta a toda la empresa: permiso aparte.

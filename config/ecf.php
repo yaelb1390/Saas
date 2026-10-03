@@ -83,6 +83,29 @@ return [
         'rfce_threshold' => '250000.00',
     ],
 
+    /*
+     * ITBIS por ítem [FMT, sección B «Detalle de Bienes o Servicios», campo 4
+     * <IndicadorFacturacion>; sección A «Totales», campos 93–103].
+     *   0 No facturable · 1 ITBIS 1 (18 %) · 2 ITBIS 2 (16 %) · 3 ITBIS 3 (0 %) · 4 Exento.
+     * Con precios que ya incluyen ITBIS (<IndicadorMontoGravado> = 1, [FMT campo 7]) el monto
+     * gravado es la suma de los ítems de esa tasa ÷ (1 + tasa), y el ITBIS = monto gravado × tasa
+     * [FMT campos 93 y 101]. Monto total = gravado + exento + ITBIS [FMT campo 110].
+     */
+    'itbis' => [
+        'rates' => [
+            1 => '18',
+            2 => '16',
+            3 => '0',
+        ],
+        'decimals' => 2,
+        /*
+         * [FMT nota 11] dice «se debe aplicar la regla de redondeos» para los montos de 16 enteros
+         * y 2 decimales, pero ninguno de los documentos revisados la define. Mitad hacia arriba es
+         * lo que ya usa BMIA para la serie B; queda configurable y en pendientes hasta confirmarlo.
+         */
+        'rounding' => 'half_up',
+    ],
+
     // Conservación del XML firmado [IT §9].
     'retention_years' => 10,
 
@@ -106,6 +129,7 @@ return [
         'psfe_signer' => 'Si un proveedor certificado firma con su certificado o con el del contribuyente (delegación).',
         'psfe_admin_user' => 'Si con proveedor certificado hace falta el «Usuario Administrador e-CF».',
         'emitter_receiver_endpoints' => 'Servicios emisor↔receptor: «Descripción Técnica Servicios Emisores Electrónicos», sin revisar.',
+        'rounding_rule' => 'La «regla de redondeos» que cita [FMT nota 11] y si la DGII tolera diferencias de céntimos en los totales.',
     ],
 
     /*

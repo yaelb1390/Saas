@@ -251,6 +251,10 @@ final class TenantDataPurger
         // credenciales del proveedor. Es configuración del dueño, no datos de prueba; y todo lo
         // fiscal de este módulo se conserva por norma (ver docs/FACTURACION_ELECTRONICA.md).
         'electronic_invoicing_settings',
+        // Rangos de e-NCF autorizados por la DGII y los números devueltos al uso: borrarlos haría
+        // volver a entregar números ya usados al registrar otra vez el mismo rango.
+        'electronic_ncf_sequences',
+        'electronic_ncf_releases',
 
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',

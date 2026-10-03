@@ -75,6 +75,108 @@
         </div>
 
         <div class="bmos-card bmos-card-pad">
+            <p class="font-semibold text-slate-800">Secuencias de e-NCF</p>
+            <p class="mt-1 text-xs text-slate-500">
+                Los rangos que la DGII te autorizó en su Oficina Virtual. BMIA no pide números: solo anota los autorizados
+                para no salirse de ellos. Cada ambiente tiene los suyos.
+            </p>
+
+            @if ($secuencias->isEmpty())
+                <p class="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-500">Todavía no hay secuencias registradas.</p>
+            @else
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-left text-xs text-slate-500">
+                                <th class="py-2 pr-3 font-medium">Tipo</th>
+                                <th class="py-2 pr-3 font-medium">Ambiente</th>
+                                <th class="py-2 pr-3 font-medium">Próximo</th>
+                                <th class="py-2 pr-3 font-medium">Quedan</th>
+                                <th class="py-2 pr-3 font-medium">Vence</th>
+                                <th class="py-2 font-medium">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @foreach ($secuencias as $s)
+                                @php
+                                    $estado = match (true) {
+                                        ! $s->is_active => ['Inactiva', 'badge-gray'],
+                                        $s->isExpired() => ['Vencida', 'badge-red'],
+                                        ! $s->hasAvailableNumbers() => ['Agotada', 'badge-red'],
+                                        default => ['Activa', 'badge-green'],
+                                    };
+                                @endphp
+                                <tr>
+                                    <td class="py-2 pr-3 text-slate-800">{{ $s->ecf_type->prefix() }}</td>
+                                    <td class="py-2 pr-3 text-slate-600">{{ $s->environment->label() }}</td>
+                                    <td class="py-2 pr-3 font-mono text-xs text-slate-700">{{ $s->hasAvailableNumbers() ? $ncf->format($s->ecf_type, $s->next_number) : '—' }}</td>
+                                    <td class="py-2 pr-3 text-slate-600">{{ number_format($s->remaining()) }}</td>
+                                    <td class="py-2 pr-3 text-slate-600">{{ $s->expires_at?->format('d/m/Y') ?? 'No vence' }}</td>
+                                    <td class="py-2"><span class="bmos-badge {{ $estado[1] }}">{{ $estado[0] }}</span></td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+
+            @can('ecf.configure')
+                @if (! $migracionPendiente)
+                    <form method="POST" action="{{ route('panel.e-invoicing.sequences.store') }}" class="mt-4 rounded-lg border border-slate-200 p-3">
+                        @csrf
+                        <p class="text-sm font-medium text-slate-800">Registrar un rango autorizado</p>
+                        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div>
+                                <label class="bmos-field-label" for="sec-ambiente">Ambiente</label>
+                                <select id="sec-ambiente" name="environment" class="bmos-input">
+                                    @foreach ($ambientes as $amb)
+                                        <option value="{{ $amb->value }}" @selected(old('environment', 'pruebas') === $amb->value)>{{ $amb->label() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="bmos-field-label" for="sec-tipo">Tipo</label>
+                                <select id="sec-tipo" name="ecf_type" class="bmos-input">
+                                    @foreach ($tipos as $tipo)
+                                        <option value="{{ $tipo->value }}" @selected((int) old('ecf_type', 32) === $tipo->value)>{{ $tipo->prefix() }} · {{ $tipo->label() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="bmos-field-label" for="sec-desde">Desde</label>
+                                    <input id="sec-desde" name="range_from" type="number" min="1" value="{{ old('range_from', 1) }}" class="bmos-input">
+                                </div>
+                                <div>
+                                    <label class="bmos-field-label" for="sec-hasta">Hasta</label>
+                                    <input id="sec-hasta" name="range_to" type="number" min="1" value="{{ old('range_to') }}" class="bmos-input">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="bmos-field-label" for="sec-autorizada">Autorizada el</label>
+                                <input id="sec-autorizada" name="authorized_at" type="date" value="{{ old('authorized_at') }}" class="bmos-input">
+                            </div>
+                            <div>
+                                <label class="bmos-field-label" for="sec-vence">Vence el (vacío si no vence)</label>
+                                <input id="sec-vence" name="expires_at" type="date" value="{{ old('expires_at') }}" class="bmos-input">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" class="bmos-btn bmos-btn-primary w-full justify-center">Registrar</button>
+                            </div>
+                        </div>
+                        @if ($errors->any())
+                            <ul class="mt-3 space-y-1 text-xs text-rose-600">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </form>
+                @endif
+            @endcan
+        </div>
+
+        <div class="bmos-card bmos-card-pad">
             <p class="font-semibold text-slate-800">Requisitos técnicos</p>
             <p class="mt-1 text-xs text-slate-500">Lo que el servidor necesita para generar, validar y firmar e-CF.</p>
 

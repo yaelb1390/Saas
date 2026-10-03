@@ -56,6 +56,7 @@ final class UpdateProductRequest extends FormRequest
             'track_stock' => ['nullable', 'boolean'],
             'tracks_serials' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+            'itbis_indicator' => ['nullable', 'integer', Rule::in([1, 2, 3, 4])],
             // Foto del producto (opcional; si se sube, reemplaza la anterior).
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:15360'],
             ...$this->partFieldRules(),

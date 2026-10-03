@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inventory\Http\Controllers;
 
 use App\Modules\Core\Models\Warehouse;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\Inventory\DTOs\CreateProductData;
 use App\Modules\Inventory\Http\Requests\StoreProductRequest;
@@ -39,6 +40,10 @@ final class ProductController extends Controller
 
         $product = $products->create($data, $warehouse, $initialStock);
 
+        if ($request->filled('itbis_indicator') && DbTable::tieneColumna('products', 'itbis_indicator')) {
+            $product->forceFill(['itbis_indicator' => $request->integer('itbis_indicator')])->save();
+        }
+
         if ($request->hasFile('image')) {
             $images->store($product, $request->file('image'));
         }
@@ -50,7 +55,11 @@ final class ProductController extends Controller
     {
         // El stock no se edita aquí: se ajusta mediante movimientos de inventario. El archivo de la
         // foto no es una columna, así que se excluye del update y se procesa aparte.
-        $product->update($request->safe()->except('image'));
+        // Sin la columna (el código llega a producción antes que la migración), el indicador de ITBIS
+        // se descarta en vez de reventar el guardado con un 500.
+        $sinColumna = DbTable::tieneColumna('products', 'itbis_indicator') ? [] : ['itbis_indicator'];
+
+        $product->update($request->safe()->except(['image', ...$sinColumna]));
 
         if ($request->hasFile('image')) {
             $images->store($product, $request->file('image'));
@@ -97,6 +106,11 @@ final class ProductController extends Controller
         // ampliar el DTO por un caso que usa un solo sitio.
         if ($product->tracks_serials) {
             $duplicate->update(['tracks_serials' => true]);
+        }
+
+        // Mismo motivo: un duplicado de un producto exento tiene que seguir siendo exento.
+        if ($product->itbis_indicator !== null && DbTable::tieneColumna('products', 'itbis_indicator')) {
+            $duplicate->forceFill(['itbis_indicator' => $product->itbis_indicator])->save();
         }
 
         return back()->with('panel_ok', 'Producto duplicado. Revisa el nuevo antes de venderlo: no tiene existencia todavía.');

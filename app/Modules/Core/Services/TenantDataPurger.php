@@ -257,6 +257,13 @@ final class TenantDataPurger
         'electronic_ncf_releases',
         // El certificado de firma es una credencial del dueño, no un dato de prueba.
         'electronic_certificates',
+        // Los e-CF emitidos, sus XML, las respuestas de la DGII y la bitácora: documentos fiscales
+        // que se conservan 10 años [IT §9] (decisión del usuario: siempre, aunque se borre la empresa).
+        'electronic_invoices',
+        'electronic_invoice_files',
+        'electronic_invoice_responses',
+        'electronic_invoice_audit_logs',
+        'electronic_invoice_contingencies',
 
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',

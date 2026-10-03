@@ -40,4 +40,25 @@ final readonly class EcfDocument
         public ?string $declaredTotal = null,
         public ?EcfReference $reference = null,
     ) {}
+
+    /** El mismo documento con su e-NCF definitivo y el vencimiento de su secuencia. */
+    public function withNumbering(string $encf, ?CarbonInterface $sequenceExpiresAt): self
+    {
+        return new self(
+            type: $this->type,
+            encf: $encf,
+            issueDate: $this->issueDate,
+            emitter: $this->emitter,
+            lines: $this->lines,
+            pricesIncludeTax: $this->pricesIncludeTax,
+            buyer: $this->buyer,
+            sequenceExpiresAt: $sequenceExpiresAt,
+            incomeType: $this->incomeType,
+            paymentType: $this->paymentType,
+            paymentDueDate: $this->paymentDueDate,
+            paymentForms: $this->paymentForms,
+            declaredTotal: $this->declaredTotal,
+            reference: $this->reference,
+        );
+    }
 }

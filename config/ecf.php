@@ -43,6 +43,42 @@ return [
     ],
 
     /*
+     * Servicios de la DGII para emisores [DT pp.8–25]. Ruta = host + /{segmento del ambiente} + path.
+     * POST siempre multipart/form-data con el campo `xml`; token Bearer (RFC 6750).
+     */
+    'services' => [
+        'seed' => ['host' => 'ecf', 'path' => '/autenticacion/api/autenticacion/semilla'],              // GET [DT p.9]
+        'validate_seed' => ['host' => 'ecf', 'path' => '/autenticacion/api/autenticacion/validarsemilla'], // POST [DT p.10]
+        'reception' => ['host' => 'ecf', 'path' => '/recepcion/api/facturaselectronicas'],               // POST [DT p.13]
+        'rfce_reception' => ['host' => 'fc', 'path' => '/recepcionfc/api/recepcion/ecf'],               // POST [DT p.16]
+        'result' => ['host' => 'ecf', 'path' => '/consultaresultado/api/consultas/estado'],             // GET ?trackid= [DT p.22]
+    ],
+
+    /*
+     * Estados de la consulta de resultado [DT p.25]. El RFCE responde Aceptado / Aceptado condicional
+     * / Rechazado de forma síncrona y sin TrackId [DT p.15]; su `codigo` no tiene tabla publicada, así
+     * que se interpreta por el texto de `estado`.
+     */
+    'result_codes' => [
+        0 => 'no_encontrado',
+        1 => 'aceptado',
+        2 => 'rechazado',
+        3 => 'en_proceso',
+        4 => 'aceptado_condicional',
+    ],
+
+    'http' => [
+        // Vercel corta la función en ~10 s: cada llamada tiene que caber holgadamente.
+        'connect_timeout' => 3,
+        'timeout' => 8,
+        // El token dura «1 hora por el momento» [DT p.8]: se renueva un poco antes de `expira`.
+        'token_refresh_margin_seconds' => 120,
+    ],
+
+    // Reintentos de envío/consulta (minutos desde el último intento). Ajuste de BMIA.
+    'retry_backoff_minutes' => [1, 5, 15, 60, 240, 720],
+
+    /*
      * Tipos de e-CF [IT §6.1]. `xsd` apunta al esquema oficial vendorizado.
      */
     'types' => [
@@ -255,4 +291,17 @@ return [
      * sitio: sirve para preparar y probar sin riesgo. El real se elige por empresa.
      */
     'default_provider' => 'fake',
+
+    /*
+     * Respuesta del proveedor de prueba (valores de ProviderOutcome), para recorrer cada camino:
+     * received, accepted, accepted_conditional, rejected, in_process, not_found, transient_error,
+     * permanent_error. `sequence_used` es el `secuenciaUtilizada` de un rechazo simulado [DT p.24].
+     * Nunca responde en producción.
+     */
+    'fake' => [
+        'send' => 'received',
+        'summary' => 'accepted',
+        'query' => 'accepted',
+        'sequence_used' => true,
+    ],
 ];

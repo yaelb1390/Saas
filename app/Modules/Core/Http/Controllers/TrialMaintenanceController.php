@@ -169,6 +169,18 @@ final class TrialMaintenanceController extends Controller
     }
 
     /**
+     * Facturación electrónica: envía los e-CF pendientes y consulta el resultado de los recibidos.
+     * La llama un cron externo cada 5 minutos (cron-job.org, decisión del usuario): el plan Hobby de
+     * Vercel solo permite crons diarios. Presupuesto de 8 s por la función de Vercel (~10 s).
+     */
+    public function processElectronicInvoices(Request $request): JsonResponse
+    {
+        $this->assertCron($request);
+
+        return $this->ejecutar('ecf:procesar-pendientes', 'Envío y consulta de e-CF pendientes', ['--presupuesto' => 8]);
+    }
+
+    /**
      * Exige el secreto compartido (Vercel Cron manda `Authorization: Bearer <CRON_SECRET>`). Sin el
      * secreto correcto responde 403, así que la URL no es utilizable por terceros.
      */

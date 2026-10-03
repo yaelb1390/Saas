@@ -254,6 +254,85 @@ servicio de timbre de la DGII en pre-certificación.
 alguno de gravedad alta; dompdf, livewire, phpseclib, laravel/framework, flysystem). Ninguno en xmlseclibs.
 Conviene actualizarlos en una tarea aparte.
 
+## Fase 4 — Proveedores, envío, estados y contingencia (2026-10-03)
+
+### El circuito (`Application/ElectronicInvoiceService`)
+
+Único punto por el que pasa un e-CF; nadie más habla con la DGII ni con un proveedor.
+
+1. **Validación con un e-NCF provisional** antes de tocar la secuencia: un error de datos no quema números.
+2. **Sin certificado no se reserva número** (no se podría firmar).
+3. Número definitivo → fila `electronic_invoices` → XML original guardado → firma (y RFCE firmado si el 32
+   va por resumen) → `pendiente_envio` → envío inmediato.
+4. La respuesta se guarda (append-only) y se traduce a estado.
+
+Cada cambio de estado lo valida `EcfStatus::canTransitionTo()` (un salto ilegal lanza excepción) y queda en
+`electronic_invoice_audit_logs` con usuario e IP.
+
+| Resultado del proveedor | Estado del documento |
+|---|---|
+| Recibido con TrackId | `recibido` → se consulta 1 min después |
+| Aceptado / aceptado condicional (DGII 1 / 4) | `aceptado` / `aceptado_condicional` |
+| Rechazado (DGII 2) | `rechazado`; con `secuenciaUtilizada = false` el e-NCF vuelve al uso [DT p.24] |
+| En proceso / no encontrado (DGII 3 / 0) | sigue igual, se reconsulta con espera creciente |
+| Sin red, tiempo agotado, 5xx | `pendiente_envio` + contingencia abierta; espera 1, 5, 15, 60, 240, 720 min |
+| Credenciales, petición mal formada, proveedor no configurado | `error` (necesita intervención; reintentable) |
+
+- **Reutilizar un e-NCF devuelto**: el índice único de `electronic_invoices` es **parcial** (excluye los
+  `rechazado`), para que el documento nuevo lleve el mismo número y el rechazado se conserve como historia.
+- El XML firmado se guarda byte a byte con su sha256 **antes** de enviarlo; un reenvío manda exactamente
+  esos bytes, y si la huella no coincide no se envía (queda en `error`). Un documento que falla de forma
+  inesperada no corta la tanda del procesador.
+- **Pendiente (fase 6):** si la función se corta justo entre «enviando» y la respuesta, el documento queda
+  en `enviando` y el procesador no lo retoma (reenviar a ciegas podría duplicar). El Diagnóstico los
+  señalará para reconciliarlos con la consulta de TrackIds.
+
+### Proveedores (`Providers/`)
+
+- `fake` (por defecto): no envía nada. Su respuesta se elige en `config('ecf.fake')` para recorrer cada
+  camino. **En producción se niega** (el documento queda en `error`, nunca «aceptado» de mentira).
+- `dgii` (Escenario A, `DgiiDirectProvider` + `Dgii/DgiiClient`): semilla → firma → `validarsemilla` →
+  token Bearer, guardado **cifrado** en caché por empresa **y ambiente** hasta 2 min antes de `expira`
+  (nunca se supone que dura una hora); ante un 401 se renueva una vez. Recepción e-CF (`trackId`), recepción
+  RFCE (host `fc.`, síncrona) y consulta de resultado (códigos 0–4). El ambiente sale del segmento de la
+  URL (`testecf`/`certecf`/`ecf`). La semilla se lee sin red y rechazando DOCTYPE/entidades (anti-XXE).
+  Tiempos: 3 s de conexión, 8 s en total.
+- `psfe`: contrato listo; responde «no configurado» hasta elegir el proveedor certificado.
+
+### Contingencia (`Contingency/ContingencyService`)
+
+Un fallo de comunicación abre una contingencia «DGII no disponible» por empresa y ambiente (si no hay otra
+abierta); la primera respuesta que vuelve a llegar la cierra. Los documentos emitidos mientras está abierta
+quedan ligados a ella (leyenda en la representación impresa, fase 6). Plazos oficiales en
+`config('ecf.contingency')` [IT §19]; el aviso de las 72 h es de la fase 6.
+
+### Envíos y consultas pendientes
+
+`php artisan ecf:procesar-pendientes --presupuesto=8`, expuesto en `GET /tareas/ecf-procesar` (exige
+`Authorization: Bearer <CRON_SECRET>`; sin él, 403). Procesa los más antiguos primero hasta agotar el
+presupuesto de tiempo. **Configurar en cron-job.org cada 5 minutos** con esa cabecera (el plan Hobby de
+Vercel solo permite crons diarios). Sin la tabla migrada, no hace nada.
+
+### Conservación
+
+Las cinco tablas nuevas no tienen clave foránea hacia `companies` y están en `TenantDataPurger::KEPT`:
+ni la purga ni el borrado de la empresa las tocan (probado). Archivos en
+`ecf/{empresa}/{ambiente}/{aaaa}/{mm}/{e-NCF}/{tipo}-{n}.xml` del disco privado.
+
+### Migración de la fase
+
+```
+2026_10_03_100300_create_electronic_invoices_tables
+```
+
+### Cobertura
+
+`EcfEmissionTest` (19 pruebas): circuito completo con RFCE y con TrackId + consulta, contingencia abierta y
+cerrada, rechazo con y sin reutilización del número, índice parcial, XML alterado en disco, documento inválido y falta de
+certificado sin consumir número, proveedor de prueba bloqueado en producción, respuestas y bitácora
+inmodificables, transiciones ilegales, conservación al borrar la empresa, proveedor DGII con respuestas
+simuladas (token cifrado y reutilizado, solo `testecf`, códigos 0–4, 503, XXE, sin red) y el secreto del cron.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

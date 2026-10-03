@@ -1196,6 +1196,10 @@ Route::get('/tareas/comprobar-salud', [TrialMaintenanceController::class, 'check
 // a mano (sin sesión; protegido por CRON_SECRET).
 Route::get('/tareas/sincronizar-redes', [TrialMaintenanceController::class, 'syncSocialPosts'])->name('tasks.sync-social-posts');
 
+// Facturación electrónica: envía los e-CF pendientes y consulta los recibidos. La llama un cron
+// externo cada 5 min (Vercel Hobby solo permite crons diarios). Sin sesión; protegido por CRON_SECRET.
+Route::get('/tareas/ecf-procesar', [TrialMaintenanceController::class, 'processElectronicInvoices'])->name('tasks.ecf-process');
+
 // Previsualización de correos (SOLO local): abre el HTML del correo en el navegador para revisar el
 // diseño sin tener que registrarse. Nunca se activa en producción.
 if (app()->environment('local')) {

@@ -68,6 +68,39 @@ return [
     ],
 
     /*
+     * ERRATAS DE LOS XSD OFICIALES (detectadas el 2026-10-03).
+     *
+     * Tres esquemas publicados por la DGII no compilan con un validador estándar de XML Schema
+     * (libxml); la DGII usa .NET, que es más permisivo. Los archivos oficiales NO se tocan (su huella
+     * sha256 debe seguir coincidiendo con lo publicado): para validar se genera al momento una copia
+     * corregida en el directorio temporal, aplicando solo estas correcciones. Si una errata deja de
+     * aplicarse (la DGII corrigió el archivo), el validador se detiene y avisa para quitarla.
+     *
+     *   · copy_simple_type: copia LITERAL una definición desde otro XSD oficial (no se escribe a mano).
+     *   · replace: sustitución exacta de texto.
+     */
+    'schema_errata' => [
+        'ecf-31.xsd' => [[
+            'type' => 'copy_simple_type',
+            'name' => 'IndicadorServicioTodoIncluidoType',
+            'from' => 'ecf-32.xsd',
+            'reason' => 'El XSD del 31 usa el tipo IndicadorServicioTodoIncluidoType pero no lo define. La definición es idéntica en los XSD oficiales 32, 33, 34 y 44; se copia del 32.',
+        ]],
+        'acecf.xsd' => [[
+            'type' => 'replace',
+            'search' => '(?:',
+            'replace' => '(',
+            'reason' => 'Grupos no capturantes «(?:…)» de .NET: no existen en las expresiones de XML Schema. Para validar, un grupo normal es equivalente.',
+        ]],
+        'rfce-32.xsd' => [[
+            'type' => 'replace',
+            'search' => '(?:',
+            'replace' => '(',
+            'reason' => 'Grupos no capturantes «(?:…)» de .NET: no existen en las expresiones de XML Schema. Para validar, un grupo normal es equivalente.',
+        ]],
+    ],
+
+    /*
      * e-NCF: 13 posiciones = serie «E» + tipo (2) + secuencial (10) [IT §7].
      */
     'encf' => [
@@ -104,6 +137,56 @@ return [
          * lo que ya usa BMIA para la serie B; queda configurable y en pendientes hasta confirmarlo.
          */
         'rounding' => 'half_up',
+    ],
+
+    /*
+     * Códigos del encabezado y del detalle [FMT sección A, campos 8, 9 y 12; sección B, campo 9].
+     */
+    'codes' => [
+        'income_type' => [
+            '01' => 'Ingresos por operaciones (no financieros)',
+            '02' => 'Ingresos financieros',
+            '03' => 'Ingresos extraordinarios',
+            '04' => 'Ingresos por arrendamientos',
+            '05' => 'Ingresos por venta de activo depreciable',
+            '06' => 'Otros ingresos',
+        ],
+        'payment_type' => [1 => 'Contado', 2 => 'Crédito', 3 => 'Gratuito'],
+        'payment_form' => [
+            1 => 'Efectivo',
+            2 => 'Cheque / transferencia / depósito',
+            3 => 'Tarjeta de débito / crédito',
+            4 => 'Venta a crédito',
+            5 => 'Bonos o certificados de regalo',
+            6 => 'Permuta',
+            7 => 'Nota de crédito',
+            8 => 'Otras formas de pago',
+        ],
+        'good_or_service' => [1 => 'Bien', 2 => 'Servicio'],
+        // [FMT sección F «Información de referencia», campo 4 <CodigoModificacion>].
+        'modification' => [
+            1 => 'Anula el NCF modificado',
+            2 => 'Corrige texto del comprobante fiscal modificado',
+            3 => 'Corrige montos del NCF modificado',
+            4 => 'Reemplazo de NCF emitido en contingencia',
+            5 => 'Referencia factura de consumo electrónica',
+        ],
+    ],
+
+    /*
+     * Nota de crédito (34) [FMT encabezado, campo 5 <IndicadorNotaCredito>]: 0 si se emite dentro
+     * de estos días calendario desde el e-CF afectado, 1 si después (no da derecho a rebajar ITBIS).
+     */
+    'credit_note_itbis_days' => 30,
+
+    /*
+     * Formatos de fecha que exige el XSD (FechaValidationType, DateTimeValidationType). La fecha y
+     * hora de la firma va en GMT-4 [FIR; FMT §G–H]: desfase fijo, no la zona del servidor.
+     */
+    'formats' => [
+        'date' => 'd-m-Y',
+        'datetime' => 'd-m-Y H:i:s',
+        'signature_utc_offset' => '-04:00',
     ],
 
     // Conservación del XML firmado [IT §9].

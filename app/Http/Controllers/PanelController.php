@@ -96,12 +96,22 @@ final class PanelController extends Controller
         $categoryId = request()->integer('category_id') ?: null;
         $warehouseId = request()->integer('warehouse_id') ?: null;
 
+        $products = Product::query()->with(['category', 'stock.warehouse'])
+            // Mismo filtro que usa el borrado múltiple (ver Product::scopeFiltered): así
+            // «seleccionar todos los que coinciden» borra exactamente lo que hay en pantalla.
+            ->filtered(request('q'), request('filter') === 'low_stock', $categoryId, $warehouseId)
+            ->orderBy('name')->paginate(15)->withQueryString();
+
+        // ¿Ya está la columna del ITBIS? Si la página trae productos, su fila (select *) lo dice gratis;
+        // solo con la página vacía se pregunta al catálogo. En Vercel cada petición es un proceso
+        // nuevo y el memo de DbTable no sobrevive: eran 3 consultas al esquema en cada visita.
+        $primero = $products->first();
+        $hayColumnaItbis = $primero !== null
+            ? array_key_exists('itbis_indicator', $primero->getAttributes())
+            : DbTable::tieneColumna('products', 'itbis_indicator');
+
         return view('panel.products', [
-            'products' => Product::query()->with(['category', 'stock.warehouse'])
-                // Mismo filtro que usa el borrado múltiple (ver Product::scopeFiltered): así
-                // «seleccionar todos los que coinciden» borra exactamente lo que hay en pantalla.
-                ->filtered(request('q'), request('filter') === 'low_stock', $categoryId, $warehouseId)
-                ->orderBy('name')->paginate(15)->withQueryString(),
+            'products' => $products,
             'lowStockFilter' => request('filter') === 'low_stock',
             'categoryFilter' => $categoryId,
             'warehouseFilter' => $warehouseId,
@@ -137,8 +147,7 @@ final class PanelController extends Controller
              * campo, así que enseñarlo sin el módulo haría creer que «exento» cambia el ticket.
              * Y solo si la columna existe: el código llega a producción antes que la migración.
              */
-            'pideIndicadorItbis' => $company !== null && $company->hasModule('e_invoicing')
-                && DbTable::tieneColumna('products', 'itbis_indicator'),
+            'pideIndicadorItbis' => $company !== null && $company->hasModule('e_invoicing') && $hayColumnaItbis,
 
             // Los del vehículo son otra cosa: solo tienen sentido donde se venden piezas.
             'showVehicleFields' => $company !== null && PosProfile::pideVehiculo(PosProfile::for($company)['profile']),

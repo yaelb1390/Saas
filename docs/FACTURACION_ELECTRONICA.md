@@ -145,6 +145,61 @@ consumía cualquiera. Ahora toma la más antigua primero.
   dígitos o cédula de 11) y el nombre del cliente sirve de razón social; se revisará contra los campos del
   comprador del XSD en la fase 2 antes de añadir columnas.
 
+## Fase 2 — Documento canónico, XML y validación (2026-10-03)
+
+Pipeline (`Application/EcfXmlGenerator::generate()`): reglas de negocio → impuestos (`TaxEngine`) →
+árbol de datos (`EcfDataMapper`) → XML (`EcfXmlBuilder`) → validación contra el XSD (`XmlValidator`).
+Si algo falla no hay XML: se devuelven errores en español y nada llega a la firma.
+
+- **Un solo constructor para los 10 tipos.** `XsdTree` lee el XSD oficial y `EcfXmlBuilder` coloca los
+  datos en el orden que el esquema dicta. No hay `build31()…build47()` escritos a mano: lo que cambia entre
+  tipos lo dice el esquema. Un esquema nuevo de la DGII = cambiar el archivo. Un campo que el esquema no
+  tiene es un error (nunca se descarta en silencio). XML construido con DOM: un «<» en un nombre no inyecta
+  etiquetas.
+- **Documento canónico** (`Domain/EcfDocument`, `EcfParty`, `EcfLine`, `EcfReference`): independiente
+  del XML y del proveedor. Es lo que Facturación, POS y Compras entregarán en la fase 5.
+- **Mapeador único** (`EcfDataMapper`): consulta el XSD de cada tipo para saber qué campos existen; las
+  condiciones (`condicional a que exista ítem gravado`…) son del Formato y están citadas en el código.
+- **Validación antes de firmar** (`XmlValidator::validateUnsigned`): copia con `FechaHoraFirma` y un
+  marcador en el hueco de la firma; errores de libxml traducidos («El valor «09» no está permitido en
+  «TipoIngresos»»), con el texto técnico en `detail`.
+- **Reglas de negocio** (`EcfDocumentValidator`), además del XSD:
+  - RNC/cédula con dígito verificador (`Billing\Support\TaxId`); e-NCF del tipo correcto;
+  - comprador obligatorio donde el XSD lo exige (RNC y razón social en 31, 41 y 45; razón social en 44 y 46);
+  - cantidades > 0 con máximo 2 decimales (se rechazan, no se redondean a escondidas);
+  - total del documento de origen vs. calculado (tolerancia de 0,01 por el redondeo documentado en la fase 1);
+  - indicador por tipo [FMT notas 50–51]: 43, 44 y 47 solo exentos; 46 solo ITBIS 0 %;
+  - retenciones [FMT ítem campos 5–7, totales 116–117]: indicador 1 «R» (percepción no vigente, nota 52);
+    ISR retenido en el 41 solo en servicios;
+  - notas 33/34 [FMT sección F]: comprobante modificado (11, 13 o 19 posiciones), código de modificación
+    1–5, fecha no posterior; `IndicadorNotaCredito` = 1 si se emite pasados 30 días; la suma de notas de
+    crédito no supera el total afectado [campo 110 d)].
+- **Fecha del esquema** usado en cada resultado (`schemaDate`), porque la DGII cambia contenido sin subir
+  la versión.
+
+### Hallazgo: tres XSD oficiales tienen defectos
+
+Validados con libxml (estándar de XML Schema), tres esquemas de la DGII no compilan; la DGII usa .NET, que
+es más permisivo:
+
+| Archivo | Defecto | Errata aplicada |
+|---|---|---|
+| `ecf-31.xsd` | Usa `IndicadorServicioTodoIncluidoType` sin definirlo | Se copia la definición **literal** del XSD oficial 32 (idéntica en 32, 33, 34 y 44) |
+| `acecf.xsd` | `(?:…)` (grupo no capturante de .NET) | `(?:` → `(` |
+| `rfce-32.xsd` | `(?:…)` en 4 patrones | `(?:` → `(` |
+
+Las erratas viven en `config/ecf.php → schema_errata`, cada una con su motivo. Los archivos oficiales
+**no se tocan** (su huella sigue coincidiendo); para validar se genera una copia corregida en el directorio
+temporal (`SchemaRegistry::validationPath`). Si la DGII corrige un archivo, la errata deja de aplicar y el
+sistema se detiene y avisa en lugar de aplicarla a ciegas.
+
+### Cobertura
+
+Los diez tipos (31, 32, 33, 34, 41, 43, 44, 45, 46, 47) generan XML válido contra su esquema oficial
+(prueba con `dataset`). Pendiente: **RFCE** (resumen de la factura de consumo bajo RD$250.000), que incluye
+el código de seguridad de la firma → fase 3. Impuestos adicionales, otra moneda, paginación y descuentos
+globales se añadirán cuando un origen de emisión los necesite.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

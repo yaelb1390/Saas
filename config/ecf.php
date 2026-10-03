@@ -174,6 +174,23 @@ return [
     ],
 
     /*
+     * Indicador de facturación que admite cada tipo [FMT notas 50 y 51]: en 43, 44 y 47 todos los
+     * ítems van exentos (4); en 46, a ITBIS tasa cero (3). Los demás tipos admiten cualquiera.
+     */
+    'allowed_indicators' => [
+        43 => [4],
+        44 => [4],
+        46 => [3],
+        47 => [4],
+    ],
+
+    /*
+     * Retenciones por ítem [FMT sección B, campos 5–7; totales 116–117]. El régimen de percepción no
+     * está vigente [FMT nota 52]: el indicador siempre es 1 («R», retención).
+     */
+    'retention_indicator' => 1,
+
+    /*
      * Nota de crédito (34) [FMT encabezado, campo 5 <IndicadorNotaCredito>]: 0 si se emite dentro
      * de estos días calendario desde el e-CF afectado, 1 si después (no da derecho a rebajar ITBIS).
      */

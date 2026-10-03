@@ -18,5 +18,7 @@ final readonly class EcfParty
         public ?string $municipality = null,
         public ?string $province = null,
         public ?string $email = null,
+        // Comprador del extranjero sin RNC (exportación, pagos al exterior): <IdentificadorExtranjero>.
+        public ?string $foreignId = null,
     ) {}
 }

@@ -224,6 +224,89 @@ it('una nota sin comprobante de referencia, o que supera el total afectado, no s
     expect(collect($excede->errors)->pluck('message')->implode(' '))->toContain('superarían el total del comprobante');
 });
 
+it('compras (41) a un proveedor informal, con retención de ITBIS e ISR: válida', function (): void {
+    $r = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::Compras, [
+        'buyer' => new EcfParty(taxId: '00100000009', legalName: 'Juan Pérez (proveedor)'),
+        'lines' => [
+            new EcfLine('Reparación de nevera', '1', '1180.00', BillingIndicator::Itbis1, isService: true, itbisWithheld: '180.00', isrWithheld: '100.00'),
+            new EcfLine('Repuesto', '1', '500.00', BillingIndicator::Exento),
+        ],
+    ]));
+
+    expect($r->errors)->toBe([]);
+    expect($r->xml->saveXML())->toContain('<IndicadorAgenteRetencionoPercepcion>1</IndicadorAgenteRetencionoPercepcion>')
+        ->toContain('<MontoITBISRetenido>180.00</MontoITBISRetenido>')
+        ->toContain('<TotalITBISRetenido>180.00</TotalITBISRetenido>')
+        ->toContain('<TotalISRRetencion>100.00</TotalISRRetencion>');
+});
+
+it('gastos menores (43): válido solo con ítems exentos', function (): void {
+    $ok = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::GastosMenores, [
+        'lines' => [new EcfLine('Pasaje', '1', '150.00', BillingIndicator::Exento, isService: true)],
+    ]));
+    expect($ok->errors)->toBe([]);
+
+    $mal = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::GastosMenores));
+    expect(collect($mal->errors)->pluck('message')->implode(' '))->toContain('cada ítem debe ir «Exento»');
+});
+
+it('regímenes especiales (44) y gubernamental (45): válidos', function (): void {
+    $especial = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::RegimenesEspeciales, [
+        'buyer' => new EcfParty(legalName: 'Zona Franca Industrial SA'),
+        'lines' => [new EcfLine('Servicio', '1', '1000.00', BillingIndicator::Exento, isService: true)],
+    ]));
+    expect($especial->errors)->toBe([]);
+
+    $gob = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::Gubernamental, [
+        'buyer' => new EcfParty(taxId: '401000008', legalName: 'Ministerio de Prueba'),
+    ]));
+    expect($gob->errors)->toBe([]);
+});
+
+it('exportación (46) a un comprador extranjero: válida y a ITBIS tasa cero', function (): void {
+    $r = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::Exportacion, [
+        'buyer' => new EcfParty(legalName: 'Acme Imports LLC', foreignId: 'US-123456'),
+        'lines' => [new EcfLine('Cacao en grano (qq)', '10', '5000.00', BillingIndicator::Itbis3)],
+    ]));
+
+    expect($r->errors)->toBe([]);
+    expect($r->xml->saveXML())->toContain('<IdentificadorExtranjero>US-123456</IdentificadorExtranjero>')
+        ->toContain('<ITBIS3>0</ITBIS3>');
+});
+
+it('pagos al exterior (47): exento y con ISR retenido obligatorio', function (): void {
+    $r = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::PagosExterior, [
+        'buyer' => new EcfParty(legalName: 'Cloud Services Inc', foreignId: 'IE-998877'),
+        'lines' => [new EcfLine('Licencia de software', '1', '10000.00', BillingIndicator::Exento, isService: true, isrWithheld: '2700.00')],
+    ]));
+
+    expect($r->errors)->toBe([]);
+    expect($r->xml->saveXML())->toContain('<MontoISRRetenido>2700.00</MontoISRRetenido>')
+        ->toContain('<TotalISRRetencion>2700.00</TotalISRRetencion>');
+});
+
+it('los diez tipos de e-CF generan XML válido contra su esquema oficial', function (EcfType $tipo, array $extra): void {
+    $r = app(EcfXmlGenerator::class)->generate(ecfDocumento($tipo, $extra));
+
+    expect($r->errors)->toBe([])->and($r->isValid())->toBeTrue();
+})->with(function () {
+    $exento = ['lines' => [new EcfLine('Servicio', '1', '100.00', BillingIndicator::Exento, isService: true)]];
+    $ref = ['reference' => new EcfReference('E310000000001', Carbon::create(2026, 9, 30), code: 3)];
+
+    return [
+        '31' => [EcfType::CreditoFiscal, ['buyer' => new EcfParty(taxId: '101000007', legalName: 'Cliente SRL')]],
+        '32' => [EcfType::Consumo, []],
+        '33' => [EcfType::NotaDebito, $ref],
+        '34' => [EcfType::NotaCredito, $ref],
+        '41' => [EcfType::Compras, ['buyer' => new EcfParty(taxId: '00100000009', legalName: 'Proveedor')]],
+        '43' => [EcfType::GastosMenores, $exento],
+        '44' => [EcfType::RegimenesEspeciales, [...$exento, 'buyer' => new EcfParty(legalName: 'ZF SA')]],
+        '45' => [EcfType::Gubernamental, ['buyer' => new EcfParty(taxId: '401000008', legalName: 'Ministerio')]],
+        '46' => [EcfType::Exportacion, ['buyer' => new EcfParty(legalName: 'Acme LLC', foreignId: 'X1'), 'lines' => [new EcfLine('Cacao', '1', '10.00', BillingIndicator::Itbis3)]]],
+        '47' => [EcfType::PagosExterior, [...$exento, 'buyer' => new EcfParty(legalName: 'Inc', foreignId: 'Y1')]],
+    ];
+});
+
 it('un nombre de producto con «<» y «&» no inyecta etiquetas', function (): void {
     $nombre = 'Galletas <b>"Oreo"</b> & Co';
     $r = app(EcfXmlGenerator::class)->generate(ecfDocumento(EcfType::Consumo, [

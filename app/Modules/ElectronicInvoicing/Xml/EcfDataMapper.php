@@ -66,7 +66,7 @@ final class EcfDataMapper
             ],
             'DetallesItems' => [
                 'Item' => array_map(
-                    fn (EcfLine $l, int $i): array => $this->item($l, $i + 1, $tax->lineAmounts[$i]),
+                    fn (EcfLine $l, int $i): array => $this->item($l, $i + 1, $tax->lineAmounts[$i], $esquema->child('DetallesItems')?->child('Item')),
                     $doc->lines,
                     array_keys($doc->lines),
                 ),
@@ -105,6 +105,7 @@ final class EcfDataMapper
 
         return [
             'RNCComprador' => $this->digitos($p->taxId),
+            'IdentificadorExtranjero' => $p->foreignId !== null && $p->foreignId !== '' ? mb_substr($p->foreignId, 0, 20) : null,
             'RazonSocialComprador' => $p->legalName,
             'CorreoComprador' => $p->email,
             'DireccionComprador' => $p->address,
@@ -139,6 +140,8 @@ final class EcfDataMapper
             'TotalITBIS3' => $hay(BillingIndicator::Itbis3) ? $tax->itbis[3] : null,
             'MontoTotal' => $tax->total,
             'MontoNoFacturable' => $hay(BillingIndicator::NoFacturable) ? $this->noFacturable($doc, $tax) : null,
+            'TotalITBISRetenido' => $this->sumaRetencion($doc, 'itbisWithheld'),
+            'TotalISRRetencion' => $this->sumaRetencion($doc, 'isrWithheld'),
         ];
 
         // Un tipo puede no tener alguno de estos (p. ej. los gastos menores): se omite, no se inventa.
@@ -146,13 +149,14 @@ final class EcfDataMapper
     }
 
     /** @return array<string, mixed> */
-    private function item(EcfLine $l, int $numero, string $monto): array
+    private function item(EcfLine $l, int $numero, string $monto, ?XsdNode $esquemaItem): array
     {
         $descuento = bccomp($l->discount, '0', 2) > 0 ? bcadd($l->discount, '0', 2) : null;
 
         return [
             'NumeroLinea' => $numero,
             'IndicadorFacturacion' => $l->indicator->value,
+            'Retencion' => $this->retencion($l, $esquemaItem?->child('Retencion')),
             // [XSD AlfNum80Type] El nombre se recorta, no se rechaza: el detalle completo cabe en DescripcionItem.
             'NombreItem' => mb_substr($l->name, 0, 80),
             'IndicadorBienoServicio' => $l->isService ? 2 : 1,
@@ -166,6 +170,50 @@ final class EcfDataMapper
                 : null,
             'MontoItem' => $monto,
         ];
+    }
+
+    /**
+     * [FMT sección B, campos 5–7] Retención del ítem. Donde el XSD la exige en todos los ítems
+     * (41, 47) se escribe siempre; si no, solo cuando la línea la tiene. Un monto que el XSD exige y
+     * la línea no trae se declara en 0, que el Formato admite («Valor numérico… 0»).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function retencion(EcfLine $l, ?XsdNode $nodo): ?array
+    {
+        if ($nodo === null || (! $l->hasRetention() && $nodo->minOccurs === 0)) {
+            return null;
+        }
+
+        $monto = function (string $campo, ?string $valor) use ($nodo): ?string {
+            $hijo = $nodo->child($campo);
+
+            if ($hijo === null) {
+                return null;
+            }
+
+            return $valor !== null ? bcadd($valor, '0', 2) : ($hijo->minOccurs > 0 ? '0.00' : null);
+        };
+
+        return [
+            'IndicadorAgenteRetencionoPercepcion' => (int) config('ecf.retention_indicator', 1),
+            'MontoITBISRetenido' => $monto('MontoITBISRetenido', $l->itbisWithheld),
+            'MontoISRRetenido' => $monto('MontoISRRetenido', $l->isrWithheld),
+        ];
+    }
+
+    /** [FMT campos 116–117] Suma de una retención de todas las líneas, o null si ninguna la tiene. */
+    private function sumaRetencion(EcfDocument $doc, string $campo): ?string
+    {
+        $suma = null;
+
+        foreach ($doc->lines as $l) {
+            if ($l->{$campo} !== null) {
+                $suma = bcadd($suma ?? '0', $l->{$campo}, 2);
+            }
+        }
+
+        return $suma;
     }
 
     private function noFacturable(EcfDocument $doc, TaxResult $tax): string

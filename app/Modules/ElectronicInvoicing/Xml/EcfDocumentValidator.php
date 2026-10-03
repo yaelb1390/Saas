@@ -9,6 +9,7 @@ use App\Modules\ElectronicInvoicing\Domain\EcfDocument;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
 use App\Modules\ElectronicInvoicing\Ncf\ElectronicNcfException;
 use App\Modules\ElectronicInvoicing\Ncf\ElectronicNcfService;
+use App\Modules\ElectronicInvoicing\Tax\BillingIndicator;
 use App\Modules\ElectronicInvoicing\Tax\TaxResult;
 
 /**
@@ -76,9 +77,28 @@ final class EcfDocumentValidator
             $errores[] = new ValidationError('Un e-CF admite como máximo 1.000 líneas de detalle.', 'Item');
         }
 
+        $permitidos = ((array) config('ecf.allowed_indicators', []))[$doc->type->value] ?? null;
+
         foreach ($doc->lines as $i => $linea) {
+            $n = $i + 1;
+
             if (preg_match('/^\d+(\.\d{1,2})?$/', $linea->quantity) !== 1 || bccomp($linea->quantity, '0', 2) <= 0) {
-                $errores[] = new ValidationError('La cantidad de la línea '.($i + 1).' debe ser mayor que cero y tener como máximo 2 decimales.', 'CantidadItem');
+                $errores[] = new ValidationError("La cantidad de la línea {$n} debe ser mayor que cero y tener como máximo 2 decimales.", 'CantidadItem');
+            }
+
+            // [FMT notas 50 y 51] 43, 44 y 47 solo exentos; 46 solo a ITBIS tasa cero.
+            if ($permitidos !== null && ! in_array($linea->indicator->value, $permitidos, true)) {
+                $esperado = implode(' o ', array_map(fn (int $v): string => BillingIndicator::from($v)->label(), $permitidos));
+                $errores[] = new ValidationError("En un comprobante {$doc->type->prefix()} cada ítem debe ir «{$esperado}» (regla de la DGII); la línea {$n} no.", 'IndicadorFacturacion');
+            }
+
+            // [FMT ítem campo 7] En el 41, el ISR retenido solo procede en servicios.
+            if ($doc->type === EcfType::Compras && $linea->isrWithheld !== null && ! $linea->isService) {
+                $errores[] = new ValidationError("La línea {$n} retiene ISR pero no es un servicio: en un comprobante de compras el ISR solo se retiene en servicios.", 'MontoISRRetenido');
+            }
+
+            if ($linea->hasRetention() && ! $this->schemaHas($doc->type, 'DetallesItems.Item.Retencion')) {
+                $errores[] = new ValidationError("Un comprobante {$doc->type->prefix()} no lleva retenciones; quítalas de la línea {$n}.", 'Retencion');
             }
         }
 

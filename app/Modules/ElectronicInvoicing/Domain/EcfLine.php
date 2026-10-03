@@ -19,5 +19,13 @@ final readonly class EcfLine
         public bool $isService = false,
         public string $discount = '0',
         public ?string $description = null,
+        // Retenciones que hace quien emite (41 compras, 47 pagos al exterior) [FMT ítem campos 6–7].
+        public ?string $itbisWithheld = null,
+        public ?string $isrWithheld = null,
     ) {}
+
+    public function hasRetention(): bool
+    {
+        return $this->itbisWithheld !== null || $this->isrWithheld !== null;
+    }
 }

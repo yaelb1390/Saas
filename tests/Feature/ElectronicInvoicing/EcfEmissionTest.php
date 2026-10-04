@@ -501,3 +501,57 @@ it('un envío interrumpido y un procesador que no corre salen como error y llega
 
     expect($pendiente->fresh()->status)->toBe(EcfStatus::PendienteEnvio);
 });
+
+/*
+ * Fases 6e y 6f: cifras de emisión y pasos para emitir.
+ */
+
+it('las cifras de 30 días cuentan por estado y por tipo, sin importes de rechazados', function (): void {
+    ($this->certificado)();
+    ($this->secuencia)(EcfType::Consumo);
+    ($this->secuencia)(EcfType::CreditoFiscal);
+    ($this->emitir)(EcfType::Consumo);                 // aceptado (resumen)
+    ($this->emitir)(EcfType::CreditoFiscal);           // recibido (pendiente)
+    config(['ecf.fake.send' => 'rejected']);
+    ($this->emitir)(EcfType::CreditoFiscal);           // rechazado
+
+    $c = app(\App\Modules\ElectronicInvoicing\Application\EmissionStats::class)->forDays($this->company->id, Environment::Pruebas);
+
+    expect($c['dias'])->toHaveCount(30)
+        ->and(array_sum($c['aceptados']))->toBe(1)
+        ->and(array_sum($c['pendientes']))->toBe(1)
+        ->and(array_sum($c['rechazados']))->toBe(1)
+        ->and($c['totales']['documentos'])->toBe(3)
+        ->and($c['totales']['aceptacion'])->toBe(50)
+        // 236 + 236: el rechazado no suma.
+        ->and($c['totales']['total'])->toBe('472.00')
+        ->and(collect($c['tipos'])->pluck('tipo')->all())->toBe(['31 · Factura de Crédito Fiscal Electrónica', '32 · Factura de Consumo Electrónica']);
+
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@cifras.test', 'password' => 'secret-password',
+    ]), 'owner');
+    $this->actingAs($duena)->get(route('panel.e-invoicing'))->assertOk()
+        ->assertSee('Emisión de los últimos 30 días')->assertSee('Pasos para emitir e-CF');
+});
+
+it('los pasos para emitir se calculan de lo que ya existe', function (): void {
+    $pasos = fn () => collect(app(\App\Modules\ElectronicInvoicing\Application\SetupWizard::class)->steps($this->company))->keyBy('n');
+
+    // Recién empezado: sin dirección, sin secuencias, sin certificado.
+    expect($pasos()->where('done', true)->keys()->all())->toBe([]);
+
+    $this->ajustes->forceFill(['address' => 'Calle 1'])->save();
+    ($this->certificado)();
+    ($this->secuencia)(EcfType::Consumo);
+    ($this->emitir)(EcfType::Consumo);   // aceptado en pruebas
+
+    $p = $pasos();
+    expect($p[1]['done'])->toBeTrue()
+        ->and($p[2]['done'])->toBeTrue()
+        ->and($p[3]['done'])->toBeTrue()
+        ->and($p[6]['done'])->toBeTrue()
+        // Sin pasar de ambiente ni encender el modo real, 7 y 8 siguen pendientes.
+        ->and($p[7]['done'])->toBeFalse()
+        ->and($p[8]['done'])->toBeFalse();
+});

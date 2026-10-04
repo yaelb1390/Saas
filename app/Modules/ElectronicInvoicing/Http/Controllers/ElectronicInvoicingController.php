@@ -7,6 +7,8 @@ namespace App\Modules\ElectronicInvoicing\Http\Controllers;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\ElectronicInvoicing\Application\Diagnostics;
+use App\Modules\ElectronicInvoicing\Application\EmissionStats;
+use App\Modules\ElectronicInvoicing\Application\SetupWizard;
 use App\Modules\ElectronicInvoicing\Application\RuntimeRequirements;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
@@ -78,6 +80,11 @@ final class ElectronicInvoicingController extends Controller
             'modoDisponible' => DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')
                 && DbTable::tieneColumna('invoices', 'electronic_invoice_id'),
             'contadores' => $this->contadores(),
+            'pasos' => $migracionPendiente || ! DbTable::existe('electronic_invoices') || ! DbTable::existe('electronic_certificates')
+                ? [] : app(SetupWizard::class)->steps($empresa),
+            'cifras' => DbTable::existe('electronic_invoices') && DbTable::existe('electronic_invoicing_settings')
+                ? app(EmissionStats::class)->forDays((int) $empresa->id, ElectronicInvoicingSettings::paraEmpresa($empresa)->environment)
+                : null,
         ]);
     }
 

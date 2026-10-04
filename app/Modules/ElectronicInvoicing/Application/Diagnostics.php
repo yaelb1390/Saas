@@ -53,7 +53,7 @@ final class Diagnostics
     /**
      * @return list<array{key: string, title: string, level: string, detail: string, fix: ?string}>
      */
-    public function checks(Company $company): array
+    public function checks(Company $company, bool $probarAlmacenamiento = true): array
     {
         if (! DbTable::existe('electronic_invoicing_settings') || ! DbTable::existe('electronic_invoices')) {
             return [$this->item('migraciones', 'Base de datos', self::ERROR, 'Faltan las tablas de facturación electrónica.', 'El administrador de la plataforma debe aplicar las migraciones pendientes.')];
@@ -144,7 +144,11 @@ final class Diagnostics
         $r[] = $faltan === []
             ? $this->item('php', 'Requisitos del servidor', self::OK, 'Extensiones de PHP disponibles.')
             : $this->item('php', 'Requisitos del servidor', self::ERROR, 'Faltan extensiones: '.implode(', ', $faltan).'.', 'Avisa al administrador de la plataforma.');
-        $r[] = $this->almacenamiento();
+        // Escribe y borra un archivo en el disco privado (S3 en producción): solo en la pantalla de
+        // diagnóstico, no en cada visita al resumen.
+        if ($probarAlmacenamiento) {
+            $r[] = $this->almacenamiento();
+        }
 
         return $r;
     }

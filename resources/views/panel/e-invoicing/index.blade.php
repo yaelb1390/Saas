@@ -28,6 +28,42 @@
             </div>
         @endif
 
+        @if ($pasos !== [])
+            @php $hechos = collect($pasos)->where('done', true)->count(); $siguiente = collect($pasos)->firstWhere('done', false); @endphp
+            <div class="bmos-card bmos-card-pad">
+                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                    <p class="font-semibold text-slate-800">Pasos para emitir e-CF</p>
+                    <p class="text-xs text-slate-500">{{ $hechos }} de {{ count($pasos) }}</p>
+                </div>
+                <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div class="h-full rounded-full bg-emerald-500" style="width: {{ (int) round(100 * $hechos / count($pasos)) }}%"></div>
+                </div>
+                <ol class="mt-4 divide-y divide-slate-100 text-sm">
+                    @foreach ($pasos as $p)
+                        @php
+                            $enlace = match ($p['anchor']) {
+                                'diagnostico' => route('panel.e-invoicing.diagnostics'),
+                                'documentos' => route('panel.e-invoicing.documents'),
+                                default => '#'.$p['anchor'],
+                            };
+                        @endphp
+                        <li class="flex items-start gap-3 py-2">
+                            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold
+                                {{ $p['done'] ? 'bg-emerald-500 text-white' : ($siguiente && $siguiente['n'] === $p['n'] ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500') }}">
+                                {{ $p['done'] ? '✓' : $p['n'] }}
+                            </span>
+                            <div class="min-w-0">
+                                <a href="{{ $enlace }}" class="font-medium {{ $p['done'] ? 'text-slate-500' : 'text-slate-800 hover:text-indigo-600' }}">{{ $p['title'] }}</a>
+                                @unless ($p['done'])
+                                    <p class="text-xs text-slate-500">{{ $p['detail'] }}</p>
+                                @endunless
+                            </div>
+                        </li>
+                    @endforeach
+                </ol>
+            </div>
+        @endif
+
         <div class="bmos-card bmos-card-pad">
             <p class="font-semibold text-slate-800">Estado</p>
             <p class="mt-1 text-xs text-slate-500">Cómo está tu empresa para emitir comprobantes electrónicos.</p>
@@ -88,9 +124,77 @@
             </dl>
         </div>
 
+        @if ($cifras && $cifras['totales']['documentos'] > 0)
+            <div class="bmos-card bmos-card-pad">
+                <p class="font-semibold text-slate-800">Emisión de los últimos 30 días</p>
+                <p class="mt-1 text-xs text-slate-500">Ambiente {{ $ajustes->environment->label() }}. Rechazados no suman importes.</p>
+
+                <dl class="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                    <div><dt class="text-slate-500">Documentos</dt><dd class="text-lg font-semibold text-slate-800">{{ $cifras['totales']['documentos'] }}</dd></div>
+                    <div><dt class="text-slate-500">Aceptación</dt><dd class="text-lg font-semibold text-slate-800">{{ $cifras['totales']['aceptacion'] !== null ? $cifras['totales']['aceptacion'].' %' : '—' }}</dd></div>
+                    <div><dt class="text-slate-500">Total facturado</dt><dd class="text-lg font-semibold text-slate-800">{{ number_format((float) $cifras['totales']['total'], 2) }}</dd></div>
+                    <div><dt class="text-slate-500">ITBIS</dt><dd class="text-lg font-semibold text-slate-800">{{ number_format((float) $cifras['totales']['itbis'], 2) }}</dd></div>
+                </dl>
+
+                <div class="mt-4" x-data="ecfEmisionChart(@js($cifras['dias']), @js($cifras['aceptados']), @js($cifras['rechazados']), @js($cifras['pendientes']))">
+                    <div style="height:220px"><canvas x-ref="canvas"></canvas></div>
+                </div>
+
+                @if ($cifras['tipos'] !== [])
+                    <table class="bmos-table mt-4 text-sm">
+                        <thead><tr><th>Tipo</th><th class="text-right">Documentos</th><th class="text-right">Total</th><th class="text-right">ITBIS</th></tr></thead>
+                        <tbody>
+                            @foreach ($cifras['tipos'] as $t)
+                                <tr>
+                                    <td>{{ $t['tipo'] }}</td>
+                                    <td class="text-right">{{ $t['documentos'] }}</td>
+                                    <td class="text-right">{{ number_format((float) $t['total'], 2) }}</td>
+                                    <td class="text-right">{{ number_format((float) $t['itbis'], 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
+            </div>
+
+            <script>
+                // Barras apiladas por día: aceptados, rechazados y pendientes (Chart.js bajo demanda).
+                function ecfEmisionChart(dias, aceptados, rechazados, pendientes) {
+                    return {
+                        chart: null,
+                        async init() {
+                            const Chart = await window.loadChart();
+                            this.chart = new Chart(this.$refs.canvas.getContext('2d'), {
+                                type: 'bar',
+                                data: {
+                                    labels: dias,
+                                    datasets: [
+                                        { label: 'Aceptados', data: aceptados, backgroundColor: '#10b981', borderRadius: 3, maxBarThickness: 22 },
+                                        { label: 'Rechazados', data: rechazados, backgroundColor: '#f43f5e', borderRadius: 3, maxBarThickness: 22 },
+                                        { label: 'Pendientes', data: pendientes, backgroundColor: '#f59e0b', borderRadius: 3, maxBarThickness: 22 },
+                                    ],
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    interaction: { intersect: false, mode: 'index' },
+                                    plugins: { legend: { position: 'bottom', labels: { color: '#64748b', boxWidth: 10, font: { size: 11 } } } },
+                                    scales: {
+                                        x: { stacked: true, grid: { display: false }, ticks: { color: '#94a3b8', maxTicksLimit: 10 } },
+                                        y: { stacked: true, beginAtZero: true, ticks: { precision: 0, color: '#94a3b8' }, grid: { color: '#eef0f6' } },
+                                    },
+                                },
+                            });
+                        },
+                        destroy() { if (this.chart) this.chart.destroy(); },
+                    };
+                }
+            </script>
+        @endif
+
         @if ($ajustes)
             @can('ecf.configure')
-                <div class="bmos-card bmos-card-pad"
+                <div id="datos" class="bmos-card bmos-card-pad scroll-mt-20"
                      x-data="{
                          provincia: @js(old('province', $ajustes->province ?? '')),
                          municipio: @js(old('municipality', $ajustes->municipality ?? '')),
@@ -172,7 +276,7 @@
         @endif
 
         @if ($ajustes && $modoDisponible)
-            <div class="bmos-card bmos-card-pad">
+            <div id="emision" class="bmos-card bmos-card-pad scroll-mt-20">
                 <p class="font-semibold text-slate-800">Emisión en ventas y facturas</p>
                 <p class="mt-1 text-xs text-slate-500">
                     Qué pasa al facturar desde Facturación, el punto de venta, Venta rápida, Cotizaciones y el Mostrador.
@@ -223,7 +327,7 @@
             </div>
         @endif
 
-        <div class="bmos-card bmos-card-pad">
+        <div id="certificado" class="bmos-card bmos-card-pad scroll-mt-20">
             <p class="font-semibold text-slate-800">Certificado digital</p>
             <p class="mt-1 text-xs text-slate-500">
                 El certificado para procesos tributarios con el que se firman los e-CF, emitido por una prestadora acreditada
@@ -276,7 +380,7 @@
             @endcan
         </div>
 
-        <div class="bmos-card bmos-card-pad">
+        <div id="secuencias" class="bmos-card bmos-card-pad scroll-mt-20">
             <p class="font-semibold text-slate-800">Secuencias de e-NCF</p>
             <p class="mt-1 text-xs text-slate-500">
                 Los rangos que la DGII te autorizó en su Oficina Virtual. BMIA no pide números: solo anota los autorizados

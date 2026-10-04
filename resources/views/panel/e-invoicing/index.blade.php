@@ -79,7 +79,10 @@
                 </div>
                 <div class="flex items-center justify-between gap-3 py-2">
                     <dt class="text-slate-500">Documentos pendientes · aceptados · rechazados</dt>
-                    <dd class="text-slate-800">{{ $contadores['pendientes'] }} · {{ $contadores['aceptados'] }} · {{ $contadores['rechazados'] }}</dd>
+                    <dd class="text-slate-800">
+                        {{ $contadores['pendientes'] }} · {{ $contadores['aceptados'] }} · {{ $contadores['rechazados'] }}
+                        <a href="{{ route('panel.e-invoicing.documents') }}" class="ml-2 font-medium text-indigo-600 hover:text-indigo-700">Ver documentos</a>
+                    </dd>
                 </div>
             </dl>
         </div>

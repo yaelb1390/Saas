@@ -376,3 +376,72 @@ it('la tarea /tareas/ecf-procesar exige el secreto del cron', function (): void 
     $this->get('/tareas/ecf-procesar', ['Authorization' => 'Bearer secreto-cron'])
         ->assertOk()->assertJson(['ok' => true])->assertJsonPath('output', fn (string $s) => str_contains($s, 'e-CF enviados: 0'));
 });
+
+/*
+ * Fase 6b: los documentos en pantalla — lista, ficha, descarga verificada y acciones manuales.
+ */
+
+it('la lista y la ficha enseñan el documento, sus respuestas y su bitácora', function (): void {
+    ($this->certificado)();
+    ($this->secuencia)(EcfType::CreditoFiscal);
+    $ecf = ($this->emitir)(EcfType::CreditoFiscal);
+
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@docs.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->get(route('panel.e-invoicing.documents'))->assertOk()->assertSee('E310000000001')->assertSee('Recibido');
+    $this->actingAs($duena)->get(route('panel.e-invoicing.documents', ['estado' => 'aceptado']))->assertOk()->assertDontSee('E310000000001');
+
+    $this->actingAs($duena)->get(route('panel.e-invoicing.documents.show', $ecf))->assertOk()
+        ->assertSee('Respuestas de la DGII')->assertSee('Bitácora')->assertSee('Consultar resultado')->assertSee('firmado');
+
+    $firmado = $ecf->file('firmado');
+    $this->actingAs($duena)->get(route('panel.e-invoicing.documents.file', [$ecf, $firmado]))
+        ->assertOk()->assertHeader('Content-Type', 'application/xml; charset=utf-8');
+
+    // Alterado en el disco: no se entrega.
+    Storage::disk('local')->put($firmado->path, '<ECF/>');
+    $this->actingAs($duena)->get(route('panel.e-invoicing.documents.file', [$ecf, $firmado]))->assertStatus(409);
+
+    // Consultar a mano: el proveedor de prueba responde aceptado.
+    $this->actingAs($duena)->post(route('panel.e-invoicing.documents.query', $ecf))->assertSessionHas('panel_ok');
+    expect($ecf->fresh()->status)->toBe(EcfStatus::Aceptado);
+});
+
+it('reintentar a mano un envío pendiente', function (): void {
+    ($this->certificado)();
+    ($this->secuencia)(EcfType::CreditoFiscal);
+    config(['ecf.fake.send' => 'transient_error']);
+    $ecf = ($this->emitir)(EcfType::CreditoFiscal);
+    expect($ecf->status)->toBe(EcfStatus::PendienteEnvio);
+
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@reintento.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    config(['ecf.fake.send' => 'received']);
+    $this->actingAs($duena)->post(route('panel.e-invoicing.documents.resend', $ecf))->assertSessionHas('panel_ok');
+    expect($ecf->fresh()->status)->toBe(EcfStatus::Recibido);
+
+    // Ya recibido: no se reenvía.
+    $this->actingAs($duena)->post(route('panel.e-invoicing.documents.resend', $ecf))->assertSessionHas('panel_error');
+});
+
+it('otra empresa no ve ni descarga los documentos ajenos', function (): void {
+    ($this->certificado)();
+    ($this->secuencia)(EcfType::Consumo);
+    $ecf = ($this->emitir)(EcfType::Consumo);
+
+    app(CurrentCompany::class)->forget();
+    $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Otra'));
+    $otra->forceFill(['modules' => null])->save();
+    $ajeno = withRole(\App\Models\User::create([
+        'company_id' => $otra->id, 'name' => 'Ajeno', 'email' => 'ajeno@docs.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($ajeno)->get(route('panel.e-invoicing.documents.show', $ecf->id))->assertNotFound();
+    $this->actingAs($ajeno)->get(route('panel.e-invoicing.documents'))->assertOk()->assertDontSee($ecf->e_ncf);
+});

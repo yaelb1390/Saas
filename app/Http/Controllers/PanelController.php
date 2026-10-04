@@ -14,6 +14,7 @@ use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
 use App\Modules\Billing\Models\FiscalSequence;
 use App\Modules\Billing\Models\Invoice;
+use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Support\DbTable;
@@ -312,12 +313,22 @@ final class PanelController extends Controller
 
     public function invoices(): View
     {
+        $invoices = Invoice::query()
+            ->when(request('q'), fn ($query, $q) => $query->where(
+                fn ($sub) => $sub->whereLike('ncf', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")
+            ))
+            ->latest()->paginate(15)->withQueryString();
+
+        // Estado del e-CF de cada factura de la página, en UNA consulta (sin relación Invoice→e-CF:
+        // Billing no conoce el módulo de facturación electrónica).
+        $ids = $invoices->getCollection()->map(fn (Invoice $i) => $i->getAttributes()['electronic_invoice_id'] ?? null)->filter()->values();
+        $ecf = $ids->isNotEmpty() && DbTable::existe('electronic_invoices')
+            ? ElectronicInvoice::query()->whereIn('id', $ids)->get(['id', 'e_ncf', 'status', 'environment'])->keyBy('id')
+            : collect();
+
         return view('panel.invoices', [
-            'invoices' => Invoice::query()
-                ->when(request('q'), fn ($query, $q) => $query->where(
-                    fn ($sub) => $sub->whereLike('ncf', "%{$q}%")->orWhereLike('customer_name', "%{$q}%")
-                ))
-                ->latest()->paginate(15)->withQueryString(),
+            'invoices' => $invoices,
+            'ecf' => $ecf,
 
             'sequences' => FiscalSequence::query()->orderBy('type')->get(),
 

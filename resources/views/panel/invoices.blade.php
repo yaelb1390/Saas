@@ -146,7 +146,18 @@
                 <tbody>
                     @forelse ($invoices as $invoice)
                         <tr>
-                            <td data-rotulo="NCF" class="font-mono text-xs font-semibold text-indigo-600">{{ $invoice->ncf }}</td>
+                            <td data-rotulo="NCF" class="font-mono text-xs font-semibold text-indigo-600">
+                                {{ $invoice->ncf }}
+                                @php $e = $ecf[$invoice->getAttributes()['electronic_invoice_id'] ?? 0] ?? null; @endphp
+                                @if ($e)
+                                    {{-- El e-CF de la factura (en paralelo, el de prueba: su e-NCF es otro). --}}
+                                    <a href="{{ route('panel.e-invoicing.documents.show', $e->id) }}" class="mt-0.5 block font-sans font-normal" title="e-CF {{ $e->e_ncf }}">
+                                        <span class="bmos-badge {{ $e->status->badge() }}">
+                                            {{ $e->e_ncf !== $invoice->ncf ? 'e-CF prueba: ' : 'e-CF: ' }}{{ $e->status->label() }}
+                                        </span>
+                                    </a>
+                                @endif
+                            </td>
                             <td data-rotulo="Tipo"><span class="bmos-badge badge-gray">{{ $invoice->type->value }}</span></td>
                             <td data-rotulo="Cliente">{{ $invoice->customer_name ?? 'Consumidor final' }}</td>
                             <td data-rotulo="RNC/Cédula" class="font-mono text-xs text-slate-500">{{ $invoice->customer_tax_id ?? '—' }}</td>

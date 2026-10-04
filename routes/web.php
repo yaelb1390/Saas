@@ -1087,6 +1087,16 @@ Route::middleware(['auth'])->group(function (): void {
         // Probar contraseñas contra un .p12 a ritmo de script no debe ser posible: tope por minuto.
         Route::post('/panel/facturacion-electronica/certificado', [ElectronicInvoicingController::class, 'storeCertificate'])
             ->middleware(['can:ecf.configure', 'throttle:10,1'])->name('panel.e-invoicing.certificate.store');
+        Route::get('/panel/facturacion-electronica/documentos', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'index'])
+            ->middleware('can:ecf.view')->name('panel.e-invoicing.documents');
+        Route::get('/panel/facturacion-electronica/documentos/{document}', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'show'])
+            ->middleware('can:ecf.view')->name('panel.e-invoicing.documents.show');
+        Route::get('/panel/facturacion-electronica/documentos/{document}/archivo/{file}', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'file'])
+            ->middleware('can:ecf.download')->name('panel.e-invoicing.documents.file');
+        Route::post('/panel/facturacion-electronica/documentos/{document}/reenviar', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'resend'])
+            ->middleware(['can:ecf.send', 'throttle:20,1'])->name('panel.e-invoicing.documents.resend');
+        Route::post('/panel/facturacion-electronica/documentos/{document}/consultar', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'query'])
+            ->middleware(['can:ecf.query', 'throttle:20,1'])->name('panel.e-invoicing.documents.query');
         Route::post('/panel/facturacion-electronica/configuracion', [ElectronicInvoicingController::class, 'updateSettings'])
             ->middleware('can:ecf.configure')->name('panel.e-invoicing.settings.update');
         Route::post('/panel/facturacion-electronica/modo', [ElectronicInvoicingController::class, 'updateMode'])

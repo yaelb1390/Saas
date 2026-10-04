@@ -325,7 +325,9 @@ it('notas por importe desde la pantalla: crédito y débito, y el crédito no su
     expect(ElectronicInvoice::query()->where('source_type', 'credit_note')->count())->toBe(1)
         ->and(ElectronicInvoice::query()->where('source_type', 'debit_note')->value('e_ncf'))->toBe('E330000000001');
 
-    $this->actingAs($duena)->get(route('panel.invoices'))->assertOk()->assertSee('Nota de crédito o débito');
+    $this->actingAs($duena)->get(route('panel.invoices'))->assertOk()->assertSee('Nota de crédito o débito')
+        // La factura B lleva a la vista su e-CF de prueba y su estado.
+        ->assertSee('e-CF prueba');
 });
 
 it('el cajero no emite notas electrónicas', function (): void {

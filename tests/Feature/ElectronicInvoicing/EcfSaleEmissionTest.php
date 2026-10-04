@@ -339,3 +339,80 @@ it('el cajero no emite notas electrónicas', function (): void {
         'type' => 34, 'amount' => '10', 'indicator' => 1, 'reason' => 'x x x',
     ])->assertForbidden();
 });
+
+/*
+ * Fase 5c: compras a proveedores informales — Compras (41) y Gastos menores (43), que emite la empresa.
+ */
+
+it('real: registrar una compra a un informal emite su e-CF 41 y ese es el NCF de la compra', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::Compras, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+    ecfNotasDgiiFalsa();
+
+    $duena = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@compras.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->post(route('panel.purchase-invoices.store'), [
+        'ecf_kind' => 'compras', 'ecf_is_service' => '1',
+        'provider_name' => 'Juan Pérez', 'provider_tax_id' => '00100000009', 'provider_tax_id_kind' => '2',
+        'goods_services_type' => '02', 'invoice_date' => now()->toDateString(),
+        'amount' => '1000.00', 'itbis' => '0', 'isr_retenido' => '100.00', 'payment_method' => 'cash',
+    ])->assertSessionHas('panel_ok', fn (string $m) => str_contains($m, 'E410000000001'));
+
+    $compra = \App\Modules\Billing\Models\PurchaseInvoice::sole();
+    $ecf = ElectronicInvoice::sole();
+    $xml = Storage::disk('local')->get($ecf->file('firmado')->path);
+
+    expect($compra->ncf)->toBe('E410000000001')
+        ->and($compra->electronic_invoice_id)->toBe($ecf->id)
+        ->and($ecf->source_type)->toBe('purchase_invoice')
+        ->and($ecf->source_id)->toBe($compra->id)
+        ->and($ecf->status)->toBe(EcfStatus::Recibido)
+        // El proveedor informal va como «comprador» del 41.
+        ->and($xml)->toContain('00100000009')->toContain('Juan Pérez');
+});
+
+it('en paralelo: la compra lleva su NCF en papel y además un e-CF 41 de prueba', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::Compras);
+    ($this->modo)(EmissionMode::Sombra);
+
+    $compra = app(\App\Modules\Billing\Services\PurchaseInvoiceService::class)->create([
+        'ecf_kind' => 'compras', 'ncf' => 'B1100000001',
+        'provider_name' => 'Juan Pérez', 'provider_tax_id' => '00100000009', 'provider_tax_id_kind' => '2',
+        'goods_services_type' => '09', 'invoice_date' => now()->toDateString(),
+        'amount' => '500.00', 'itbis' => '0', 'payment_method' => 'cash',
+    ], null, null);
+
+    expect($compra->ncf)->toBe('B1100000001')
+        ->and(ElectronicInvoice::sole()->e_ncf)->toBe('E410000000001')
+        ->and($compra->fresh()->electronic_invoice_id)->toBe(ElectronicInvoice::sole()->id);
+});
+
+it('real: gastos menores con ITBIS se rechaza y la compra no se guarda', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::GastosMenores, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+
+    expect(fn () => app(\App\Modules\Billing\Services\PurchaseInvoiceService::class)->create([
+        'ecf_kind' => 'gastos_menores', 'provider_tax_id_kind' => '2',
+        'goods_services_type' => '06', 'invoice_date' => now()->toDateString(),
+        'amount' => '100.00', 'itbis' => '18.00', 'payment_method' => 'cash',
+    ], null, null))->toThrow(InvoiceException::class);
+
+    expect(\App\Modules\Billing\Models\PurchaseInvoice::count())->toBe(0)
+        ->and(ElectronicInvoice::count())->toBe(0);
+});
+
+it('apagado: pedir el comprobante electrónico sin escribir el NCF se explica, no se inventa un número', function (): void {
+    expect(fn () => app(\App\Modules\Billing\Services\PurchaseInvoiceService::class)->create([
+        'ecf_kind' => 'compras', 'provider_tax_id_kind' => '2',
+        'goods_services_type' => '09', 'invoice_date' => now()->toDateString(),
+        'amount' => '100.00', 'payment_method' => 'cash',
+    ], null, null))->toThrow(\Illuminate\Validation\ValidationException::class);
+
+    expect(\App\Modules\Billing\Models\PurchaseInvoice::count())->toBe(0);
+});

@@ -7,6 +7,7 @@ namespace App\Modules\Billing\Contracts;
 use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
 use App\Modules\Billing\Models\Invoice;
+use App\Modules\Billing\Models\PurchaseInvoice;
 use App\Modules\Billing\Support\TaxId;
 use App\Modules\Sales\Models\Sale;
 
@@ -39,4 +40,16 @@ interface ElectronicInvoicingHook
      * ocurre. Con la serie B no hace nada (va al 608 como siempre).
      */
     public function beforeCancel(Invoice $invoice, CancellationReason $reason, ?string $note): void;
+
+    /**
+     * Compra a un proveedor informal: la empresa emite el comprobante de compras (`compras`, e-CF 41)
+     * o de gastos menores (`gastos_menores`, e-CF 43). En modo real devuelve el e-NCF que sustituye al
+     * NCF en papel (y lanza si no se puede emitir); en otro caso, null. `$purchase` aún no está guardada.
+     *
+     * @return array{ncf: string, electronic_invoice_id: int}|null
+     */
+    public function replacePurchaseNcf(PurchaseInvoice $purchase, string $kind, bool $isService): ?array;
+
+    /** Después de guardar la compra. En paralelo genera el e-CF de prueba. Nunca lanza. */
+    public function afterPurchaseCreated(PurchaseInvoice $purchase, string $kind, bool $isService): void;
 }

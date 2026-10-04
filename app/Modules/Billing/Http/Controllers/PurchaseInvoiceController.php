@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Billing\Http\Controllers;
 
 use App\Modules\Billing\Enums\GoodsServicesType;
+use App\Modules\Billing\Exceptions\InvoiceException;
 use App\Modules\Billing\Http\Requests\StorePurchaseInvoiceRequest;
 use App\Modules\Billing\Models\PurchaseInvoice;
 use App\Modules\Billing\Services\DgiiReportService;
@@ -42,6 +43,9 @@ final class PurchaseInvoiceController extends Controller
             'period' => $period->format('Y-m'),
             'goodsServicesTypes' => GoodsServicesType::cases(),
             'taxIdKinds' => TaxIdKind::cases(),
+            // La opción de emitir el comprobante de compras/gastos electrónico, solo con el módulo.
+            'ecfCompras' => (bool) app(\App\Modules\Core\Tenancy\CurrentCompany::class)->model()?->hasModule('e_invoicing')
+                && \App\Modules\Core\Support\DbTable::tieneColumna('purchase_invoices', 'electronic_invoice_id'),
             // Totales del mes para las tarjetas de resumen.
             'totalAmount' => (string) $invoices->sum('amount'),
             'totalItbis' => (string) $invoices->sum('itbis'),
@@ -50,9 +54,15 @@ final class PurchaseInvoiceController extends Controller
 
     public function store(StorePurchaseInvoiceRequest $request, PurchaseInvoiceService $service): RedirectResponse
     {
-        $service->create($request->validated(), $request->file('file'), auth()->id());
+        try {
+            $compra = $service->create($request->validated(), $request->file('file'), auth()->id());
+        } catch (InvoiceException $e) {
+            return back()->withInput()->with('panel_error', $e->getMessage());
+        }
 
-        return back()->with('panel_ok', 'Factura de compra registrada.');
+        return back()->with('panel_ok', str_starts_with((string) $compra->ncf, 'E')
+            ? "Compra registrada con su comprobante electrónico {$compra->ncf}."
+            : 'Factura de compra registrada.');
     }
 
     public function update(StorePurchaseInvoiceRequest $request, PurchaseInvoice $purchaseInvoice, PurchaseInvoiceService $service): RedirectResponse

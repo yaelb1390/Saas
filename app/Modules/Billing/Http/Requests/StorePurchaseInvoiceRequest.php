@@ -33,7 +33,11 @@ final class StorePurchaseInvoiceRequest extends FormRequest
             'provider_tax_id' => ['nullable', 'string', 'max:20'],
             'provider_tax_id_kind' => ['required', Rule::in($kinds)],
             'provider_name' => ['nullable', 'string', 'max:190'],
-            'ncf' => ['required', 'string', 'max:30'],
+            // Con comprobante electrónico de compras/gastos (solo al crear), el NCF puede venir vacío:
+            // en modo real lo pone el e-NCF; si no, el servicio lo vuelve a exigir con su motivo.
+            'ncf' => [$this->filled('ecf_kind') && $this->isMethod('post') ? 'nullable' : 'required', 'string', 'max:30'],
+            'ecf_kind' => ['nullable', Rule::in(['compras', 'gastos_menores'])],
+            'ecf_is_service' => ['nullable', 'boolean'],
             'ncf_modified' => ['nullable', 'string', 'max:30'],
             'goods_services_type' => ['required', Rule::in($types)],
             'invoice_date' => ['required', 'date'],
@@ -47,7 +51,8 @@ final class StorePurchaseInvoiceRequest extends FormRequest
             'tip' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['required', Rule::in($methods)],
             // Foto o PDF de la factura. Obligatorio al crear (POST); opcional al editar (PUT/PATCH).
-            'file' => [$this->isMethod('post') ? 'required' : 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
+            // Con comprobante electrónico propio (41/43), lo emite la empresa: puede no haber papel del proveedor.
+            'file' => [$this->isMethod('post') && ! $this->filled('ecf_kind') ? 'required' : 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:8192'],
         ];
     }
 

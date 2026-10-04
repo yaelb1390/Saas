@@ -55,11 +55,31 @@
                 <x-panel.create-modal title="Nueva factura de compra" label="Subir factura"
                                        form="purchase_invoice_create" width="max-w-3xl"
                                        enctype="multipart/form-data" :action="route('panel.purchase-invoices.store')">
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" x-data="{ ecf: @js(old('ecf_kind', '')) }">
+                        @if ($ecfCompras)
+                            {{-- Proveedor informal: el comprobante lo emite la empresa (e-CF 41 / 43). --}}
+                            <div class="sm:col-span-2 lg:col-span-3 rounded-lg border border-slate-200 p-3">
+                                <label class="bmos-field-label">Comprobante electrónico propio (proveedor informal)</label>
+                                <select name="ecf_kind" x-model="ecf" class="bmos-input">
+                                    <option value="">No: el proveedor me dio su comprobante</option>
+                                    <option value="compras">Sí: Comprobante de Compras (e-CF 41)</option>
+                                    <option value="gastos_menores">Sí: Gastos Menores (e-CF 43)</option>
+                                </select>
+                                <label x-show="ecf" class="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                                    <input type="hidden" name="ecf_is_service" value="0">
+                                    <input type="checkbox" name="ecf_is_service" value="1" @checked(old('ecf_is_service'))> Es un servicio (no un bien)
+                                </label>
+                                <p x-show="ecf" class="mt-1 text-xs text-slate-400">
+                                    Con la facturación electrónica en modo real, el e-NCF se genera solo y no hace falta escribir el NCF.
+                                    En paralelo, escribe tu NCF en papel: se genera además un e-CF de prueba.
+                                </p>
+                            </div>
+                        @endif
+
                         {{-- Archivo --}}
                         <div class="sm:col-span-2 lg:col-span-3">
                             <label class="bmos-field-label">Foto o PDF de la factura</label>
-                            <input type="file" name="file" accept="image/*,.pdf" required
+                            <input type="file" name="file" accept="image/*,.pdf" :required="! ecf"
                                    class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-600 hover:file:bg-indigo-100">
                             <p class="mt-1 text-xs text-slate-400">Imagen (JPG/PNG/WEBP) o PDF, hasta 8 MB. Luego escribe los datos abajo.</p>
                         </div>
@@ -102,7 +122,7 @@
 
                         <div>
                             <label class="bmos-field-label">NCF</label>
-                            <input type="text" name="ncf" value="{{ old('ncf') }}" placeholder="B01..." class="bmos-input" required>
+                            <input type="text" name="ncf" value="{{ old('ncf') }}" placeholder="B01..." class="bmos-input" :required="! ecf">
                         </div>
                         <div>
                             <label class="bmos-field-label">NCF modificado (opcional)</label>

@@ -9,6 +9,8 @@ use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
 use App\Modules\Billing\Exceptions\InvoiceException;
 use App\Modules\Billing\Models\Invoice;
+use App\Modules\Billing\Models\PurchaseInvoice;
+use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Billing\Support\TaxId;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\SystemEvent;
@@ -40,11 +42,12 @@ final class BillingBridge implements ElectronicInvoicingHook
         private readonly SaleDocumentMapper $mapper,
         private readonly ElectronicInvoiceService $service,
         private readonly InvoiceNoteService $notes,
+        private readonly PurchaseDocumentMapper $purchases,
     ) {}
 
     public function replaceNcf(Sale $sale, NcfType $type, ?TaxId $taxId): ?array
     {
-        [$company, $settings] = $this->contexto($sale);
+        [$company, $settings] = $this->contexto((int) $sale->company_id);
 
         if ($settings === null || $settings->emissionMode() !== EmissionMode::Real) {
             return null;
@@ -81,7 +84,7 @@ final class BillingBridge implements ElectronicInvoicingHook
                 return;
             }
 
-            [$company, $settings] = $this->contexto($sale);
+            [$company, $settings] = $this->contexto((int) $sale->company_id);
             $tipo = $this->mapper->typeFor($invoice->type);
 
             if ($settings === null || $settings->emissionMode() !== EmissionMode::Sombra || $tipo === null) {
@@ -108,20 +111,83 @@ final class BillingBridge implements ElectronicInvoicingHook
         }
     }
 
+    public function replacePurchaseNcf(PurchaseInvoice $purchase, string $kind, bool $isService): ?array
+    {
+        [$company, $settings] = $this->contexto((int) app(CurrentCompany::class)->id(), 'purchase_invoices');
+
+        if ($settings === null || $settings->emissionMode() !== EmissionMode::Real) {
+            return null;
+        }
+
+        try {
+            $doc = $this->purchases->map($purchase, $this->purchases->typeFor($kind), $isService, $settings);
+            $ecf = $this->service->prepare($company, $doc, 'purchase_invoice', null, auth()->id());
+        } catch (Throwable $e) {
+            throw InvoiceException::electronic($e->getMessage());
+        }
+
+        if ($ecf->status !== EcfStatus::PendienteEnvio) {
+            throw InvoiceException::electronic((string) ($ecf->last_error ?? 'no se pudo firmar el documento.'));
+        }
+
+        $this->enviarAlConfirmar($ecf);
+
+        return ['ncf' => $ecf->e_ncf, 'electronic_invoice_id' => (int) $ecf->id];
+    }
+
+    public function afterPurchaseCreated(PurchaseInvoice $purchase, string $kind, bool $isService): void
+    {
+        try {
+            $vinculado = $purchase->getAttributes()['electronic_invoice_id'] ?? null;
+
+            if ($vinculado !== null) {
+                ElectronicInvoice::query()->withoutGlobalScopes()->whereKey($vinculado)
+                    ->update(['source_type' => 'purchase_invoice', 'source_id' => $purchase->id]);
+
+                return;
+            }
+
+            [$company, $settings] = $this->contexto((int) $purchase->company_id, 'purchase_invoices');
+
+            if ($settings === null || $settings->emissionMode() !== EmissionMode::Sombra) {
+                return;
+            }
+
+            $ecf = DB::transaction(fn (): ElectronicInvoice => $this->service->prepare(
+                $company, $this->purchases->map($purchase, $this->purchases->typeFor($kind), $isService, $settings),
+                'purchase_invoice', (int) $purchase->id, auth()->id(),
+            ));
+
+            $purchase->forceFill(['electronic_invoice_id' => $ecf->id])->save();
+
+            if ($ecf->status === EcfStatus::PendienteEnvio) {
+                $this->enviarAlConfirmar($ecf);
+            }
+        } catch (Throwable $e) {
+            SystemEvent::registrar(
+                type: 'ecf.shadow_failed',
+                message: "e-CF de prueba no generado para la compra {$purchase->ncf}",
+                contexto: ['compra' => $purchase->id, 'motivo' => mb_substr($e->getMessage(), 0, 500)],
+                level: SystemEvent::AVISO,
+            );
+        }
+    }
+
     /**
      * La empresa y sus ajustes si la facturación electrónica puede participar; si no, [null, null].
+     * `$tabla` es la del documento de origen, que debe tener ya su columna `electronic_invoice_id`.
      *
      * @return array{0: Company|null, 1: ElectronicInvoicingSettings|null}
      */
-    private function contexto(Sale $sale): array
+    private function contexto(int $companyId, string $tabla = 'invoices'): array
     {
         // El código llega antes que la migración: sin la columna del modo, nada cambia.
         if (! DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')
-            || ! DbTable::tieneColumna('invoices', 'electronic_invoice_id')) {
+            || ! DbTable::tieneColumna($tabla, 'electronic_invoice_id')) {
             return [null, null];
         }
 
-        $company = Company::query()->find($sale->company_id);
+        $company = Company::query()->find($companyId);
 
         if ($company === null || ! $company->hasModule('e_invoicing')) {
             return [null, null];

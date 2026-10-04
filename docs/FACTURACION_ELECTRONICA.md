@@ -417,6 +417,36 @@ Cobertura: 5 pruebas más en `EcfSaleEmissionTest` (anulación real con nota y s
 e-NCF; anulación imposible sin E34; anulación en paralelo; notas por importe con el tope del crédito;
 permisos).
 
+## Fase 5c — Compras (41) y Gastos menores (43) (2026-10-04)
+
+Cuando se compra a quien no puede dar comprobante (proveedor informal), lo emite la propia empresa: hoy
+con los talonarios B11/B13 escritos a mano en «Compras 606»; con e-CF, los tipos 41 y 43 [IT §6.1].
+
+- En el formulario de «Compras 606» (solo con el módulo): «Comprobante electrónico propio» → Compras (41)
+  o Gastos menores (43), y «Es un servicio».
+  - **Real**: el e-NCF es el NCF de la compra; no hace falta escribirlo ni subir papel. Si el e-CF no se
+    puede emitir, la compra no se guarda y se dice por qué.
+  - **En paralelo**: se escribe el NCF en papel como siempre y se genera además un e-CF de prueba.
+  - **Apagado**: si se pide sin escribir el NCF, se explica que hay que escribirlo (no se inventa nada).
+- `PurchaseDocumentMapper`:
+  - en el 41 el **proveedor informal va como «comprador»** del XML (lo exige el XSD); la empresa es el emisor;
+  - el monto del 606 es la base **sin** ITBIS. Con ITBIS, la línea va gravada al 18 % y el total calculado
+    tiene que cuadrar con monto + ITBIS; sin ITBIS, exenta. El 43 solo admite exentos [FMT nota 50];
+  - ITBIS e ISR retenidos del 606 → retenciones de la línea (ISR solo en servicios, lo valida el
+    validador); la forma de pago lleva lo efectivamente pagado (total − retenciones).
+- Contrato: `replacePurchaseNcf` / `afterPurchaseCreated`; columna `purchase_invoices.electronic_invoice_id`
+  (migración `2026_10_04_100100`). El e-CF apunta a la compra (`source_type = purchase_invoice`).
+
+Cobertura: 4 pruebas más en `EcfSaleEmissionTest` (41 real con la DGII simulada y el proveedor en el XML;
+41 en paralelo; 43 con ITBIS rechazado sin guardar la compra; apagado sin NCF).
+
+### Pendiente de la fase 5 (a la fase 6)
+
+- Mostrar el estado del e-CF (aceptado, rechazado, pendiente) junto a cada factura y compra, y en el PDF
+  la representación impresa con QR (fase 6).
+- Datos fiscales del emisor y cambio de ambiente desde la pantalla (hoy se precargan de «Mi empresa»): van
+  en el asistente de la fase 6.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

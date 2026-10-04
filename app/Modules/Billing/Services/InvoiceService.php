@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Services;
 
+use App\Modules\Billing\Contracts\ElectronicInvoicingHook;
 use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\InvoiceStatus;
 use App\Modules\Billing\Enums\NcfType;
@@ -23,7 +24,10 @@ use Illuminate\Support\Facades\DB;
  */
 final class InvoiceService
 {
-    public function __construct(private readonly FiscalSequenceService $sequences) {}
+    public function __construct(
+        private readonly FiscalSequenceService $sequences,
+        private readonly ElectronicInvoicingHook $electronic,
+    ) {}
 
     public function issueForSale(
         Sale $sale,
@@ -46,16 +50,22 @@ final class InvoiceService
 
             $taxId = $this->validateTaxId($type, $customerTaxId);
 
+            // Con la facturación electrónica en modo real, el comprobante es un e-CF y no se toca la
+            // serie B. En cualquier otro caso, `null` y todo sigue como siempre.
+            $electronico = $this->electronic->replaceNcf($sale, $type, $taxId);
+
             // El NCF se reserva al final: si algo falla antes, no se quema un número de la
             // secuencia autorizada (la DGII no permite huecos sin justificar).
-            [$sequence, $ncf] = $this->sequences->allocate((int) $sale->company_id, $type);
+            [$sequence, $ncf] = $electronico === null
+                ? $this->sequences->allocate((int) $sale->company_id, $type)
+                : [null, $electronico['ncf']];
 
             $invoice = Invoice::create([
                 'company_id' => $sale->company_id,
                 // La factura hereda el cliente de la venta: es el mismo negocio jurídico.
                 'customer_id' => $sale->customer_id,
                 'sale_id' => $sale->id,
-                'fiscal_sequence_id' => $sequence->id,
+                'fiscal_sequence_id' => $sequence?->id,
                 'ncf' => $ncf,
                 'type' => $type,
                 'customer_name' => $sale->customer_name,
@@ -80,6 +90,12 @@ final class InvoiceService
                     'subtotal' => $item->subtotal,
                 ]);
             }
+
+            if ($electronico !== null) {
+                $invoice->forceFill(['electronic_invoice_id' => $electronico['electronic_invoice_id']])->save();
+            }
+
+            $this->electronic->afterInvoiceCreated($invoice, $sale, $taxId);
 
             InvoiceIssued::dispatch($invoice);
 

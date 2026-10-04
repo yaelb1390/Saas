@@ -333,6 +333,64 @@ certificado sin consumir número, proveedor de prueba bloqueado en producción, 
 inmodificables, transiciones ilegales, conservación al borrar la empresa, proveedor DGII con respuestas
 simuladas (token cifrado y reutilizado, solo `testecf`, códigos 0–4, 503, XXE, sin red) y el secreto del cron.
 
+## Fase 5a — e-CF desde las ventas facturadas (2026-10-04)
+
+Facturación A4, POS/Venta rápida, Cotización → Factura y Mostrador facturan todos con
+`Billing\Services\InvoiceService::issueForSale`. Ahí se engancha el e-CF, una sola vez para los cuatro.
+
+### Contrato e inversión de dependencias
+
+`Billing\Contracts\ElectronicInvoicingHook` lo declara Billing; lo implementa
+`ElectronicInvoicing\Application\Sources\BillingBridge`. Sin el módulo, `NoElectronicInvoicing` (no hace
+nada). Billing no conoce el módulo de e-CF.
+
+### Modo de emisión por empresa (`Domain/EmissionMode`, columna `emission_mode`)
+
+| Modo | Ambiente | Qué pasa al facturar |
+|---|---|---|
+| apagado (por omisión) | cualquiera | Solo serie B, como siempre |
+| en paralelo (`sombra`) | pruebas / certificación | La factura B sale igual; además se prepara un e-CF con la misma venta en un punto de guardado propio. Si falla, se deshace solo él y queda el suceso `ecf.shadow_failed` |
+| real | producción | El e-CF **es** el comprobante (`invoices.ncf` = e-NCF, sin secuencia B). Si no se puede emitir, no hay factura (`InvoiceException` con el motivo), como hoy sin secuencia B |
+
+- En pruebas/certificación un e-CF no tiene validez fiscal, por eso ahí no puede sustituir a la serie B.
+- Un modo que no cuadra con el ambiente cuenta como «apagado». Encender exige certificado activo.
+- El envío a la DGII se hace **después de confirmar** la transacción de la venta (`DB::afterCommit`): una
+  venta revertida no deja un e-CF enviado, y el cobro nunca espera ni se cae por la DGII (si falla, queda
+  pendiente y lo retoma el procesador). `ElectronicInvoiceService` se separa en `prepare()` + `send()`.
+- `invoices.electronic_invoice_id` enlaza la factura con su e-CF; el e-CF apunta a la factura
+  (`source_type = invoice`).
+
+### De la venta al e-CF (`Application/Sources/SaleDocumentMapper`)
+
+- Tipo: B01 → 31, B02 → 32, B15 → 45 [IT §6.1]. Las notas (B03/B04) no salen de una venta: en modo real se
+  rechazan con su mensaje (fase 5b), nunca caen en silencio a la serie B.
+- Precios con ITBIS incluido (como cobra la venta); el indicador de cada línea es el del producto.
+- **Descuento global** del ticket: se reparte entre las líneas en proporción a su importe y el céntimo
+  sobrante va a la última, así la suma de líneas es exactamente lo cobrado.
+- **Propina**: fuera del e-CF (el total declarado es el de la venta sin propina; se descuenta de la forma de
+  pago de mayor importe). Cómo se declara la propina legal en el e-CF → `pending_verification`.
+- Formas de pago desde el desglose real de la venta: efectivo 1, cheque/transferencia 2, tarjeta 3,
+  crédito 4. Venta a crédito → `TipoPago` 2; sin fecha de vencimiento en la venta, no se inventa una.
+- Cantidad con 3 decimales (venta por peso): se acepta si el tercero es 0; si no, el validador la rechaza
+  (no se redondea una cantidad vendida a escondidas).
+
+### Pantalla
+
+Tarjeta «Emisión en ventas y facturas» (permiso `ecf.configure`) y contadores reales de pendientes,
+aceptados y rechazados.
+
+### Migración
+
+```
+2026_10_04_100000_add_ecf_emission_mode   (settings.emission_mode + invoices.electronic_invoice_id)
+```
+
+### Cobertura
+
+`EcfSaleEmissionTest` (9): apagado, en paralelo (con éxito y con fallo sin afectar a la factura B), real
+(con la DGII simulada en `ecf`/`fc` de producción; serie B intacta), real sin poder emitir (sin factura ni
+número gastado), tipo no soportado, descuento global + propina, y el selector de modo.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

@@ -1087,6 +1087,8 @@ Route::middleware(['auth'])->group(function (): void {
         // Probar contraseñas contra un .p12 a ritmo de script no debe ser posible: tope por minuto.
         Route::post('/panel/facturacion-electronica/certificado', [ElectronicInvoicingController::class, 'storeCertificate'])
             ->middleware(['can:ecf.configure', 'throttle:10,1'])->name('panel.e-invoicing.certificate.store');
+        Route::post('/panel/facturacion-electronica/modo', [ElectronicInvoicingController::class, 'updateMode'])
+            ->middleware('can:ecf.configure')->name('panel.e-invoicing.mode.update');
     });
 
     // Bandeja de WhatsApp. Vincular la línea afecta a toda la empresa: permiso aparte.

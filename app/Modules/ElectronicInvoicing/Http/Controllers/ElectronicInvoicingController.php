@@ -7,7 +7,10 @@ namespace App\Modules\ElectronicInvoicing\Http\Controllers;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\ElectronicInvoicing\Application\RuntimeRequirements;
+use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
+use App\Modules\ElectronicInvoicing\Domain\EmissionMode;
+use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Domain\Environment;
 use App\Modules\ElectronicInvoicing\Http\Requests\StoreCertificateRequest;
 use App\Modules\ElectronicInvoicing\Http\Requests\StoreElectronicNcfSequenceRequest;
@@ -19,6 +22,8 @@ use App\Modules\ElectronicInvoicing\Ncf\ElectronicNcfService;
 use App\Modules\ElectronicInvoicing\Xml\SchemaRegistry;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Routing\Controller;
 
 /**
@@ -58,7 +63,61 @@ final class ElectronicInvoicingController extends Controller
             'esquemasIntegros' => $esquemas->allIntact(),
             'requisitos' => $requisitos->check(),
             'pendientes' => (array) config('ecf.pending_verification', []),
+            'modos' => EmissionMode::cases(),
+            'modoDisponible' => DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')
+                && DbTable::tieneColumna('invoices', 'electronic_invoice_id'),
+            'contadores' => $this->contadores(),
         ]);
+    }
+
+    /**
+     * Cambia el modo de emisión (apagado / en paralelo / real).
+     *
+     * «Real» solo en producción y «en paralelo» nunca en producción (`EmissionMode::allowedIn`).
+     * Encender cualquiera de los dos exige un certificado activo: sin él no se puede firmar nada y
+     * cada factura dejaría un aviso en el registro.
+     */
+    public function updateMode(Request $request, CurrentCompany $actual, CertificateVault $vault): RedirectResponse
+    {
+        if (! DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')) {
+            return back()->with('panel_error', 'Falta aplicar las migraciones de facturación electrónica.');
+        }
+
+        $empresa = $actual->model();
+        abort_if($empresa === null, 404);
+
+        $datos = $request->validate(['emission_mode' => ['required', Rule::enum(EmissionMode::class)]]);
+        $modo = EmissionMode::from($datos['emission_mode']);
+        $ajustes = ElectronicInvoicingSettings::paraEmpresa($empresa);
+
+        if (! $modo->allowedIn($ajustes->environment)) {
+            return back()->withErrors(['emission_mode' => "«{$modo->label()}» no está disponible en el ambiente {$ajustes->environment->label()}."]);
+        }
+
+        if ($modo !== EmissionMode::Apagado && $vault->active($empresa) === null) {
+            return back()->withErrors(['emission_mode' => 'Primero sube el certificado digital: sin él no se puede firmar ningún e-CF.']);
+        }
+
+        $ajustes->forceFill(['emission_mode' => $modo->value])->save();
+
+        return back()->with('panel_ok', "Modo de emisión: {$modo->label()}.");
+    }
+
+    /** @return array{pendientes: int, aceptados: int, rechazados: int} */
+    private function contadores(): array
+    {
+        if (! DbTable::existe('electronic_invoices')) {
+            return ['pendientes' => 0, 'aceptados' => 0, 'rechazados' => 0];
+        }
+
+        $porEstado = ElectronicInvoice::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $suma = fn (array $estados): int => (int) collect($estados)->sum(fn (EcfStatus $e) => $porEstado[$e->value] ?? 0);
+
+        return [
+            'pendientes' => $suma([EcfStatus::PendienteEnvio, EcfStatus::Enviando, EcfStatus::Recibido, EcfStatus::Contingencia, EcfStatus::Error]),
+            'aceptados' => $suma([EcfStatus::Aceptado, EcfStatus::AceptadoCondicional]),
+            'rechazados' => $suma([EcfStatus::Rechazado]),
+        ];
     }
 
     /**

@@ -7,6 +7,7 @@ namespace App\Modules\ElectronicInvoicing\Models;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
+use App\Modules\ElectronicInvoicing\Domain\EmissionMode;
 use App\Modules\ElectronicInvoicing\Domain\Environment;
 use App\Modules\ElectronicInvoicing\Domain\SetupStatus;
 use Illuminate\Database\Eloquent\Model;
@@ -76,6 +77,17 @@ final class ElectronicInvoicingSettings extends Model implements Auditable, HasC
         ])->save();
 
         return $ajustes;
+    }
+
+    /**
+     * Modo de emisión. Sin la columna (código antes que migración) o con un valor que no cuadra con
+     * el ambiente, «apagado»: nunca se emite un e-CF por un estado a medias.
+     */
+    public function emissionMode(): EmissionMode
+    {
+        $modo = EmissionMode::tryFrom((string) ($this->getAttributes()['emission_mode'] ?? '')) ?? EmissionMode::Apagado;
+
+        return $modo->allowedIn($this->environment) ? $modo : EmissionMode::Apagado;
     }
 
     protected function casts(): array

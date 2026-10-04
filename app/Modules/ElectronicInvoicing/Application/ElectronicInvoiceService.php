@@ -54,7 +54,28 @@ final class ElectronicInvoiceService
         private readonly ContingencyService $contingency,
     ) {}
 
+    /** Prepara y envía en el acto. */
     public function issue(
+        Company $company,
+        EcfDocument $draft,
+        ?string $sourceType = null,
+        ?int $sourceId = null,
+        ?int $userId = null,
+        ?string $ip = null,
+    ): ElectronicInvoice {
+        $ecf = $this->prepare($company, $draft, $sourceType, $sourceId, $userId, $ip);
+
+        return $ecf->status === EcfStatus::PendienteEnvio ? $this->send($ecf, $userId, $ip) : $ecf;
+    }
+
+    /**
+     * Valida, numera, genera, firma y deja el documento PENDIENTE de envío, sin hablar con nadie.
+     *
+     * Separado del envío para quien emite dentro de una transacción (la factura de una venta): la
+     * llamada a la DGII se hace DESPUÉS de confirmar la transacción, así una venta que se revierte no
+     * deja un e-CF ya enviado. Lanza EcfValidationException o CertificateException sin consumir número.
+     */
+    public function prepare(
         Company $company,
         EcfDocument $draft,
         ?string $sourceType = null,
@@ -130,8 +151,7 @@ final class ElectronicInvoiceService
 
         $this->moverA($ecf, EcfStatus::PendienteEnvio, 'Listo para enviar', $userId, $ip);
 
-        // 5. Envío inmediato (síncrono). Si falla, queda pendiente y lo retoma el procesador.
-        return $this->send($ecf, $userId, $ip);
+        return $ecf;
     }
 
     public function send(ElectronicInvoice $ecf, ?int $userId = null, ?string $ip = null): ElectronicInvoice

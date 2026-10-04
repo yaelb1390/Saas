@@ -32,6 +32,12 @@ final class InvoiceException extends DomainException
         return new self("El RNC/cédula «{$taxId}» no es válido: el dígito verificador no coincide.");
     }
 
+    /** La facturación electrónica (modo real) no pudo emitir el e-CF: no hay comprobante alternativo. */
+    public static function electronic(string $reason): self
+    {
+        return new self("No se pudo emitir la factura electrónica: {$reason}");
+    }
+
     public static function alreadyCancelled(string $ncf): self
     {
         return new self("El comprobante {$ncf} ya está anulado.");

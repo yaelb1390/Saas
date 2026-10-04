@@ -79,10 +79,62 @@
                 </div>
                 <div class="flex items-center justify-between gap-3 py-2">
                     <dt class="text-slate-500">Documentos pendientes · aceptados · rechazados</dt>
-                    <dd class="text-slate-800">0 · 0 · 0</dd>
+                    <dd class="text-slate-800">{{ $contadores['pendientes'] }} · {{ $contadores['aceptados'] }} · {{ $contadores['rechazados'] }}</dd>
                 </div>
             </dl>
         </div>
+
+        @if ($ajustes && $modoDisponible)
+            <div class="bmos-card bmos-card-pad">
+                <p class="font-semibold text-slate-800">Emisión en ventas y facturas</p>
+                <p class="mt-1 text-xs text-slate-500">
+                    Qué pasa al facturar desde Facturación, el punto de venta, Venta rápida, Cotizaciones y el Mostrador.
+                </p>
+
+                <dl class="mt-4 divide-y divide-slate-100 text-sm">
+                    <div class="flex items-center justify-between gap-3 py-2">
+                        <dt class="text-slate-500">Modo actual</dt>
+                        <dd class="text-right text-slate-800">{{ $ajustes->emissionMode()->label() }}</dd>
+                    </div>
+                </dl>
+
+                @can('ecf.configure')
+                    <form method="POST" action="{{ route('panel.e-invoicing.mode.update') }}" class="mt-4 space-y-2 rounded-lg border border-slate-200 p-3">
+                        @csrf
+                        @foreach ($modos as $modo)
+                            @php $permitido = $modo->allowedIn($ajustes->environment); @endphp
+                            <label class="flex items-start gap-2 text-sm {{ $permitido ? 'text-slate-800' : 'text-slate-400' }}">
+                                <input type="radio" name="emission_mode" value="{{ $modo->value }}" class="mt-0.5"
+                                       @checked($ajustes->emissionMode() === $modo) @disabled(! $permitido)>
+                                <span>
+                                    <b class="font-medium">{{ $modo->label() }}</b>
+                                    <span class="block text-xs text-slate-500">
+                                        @switch($modo)
+                                            @case(\App\Modules\ElectronicInvoicing\Domain\EmissionMode::Apagado)
+                                                Solo comprobantes de la serie B, como hasta ahora.
+                                                @break
+                                            @case(\App\Modules\ElectronicInvoicing\Domain\EmissionMode::Sombra)
+                                                La serie B sigue siendo tu comprobante. Con cada factura se genera además un e-CF de prueba para
+                                                comprobar que todo funciona; si falla, la venta no se afecta. Solo en pruebas y certificación.
+                                                @break
+                                            @case(\App\Modules\ElectronicInvoicing\Domain\EmissionMode::Real)
+                                                El e-CF sustituye a la serie B. Solo en producción, después de que la DGII te autorice.
+                                                @break
+                                        @endswitch
+                                    </span>
+                                </span>
+                            </label>
+                        @endforeach
+                        <div class="flex justify-end pt-1">
+                            <button type="submit" class="bmos-btn bmos-btn-primary">Guardar modo</button>
+                        </div>
+                        @error('emission_mode')
+                            <p class="text-xs text-rose-600">{{ $message }}</p>
+                        @enderror
+                    </form>
+                @endcan
+            </div>
+        @endif
 
         <div class="bmos-card bmos-card-pad">
             <p class="font-semibold text-slate-800">Certificado digital</p>

@@ -395,7 +395,10 @@ it('la lista y la ficha enseñan el documento, sus respuestas y su bitácora', f
     $this->actingAs($duena)->get(route('panel.e-invoicing.documents', ['estado' => 'aceptado']))->assertOk()->assertDontSee('E310000000001');
 
     $this->actingAs($duena)->get(route('panel.e-invoicing.documents.show', $ecf))->assertOk()
-        ->assertSee('Respuestas de la DGII')->assertSee('Bitácora')->assertSee('Consultar resultado')->assertSee('firmado');
+        ->assertSee('Respuestas de la DGII')->assertSee('Bitácora')->assertSee('Consultar resultado')->assertSee('firmado')
+        // El timbre se ve en la ficha: en «En paralelo» es el único sitio donde aparece el QR.
+        ->assertSee('Timbre (código QR)')->assertSee('data:image/svg+xml;base64,', false)
+        ->assertSee('Código de seguridad: <b>'.$ecf->fresh()->security_code.'</b>', false);
 
     $firmado = $ecf->file('firmado');
     $this->actingAs($duena)->get(route('panel.e-invoicing.documents.file', [$ecf, $firmado]))

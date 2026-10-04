@@ -65,6 +65,21 @@
             </dl>
         </div>
 
+        {{-- El timbre (QR + código de seguridad) tal como sale impreso. Hace falta aquí y no solo en el
+             PDF: en «En paralelo» el comprobante impreso es la factura B, que no lleva timbre, y esta es
+             la única forma de ver el del e-CF de prueba. --}}
+        @if ($timbre)
+            <div class="bmos-card bmos-card-pad">
+                <p class="font-semibold text-slate-800">Timbre (código QR)</p>
+                <p class="mt-1 text-xs text-slate-500">Así se imprime en la factura cuando el e-CF es el comprobante. El QR lleva a la consulta de la DGII.</p>
+                <div class="mt-2 max-w-md">
+                    @include('documents.components.timbre', ['timbre' => $timbre])
+                </div>
+                <a href="{{ $timbre['url'] }}" target="_blank" rel="noopener noreferrer"
+                   class="mt-2 inline-block break-all text-xs font-semibold text-indigo-600 underline">Abrir la consulta de la DGII</a>
+            </div>
+        @endif
+
         <div class="bmos-card bmos-card-pad">
             <p class="font-semibold text-slate-800">Archivos</p>
             <p class="mt-1 text-xs text-slate-500">Guardados tal cual con su huella SHA-256; al descargarlos se comprueba que no cambiaron.</p>

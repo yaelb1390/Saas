@@ -19,6 +19,7 @@ use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceFile;
+use App\Modules\ElectronicInvoicing\Printing\Timbre;
 use App\Modules\ElectronicInvoicing\Storage\FiscalDocumentStore;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -166,7 +167,24 @@ final class ElectronicDocumentController extends Controller
             'puedeReintentar' => in_array($document->status, [EcfStatus::PendienteEnvio, EcfStatus::Contingencia, EcfStatus::Error], true)
                 && $document->file($document->sends_summary ? 'rfce_firmado' : 'firmado') !== null,
             'puedeConsultar' => $document->status === EcfStatus::Recibido && $document->track_id !== null,
+            'timbre' => $this->timbre($document),
         ]);
+    }
+
+    /** El timbre solo existe una vez firmado (sale del XML firmado); si algo falla, la ficha se ve sin él. */
+    private function timbre(ElectronicInvoice $document): ?array
+    {
+        if ($document->security_code === null) {
+            return null;
+        }
+
+        try {
+            return app(Timbre::class)->for($document);
+        } catch (Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     /** Descarga un XML del documento, comprobando antes que sigue siendo el que se guardó. */

@@ -127,6 +127,27 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Documentos fiscales (e-CF) en Supabase Storage, en un BUCKET PROPIO Y PRIVADO.
+         *
+         * Mismas credenciales S3 de Supabase que el disco `s3` (las fotos), otro bucket: los XML
+         * llevan RNC, nombres e importes de clientes y se guardan 10 años, así que no se mezclan con
+         * las fotos ni dependen de cómo esté configurado ese bucket. Se activa con
+         * FISCAL_DOCUMENTS_DISK=fiscal_s3 y FISCAL_DOCUMENTS_BUCKET=<nombre del bucket privado>.
+         */
+        'fiscal_s3' => [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('FISCAL_DOCUMENTS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
+            'throw' => false,
+            'report' => false,
+        ],
+
         // Cloudflare R2 (S3-compatible). Se usa como destino externo de los respaldos. Mientras las
         // credenciales R2_* estén vacías, el respaldo se guarda solo en local; al rellenarlas, el
         // backup empieza a subir automáticamente fuera del servidor.

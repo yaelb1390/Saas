@@ -109,6 +109,10 @@ it('en paralelo: la factura sigue siendo B y la acompaña un e-CF de prueba con 
         ->and((string) $ecf->total)->toBe('236.00')
         // Enviado después de confirmar la venta (proveedor de prueba: resumen aceptado).
         ->and($ecf->status)->toBe(EcfStatus::Aceptado);
+
+    $item = collect(app(\App\Modules\ElectronicInvoicing\Application\Diagnostics::class)->checks($this->company, false))
+        ->firstWhere('key', 'sombra');
+    expect($item['level'])->toBe('ok');
 });
 
 it('en paralelo: si el e-CF falla, la factura B sale igual y queda el aviso', function (): void {
@@ -122,6 +126,12 @@ it('en paralelo: si el e-CF falla, la factura B sale igual y queda el aviso', fu
     expect($factura->ncf)->toBe('B0200000001')
         ->and(ElectronicInvoice::count())->toBe(0)
         ->and(SystemEvent::query()->where('type', 'ecf.shadow_failed')->count())->toBe(1);
+
+    // Y el Diagnóstico lo dice con el motivo: el dueño no mira Monitoreo.
+    $item = collect(app(\App\Modules\ElectronicInvoicing\Application\Diagnostics::class)->checks($this->company, false))
+        ->firstWhere('key', 'sombra');
+    expect($item['level'])->toBe('aviso')
+        ->and($item['detail'])->toStartWith('1 factura(s) B de los últimos 7 días no tienen su e-CF de prueba. Último motivo: ');
 });
 
 it('real: el e-CF sustituye a la serie B y se envía a la DGII al confirmar la venta', function (): void {

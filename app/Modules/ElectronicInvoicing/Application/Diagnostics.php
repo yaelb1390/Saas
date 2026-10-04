@@ -130,6 +130,13 @@ final class Diagnostics
             ? $this->item('rechazados', 'Rechazados (7 días)', self::AVISO, "{$estado['rechazados']} documento(s) rechazados por la DGII.", 'Revisa el motivo en cada documento y emite uno nuevo corregido.')
             : $this->item('rechazados', 'Rechazados (7 días)', self::OK, 'Ninguno.');
 
+        // 5b. En paralelo, un e-CF de prueba que falla NO para la venta (a propósito) y solo queda
+        // anotado en Monitoreo, donde el dueño no mira. Aquí se cuentan las facturas B recientes que se
+        // quedaron sin su e-CF y se da el último motivo anotado.
+        if ($modo === EmissionMode::Sombra) {
+            $r[] = $this->sombraSinEcf((int) $company->id);
+        }
+
         // 6. Contingencia [IT §19]: enviar en 72 h tras volver la conexión.
         $abierta = $this->contingency->open((int) $company->id, $s->environment);
         $limite = (int) config('ecf.contingency.send_within_hours_after_connectivity', 72);
@@ -236,6 +243,42 @@ final class Diagnostics
             ->value('created_at');
 
         return $fecha === null ? null : \Illuminate\Support\Carbon::parse($fecha);
+    }
+
+    /** @return array{key: string, title: string, level: string, detail: string, fix: ?string} */
+    private function sombraSinEcf(int $companyId): array
+    {
+        $titulo = 'e-CF de prueba (7 días)';
+
+        try {
+            if (! DbTable::tieneColumna('invoices', 'electronic_invoice_id')) {
+                return $this->item('sombra', $titulo, self::OK, 'Sin datos todavía.');
+            }
+
+            $sinEcf = DB::table('invoices')
+                ->where('company_id', $companyId)
+                ->whereIn('type', ['B01', 'B02', 'B15'])
+                ->whereNull('electronic_invoice_id')
+                ->where('issued_at', '>=', now()->subDays(7))
+                ->count();
+
+            if ($sinEcf === 0) {
+                return $this->item('sombra', $titulo, self::OK, 'Cada factura B tiene su e-CF de prueba.');
+            }
+
+            $contexto = DbTable::existe('system_events')
+                ? DB::table('system_events')->where('company_id', $companyId)->where('type', 'ecf.shadow_failed')
+                    ->where('created_at', '>=', now()->subDays(7))->latest('created_at')->value('context')
+                : null;
+            $motivo = is_string($contexto) ? (json_decode($contexto, true)['motivo'] ?? null) : null;
+
+            return $this->item('sombra', $titulo, self::AVISO,
+                "{$sinEcf} factura(s) B de los últimos 7 días no tienen su e-CF de prueba."
+                    .($motivo !== null ? " Último motivo: {$motivo}" : ' No quedó anotado ningún motivo.'),
+                $motivo !== null ? 'Corrige lo que indica el motivo; las ventas siguientes ya generarán su e-CF.' : 'Avisa a soporte con la hora de la venta.');
+        } catch (Throwable) {
+            return $this->item('sombra', $titulo, self::AVISO, 'No se pudo comprobar.', null);
+        }
     }
 
     /** El disco privado de documentos fiscales acepta escribir y leer. */

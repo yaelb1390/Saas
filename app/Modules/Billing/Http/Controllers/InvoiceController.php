@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Http\Controllers;
 
+use App\Modules\Billing\Contracts\ElectronicInvoicingHook;
 use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
 use App\Modules\Billing\Exceptions\FiscalSequenceException;
@@ -67,12 +68,14 @@ final class InvoiceController extends Controller
     /**
      * El PDF del comprobante ya emitido, en A4, con el mismo layout compartido que la cotización.
      */
-    public function pdf(Invoice $invoice, ?string $mode = null): Response
+    public function pdf(Invoice $invoice, ElectronicInvoicingHook $electronic, ?string $mode = null): Response
     {
         $invoice->loadMissing('items', 'customer', 'sale', 'user');
 
         $pdf = Pdf::loadView('invoices.pdf', [
             'invoice' => $invoice,
+            // Representación impresa del e-CF (timbre con QR) si el comprobante es electrónico.
+            'timbre' => $electronic->printedRepresentation($invoice),
             'company' => $invoice->company,
             'logo' => $invoice->company?->hasLogo() ? CompanyLogoStore::dataUri($invoice->company) : null,
         ])->setPaper('a4');

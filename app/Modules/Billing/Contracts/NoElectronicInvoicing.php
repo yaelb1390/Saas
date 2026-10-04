@@ -29,4 +29,9 @@ final class NoElectronicInvoicing implements ElectronicInvoicingHook
     }
 
     public function afterPurchaseCreated(PurchaseInvoice $purchase, string $kind, bool $isService): void {}
+
+    public function printedRepresentation(Invoice $invoice): ?array
+    {
+        return null;
+    }
 }

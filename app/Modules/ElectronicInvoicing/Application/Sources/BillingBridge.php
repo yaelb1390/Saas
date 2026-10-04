@@ -20,6 +20,7 @@ use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EmissionMode;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
+use App\Modules\ElectronicInvoicing\Printing\Timbre;
 use App\Modules\Sales\Models\Sale;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -225,6 +226,24 @@ final class BillingBridge implements ElectronicInvoicingHook
                 contexto: ['factura' => $invoice->id, 'motivo' => mb_substr($e->getMessage(), 0, 500)],
                 level: SystemEvent::AVISO,
             );
+        }
+    }
+
+    public function printedRepresentation(Invoice $invoice): ?array
+    {
+        // Solo cuando el comprobante ES el e-CF (modo real). En paralelo el documento es la factura B.
+        if (! str_starts_with((string) $invoice->ncf, 'E')) {
+            return null;
+        }
+
+        try {
+            $ecf = $this->notes->original($invoice);
+
+            return $ecf === null ? null : app(Timbre::class)->for($ecf);
+        } catch (Throwable $e) {
+            report($e);
+
+            return null;
         }
     }
 

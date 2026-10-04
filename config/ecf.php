@@ -52,6 +52,9 @@ return [
         'reception' => ['host' => 'ecf', 'path' => '/recepcion/api/facturaselectronicas'],               // POST [DT p.13]
         'rfce_reception' => ['host' => 'fc', 'path' => '/recepcionfc/api/recepcion/ecf'],               // POST [DT p.16]
         'result' => ['host' => 'ecf', 'path' => '/consultaresultado/api/consultas/estado'],             // GET ?trackid= [DT p.22]
+        // Timbre (QR) de la representación impresa [DT pp.40–42]: no se llaman, son la URL del QR.
+        'stamp' => ['host' => 'ecf', 'path' => '/consultatimbre'],
+        'stamp_fc' => ['host' => 'fc', 'path' => '/consultatimbrefc'],
     ],
 
     /*
@@ -284,6 +287,7 @@ return [
         'psfe_admin_user' => 'Si con proveedor certificado hace falta el «Usuario Administrador e-CF».',
         'emitter_receiver_endpoints' => 'Servicios emisor↔receptor: «Descripción Técnica Servicios Emisores Electrónicos», sin revisar.',
         'reports_607_608' => 'Si con e-CF siguen haciendo falta los formatos 607/608, y si un e-CF revertido con nota de crédito se reporta en el 608. Hoy la factura anulada sigue saliendo en el 608 como cualquier otra (fase 5b).',
+        'qr_version' => '[DT pp.40–42] pide QR versión 8, pero la URL completa del timbre (~200 caracteres) no cabe en ella en modo byte (máx. 192). Se intenta la 8 y, si no cabe, la menor que la contenga, sin recortar la URL (fase 6c).',
         'tip' => 'Cómo se declara la propina legal (10 %) en el e-CF. Hoy queda fuera del documento (fase 5a).',
         'rounding_rule' => 'La «regla de redondeos» que cita [FMT nota 11] y si la DGII tolera diferencias de céntimos en los totales.',
     ],

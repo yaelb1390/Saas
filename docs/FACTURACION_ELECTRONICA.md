@@ -447,6 +447,51 @@ Cobertura: 4 pruebas más en `EcfSaleEmissionTest` (41 real con la DGII simulada
 - Datos fiscales del emisor y cambio de ambiente desde la pantalla (hoy se precargan de «Mi empresa»): van
   en el asistente de la fase 6.
 
+## Fase 6a — Configuración del emisor (2026-10-04)
+
+Tarjeta «Datos fiscales y ambiente» (permiso `ecf.configure`): RNC/cédula (dígito verificador), razón social
+y nombre comercial (máx. 150, XSD), dirección (máx. 100, XSD), provincia y municipio, correo, teléfono,
+usuario administrador e-CF, ambiente y proveedor.
+
+- **Provincia y municipio** con los códigos oficiales leídos del XSD (`Xml/TerritoryCatalog`: la
+  enumeración `ProvinciaMunicipioType` de ecf-31.xsd y su comentario; 582 códigos, 32 provincias). El
+  municipio tiene que ser de la provincia elegida.
+- **Pasar a producción** exige marcar «Confirmo que la DGII ya autorizó a mi empresa» y un proveedor real
+  (el de prueba no envía nada). **Cambiar de ambiente apaga la emisión**: el modo real se enciende a
+  propósito, nunca se hereda.
+- Estado de BMIA recalculado (`syncStatus`): sin datos o sin certificado → No configurado; En pruebas / En
+  certificación según el ambiente; en producción Autorizado (lo confirmó el usuario) y Activo con el modo
+  real.
+
+## Fase 6b — Documentos en pantalla (2026-10-04)
+
+- «Documentos electrónicos»: lista con búsqueda (e-NCF, cliente, RNC) y filtros (estado, tipo).
+- Ficha: datos, archivos con su huella (descarga verificada; si el archivo cambió, 409), respuestas de la
+  DGII, bitácora (permiso `ecf.audit`), y las acciones «Reintentar envío» (`ecf.send`) y «Consultar
+  resultado» (`ecf.query`), solo cuando la máquina de estados las permite.
+- En Facturas, cada factura enseña el estado de su e-CF (o del de prueba, rotulado así) con enlace a la
+  ficha, en una sola consulta.
+
+## Fase 6c — Representación impresa con timbre (2026-10-04)
+
+[IT §18; DT pp.40–42]. En el PDF A4 de una factura cuyo comprobante es un e-CF (modo real): el tipo en
+palabras, el e-NCF, el vencimiento de la secuencia, el **QR** (25 mm, por encima del mínimo de 22 mm), el
+**código de seguridad bajo el QR**, la fecha de firma, la leyenda de contingencia si aplica y un aviso
+si el ambiente no es de producción. En paralelo no se toca: el documento es la factura B.
+
+- URL del QR por ambiente (`testecf`/`certecf`/`ecf`), con los valores **leídos del XML firmado** (lo que
+  recibió la DGII, no la base):
+  - e-CF por recepción: `https://ecf.dgii.gov.do/{amb}/consultatimbre?rncemisor&rnccomprador&encf&fechaemision&montototal&fechafirma&codigoseguridad`;
+  - 32 bajo RD$250.000: `https://fc.dgii.gov.do/{amb}/consultatimbrefc?rncemisor&encf&montototal&codigoseguridad`.
+  - Codificación como el ejemplo oficial: espacio `%20`, «:» sin codificar (`fechafirma=10-10-2020%2009:00:00`).
+- QR en SVG (sin GD) con `bacon/bacon-qr-code` (ya instalado; ahora declarado en `composer.json`).
+  Verificado: dompdf lo dibuja como vectores.
+- **Hallazgo — versión del QR:** el DT pide versión 8, pero la URL completa de un e-CF (~200 caracteres)
+  no cabe en la versión 8 en modo byte (máx. 192). Se intenta la 8 y, si no cabe, la menor que la contenga
+  (en la práctica la 9); nunca se recorta la URL. En `pending_verification.qr_version`.
+- **Fuera de esta fase:** el ticket de 80 mm de ventas rápidas es otro sistema (no se toca sin decisión
+  del usuario); las notas 33/34 y las compras 41/43 no tienen todavía PDF propio.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

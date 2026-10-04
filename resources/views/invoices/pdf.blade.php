@@ -20,7 +20,9 @@
     'titulo' => 'FACTURA',
     'codigo' => $invoice->numeroInterno(),
     'ncf' => $invoice->ncf,
-    'ncfLabel' => $invoice->type->label(),
+    // Con e-CF, el tipo en palabras es el del comprobante electrónico [IT §18].
+    'ncfLabel' => $timbre['tipo'] ?? $invoice->type->label(),
+    'timbre' => $timbre ?? null,
     'fecha' => $invoice->issued_at,
     'company' => $company,
     'logo' => $logo,

@@ -50,6 +50,14 @@ interface ElectronicInvoicingHook
      */
     public function replacePurchaseNcf(PurchaseInvoice $purchase, string $kind, bool $isService): ?array;
 
+    /**
+     * Lo que la representación impresa de la factura tiene que llevar si su comprobante es un e-CF
+     * (tipo en palabras, vencimiento, QR, código de seguridad…); null si es de la serie B. Nunca lanza.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function printedRepresentation(Invoice $invoice): ?array;
+
     /** Después de guardar la compra. En paralelo genera el e-CF de prueba. Nunca lanza. */
     public function afterPurchaseCreated(PurchaseInvoice $purchase, string $kind, bool $isService): void;
 }

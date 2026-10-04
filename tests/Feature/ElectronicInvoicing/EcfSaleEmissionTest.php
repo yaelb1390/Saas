@@ -418,3 +418,65 @@ it('apagado: pedir el comprobante electrónico sin escribir el NCF se explica, n
 
     expect(\App\Modules\Billing\Models\PurchaseInvoice::count())->toBe(0);
 });
+
+/*
+ * Fase 6c: representación impresa con timbre (QR) [IT §18; DT pp.40–42].
+ */
+
+it('el timbre de un consumo bajo el umbral apunta a consultatimbrefc con los datos del XML firmado', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::Consumo, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+    ecfNotasDgiiFalsa();
+
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)());
+    $ecf = ElectronicInvoice::sole();
+    $t = app(\App\Modules\Billing\Contracts\ElectronicInvoicingHook::class)->printedRepresentation($factura);
+
+    expect($t['url'])->toBe("https://fc.dgii.gov.do/ecf/consultatimbrefc?rncemisor=131000002&encf=E320000000001&montototal=236.00&codigoseguridad={$ecf->security_code}")
+        ->and($t['tipo'])->toBe('Factura de Consumo Electrónica')
+        ->and($t['codigo'])->toBe($ecf->security_code)
+        ->and($t['fiscal'])->toBeTrue()
+        ->and($t['vence'])->not->toBeNull()
+        ->and(base64_decode(substr($t['qr'], strlen('data:image/svg+xml;base64,'))))->toContain('<svg');
+
+    // El PDF A4 lleva el timbre.
+    $html = view('invoices.pdf', ['invoice' => $factura->load('items'), 'company' => $this->company, 'logo' => null, 'timbre' => $t])->render();
+    expect($html)->toContain('Código de seguridad')->toContain('E320000000001')->toContain('Factura de Consumo Electrónica');
+
+    $duena = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@pdf.test', 'password' => 'secret-password',
+    ]), 'owner');
+    $this->actingAs($duena)->get(route('panel.invoices.pdf', $factura))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+});
+
+it('el timbre de un crédito fiscal lleva comprador, fechas y firma; en pruebas avisa que no tiene validez', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::CreditoFiscal, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+    ecfNotasDgiiFalsa();
+
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)(), NcfType::CreditoFiscal, '101000007');
+    $t = app(\App\Modules\Billing\Contracts\ElectronicInvoicingHook::class)->printedRepresentation($factura);
+
+    expect($t['url'])->toStartWith('https://ecf.dgii.gov.do/ecf/consultatimbre?rncemisor=131000002&rnccomprador=101000007&encf=E310000000001&fechaemision=')
+        ->toContain('&montototal=236.00&fechafirma=')
+        // El espacio de la fecha de firma va codificado como %20, como en el ejemplo oficial.
+        ->toMatch('/fechafirma=\d{2}-\d{2}-\d{4}%20\d{2}:\d{2}:\d{2}&codigoseguridad=/');
+});
+
+it('una factura de la serie B no lleva timbre', function (): void {
+    ($this->serieB)();
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)());
+
+    expect(app(\App\Modules\Billing\Contracts\ElectronicInvoicingHook::class)->printedRepresentation($factura))->toBeNull();
+});
+
+it('el QR intenta la versión 8 y, si la URL no cabe, usa la menor que la contenga', function (): void {
+    $qr = app(\App\Modules\ElectronicInvoicing\Printing\QrCode::class);
+
+    expect($qr->svg('https://fc.dgii.gov.do/ecf/consultatimbrefc?rncemisor=131000002&encf=E320000000001&montototal=236.00&codigoseguridad=abc123')['version'])->toBe(8)
+        ->and($qr->svg(str_repeat('x', 230))['version'])->toBeGreaterThan(8);
+});

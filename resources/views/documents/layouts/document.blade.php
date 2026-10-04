@@ -36,6 +36,7 @@
     bool     $mostrarDescuento
     ?string  $piePersonalizado
     ?string  $condicionesTexto
+    ?array   $timbre           Solo factura cuyo comprobante es un e-CF (QR, código de seguridad…)
 --}}
 <!DOCTYPE html>
 <html lang="es">
@@ -157,6 +158,10 @@
             @include('documents.components.totals', [
                 'totales' => $totales, 'mostrarDesglose' => $mostrarDesglose, 'mostrarDescuento' => $mostrarDescuento,
             ])
+
+            @if (! empty($timbre))
+                @include('documents.components.timbre', ['timbre' => $timbre])
+            @endif
 
             @if ($type === 'quotation' && $vencimiento)
                 <p class="bloque-texto"><b>Cotización válida hasta el {{ $vencimiento->format('d/m/Y') }}.</b></p>

@@ -58,7 +58,10 @@ final class InvoiceController extends Controller
             return back()->with('panel_error', $e->getMessage());
         }
 
-        return back()->with('panel_ok', "Comprobante {$invoice->ncf} anulado. Se reportará en el 608.");
+        // Un e-CF no se anula ante la DGII: se revierte con una nota de crédito electrónica.
+        return back()->with('panel_ok', str_starts_with((string) $invoice->ncf, 'E')
+            ? "Comprobante {$invoice->ncf} anulado con su nota de crédito electrónica."
+            : "Comprobante {$invoice->ncf} anulado. Se reportará en el 608.");
     }
 
     /**

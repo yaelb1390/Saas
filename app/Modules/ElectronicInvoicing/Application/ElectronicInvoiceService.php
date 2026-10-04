@@ -197,6 +197,28 @@ final class ElectronicInvoiceService
         return $this->aplicar($ecf, $r, $userId, $ip);
     }
 
+    /**
+     * Envía cuando la transacción en curso se confirme (en el acto si no hay ninguna). Si falla, el
+     * documento queda pendiente y lo retoma el procesador: quien factura nunca espera ni se cae por
+     * la DGII, y una transacción revertida no deja nada enviado.
+     */
+    public function sendAfterCommit(ElectronicInvoice $ecf): void
+    {
+        $id = (int) $ecf->id;
+
+        DB::afterCommit(function () use ($id): void {
+            try {
+                $doc = ElectronicInvoice::query()->withoutGlobalScope(CompanyScope::class)->find($id);
+
+                if ($doc !== null) {
+                    $this->send($doc);
+                }
+            } catch (Throwable $e) {
+                report($e);
+            }
+        });
+    }
+
     /** Consulta el resultado de un documento recibido (con TrackId). */
     public function query(ElectronicInvoice $ecf, ?int $userId = null): ElectronicInvoice
     {

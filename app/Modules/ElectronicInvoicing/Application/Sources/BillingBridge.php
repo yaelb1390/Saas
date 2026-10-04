@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\ElectronicInvoicing\Application\Sources;
 
 use App\Modules\Billing\Contracts\ElectronicInvoicingHook;
+use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
 use App\Modules\Billing\Exceptions\InvoiceException;
 use App\Modules\Billing\Models\Invoice;
@@ -38,6 +39,7 @@ final class BillingBridge implements ElectronicInvoicingHook
     public function __construct(
         private readonly SaleDocumentMapper $mapper,
         private readonly ElectronicInvoiceService $service,
+        private readonly InvoiceNoteService $notes,
     ) {}
 
     public function replaceNcf(Sale $sale, NcfType $type, ?TaxId $taxId): ?array
@@ -128,24 +130,40 @@ final class BillingBridge implements ElectronicInvoicingHook
         return [$company, ElectronicInvoicingSettings::paraEmpresa($company)];
     }
 
-    /**
-     * Envía cuando la transacción de la venta se confirme. Si falla, el documento queda pendiente y
-     * lo retoma el procesador: el cobro nunca espera ni se cae por la DGII.
-     */
+    public function beforeCancel(Invoice $invoice, CancellationReason $reason, ?string $note): void
+    {
+        if (($invoice->getAttributes()['electronic_invoice_id'] ?? null) === null) {
+            return;
+        }
+
+        $motivo = trim($reason->label().($note !== null && $note !== '' ? ': '.$note : ''));
+
+        // Modo real: el comprobante ES el e-CF. Sin nota de crédito no hay anulación.
+        if (str_starts_with((string) $invoice->ncf, 'E')) {
+            try {
+                $this->notes->creditForCancellation($invoice, $motivo);
+            } catch (Throwable $e) {
+                throw InvoiceException::electronic('no se pudo emitir la nota de crédito: '.$e->getMessage());
+            }
+
+            return;
+        }
+
+        // En paralelo: la anulación B va al 608 como siempre; la nota de prueba no puede impedirla.
+        try {
+            DB::transaction(fn () => $this->notes->creditForCancellation($invoice, $motivo));
+        } catch (Throwable $e) {
+            SystemEvent::registrar(
+                type: 'ecf.shadow_failed',
+                message: "Nota de crédito de prueba no generada al anular {$invoice->ncf}",
+                contexto: ['factura' => $invoice->id, 'motivo' => mb_substr($e->getMessage(), 0, 500)],
+                level: SystemEvent::AVISO,
+            );
+        }
+    }
+
     private function enviarAlConfirmar(ElectronicInvoice $ecf): void
     {
-        $id = (int) $ecf->id;
-
-        DB::afterCommit(function () use ($id): void {
-            try {
-                $doc = ElectronicInvoice::query()->withoutGlobalScopes()->find($id);
-
-                if ($doc !== null) {
-                    $this->service->send($doc);
-                }
-            } catch (Throwable $e) {
-                report($e);
-            }
-        });
+        $this->service->sendAfterCommit($ecf);
     }
 }

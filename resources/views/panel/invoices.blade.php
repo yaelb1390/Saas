@@ -93,7 +93,7 @@
     </div>
 
     {{-- Comprobantes --}}
-    <div class="mt-5 bmos-card overflow-hidden" x-data="{ cancelling: null }">
+    <div class="mt-5 bmos-card overflow-hidden" x-data="{ cancelling: null, noting: null }">
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
             <p class="font-semibold text-slate-800">Comprobantes emitidos</p>
             <div class="flex flex-wrap items-center gap-3">
@@ -165,6 +165,15 @@
                                    class="rounded-lg p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Ver PDF">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.1rem;height:1.1rem"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h1M6 4h8l4 4v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/></svg>
                                 </a>
+                                {{-- Nota de crédito / débito electrónica: solo si la factura tiene e-CF. --}}
+                                @if (! $invoice->isCancelled() && ($invoice->getAttributes()['electronic_invoice_id'] ?? null) !== null)
+                                    @can('ecf.issue')
+                                    <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Nota de crédito o débito"
+                                            @click="noting = { id: {{ $invoice->id }}, ncf: @js($invoice->ncf) }">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.1rem;height:1.1rem"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/></svg>
+                                    </button>
+                                    @endcan
+                                @endif
                                 @unless ($invoice->isCancelled())
                                     @can('invoices.cancel')
                                     <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Anular"
@@ -208,6 +217,45 @@
                     <div class="flex justify-end gap-2 pt-3">
                         <button type="button" @click="cancelling = null" class="bmos-btn bmos-btn-ghost">Volver</button>
                         <button type="submit" class="bmos-btn bmos-btn-primary">Anular comprobante</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Nota electrónica por importe: descuento posterior, devolución parcial (crédito) o cargo adicional (débito). --}}
+        <div x-show="noting" x-cloak class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 py-10" @keydown.escape.window="noting = null">
+            <div @click.outside="noting = null" x-transition class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                <div class="mb-1 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-slate-800">Nota de crédito o débito</h3>
+                    <button type="button" @click="noting = null" class="text-slate-400 hover:text-slate-600">✕</button>
+                </div>
+                <p class="mb-4 text-sm text-slate-500">
+                    Sobre el comprobante <span class="font-mono font-semibold text-slate-700" x-text="noting?.ncf"></span>.
+                    Para anularlo por completo usa «Anular».
+                </p>
+
+                <form method="POST" :action="`{{ url('panel/facturas') }}/${noting?.id}/nota-electronica`" class="space-y-3">
+                    @csrf
+                    <div>
+                        <label class="bmos-field-label">Tipo</label>
+                        <select name="type" class="bmos-input" required>
+                            <option value="34">Nota de crédito (reduce lo facturado)</option>
+                            <option value="33">Nota de débito (aumenta lo facturado)</option>
+                        </select>
+                    </div>
+                    <x-panel.field name="amount" label="Importe con ITBIS incluido" placeholder="100.00" />
+                    <div>
+                        <label class="bmos-field-label">ITBIS del importe</label>
+                        <select name="indicator" class="bmos-input">
+                            @foreach (\App\Modules\ElectronicInvoicing\Tax\BillingIndicator::forProducts() as $indicador)
+                                <option value="{{ $indicador->value }}">{{ $indicador->label() }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <x-panel.field name="reason" label="Motivo" placeholder="Devolución de 1 unidad" />
+                    <div class="flex justify-end gap-2 pt-3">
+                        <button type="button" @click="noting = null" class="bmos-btn bmos-btn-ghost">Volver</button>
+                        <button type="submit" class="bmos-btn bmos-btn-primary">Emitir nota</button>
                     </div>
                 </form>
             </div>

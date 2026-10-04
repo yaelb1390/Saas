@@ -391,6 +391,32 @@ aceptados y rechazados.
 (con la DGII simulada en `ecf`/`fc` de producción; serie B intacta), real sin poder emitir (sin factura ni
 número gastado), tipo no soportado, descuento global + propina, y el selector de modo.
 
+## Fase 5b — Notas de crédito (34) y débito (33) (2026-10-04)
+
+Hasta ahora BMIA no tenía notas de crédito/débito: «anular» marcaba la factura B y la mandaba al 608. Un
+e-CF aceptado **no se anula**: se revierte con una nota de crédito que lo referencia [FMT sección F].
+
+- **Anular una factura cuyo comprobante es un e-CF** (modo real): `InvoiceService::cancel` llama a
+  `beforeCancel` del contrato, que emite una **nota de crédito 34 por el total**, con las mismas líneas de
+  la venta y `CodigoModificacion` 1 «Anula el NCF modificado». Si la nota no se puede emitir (sin secuencia
+  E34, datos inválidos…), la factura **no** se anula y se dice por qué. `cancel` pasa a ser transaccional.
+  Si la DGII rechazó el e-CF original, no hay nada que revertir y se anula sin nota.
+- **En paralelo**: la anulación B sigue igual (608) y se genera la nota de prueba contra el e-CF de prueba;
+  si falla, no estorba (suceso `ecf.shadow_failed`).
+- **Notas por importe** (`InvoiceNoteService::forAmount`, botón «Nota de crédito o débito» en Facturas,
+  permiso `ecf.issue`): una línea con el importe (ITBIS incluido), su indicador y el motivo;
+  `CodigoModificacion` 3 «Corrige montos». La suma de notas de crédito no puede superar el total del e-CF
+  [FMT campo 110 d)] y se rechaza con su mensaje.
+- La nota va al **mismo ambiente** que el e-CF que modifica (si la empresa cambió de ambiente, se rechaza) y
+  se envía tras confirmar la transacción. Se guarda con `source_type` `credit_note`/`debit_note` y
+  `source_id` = la factura: la tabla `invoices` (y su índice único por venta) no cambia.
+- **Pendiente de verificar** (`pending_verification.reports_607_608`): si con e-CF siguen haciendo falta el
+  607/608 y si un e-CF revertido va en el 608.
+
+Cobertura: 5 pruebas más en `EcfSaleEmissionTest` (anulación real con nota y su XML referenciando el
+e-NCF; anulación imposible sin E34; anulación en paralelo; notas por importe con el tope del crédito;
+permisos).
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

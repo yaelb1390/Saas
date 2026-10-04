@@ -228,3 +228,114 @@ it('un modo que no cuadra con el ambiente cuenta como apagado', function (): voi
 
     expect($this->ajustes->fresh()->emissionMode())->toBe(EmissionMode::Apagado);
 });
+
+/*
+ * Fase 5b: notas de crédito (34) y débito (33). Un e-CF no se anula: se revierte con su nota.
+ */
+
+function ecfNotasDgiiFalsa(): void
+{
+    Http::fake([
+        'ecf.dgii.gov.do/ecf/autenticacion/api/autenticacion/semilla' => Http::response('<SemillaModel><valor>x</valor></SemillaModel>'),
+        'ecf.dgii.gov.do/ecf/autenticacion/api/autenticacion/validarsemilla' => Http::response(['token' => 't', 'expira' => now()->addHour()->toIso8601String()]),
+        'fc.dgii.gov.do/ecf/recepcionfc/api/recepcion/ecf' => Http::response(['codigo' => 1, 'estado' => 'Aceptado', 'mensajes' => [], 'secuenciaUtilizada' => true]),
+        'ecf.dgii.gov.do/ecf/recepcion/api/facturaselectronicas' => Http::response(['trackId' => 'track-nota']),
+    ]);
+}
+
+it('real: anular una factura e-CF emite su nota de crédito por el total y la referencia', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::Consumo, Environment::Produccion);
+    ($this->serieE)(EcfType::NotaCredito, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+    ecfNotasDgiiFalsa();
+
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)());
+    app(InvoiceService::class)->cancel($factura, \App\Modules\Billing\Enums\CancellationReason::DevolucionProductos);
+
+    $nota = ElectronicInvoice::query()->where('source_type', 'credit_note')->sole();
+    $xml = Storage::disk('local')->get($nota->file('firmado')->path);
+
+    expect($factura->fresh()->isCancelled())->toBeTrue()
+        ->and($nota->e_ncf)->toBe('E340000000001')
+        ->and($nota->source_id)->toBe($factura->id)
+        ->and((string) $nota->total)->toBe('236.00')
+        ->and($nota->status)->toBe(EcfStatus::Recibido)
+        ->and($xml)->toContain('<NCFModificado>E320000000001</NCFModificado>')
+        ->toContain('<CodigoModificacion>1</CodigoModificacion>');
+});
+
+it('real: sin poder emitir la nota de crédito, la factura no se anula', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::Consumo, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+    ecfNotasDgiiFalsa();
+
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)());
+
+    // Sin secuencia E34.
+    expect(fn () => app(InvoiceService::class)->cancel($factura, \App\Modules\Billing\Enums\CancellationReason::DevolucionProductos))
+        ->toThrow(InvoiceException::class, 'nota de crédito');
+
+    expect($factura->fresh()->isCancelled())->toBeFalse();
+});
+
+it('en paralelo: anular la factura B genera la nota de prueba sin estorbar la anulación', function (): void {
+    ($this->certificado)();
+    ($this->serieB)();
+    ($this->serieE)(EcfType::Consumo);
+    ($this->serieE)(EcfType::NotaCredito);
+    ($this->modo)(EmissionMode::Sombra);
+
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)());
+    app(InvoiceService::class)->cancel($factura, \App\Modules\Billing\Enums\CancellationReason::ErroresImpresion);
+
+    expect($factura->fresh()->isCancelled())->toBeTrue()
+        ->and(ElectronicInvoice::query()->where('source_type', 'credit_note')->value('e_ncf'))->toBe('E340000000001');
+});
+
+it('notas por importe desde la pantalla: crédito y débito, y el crédito no supera la factura', function (): void {
+    ($this->certificado)();
+    ($this->serieB)();
+    ($this->serieE)(EcfType::Consumo);
+    ($this->serieE)(EcfType::NotaCredito);
+    ($this->serieE)(EcfType::NotaDebito);
+    ($this->modo)(EmissionMode::Sombra);
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)());
+
+    $duena = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@notas.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->post(route('panel.invoices.electronic-note', $factura), [
+        'type' => 34, 'amount' => '200.00', 'indicator' => 1, 'reason' => 'Devolución parcial',
+    ])->assertSessionHas('panel_ok');
+
+    // 200 + 50 > 236: la DGII no lo admite [FMT campo 110 d)].
+    $this->actingAs($duena)->post(route('panel.invoices.electronic-note', $factura), [
+        'type' => 34, 'amount' => '50.00', 'indicator' => 1, 'reason' => 'Otra devolución',
+    ])->assertSessionHas('panel_error', fn (string $m) => str_contains($m, 'superarían el total'));
+
+    $this->actingAs($duena)->post(route('panel.invoices.electronic-note', $factura), [
+        'type' => 33, 'amount' => '59.00', 'indicator' => 1, 'reason' => 'Cargo por envío',
+    ])->assertSessionHas('panel_ok');
+
+    expect(ElectronicInvoice::query()->where('source_type', 'credit_note')->count())->toBe(1)
+        ->and(ElectronicInvoice::query()->where('source_type', 'debit_note')->value('e_ncf'))->toBe('E330000000001');
+
+    $this->actingAs($duena)->get(route('panel.invoices'))->assertOk()->assertSee('Nota de crédito o débito');
+});
+
+it('el cajero no emite notas electrónicas', function (): void {
+    ($this->serieB)();
+    $factura = app(InvoiceService::class)->issueForSale(($this->venta)());
+    $cajero = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Cajero', 'email' => 'cajero@notas.test', 'password' => 'secret-password',
+    ]), 'staff');
+
+    $this->actingAs($cajero)->post(route('panel.invoices.electronic-note', $factura), [
+        'type' => 34, 'amount' => '10', 'indicator' => 1, 'reason' => 'x x x',
+    ])->assertForbidden();
+});

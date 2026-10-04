@@ -283,6 +283,7 @@ return [
         'psfe_signer' => 'Si un proveedor certificado firma con su certificado o con el del contribuyente (delegación).',
         'psfe_admin_user' => 'Si con proveedor certificado hace falta el «Usuario Administrador e-CF».',
         'emitter_receiver_endpoints' => 'Servicios emisor↔receptor: «Descripción Técnica Servicios Emisores Electrónicos», sin revisar.',
+        'reports_607_608' => 'Si con e-CF siguen haciendo falta los formatos 607/608, y si un e-CF revertido con nota de crédito se reporta en el 608. Hoy la factura anulada sigue saliendo en el 608 como cualquier otra (fase 5b).',
         'tip' => 'Cómo se declara la propina legal (10 %) en el e-CF. Hoy queda fuera del documento (fase 5a).',
         'rounding_rule' => 'La «regla de redondeos» que cita [FMT nota 11] y si la DGII tolera diferencias de céntimos en los totales.',
     ],

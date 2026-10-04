@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Billing\Contracts;
 
+use App\Modules\Billing\Enums\CancellationReason;
 use App\Modules\Billing\Enums\NcfType;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Billing\Support\TaxId;
@@ -31,4 +32,11 @@ interface ElectronicInvoicingHook
 
     /** Después de crear la factura (con su NCF definitivo). Nunca lanza. */
     public function afterInvoiceCreated(Invoice $invoice, Sale $sale, ?TaxId $taxId): void;
+
+    /**
+     * Antes de anular. Un e-CF no se «anula»: se revierte con una nota de crédito que lo referencia.
+     * Si el comprobante es un e-CF (modo real) y la nota no se puede emitir, lanza y la anulación no
+     * ocurre. Con la serie B no hace nada (va al 608 como siempre).
+     */
+    public function beforeCancel(Invoice $invoice, CancellationReason $reason, ?string $note): void;
 }

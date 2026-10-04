@@ -113,17 +113,22 @@ final class InvoiceService
             throw InvoiceException::alreadyCancelled((string) $invoice->ncf);
         }
 
-        $invoice->update([
-            'status' => InvoiceStatus::Cancelled,
-            'cancellation_code' => $reason,
-            'cancellation_note' => $note,
-            'cancelled_at' => now(),
-            'cancelled_by' => auth()->id(),
-        ]);
+        return DB::transaction(function () use ($invoice, $reason, $note): Invoice {
+            // Si el comprobante es un e-CF, se revierte con su nota de crédito (o no se anula).
+            $this->electronic->beforeCancel($invoice, $reason, $note);
 
-        InvoiceCancelled::dispatch($invoice);
+            $invoice->update([
+                'status' => InvoiceStatus::Cancelled,
+                'cancellation_code' => $reason,
+                'cancellation_note' => $note,
+                'cancelled_at' => now(),
+                'cancelled_by' => auth()->id(),
+            ]);
 
-        return $invoice->refresh();
+            InvoiceCancelled::dispatch($invoice);
+
+            return $invoice->refresh();
+        });
     }
 
     /**

@@ -8,6 +8,9 @@ use App\Models\User;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceAuditLog;
+use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
+use App\Modules\ElectronicInvoicing\Models\ElectronicReceivedDocument;
+use App\Modules\ElectronicInvoicing\Signature\CertificateVault;
 use Illuminate\Support\Carbon;
 use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\ElectronicInvoicing\Application\ElectronicInvoiceService;
@@ -83,6 +86,51 @@ final class ElectronicDocumentController extends Controller
             'filas' => $filas,
             'acciones' => $filas === null ? [] : ElectronicInvoiceAuditLog::query()->distinct()->orderBy('action')->pluck('action')->all(),
             'usuarios' => User::query()->where('company_id', app(CurrentCompany::class)->id())->orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    /** Los e-CF que otros contribuyentes enviaron a la empresa, con el acuse que se les devolvió. */
+    public function received(Request $request): View
+    {
+        $filas = DbTable::existe('electronic_received_documents')
+            ? ElectronicReceivedDocument::query()
+                ->when($request->filled('q'), fn ($q) => $q->where(fn ($s) => $s
+                    ->whereLike('e_ncf', '%'.$request->input('q').'%')
+                    ->orWhereLike('emitter_name', '%'.$request->input('q').'%')
+                    ->orWhereLike('emitter_tax_id', '%'.$request->input('q').'%')))
+                ->latest('id')
+                ->paginate(20)
+                ->withQueryString()
+            : null;
+
+        $ajustes = DbTable::existe('electronic_invoicing_settings') && ($empresa = app(CurrentCompany::class)->model()) !== null
+            ? ElectronicInvoicingSettings::paraEmpresa($empresa)
+            : null;
+
+        return view('panel.e-invoicing.received', [
+            'filas' => $filas,
+            'urls' => $ajustes?->receiverUrls(),
+        ]);
+    }
+
+    /** Descarga el e-CF recibido o el acuse devuelto, comprobando su huella. */
+    public function receivedFile(ElectronicReceivedDocument $received, string $kind): Response
+    {
+        [$ruta, $huella] = match ($kind) {
+            'ecf' => [$received->xml_path, $received->xml_sha256],
+            'arecf' => [$received->arecf_path, $received->arecf_sha256],
+            default => abort(404),
+        };
+
+        abort_if($ruta === null, 404);
+        $bytes = (string) CertificateVault::disk()->get($ruta);
+        abort_unless(hash_equals((string) $huella, hash('sha256', $bytes)), 409, 'El archivo no coincide con su huella.');
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/xml; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="'.EntregaDeArchivo::nombreSeguro(($received->emitter_tax_id ?? 'recibido').($received->e_ncf ?? $received->id)."-{$kind}.xml").'"',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 

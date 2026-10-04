@@ -1087,7 +1087,12 @@ Route::middleware(['auth'])->group(function (): void {
         // Probar contraseñas contra un .p12 a ritmo de script no debe ser posible: tope por minuto.
         Route::post('/panel/facturacion-electronica/certificado', [ElectronicInvoicingController::class, 'storeCertificate'])
             ->middleware(['can:ecf.configure', 'throttle:10,1'])->name('panel.e-invoicing.certificate.store');
-        Route::get('/panel/facturacion-electronica/auditoria', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'audit'])
+        Route::get('/panel/facturacion-electronica/recibidos', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'received'])
+            ->middleware('can:ecf.view')->name('panel.e-invoicing.received');
+        Route::get('/panel/facturacion-electronica/recibidos/{received}/{kind}', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'receivedFile'])
+            ->whereIn('kind', ['ecf', 'arecf'])
+            ->middleware('can:ecf.download')->name('panel.e-invoicing.received.file');
+        Route::get('/panel/facturacion-electronica/auditoria',[\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'audit'])
             ->middleware('can:ecf.audit')->name('panel.e-invoicing.audit');
         Route::get('/panel/facturacion-electronica/diagnostico',[ElectronicInvoicingController::class, 'diagnostics'])
             ->middleware('can:ecf.view')->name('panel.e-invoicing.diagnostics');

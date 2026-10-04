@@ -84,6 +84,19 @@ final class Diagnostics
             default => $this->item('certificado', 'Certificado digital', $emitiendo ? self::ERROR : self::AVISO, 'No hay certificado cargado.', 'Súbelo en «Certificado digital».'),
         };
 
+        // 2b. [DTEE «Firmado de XML»] El SN del certificado tiene que ser el RNC/cédula del titular.
+        if ($cert !== null) {
+            preg_match('/serialNumber=([^,]+)/i', (string) $cert->subject, $m);
+            $sn = preg_replace('/\D/', '', $m[1] ?? '');
+            $rnc = preg_replace('/\D/', '', (string) $s->tax_id);
+
+            $r[] = match (true) {
+                $sn === '' => $this->item('certificado_sn', 'SN del certificado', self::AVISO, 'El certificado no trae SN (número de identificación del titular).', 'La DGII exige que el SN corresponda al RNC, cédula o pasaporte del titular: confírmalo con tu prestadora.'),
+                $rnc !== '' && ! str_contains($sn, $rnc) => $this->item('certificado_sn', 'SN del certificado', self::AVISO, "El SN del certificado ({$sn}) no coincide con el RNC del emisor ({$rnc}).", 'La DGII exige que el SN corresponda al RNC, cédula o pasaporte del titular: revisa que sea el certificado de esta empresa.'),
+                default => $this->item('certificado_sn', 'SN del certificado', self::OK, "Corresponde al RNC {$rnc}."),
+            };
+        }
+
         // 3. Ambiente, modo y proveedor.
         $r[] = $this->item('ambiente', 'Ambiente y emisión', self::OK, "{$s->environment->label()} · {$modo->label()}");
         $r[] = match (true) {

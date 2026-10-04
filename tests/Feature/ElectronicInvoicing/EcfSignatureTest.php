@@ -265,3 +265,33 @@ function XMLSecEnc_cargarCertificado(XMLSecurityKey $clave, DOMElement $firma): 
     $pem = "-----BEGIN CERTIFICATE-----\n".chunk_split(preg_replace('/\s+/', '', $x509), 64, "\n")."-----END CERTIFICATE-----\n";
     $clave->loadKey($pem, false, true);
 }
+
+it('la firma no lleva espacios y se verifica también cargando sin preservar espacios (como la DGII)', function (): void {
+    // [DTEE «Firmado de XML»] firmar sin preservar espacios. La plantilla de xmlseclibs metía saltos de
+    // línea en <SignedInfo>: cargando con preserveWhiteSpace = false la firma dejaba de cuadrar.
+    app(CertificateVault::class)->store($this->company, ($this->p12)(), 'secreto-123');
+    $firmado = app(XmlSigner::class)->sign(app(EcfXmlGenerator::class)->generate($this->documento)->xml, app(CertificateVault::class)->load($this->company), now());
+
+    // Dentro del documento (el salto tras la declaración XML del principio queda fuera y no se firma).
+    expect(substr($firmado->xml, (int) strpos($firmado->xml, '<ECF')))->not->toMatch('/>\s+</');
+
+    $doc = new DOMDocument;
+    $doc->preserveWhiteSpace = false;
+    $doc->loadXML($firmado->xml);
+
+    expect(app(\App\Modules\ElectronicInvoicing\Signature\XmlSignatureVerifier::class)->verify($doc)['valid'])->toBeTrue();
+});
+
+it('firma bien un documento cuya raíz declara espacios de nombres (como la semilla de la DGII)', function (): void {
+    // Con C14N inclusivo, <SignedInfo> se verifica heredando xmlns:xsi/xmlns:xsd de la raíz (xmlseclibs y
+    // .NET). Firmarlo suelto, como hace xmlseclibs, no los incluía y la firma no cuadraba.
+    app(CertificateVault::class)->store($this->company, ($this->p12)(), 'secreto-123');
+    $doc = new DOMDocument;
+    $doc->loadXML('<SemillaModel xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><valor>abc</valor><fecha>2026-10-04T10:00:00-04:00</fecha></SemillaModel>');
+
+    $firmado = app(XmlSigner::class)->sign($doc, app(CertificateVault::class)->load($this->company), now(), writeSignatureDate: false);
+
+    $verifica = new DOMDocument;
+    $verifica->loadXML($firmado->xml);
+    expect(app(\App\Modules\ElectronicInvoicing\Signature\XmlSignatureVerifier::class)->verify($verifica)['valid'])->toBeTrue();
+});

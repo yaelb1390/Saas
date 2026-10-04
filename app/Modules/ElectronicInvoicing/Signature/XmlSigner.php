@@ -54,12 +54,37 @@ final class XmlSigner
             ['force_uri' => true],
         );
 
+        /*
+         * SIN ESPACIOS en la firma [DTEE «Firmado de XML»: «sin la preservación de los espacios,
+         * preservewhitespace = false»]. La plantilla de xmlseclibs trae saltos de línea y sangría dentro
+         * de <SignedInfo>; quien verifica cargando sin preservar espacios (la DGII, en .NET) los
+         * descarta, el canónico de SignedInfo cambia y la firma deja de cuadrar. Se quitan ANTES de
+         * firmar, para que lo firmado sea lo mismo que se verifica.
+         */
+        $this->sinEspacios($dsig->sigNode);
+
         $clave = new XMLSecurityKey(XMLSecurityKey::RSA_SHA256, ['type' => 'private']);
         $clave->loadKey($certificate->privateKeyPem);
 
         $dsig->sign($clave);
         $dsig->add509Cert($certificate->certificatePem, true);
-        $dsig->appendSignature($raiz);
+        $firma = $dsig->appendSignature($raiz);
+
+        // Los que añaden SignatureValue y KeyInfo quedan fuera de lo firmado: quitarlos no altera la
+        // firma y deja el documento sin espacios de principio a fin.
+        $this->sinEspacios($firma);
+
+        /*
+         * La firma, recalculada YA DENTRO del documento.
+         *
+         * xmlseclibs firma <SignedInfo> suelto, antes de colocarlo. Con C14N inclusivo, quien verifica
+         * lo canonicaliza en su sitio, heredando los espacios de nombres que declara la raíz
+         * (xmlns:xsi, xmlns:xsd…) —lo hace xmlseclibs al verificar y lo hace .NET, que es lo que usa la
+         * DGII—. Si la raíz los declara (la semilla de la DGII lo hace), lo firmado y lo verificado no
+         * coinciden. Se firma el canónico del <SignedInfo> ya colocado; sin esas declaraciones, el
+         * resultado es idéntico al de antes.
+         */
+        $this->firmarEnSitio($firma, $clave);
 
         $xml = (string) $doc->saveXML();
         $valorFirma = $this->signatureValue($doc);
@@ -86,6 +111,47 @@ final class XmlSigner
         $elemento = $doc->createElement('FechaHoraFirma');
         $elemento->appendChild($doc->createTextNode($valor));
         $raiz->appendChild($elemento);
+    }
+
+    private function firmarEnSitio(\DOMNode $firma, XMLSecurityKey $clave): void
+    {
+        $info = null;
+        $valor = null;
+
+        foreach ($firma->childNodes as $hijo) {
+            if ($hijo instanceof DOMElement && $hijo->localName === 'SignedInfo') {
+                $info = $hijo;
+            } elseif ($hijo instanceof DOMElement && $hijo->localName === 'SignatureValue') {
+                $valor = $hijo;
+            }
+        }
+
+        if ($info === null || $valor === null) {
+            throw new RuntimeException('La firma no tiene SignedInfo o SignatureValue.');
+        }
+
+        $canonico = $info->C14N(false, false);
+        if ($canonico === false) {
+            throw new RuntimeException('No se pudo canonicalizar SignedInfo.');
+        }
+
+        $valor->nodeValue = base64_encode((string) $clave->signData($canonico));
+    }
+
+    /** Quita los nodos de texto que solo tienen espacios (no el contenido de SignatureValue ni del certificado). */
+    private function sinEspacios(?\DOMNode $nodo): void
+    {
+        if ($nodo === null) {
+            return;
+        }
+
+        foreach (iterator_to_array($nodo->childNodes) as $hijo) {
+            if ($hijo instanceof \DOMText && trim($hijo->nodeValue ?? '') === '') {
+                $nodo->removeChild($hijo);
+            } elseif ($hijo->hasChildNodes()) {
+                $this->sinEspacios($hijo);
+            }
+        }
     }
 
     private function signatureValue(DOMDocument $doc): string

@@ -264,6 +264,8 @@ final class TenantDataPurger
         'electronic_invoice_responses',
         'electronic_invoice_audit_logs',
         'electronic_invoice_contingencies',
+        // Los e-CF que otros contribuyentes le enviaron y los acuses de recibo devueltos (fase 7a).
+        'electronic_received_documents',
 
         // El «shell» de la cuenta: la empresa sigue existiendo y su gente puede volver a entrar.
         'companies',

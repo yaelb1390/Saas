@@ -546,6 +546,64 @@ consultarlos antes de reenviar (reenviar a ciegas podría duplicar).
   certificación no (los rechazos son parte de probar). Se apaga con `ECF_EMAIL_ON_REJECTION=false`.
   WhatsApp/Telegram: el evento queda listo para conectarlos cuando se pida.
 
+## Fase 7a — La empresa como receptora (2026-10-04)
+
+Fuente: **Descripción Técnica Servicios Emisores Electrónicos** [DTEE], DGII 29/05/2026 (descargada de la
+página oficial; sha256 `d532598461fc65bb731d37b32d57af83763649921a91aeb9d5c93359834e41a1`). Era el documento
+que faltaba (`pending_verification.emitter_receiver_endpoints`).
+
+### Servicios (públicos, por empresa)
+
+`https://{host}/api/ecf-receptor/{clave}` + los recursos del estándar:
+
+| Recurso | Método | Qué hace |
+|---|---|---|
+| `/fe/autenticacion/api/semilla` | GET | `SemillaModel` con un valor único (vale 5 min, un solo uso) |
+| `/fe/autenticacion/api/validacioncertificado` | POST `xml` | semilla firmada → token (1 h), JSON o XML según `Accept`; fechas `yyyy-MM-ddTHH:mm:ssZ` |
+| `/fe/recepcion/api/ecf` | POST `xml` | recibe el e-CF y devuelve el **ARECF firmado** |
+| `/fe/aprobacioncomercial/api/ecf` | POST `xml` | recibe la ACECF del comprador sobre un e-CF propio; 200 / 400 |
+
+- `{clave}`: 32 caracteres por empresa (`receiver_key`), no adivinable. Se ven en «Comprobantes recibidos»
+  para registrarlas en la Oficina Virtual.
+- **No distinguen mayúsculas/minúsculas** [DTEE «Reglas Generales»]: una ruta comodín y el recurso se
+  resuelve en minúsculas (también acepta «recepción» con tilde, como aparece en una tabla del propio DTEE).
+- La autenticación es opcional en el estándar; BMIA la ofrece, así que por omisión **exige el token** para
+  recibir (`ECF_RECEIVER_REQUIRE_AUTH`). Tokens en la caché (base de datos en producción: valen en
+  cualquier instancia).
+- **Acuse de recibo** [arecf.xsd]: Estado 0 recibido / 1 no recibido; motivo 1 error de especificación
+  (no valida contra el XSD de su tipo), 2 error de firma, 3 envío duplicado, 4 RNC comprador no
+  corresponde. Siempre firmado y validado contra `arecf.xsd`, también el de «no recibido».
+- Todo lo recibido (e-CF y ARECF) se guarda tal cual con su sha256 en el disco privado y se conserva
+  (tabla `electronic_received_documents` en `TenantDataPurger::KEPT`).
+- Aprobación comercial recibida: valida XSD (`acecf.xsd` con su errata) y firma, exige que el emisor sea la
+  empresa, la asocia a su e-CF (`commercial_status/reason/at`, archivo `acecf`) y la anota en la bitácora.
+
+### Hallazgos en la firma (corregidos, afectaban a lo ya hecho)
+
+1. **Espacios en `<SignedInfo>`.** La plantilla de xmlseclibs metía saltos de línea y sangría. El DTEE
+   exige firmar sin preservar espacios; quien verifica así (la DGII, en .NET) descartaba esos nodos y la
+   firma no cuadraba. Ahora se quitan antes de firmar (y del resto de la firma).
+2. **Espacios de nombres de la raíz.** Con C14N inclusivo, `<SignedInfo>` se verifica heredando las
+   declaraciones de la raíz (`xmlns:xsi`, `xmlns:xsd`); xmlseclibs lo firmaba suelto, sin ellas. Nuestros
+   e-CF no declaran ninguna (no les afectaba), pero **la semilla de la DGII sí**: la autenticación ante la
+   DGII habría fallado. Ahora el `SignatureValue` se calcula sobre el `SignedInfo` ya colocado.
+   Pruebas de regresión en `EcfSignatureTest`.
+
+Además, el diagnóstico avisa si el **SN del certificado** no corresponde al RNC/cédula del emisor [DTEE
+«Firmado de XML»].
+
+### Migración
+
+```
+2026_10_05_100000_create_electronic_receiver_tables
+```
+
+### Cobertura
+
+`EcfReceiverTest` (8): autenticación (semilla de un solo uso, JSON/XML), recepción con ARECF firmado y
+válido, sin token 401, los cuatro motivos de «no recibido», mayúsculas y tilde, clave inexistente 404,
+aprobación comercial recibida (200 y 400) y la pantalla de recibidos.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

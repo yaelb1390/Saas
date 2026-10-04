@@ -55,3 +55,14 @@ Route::prefix('v1')->group(function (): void {
         });
     });
 });
+
+/*
+ * Facturación electrónica: servicios de la empresa como RECEPTORA de e-CF [Descripción Técnica Servicios
+ * Emisores Electrónicos]. Públicos (los llama otro contribuyente o el simulador de la DGII), sin sesión;
+ * la empresa la identifica la clave de su dirección. Una ruta comodín porque el estándar exige no
+ * distinguir mayúsculas/minúsculas en los recursos (ver ReceiverController).
+ */
+Route::match(['GET', 'POST'], '/ecf-receptor/{key}/{path}', [\App\Modules\ElectronicInvoicing\Http\Controllers\ReceiverController::class, 'handle'])
+    ->where('path', '.*')
+    ->middleware('throttle:120,1')
+    ->name('api.ecf-receiver');

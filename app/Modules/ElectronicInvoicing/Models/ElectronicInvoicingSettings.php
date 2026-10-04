@@ -91,6 +91,47 @@ final class ElectronicInvoicingSettings extends Model implements Auditable, HasC
     }
 
     /**
+     * La clave que identifica a la empresa en la dirección de sus servicios de recepción. Se genera la
+     * primera vez (32 caracteres en minúscula: los servicios no distinguen mayúsculas). Null sin la
+     * columna (código antes que migración).
+     */
+    public function receiverKey(): ?string
+    {
+        if (! array_key_exists('receiver_key', $this->getAttributes()) && ! \App\Modules\Core\Support\DbTable::tieneColumna($this->getTable(), 'receiver_key')) {
+            return null;
+        }
+
+        if (blank($this->getAttributes()['receiver_key'] ?? null)) {
+            $this->forceFill(['receiver_key' => strtolower(\Illuminate\Support\Str::random(32))])->save();
+        }
+
+        return (string) $this->getAttributes()['receiver_key'];
+    }
+
+    /**
+     * Las direcciones que la empresa registra en la Oficina Virtual de la DGII para que otros
+     * contribuyentes le envíen e-CF y aprobaciones comerciales [DTEE «Creación de Servicios»].
+     *
+     * @return array{recepcion: string, aprobacion: string, autenticacion: string}|null
+     */
+    public function receiverUrls(): ?array
+    {
+        $clave = $this->receiverKey();
+
+        if ($clave === null) {
+            return null;
+        }
+
+        $base = rtrim(url('/api/ecf-receptor/'.$clave), '/');
+
+        return [
+            'recepcion' => $base.'/fe/recepcion/api/ecf',
+            'aprobacion' => $base.'/fe/aprobacioncomercial/api/ecf',
+            'autenticacion' => $base.'/fe/autenticacion/api/semilla',
+        ];
+    }
+
+    /**
      * Recalcula el estado de BMIA (no el de la DGII) a partir de lo que hay:
      * faltan datos o certificado → «no configurado»; si no, el del ambiente; en producción «autorizado»
      * (lo confirmó el usuario al pasar) y «activo» cuando emite de verdad (modo real).

@@ -285,7 +285,6 @@ return [
         'security_code_hash' => 'Algoritmo exacto del «hash» del SignatureValue para el código de seguridad [DT p.28; IT p.36].',
         'psfe_signer' => 'Si un proveedor certificado firma con su certificado o con el del contribuyente (delegación).',
         'psfe_admin_user' => 'Si con proveedor certificado hace falta el «Usuario Administrador e-CF».',
-        'emitter_receiver_endpoints' => 'Servicios emisor↔receptor: «Descripción Técnica Servicios Emisores Electrónicos», sin revisar.',
         'reports_607_608' => 'Si con e-CF siguen haciendo falta los formatos 607/608, y si un e-CF revertido con nota de crédito se reporta en el 608. Hoy la factura anulada sigue saliendo en el 608 como cualquier otra (fase 5b).',
         'qr_version' => '[DT pp.40–42] pide QR versión 8, pero la URL completa del timbre (~200 caracteres) no cabe en ella en modo byte (máx. 192). Se intenta la 8 y, si no cabe, la menor que la contenga, sin recortar la URL (fase 6c).',
         'tip' => 'Cómo se declara la propina legal (10 %) en el e-CF. Hoy queda fuera del documento (fase 5a).',
@@ -302,6 +301,14 @@ return [
      * Avisos (fase 6h). Solo para e-CF de producción: en pruebas los rechazos son parte de probar.
      * WhatsApp/Telegram: el evento EcfStatusChanged ya existe para conectarlos (n8n) cuando se pida.
      */
+    /*
+     * La empresa como receptora (fase 7a) [DTEE]. La autenticación es opcional en el estándar; BMIA
+     * ofrece semilla y validacioncertificado, así que por omisión la exige para recibir.
+     */
+    'receiver' => [
+        'require_auth' => (bool) env('ECF_RECEIVER_REQUIRE_AUTH', true),
+    ],
+
     'notifications' => [
         'email_on_rejection' => (bool) env('ECF_EMAIL_ON_REJECTION', true),
     ],

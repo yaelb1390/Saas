@@ -38,6 +38,9 @@ final class ElectronicReceivedDocument extends Model implements HasCompany
     {
         return [
             'environment' => Environment::class,
+            'receipt_status' => 'integer',
+            'receipt_reason' => 'integer',
+            'approval_status' => 'integer',
             'issue_date' => 'date',
             'total' => 'decimal:2',
             'itbis_total' => 'decimal:2',

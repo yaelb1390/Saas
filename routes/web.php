@@ -1090,8 +1090,10 @@ Route::middleware(['auth'])->group(function (): void {
         Route::get('/panel/facturacion-electronica/recibidos', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'received'])
             ->middleware('can:ecf.view')->name('panel.e-invoicing.received');
         Route::get('/panel/facturacion-electronica/recibidos/{received}/{kind}', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'receivedFile'])
-            ->whereIn('kind', ['ecf', 'arecf'])
+            ->whereIn('kind', ['ecf', 'arecf', 'acecf'])
             ->middleware('can:ecf.download')->name('panel.e-invoicing.received.file');
+        Route::post('/panel/facturacion-electronica/recibidos/{received}/aprobacion', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'approve'])
+            ->middleware(['can:ecf.issue', 'throttle:30,1'])->name('panel.e-invoicing.received.approve');
         Route::get('/panel/facturacion-electronica/auditoria',[\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'audit'])
             ->middleware('can:ecf.audit')->name('panel.e-invoicing.audit');
         Route::get('/panel/facturacion-electronica/diagnostico',[ElectronicInvoicingController::class, 'diagnostics'])
@@ -1106,7 +1108,9 @@ Route::middleware(['auth'])->group(function (): void {
             ->middleware(['can:ecf.send', 'throttle:20,1'])->name('panel.e-invoicing.documents.resend');
         Route::post('/panel/facturacion-electronica/documentos/{document}/consultar', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicDocumentController::class, 'query'])
             ->middleware(['can:ecf.query', 'throttle:20,1'])->name('panel.e-invoicing.documents.query');
-        Route::post('/panel/facturacion-electronica/configuracion', [ElectronicInvoicingController::class, 'updateSettings'])
+        Route::post('/panel/facturacion-electronica/secuencias/{sequence}/anular', [ElectronicInvoicingController::class, 'voidSequence'])
+            ->middleware(['can:ecf.cancel', 'throttle:10,1'])->name('panel.e-invoicing.sequences.void');
+        Route::post('/panel/facturacion-electronica/configuracion',[ElectronicInvoicingController::class, 'updateSettings'])
             ->middleware('can:ecf.configure')->name('panel.e-invoicing.settings.update');
         Route::post('/panel/facturacion-electronica/modo', [ElectronicInvoicingController::class, 'updateMode'])
             ->middleware('can:ecf.configure')->name('panel.e-invoicing.mode.update');

@@ -9,7 +9,9 @@ use App\Modules\Core\Tenancy\CompanyScope;
 use App\Modules\ElectronicInvoicing\Contingency\ContingencyService;
 use App\Modules\ElectronicInvoicing\Domain\EcfDocument;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
+use App\Modules\Core\Support\DbTable;
 use App\Modules\ElectronicInvoicing\Events\EcfStatusChanged;
+use App\Modules\ElectronicInvoicing\Receiver\BuyerDeliveryService;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceAuditLog;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
@@ -240,7 +242,7 @@ final class ElectronicInvoiceService
      * Envíos pendientes y consultas vencidas, los más antiguos primero, hasta agotar el presupuesto de
      * tiempo (la función de Vercel corta en ~10 s). Lo llama /tareas/ecf-procesar.
      *
-     * @return array{enviados: int, consultados: int, restantes: int}
+     * @return array{enviados: int, consultados: int, entregados: int, restantes: int}
      */
     public function processPending(int $budgetSeconds = 8): array
     {
@@ -277,7 +279,31 @@ final class ElectronicInvoiceService
             }
         }
 
-        return ['enviados' => $enviados, 'consultados' => $consultados, 'restantes' => max(0, $pendientes->count() - $enviados - $consultados)];
+        // Entregas al comprador (fase 7c), con el tiempo que quede.
+        $entregados = 0;
+        if (microtime(true) < $limite && DbTable::tieneColumna('electronic_invoices', 'buyer_delivery_status')) {
+            $entregas = ElectronicInvoice::query()
+                ->withoutGlobalScope(CompanyScope::class)
+                ->where('buyer_delivery_status', BuyerDeliveryService::PENDIENTE)
+                ->orderBy('id')
+                ->limit(50)
+                ->get();
+
+            foreach ($entregas as $ecf) {
+                if (microtime(true) >= $limite) {
+                    break;
+                }
+
+                try {
+                    app(BuyerDeliveryService::class)->deliver($ecf);
+                    $entregados++;
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            }
+        }
+
+        return ['enviados' => $enviados, 'consultados' => $consultados, 'entregados' => $entregados, 'restantes' => max(0, $pendientes->count() - $enviados - $consultados)];
     }
 
     private function firmar(Company $company, ElectronicInvoice $ecf, EcfDocument $doc, DOMDocument $xml): void
@@ -322,6 +348,11 @@ final class ElectronicInvoiceService
             case ProviderOutcome::AcceptedConditional:
                 $ecf->forceFill(['resolved_at' => now(), 'next_attempt_at' => null, 'last_error' => null])->save();
                 $this->moverA($ecf, $r->outcome === ProviderOutcome::Accepted ? EcfStatus::Aceptado : EcfStatus::AceptadoCondicional, 'Documento aceptado', $userId, $ip, $detalle);
+
+                // [DT p.12] Aceptado: toca enviárselo al comprador si es receptor electrónico (fase 7c).
+                if (filled($ecf->buyer_tax_id) && DbTable::tieneColumna('electronic_invoices', 'buyer_delivery_status')) {
+                    $ecf->forceFill(['buyer_delivery_status' => BuyerDeliveryService::PENDIENTE])->save();
+                }
                 $this->contingency->recordRecovery($ecf->company_id, $ecf->environment);
                 break;
 

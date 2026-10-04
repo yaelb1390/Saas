@@ -43,6 +43,22 @@ final class FakeProvider implements ElectronicInvoiceProvider
         return $this->enProduccion($env) ?? $this->respuesta((string) config('ecf.fake.query', 'accepted'), $trackId);
     }
 
+    public function sendCommercialApproval(Company $company, Environment $env, string $signedXml, string $fileName): ProviderResult
+    {
+        return $this->enProduccion($env) ?? $this->respuesta((string) config('ecf.fake.approval', 'accepted'), null);
+    }
+
+    public function voidRange(Company $company, Environment $env, string $signedXml, string $fileName): ProviderResult
+    {
+        return $this->enProduccion($env) ?? $this->respuesta((string) config('ecf.fake.void', 'accepted'), null);
+    }
+
+    /** Por omisión el comprador no es electrónico: no hay a quién enviar nada. */
+    public function findReceiver(Company $company, Environment $env, string $taxId): ReceiverLookup
+    {
+        return new ReceiverLookup(ReceiverLookup::UNSUPPORTED, error: 'El proveedor de prueba no consulta el directorio de la DGII.');
+    }
+
     /**
      * En producción un «aceptado» simulado sería un documento fiscal que la DGII nunca recibió: el
      * proveedor de prueba se niega y el documento queda en error, a la vista.

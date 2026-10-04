@@ -32,7 +32,7 @@ final class ProcessElectronicInvoices extends Command
 
         $r = $service->processPending(max(1, (int) $this->option('presupuesto')));
 
-        $this->info("e-CF enviados: {$r['enviados']}. Consultados: {$r['consultados']}. Quedan para la próxima: {$r['restantes']}.");
+        $this->info("e-CF enviados: {$r['enviados']}. Consultados: {$r['consultados']}. Entregados al comprador: {$r['entregados']}. Quedan para la próxima: {$r['restantes']}.");
 
         return self::SUCCESS;
     }

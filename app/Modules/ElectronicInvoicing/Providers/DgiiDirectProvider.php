@@ -121,6 +121,105 @@ final class DgiiDirectProvider implements ElectronicInvoiceProvider
         });
     }
 
+    /**
+     * [DT pp.31–33] Respuesta {mensaje[], estado, codigo}: código 1 aprobación comercial aprobada,
+     * 2 rechazada (factura no encontrada o no se pudo procesar).
+     */
+    public function sendCommercialApproval(Company $company, Environment $env, string $signedXml, string $fileName): ProviderResult
+    {
+        return $this->intentar(function () use ($company, $env, $signedXml, $fileName): ProviderResult {
+            $r = $this->client->postXml($company, $env, 'commercial_approval', $signedXml, $fileName);
+
+            if ($r->serverError()) {
+                return $this->pasajero($r);
+            }
+
+            $codigo = (string) $r->json('codigo');
+            $mensajes = array_map(fn ($m): array => ['codigo' => null, 'valor' => (string) $m], (array) ($r->json('mensaje') ?? []));
+
+            return new ProviderResult(
+                match ($codigo) {
+                    '1' => ProviderOutcome::Accepted,
+                    '2' => ProviderOutcome::Rejected,
+                    default => ProviderOutcome::PermanentError,
+                },
+                code: $codigo !== '' ? $codigo : null,
+                status: $r->json('estado') !== null ? (string) $r->json('estado') : null,
+                messages: $mensajes,
+                httpStatus: $r->status(),
+                raw: $r->body(),
+                error: $r->successful() ? null : "La DGII no aceptó la aprobación comercial (HTTP {$r->status()}).",
+            );
+        });
+    }
+
+    /**
+     * [DT pp.34–36] Respuesta {rnc, codigo, nombre, mensajes[]}. El DT no publica la tabla de códigos
+     * (pending_verification.range_void_codes): HTTP 2xx se toma como procesada y el código y los
+     * mensajes se guardan tal cual para que se lean. No existe en certificación.
+     */
+    public function voidRange(Company $company, Environment $env, string $signedXml, string $fileName): ProviderResult
+    {
+        if ($env === Environment::Certificacion) {
+            return new ProviderResult(ProviderOutcome::PermanentError, error: 'La anulación de rangos no existe en el ambiente de certificación [DT].');
+        }
+
+        return $this->intentar(function () use ($company, $env, $signedXml, $fileName): ProviderResult {
+            $r = $this->client->postXml($company, $env, 'range_void', $signedXml, $fileName);
+
+            if ($r->serverError()) {
+                return $this->pasajero($r);
+            }
+
+            $mensajes = array_map(fn ($m): array => ['codigo' => null, 'valor' => (string) $m], (array) ($r->json('mensajes') ?? []));
+
+            return new ProviderResult(
+                $r->successful() ? ProviderOutcome::Accepted : ProviderOutcome::Rejected,
+                code: $r->json('codigo') !== null ? (string) $r->json('codigo') : null,
+                status: $r->json('nombre') !== null ? (string) $r->json('nombre') : null,
+                messages: $mensajes,
+                httpStatus: $r->status(),
+                raw: $r->body(),
+                error: $r->successful() ? null : "La DGII no anuló el rango (HTTP {$r->status()}).",
+            );
+        });
+    }
+
+    /**
+     * [DT pp.37–39] obtenerdirectorioporrnc: lista con {nombre, rnc, urlRecepcion, urlAceptacion,
+     * urlOpcional}. Vacía o 404 = no es receptor electrónico. No existe en certificación.
+     */
+    public function findReceiver(Company $company, Environment $env, string $taxId): ReceiverLookup
+    {
+        if ($env === Environment::Certificacion) {
+            return new ReceiverLookup(ReceiverLookup::UNSUPPORTED, error: 'El directorio no existe en el ambiente de certificación [DT].');
+        }
+
+        try {
+            $r = $this->client->get($company, $env, 'directory_by_rnc', ['RNC' => $taxId]);
+        } catch (Throwable $e) {
+            return new ReceiverLookup(ReceiverLookup::ERROR, error: $e->getMessage());
+        }
+
+        if ($r->serverError()) {
+            return new ReceiverLookup(ReceiverLookup::ERROR, error: "La DGII respondió con un error temporal (HTTP {$r->status()}).");
+        }
+
+        $lista = $r->json();
+        $fila = is_array($lista) ? (array_is_list($lista) ? ($lista[0] ?? null) : $lista) : null;
+
+        if ($r->status() === 404 || ! is_array($fila) || blank($fila['urlRecepcion'] ?? null)) {
+            return new ReceiverLookup(ReceiverLookup::NOT_ELECTRONIC);
+        }
+
+        return new ReceiverLookup(
+            ReceiverLookup::FOUND,
+            receptionUrl: (string) $fila['urlRecepcion'],
+            approvalUrl: filled($fila['urlAceptacion'] ?? null) ? (string) $fila['urlAceptacion'] : null,
+            authUrl: filled($fila['urlOpcional'] ?? null) ? (string) $fila['urlOpcional'] : null,
+        );
+    }
+
     private function intentar(callable $llamada): ProviderResult
     {
         try {

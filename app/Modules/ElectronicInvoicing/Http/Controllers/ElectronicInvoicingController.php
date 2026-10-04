@@ -9,6 +9,9 @@ use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\ElectronicInvoicing\Application\Diagnostics;
 use App\Modules\ElectronicInvoicing\Application\EmissionStats;
 use App\Modules\ElectronicInvoicing\Application\SetupWizard;
+use App\Modules\ElectronicInvoicing\Ncf\RangeVoidService;
+use App\Modules\ElectronicInvoicing\Providers\ProviderOutcome;
+use Throwable;
 use App\Modules\ElectronicInvoicing\Application\RuntimeRequirements;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
@@ -86,6 +89,20 @@ final class ElectronicInvoicingController extends Controller
                 ? app(EmissionStats::class)->forDays((int) $empresa->id, ElectronicInvoicingSettings::paraEmpresa($empresa)->environment)
                 : null,
         ]);
+    }
+
+    /** Anula ante la DGII los e-NCF sin usar de una secuencia (ANECF). */
+    public function voidSequence(ElectronicNcfSequence $sequence, Request $request, RangeVoidService $voids): RedirectResponse
+    {
+        try {
+            $r = $voids->voidUnused($sequence, $request->user()?->id);
+        } catch (Throwable $e) {
+            return back()->with('panel_error', 'No se pudo anular: '.$e->getMessage());
+        }
+
+        return $r->outcome === ProviderOutcome::Accepted
+            ? back()->with('panel_ok', 'Rango anulado ante la DGII. '.$r->summary())
+            : back()->with('panel_error', 'La DGII no procesó la anulación: '.$r->summary());
     }
 
     /** Diagnóstico: cada chequeo con su estado y cómo solucionarlo. Solo lee. */

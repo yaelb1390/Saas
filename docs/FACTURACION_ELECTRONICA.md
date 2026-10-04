@@ -604,6 +604,73 @@ Además, el diagnóstico avisa si el **SN del certificado** no corresponde al RN
 válido, sin token 401, los cuatro motivos de «no recibido», mayúsculas y tilde, clave inexistente 404,
 aprobación comercial recibida (200 y 400) y la pantalla de recibidos.
 
+## Fases 7b–7d — Aprobaciones comerciales, envío al comprador y anulación de rangos (2026-10-04)
+
+### 7b — Aprobación comercial que emite la empresa (`Receiver/CommercialApprovalService`)
+
+En «Comprobantes recibidos», cada e-CF recibido se **acepta** o **rechaza (con motivo)**:
+
+1. ACECF [acecf.xsd]: RNC emisor, e-NCF, fecha de emisión, monto, RNC comprador, Estado 1/2, motivo (solo
+   si se rechaza: sin etiquetas vacías [DTEE]) y fecha-hora; firmada y validada contra su XSD.
+2. A la DGII (`aprobacioncomercial`) [DT pp.31–33]: código 1 aprobada · 2 rechazada.
+3. Al emisor: su `urlAceptacion` del directorio [DT pp.37–39], autenticándose en su `urlOpcional` si la
+   declara (`Receiver/PeerClient`). Nombre de archivo RNCComprador + e-NCF [DTEE].
+
+Una sola aprobación por documento (permiso `ecf.issue`); lo que falle al enviar queda anotado.
+
+### 7c — Envío del e-CF aceptado al comprador (`Receiver/BuyerDeliveryService`)
+
+[DT p.12] «La recepción del TrackId y haber recibido un estado de validación satisfactorio habilita al emisor
+al envío del e-CF al receptor y, en caso de que este no sea electrónico, la entrega de la representación
+impresa.» Un e-CF **aceptado** con comprador identificado queda «pendiente»; el procesador de pendientes lo
+busca en el directorio y:
+
+- si es receptor electrónico, le envía el XML firmado a su `urlRecepcion` y guarda su acuse (ARECF, archivo
+  `arecf_comprador`, con su Estado y motivo);
+- si no lo es, «no_electronico» (se le entrega la RI);
+- si el proveedor no consulta el directorio (prueba / PSFE), «no_aplica»;
+- fallos pasajeros: hasta 5 intentos, luego «error» para revisarlo.
+
+**Interpretación (documentada):** el directorio da el «host del servicio»; el recurso estándar
+(`/fe/recepcion/api/ecf`…) se añade si la URL no lo trae ya.
+
+### 7d — Anulación de e-NCF no usados (`Ncf/RangeVoidService`)
+
+Botón «Anular lo no usado» en cada secuencia (permiso `ecf.cancel`, con confirmación): ANECF [anecf.xsd]
+con la **cola sin usar** (del próximo número al final del rango; nunca toca lo emitido), firmada y validada,
+a la DGII (`anulacionrangos`) [DT pp.34–36]. La secuencia se recorta **solo** si la DGII la procesa; la
+anulación queda en la bitácora con el XML y la respuesta tal cual. El DT no publica la tabla de códigos de
+respuesta → `pending_verification.range_void_codes`. No existe en certificación.
+
+### Contrato de proveedores
+
+`sendCommercialApproval`, `findReceiver` (devuelve `ReceiverLookup`) y `voidRange`, en DGII directo, PSFE
+(«no configurado») y prueba.
+
+### Cobertura
+
+`EcfReceiverTest` +2 (aprobación con proveedor de prueba: ACECF válida y firmada, rechazo con motivo, una
+sola vez; con la DGII simulada: aprobación a la DGII y al emisor con su token, y nuestro e-CF aceptado
+enviado al comprador electrónico con su ARECF). `EcfEmissionTest` +2 (anulación con ANECF válida; DGII que no
+la procesa y permisos).
+
+## Guía de certificación con BMIA
+
+Pasos del proceso de certificación propio [CERT, 19/08/2025] y qué cubre BMIA en cada uno. **BMIA no
+certifica ni autoriza a nadie**: los pasos los da la empresa ante la DGII.
+
+| Paso [CERT] | Con BMIA |
+|---|---|
+| Formulario FI-GDF-016 y postulación en la Oficina Virtual | Lo hace la empresa. Datos fiscales: «Datos fiscales y ambiente» |
+| Certificado digital para procesos tributarios | «Certificado digital» (el diagnóstico avisa si el SN no es el RNC) |
+| Secuencias de prueba | «Secuencias de e-NCF», ambiente Pre-certificación |
+| Set de pruebas de e-CF sin rechazos | Emitir desde Facturación/POS/Compras en modo «en paralelo» o real en pruebas, con proveedor «Directo a la DGII». El formato del set lo entrega la DGII en la Oficina Virtual: no se automatiza sin verlo |
+| Aprobaciones comerciales | «Comprobantes recibidos» → Aceptar/Rechazar (7b) |
+| Simulación (incluye RFCE) | Facturas de consumo bajo RD$250.000 van solas por RFCE |
+| Representación impresa (≤ 10 MB) | PDF A4 y ticket 80 mm con timbre (6c) |
+| Pruebas de comunicación: recibir e-CF y devolver ARECF; recibir aprobaciones | Servicios del receptor (7a): registrar las direcciones de «Comprobantes recibidos» |
+| URL de producción y declaración jurada | Lo hace la empresa; después: ambiente Producción + confirmación + modo «e-CF en lugar de la serie B» |
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

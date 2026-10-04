@@ -404,6 +404,7 @@
                                 <th class="py-2 pr-3 font-medium">Quedan</th>
                                 <th class="py-2 pr-3 font-medium">Vence</th>
                                 <th class="py-2 font-medium">Estado</th>
+                                <th class="py-2"></th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -423,6 +424,18 @@
                                     <td class="py-2 pr-3 text-slate-600">{{ number_format($s->remaining()) }}</td>
                                     <td class="py-2 pr-3 text-slate-600">{{ $s->expires_at?->format('d/m/Y') ?? 'No vence' }}</td>
                                     <td class="py-2"><span class="bmos-badge {{ $estado[1] }}">{{ $estado[0] }}</span></td>
+                                    <td class="py-2 text-right">
+                                        {{-- Anula ante la DGII los números aún sin usar (ANECF): no se pueden recuperar. --}}
+                                        @can('ecf.cancel')
+                                            @if ($s->remaining() > 0)
+                                                <form method="POST" action="{{ route('panel.e-invoicing.sequences.void', $s) }}"
+                                                      onsubmit="return confirm(@js('¿Anular ante la DGII los '.number_format($s->remaining()).' e-NCF sin usar de esta secuencia? No se podrán usar nunca más.'))">
+                                                    @csrf
+                                                    <button type="submit" class="text-xs font-medium text-rose-600 hover:text-rose-700">Anular lo no usado</button>
+                                                </form>
+                                            @endif
+                                        @endcan
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>

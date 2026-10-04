@@ -16,4 +16,8 @@ Por ahora puedes:
 - **Registrar tus secuencias de e-NCF** (serie E) por tipo y ambiente. Un número rechazado por la DGII solo se vuelve a usar cuando ella lo permite.
 - **Subir tu certificado digital** (archivo .p12 y su contraseña). Se guarda cifrado y nunca se muestra; te avisamos 30 días antes de que venza.
 
+- **Recibir los e-CF de tus proveedores**: en «Comprobantes recibidos» están las direcciones que registras en la DGII. Cada e-CF que llega recibe su acuse y desde ahí lo **aceptas o rechazas** (aprobación comercial).
+- **Anular números sin usar** de una secuencia ante la DGII, cuando ya no la vas a usar.
+- Revisar el **Diagnóstico**, que te dice qué falta y cómo resolverlo.
+
 Tu empresa empieza en el ambiente de **pruebas**, con un proveedor de prueba que no envía nada a la DGII. Los documentos fiscales se conservan 10 años, aunque se elimine la cuenta.

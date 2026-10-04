@@ -44,4 +44,19 @@ final class PsfeProvider implements ElectronicInvoiceProvider
     {
         return new ProviderResult(ProviderOutcome::NotConfigured, error: self::MENSAJE);
     }
+
+    public function sendCommercialApproval(Company $company, Environment $env, string $signedXml, string $fileName): ProviderResult
+    {
+        return new ProviderResult(ProviderOutcome::NotConfigured, error: self::MENSAJE);
+    }
+
+    public function voidRange(Company $company, Environment $env, string $signedXml, string $fileName): ProviderResult
+    {
+        return new ProviderResult(ProviderOutcome::NotConfigured, error: self::MENSAJE);
+    }
+
+    public function findReceiver(Company $company, Environment $env, string $taxId): ReceiverLookup
+    {
+        return new ReceiverLookup(ReceiverLookup::UNSUPPORTED, error: self::MENSAJE);
+    }
 }

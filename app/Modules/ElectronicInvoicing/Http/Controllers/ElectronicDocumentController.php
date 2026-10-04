@@ -10,6 +10,7 @@ use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceAuditLog;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
 use App\Modules\ElectronicInvoicing\Models\ElectronicReceivedDocument;
+use App\Modules\ElectronicInvoicing\Receiver\CommercialApprovalService;
 use App\Modules\ElectronicInvoicing\Signature\CertificateVault;
 use Illuminate\Support\Carbon;
 use App\Modules\Core\Support\EntregaDeArchivo;
@@ -113,12 +114,34 @@ final class ElectronicDocumentController extends Controller
         ]);
     }
 
+    /** Aprobación comercial (ACECF) de la empresa sobre un e-CF recibido: aceptar o rechazar. */
+    public function approve(Request $request, ElectronicReceivedDocument $received, CommercialApprovalService $approvals): RedirectResponse
+    {
+        $datos = $request->validate([
+            'decision' => ['required', 'in:aceptar,rechazar'],
+            'motivo' => ['required_if:decision,rechazar', 'nullable', 'string', 'max:250'],
+        ], ['motivo.required_if' => 'Indica el motivo del rechazo.']);
+
+        try {
+            $doc = $approvals->emit($received, $datos['decision'] === 'aceptar', $datos['motivo'] ?? null, $request->user()?->id);
+        } catch (Throwable $e) {
+            return back()->with('panel_error', 'No se pudo emitir la aprobación comercial: '.$e->getMessage());
+        }
+
+        $texto = $doc->approval_status === 1 ? 'aceptado' : 'rechazado';
+
+        return back()->with($doc->approval_error ? 'panel_error' : 'panel_ok', $doc->approval_error
+            ? "Comprobante {$texto}, pero hubo problemas al enviarlo: {$doc->approval_error}"
+            : "Comprobante {$doc->e_ncf} {$texto} y enviado.");
+    }
+
     /** Descarga el e-CF recibido o el acuse devuelto, comprobando su huella. */
     public function receivedFile(ElectronicReceivedDocument $received, string $kind): Response
     {
         [$ruta, $huella] = match ($kind) {
             'ecf' => [$received->xml_path, $received->xml_sha256],
             'arecf' => [$received->arecf_path, $received->arecf_sha256],
+            'acecf' => [$received->acecf_path, $received->acecf_sha256],
             default => abort(404),
         };
 

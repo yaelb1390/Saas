@@ -119,7 +119,7 @@ it('crédito fiscal: queda recibido con TrackId y la consulta posterior lo da po
         ->and($ecf->sends_summary)->toBeFalse();
 
     // Antes de su próximo intento no se consulta.
-    expect(app(ElectronicInvoiceService::class)->processPending())->toBe(['enviados' => 0, 'consultados' => 0, 'restantes' => 0]);
+    expect(app(ElectronicInvoiceService::class)->processPending())->toBe(['enviados' => 0, 'consultados' => 0, 'entregados' => 0, 'restantes' => 0]);
 
     $this->travel(2)->minutes();
     $r = app(ElectronicInvoiceService::class)->processPending();
@@ -585,4 +585,55 @@ it('la auditoría lista y filtra la bitácora de todos los e-CF', function (): v
         'company_id' => $this->company->id, 'name' => 'Cajero', 'email' => 'cajero@audit.test', 'password' => 'secret-password',
     ]), 'staff');
     $this->actingAs($cajero)->get(route('panel.e-invoicing.audit'))->assertForbidden();
+});
+
+/*
+ * Fase 7d: anulación de e-NCF no usados (ANECF).
+ */
+
+it('anula ante la DGII la cola sin usar de una secuencia y la recorta', function (): void {
+    ($this->certificado)();
+    $seq = ($this->secuencia)(EcfType::Consumo);
+    ($this->emitir)(EcfType::Consumo);
+    ($this->emitir)(EcfType::Consumo);
+
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@anecf.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->post(route('panel.e-invoicing.sequences.void', $seq))->assertSessionHas('panel_ok');
+
+    $seq->refresh();
+    $log = \App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceAuditLog::query()->where('action', 'Rango de e-NCF anulado')->sole();
+    $anecf = \App\Modules\ElectronicInvoicing\Xml\SafeXml::load(Storage::disk('local')->get($log->details['xml']));
+
+    expect($seq->range_to)->toBe(2)->and($seq->is_active)->toBeFalse()
+        ->and($log->details['desde'])->toBe('E320000000003')
+        ->and($log->details['hasta'])->toBe('E320000000050')
+        ->and($log->details['cantidad'])->toBe('48')
+        ->and(app(\App\Modules\ElectronicInvoicing\Xml\XmlValidator::class)->validate($anecf, app(\App\Modules\ElectronicInvoicing\Xml\SchemaRegistry::class)->validationPath('anecf.xsd')))->toBe([])
+        ->and(app(\App\Modules\ElectronicInvoicing\Signature\XmlSignatureVerifier::class)->verify($anecf)['valid'])->toBeTrue();
+
+    // Ya no quedan números: no se puede anular otra vez, ni emitir de esa secuencia.
+    $this->actingAs($duena)->post(route('panel.e-invoicing.sequences.void', $seq))->assertSessionHas('panel_error');
+});
+
+it('si la DGII no procesa la anulación, la secuencia queda igual; y el cajero no anula', function (): void {
+    ($this->certificado)();
+    $seq = ($this->secuencia)(EcfType::Consumo);
+    config(['ecf.fake.void' => 'rejected']);
+
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@anecf2.test', 'password' => 'secret-password',
+    ]), 'owner');
+    $cajero = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Cajero', 'email' => 'cajero@anecf2.test', 'password' => 'secret-password',
+    ]), 'staff');
+
+    $this->actingAs($cajero)->post(route('panel.e-invoicing.sequences.void', $seq))->assertForbidden();
+    $this->actingAs($duena)->post(route('panel.e-invoicing.sequences.void', $seq))->assertSessionHas('panel_error');
+
+    expect($seq->fresh()->range_to)->toBe(50)->and($seq->fresh()->is_active)->toBeTrue();
 });

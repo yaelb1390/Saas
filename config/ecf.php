@@ -52,6 +52,13 @@ return [
         'reception' => ['host' => 'ecf', 'path' => '/recepcion/api/facturaselectronicas'],               // POST [DT p.13]
         'rfce_reception' => ['host' => 'fc', 'path' => '/recepcionfc/api/recepcion/ecf'],               // POST [DT p.16]
         'result' => ['host' => 'ecf', 'path' => '/consultaresultado/api/consultas/estado'],             // GET ?trackid= [DT p.22]
+        // Aprobación comercial (ACECF) que el comprador envía a la DGII [DT pp.31–33]: 1 aprobada · 2 rechazada.
+        'commercial_approval' => ['host' => 'ecf', 'path' => '/aprobacioncomercial/api/aprobacioncomercial'],
+        // Directorio de receptores electrónicos [DT pp.37–39]: GET ?RNC= → nombre, rnc, urlRecepcion,
+        // urlAceptacion, urlOpcional. No existe en certificación.
+        'directory_by_rnc' => ['host' => 'ecf', 'path' => '/consultadirectorio/api/consultas/obtenerdirectorioporrnc'],
+        // Anulación de rangos de e-NCF no usados (ANECF) [DT pp.34–36]. No existe en certificación.
+        'range_void' => ['host' => 'ecf', 'path' => '/anulacionrangos/api/operaciones/anularrango'],
         // Timbre (QR) de la representación impresa [DT pp.40–42]: no se llaman, son la URL del QR.
         'stamp' => ['host' => 'ecf', 'path' => '/consultatimbre'],
         'stamp_fc' => ['host' => 'fc', 'path' => '/consultatimbrefc'],
@@ -287,6 +294,7 @@ return [
         'psfe_admin_user' => 'Si con proveedor certificado hace falta el «Usuario Administrador e-CF».',
         'reports_607_608' => 'Si con e-CF siguen haciendo falta los formatos 607/608, y si un e-CF revertido con nota de crédito se reporta en el 608. Hoy la factura anulada sigue saliendo en el 608 como cualquier otra (fase 5b).',
         'qr_version' => '[DT pp.40–42] pide QR versión 8, pero la URL completa del timbre (~200 caracteres) no cabe en ella en modo byte (máx. 192). Se intenta la 8 y, si no cabe, la menor que la contenga, sin recortar la URL (fase 6c).',
+        'range_void_codes' => 'Qué significa cada «codigo» de la respuesta de anulación de rangos [DT pp.34–36]: el DT solo lista mensajes. Hoy HTTP 2xx = procesada y se muestra el código y los mensajes tal cual (fase 7d).',
         'tip' => 'Cómo se declara la propina legal (10 %) en el e-CF. Hoy queda fuera del documento (fase 5a).',
         'rounding_rule' => 'La «regla de redondeos» que cita [FMT nota 11] y si la DGII tolera diferencias de céntimos en los totales.',
     ],
@@ -323,6 +331,8 @@ return [
         'send' => 'received',
         'summary' => 'accepted',
         'query' => 'accepted',
+        'approval' => 'accepted',
+        'void' => 'accepted',
         'sequence_used' => true,
     ],
 ];

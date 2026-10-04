@@ -41,7 +41,7 @@
             <div class="overflow-x-auto">
                 <table class="bmos-table bmos-tabla-tarjetas">
                     <thead>
-                        <tr><th>Recibido</th><th>Proveedor</th><th>e-NCF</th><th class="text-right">Total</th><th>Acuse</th><th class="text-right"></th></tr>
+                        <tr><th>Recibido</th><th>Proveedor</th><th>e-NCF</th><th class="text-right">Total</th><th>Acuse</th><th>Aprobación comercial</th><th class="text-right"></th></tr>
                     </thead>
                     <tbody>
                         @forelse ($filas ?? [] as $f)
@@ -61,15 +61,50 @@
                                         <span class="block text-xs text-slate-500">{{ \App\Modules\ElectronicInvoicing\Models\ElectronicReceivedDocument::MOTIVOS[$f->receipt_reason] ?? '' }}</span>
                                     @endif
                                 </td>
+                                <td data-rotulo="Aprobación comercial">
+                                    @if ($f->approval_status === 1)
+                                        <span class="bmos-badge badge-green">Aceptado</span>
+                                    @elseif ($f->approval_status === 2)
+                                        <span class="bmos-badge badge-red">Rechazado</span>
+                                        <span class="block text-xs text-slate-500">{{ $f->approval_reason }}</span>
+                                    @elseif ($f->receipt_status === \App\Modules\ElectronicInvoicing\Models\ElectronicReceivedDocument::RECIBIDO)
+                                        @can('ecf.issue')
+                                            <div x-data="{ rechazar: false }" class="space-y-1">
+                                                <form method="POST" action="{{ route('panel.e-invoicing.received.approve', $f) }}" class="inline">
+                                                    @csrf
+                                                    <input type="hidden" name="decision" value="aceptar">
+                                                    <button type="submit" class="text-sm font-medium text-emerald-700 hover:text-emerald-800">Aceptar</button>
+                                                </form>
+                                                <button type="button" class="ml-2 text-sm font-medium text-rose-600 hover:text-rose-700" @click="rechazar = ! rechazar">Rechazar</button>
+                                                <form x-show="rechazar" x-cloak method="POST" action="{{ route('panel.e-invoicing.received.approve', $f) }}" class="flex gap-1">
+                                                    @csrf
+                                                    <input type="hidden" name="decision" value="rechazar">
+                                                    <input name="motivo" maxlength="250" required class="bmos-input py-1 text-xs" placeholder="Motivo del rechazo">
+                                                    <button type="submit" class="bmos-btn bmos-btn-ghost py-1 text-xs">Enviar</button>
+                                                </form>
+                                            </div>
+                                        @else
+                                            <span class="text-xs text-slate-400">Pendiente</span>
+                                        @endcan
+                                    @else
+                                        <span class="text-xs text-slate-400">—</span>
+                                    @endif
+                                    @if ($f->approval_error)
+                                        <span class="block text-xs text-rose-600">{{ $f->approval_error }}</span>
+                                    @endif
+                                </td>
                                 <td class="whitespace-nowrap text-right text-sm">
                                     @can('ecf.download')
                                         <a href="{{ route('panel.e-invoicing.received.file', [$f, 'ecf']) }}" class="text-indigo-600 hover:text-indigo-700">e-CF</a>
                                         <a href="{{ route('panel.e-invoicing.received.file', [$f, 'arecf']) }}" class="ml-2 text-indigo-600 hover:text-indigo-700">Acuse</a>
+                                        @if ($f->acecf_path)
+                                            <a href="{{ route('panel.e-invoicing.received.file', [$f, 'acecf']) }}" class="ml-2 text-indigo-600 hover:text-indigo-700">Aprobación</a>
+                                        @endif
                                     @endcan
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="bmos-empty">Todavía no has recibido comprobantes electrónicos.</td></tr>
+                            <tr><td colspan="7" class="bmos-empty">Todavía no has recibido comprobantes electrónicos.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

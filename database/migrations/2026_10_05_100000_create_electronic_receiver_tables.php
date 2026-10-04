@@ -58,6 +58,10 @@ return new class extends Migration
                 $table->char('acecf_sha256', 64)->nullable();
                 $table->timestamp('approval_sent_at')->nullable();
                 $table->unsignedBigInteger('approved_by')->nullable();
+                // Resultado del envío de la aprobación a la DGII y al emisor (fase 7b).
+                $table->string('approval_dgii_result', 30)->nullable();
+                $table->string('approval_emitter_result', 30)->nullable();
+                $table->string('approval_error', 500)->nullable();
                 $table->string('sender_ip', 45)->nullable();
                 $table->timestamps();
 
@@ -72,15 +76,29 @@ return new class extends Migration
                 $table->unsignedTinyInteger('commercial_status')->nullable();
                 $table->string('commercial_reason', 250)->nullable();
                 $table->timestamp('commercial_at')->nullable();
+                // Envío del e-CF aceptado al comprador si es receptor electrónico (fase 7c) [DT p.12]:
+                // pendiente · enviado · no_electronico · error; y el acuse (ARECF) que devolvió.
+                $table->string('buyer_delivery_status', 20)->nullable();
+                $table->unsignedSmallInteger('buyer_delivery_attempts')->default(0);
+                $table->timestamp('buyer_delivered_at')->nullable();
+                $table->unsignedTinyInteger('buyer_receipt_status')->nullable();
+                $table->unsignedTinyInteger('buyer_receipt_reason')->nullable();
+                $table->string('buyer_delivery_error', 500)->nullable();
             });
         }
     }
 
     public function down(): void
     {
-        if (Schema::hasColumn('electronic_invoices', 'commercial_status')) {
-            Schema::table('electronic_invoices', function (Blueprint $table): void {
-                $table->dropColumn(['commercial_status', 'commercial_reason', 'commercial_at']);
+        // Solo las que existan: el down no debe fallar sobre una versión anterior de esta migración.
+        $columnas = array_values(array_filter([
+            'commercial_status', 'commercial_reason', 'commercial_at', 'buyer_delivery_status', 'buyer_delivery_attempts',
+            'buyer_delivered_at', 'buyer_receipt_status', 'buyer_receipt_reason', 'buyer_delivery_error',
+        ], fn (string $c): bool => Schema::hasColumn('electronic_invoices', $c)));
+
+        if ($columnas !== []) {
+            Schema::table('electronic_invoices', function (Blueprint $table) use ($columnas): void {
+                $table->dropColumn($columnas);
             });
         }
 

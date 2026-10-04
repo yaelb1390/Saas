@@ -217,3 +217,89 @@ it('la pantalla de recibidos enseña las direcciones a registrar y los e-CF con 
     $this->actingAs($duena)->get(route('panel.e-invoicing.received.file', [$doc->id, 'arecf']))
         ->assertOk()->assertSee('<ARECF>', false);
 });
+
+/*
+ * Fases 7b y 7c: aprobación comercial que emitimos, y envío de nuestro e-CF aceptado al comprador.
+ */
+
+it('aceptamos o rechazamos un e-CF recibido: ACECF firmada, válida y enviada', function (): void {
+    ($this->enviar)(($this->ecfDelProveedor)(), ($this->token)());
+    ($this->enviar)(($this->ecfDelProveedor)('131000002', 'E310000000008'), ($this->token)());
+    [$uno, $dos] = ElectronicReceivedDocument::query()->withoutGlobalScopes()->orderBy('id')->get()->all();
+
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->nosotros->id, 'name' => 'Dueña', 'email' => 'duena@aprob.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->post(route('panel.e-invoicing.received.approve', $uno->id), ['decision' => 'aceptar'])->assertSessionHas('panel_ok');
+    $this->actingAs($duena)->post(route('panel.e-invoicing.received.approve', $dos->id), ['decision' => 'rechazar'])->assertSessionHasErrors('motivo');
+    $this->actingAs($duena)->post(route('panel.e-invoicing.received.approve', $dos->id), ['decision' => 'rechazar', 'motivo' => 'Mercancía dañada'])->assertSessionHas('panel_ok');
+    // Una sola aprobación por documento.
+    $this->actingAs($duena)->post(route('panel.e-invoicing.received.approve', $uno->id), ['decision' => 'rechazar', 'motivo' => 'x'])->assertSessionHas('panel_error');
+
+    $uno->refresh();
+    $dos->refresh();
+    $acecf = SafeXml::load(Storage::disk('local')->get($uno->acecf_path));
+
+    expect($uno->approval_status)->toBe(1)
+        ->and($uno->approval_dgii_result)->toBe('accepted')
+        ->and($uno->approval_emitter_result)->toBe('no_aplica')
+        ->and($dos->approval_status)->toBe(2)
+        ->and($dos->approval_reason)->toBe('Mercancía dañada')
+        ->and(app(XmlValidator::class)->validate($acecf, app(SchemaRegistry::class)->validationPath('acecf.xsd')))->toBe([])
+        ->and(app(\App\Modules\ElectronicInvoicing\Signature\XmlSignatureVerifier::class)->verify($acecf)['valid'])->toBeTrue()
+        ->and(Storage::disk('local')->get($dos->acecf_path))->toContain('<DetalleMotivoRechazo>Mercancía dañada</DetalleMotivoRechazo>');
+});
+
+it('con la DGII: la aprobación va a la DGII y al emisor; nuestro e-CF aceptado va al comprador electrónico', function (): void {
+    Illuminate\Support\Facades\Http::preventStrayRequests();
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+
+    // Un receptor ajeno (el proveedor) en otro host, con sus servicios estándar.
+    $peer = 'https://receptor.proveedor.test/fe';
+    Illuminate\Support\Facades\Http::fake([
+        'ecf.dgii.gov.do/testecf/autenticacion/api/autenticacion/semilla' => Illuminate\Support\Facades\Http::response('<SemillaModel><valor>d</valor></SemillaModel>'),
+        'ecf.dgii.gov.do/testecf/autenticacion/api/autenticacion/validarsemilla' => Illuminate\Support\Facades\Http::response(['token' => 'dgii', 'expira' => now()->addHour()->toIso8601String()]),
+        'ecf.dgii.gov.do/testecf/aprobacioncomercial/api/aprobacioncomercial' => Illuminate\Support\Facades\Http::response(['mensaje' => ['Aprobación comercial aprobada'], 'estado' => 'Aprobada', 'codigo' => '1']),
+        'ecf.dgii.gov.do/testecf/consultadirectorio/api/consultas/obtenerdirectorioporrnc*' => Illuminate\Support\Facades\Http::response([['nombre' => 'Proveedor SRL', 'rnc' => '101000007', 'urlRecepcion' => $peer, 'urlAceptacion' => $peer, 'urlOpcional' => $peer]]),
+        'ecf.dgii.gov.do/testecf/recepcion/api/facturaselectronicas' => Illuminate\Support\Facades\Http::response(['trackId' => 't-1']),
+        'ecf.dgii.gov.do/testecf/consultaresultado/api/consultas/estado*' => Illuminate\Support\Facades\Http::response(['codigo' => 1, 'estado' => 'Aceptado']),
+        'receptor.proveedor.test/fe/fe/autenticacion/api/semilla' => Illuminate\Support\Facades\Http::response('<SemillaModel><valor>p</valor></SemillaModel>'),
+        'receptor.proveedor.test/fe/fe/autenticacion/api/validacioncertificado' => Illuminate\Support\Facades\Http::response(['token' => 'peer', 'expira' => now()->addHour()->format('Y-m-d\TH:i:s\Z')]),
+        'receptor.proveedor.test/fe/fe/aprobacioncomercial/api/ecf' => Illuminate\Support\Facades\Http::response('', 200),
+        'receptor.proveedor.test/fe/fe/recepcion/api/ecf' => Illuminate\Support\Facades\Http::response('<ARECF><DetalleAcusedeRecibo><Version>1.0</Version><Estado>0</Estado></DetalleAcusedeRecibo></ARECF>'),
+    ]);
+
+    // 7b: aceptamos un e-CF recibido.
+    ($this->enviar)(($this->ecfDelProveedor)(), ($this->token)());
+    $recibido = ElectronicReceivedDocument::query()->withoutGlobalScopes()->sole();
+    $recibido = app(\App\Modules\ElectronicInvoicing\Receiver\CommercialApprovalService::class)->emit($recibido, true, null, null);
+
+    expect($recibido->approval_dgii_result)->toBe('accepted')
+        ->and($recibido->approval_emitter_result)->toBe('enviado')
+        ->and($recibido->approval_error)->toBeNull();
+    Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_ends_with($r->url(), '/fe/aprobacioncomercial/api/ecf') && $r->hasHeader('Authorization', 'Bearer peer'));
+
+    // 7c: emitimos un 31 al proveedor; aceptado por la DGII, va a su recepción.
+    ElectronicNcfSequence::create([
+        'company_id' => $this->nosotros->id, 'environment' => Environment::Pruebas, 'ecf_type' => EcfType::CreditoFiscal,
+        'range_from' => 1, 'range_to' => 10, 'next_number' => 1, 'is_active' => true, 'expires_at' => Carbon::create(2027, 12, 31),
+    ]);
+    $propio = app(ElectronicInvoiceService::class)->issue($this->nosotros, new EcfDocument(
+        type: EcfType::CreditoFiscal, encf: 'E310000000000', issueDate: Carbon::create(2026, 10, 3),
+        emitter: new EcfParty(taxId: '131000002', legalName: 'Nosotros SRL', address: 'Calle 1'),
+        lines: [new EcfLine('Servicio', '1', '118.00', BillingIndicator::Itbis1)],
+        buyer: new EcfParty(taxId: '101000007', legalName: 'Proveedor SRL'),
+    ));
+    $propio = app(ElectronicInvoiceService::class)->query($propio);
+    expect($propio->getAttributes()['buyer_delivery_status'])->toBe('pendiente');
+
+    $r = app(ElectronicInvoiceService::class)->processPending();
+    $propio->refresh();
+
+    expect($r['entregados'])->toBe(1)
+        ->and($propio->getAttributes()['buyer_delivery_status'])->toBe('enviado')
+        ->and($propio->getAttributes()['buyer_receipt_status'])->toBe(0)
+        ->and($propio->file('arecf_comprador'))->not->toBeNull();
+    Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_ends_with($r->url(), '/fe/recepcion/api/ecf') && str_contains((string) $r->body(), 'E310000000001'));
+});

@@ -217,6 +217,10 @@ it('agrupa los disparos en la zona horaria del negocio', function (): void {
      */
     config(['app.timezone' => 'America/Santo_Domingo']);
 
+    // La gráfica abarca como mucho los últimos 30 días: con fechas fijas, el reloj tiene que estar
+    // cerca de ellas o el test caduca solo con el paso del tiempo (pasó el 2026-10).
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-08-20 12:00:00', 'America/Santo_Domingo'));
+
     zernioConReporte(logs: [
         // Las 22:00 del 13 en Santo Domingo. El segundo es solo para que haya dos días y se dibuje.
         ['id' => 'l1', 'commenterName' => 'Ana', 'status' => 'sent', 'createdAt' => '2026-08-14T02:00:00Z'],

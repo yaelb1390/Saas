@@ -64,24 +64,32 @@ it('los ajustes manuales se mezclan sobre los defaults del tipo', function (): v
 it('ningun interruptor del terminal es decorativo', function (): void {
     // Se recorre el codigo con PHP y no con `grep`: un test que depende de las herramientas del
     // sistema falla en la maquina de otro por un motivo que no tiene nada que ver con lo que prueba.
+    //
+    // Con `scandir` y no con RecursiveDirectoryIterator: en la carpeta compartida de Docker Desktop
+    // (Windows) el iterador SPL, al rebobinar un directorio, solo devolvia sus 3 ultimas entradas y
+    // se saltaba resources/views/panel entero —donde vive pos.blade.php—: el test fallaba diciendo que
+    // nadie leia `attendant` ni `line_note` cuando la vista los usa. `scandir` lee el directorio de
+    // una vez y ve lo mismo en Linux que en Windows.
     $fuentes = [];
-
-    foreach ([base_path('app'), base_path('resources')] as $raiz) {
-        $iterador = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($raiz));
-
-        foreach ($iterador as $fichero) {
-            if (! $fichero->isFile() || ! in_array($fichero->getExtension(), ['php', 'js'], true)) {
+    $recorrer = function (string $dir) use (&$recorrer, &$fuentes): void {
+        foreach (scandir($dir) ?: [] as $nombre) {
+            if ($nombre === '.' || $nombre === '..') {
                 continue;
             }
 
-            // La propia definicion no cuenta: si un interruptor solo aparece ahi, no lo lee nadie.
-            if (str_ends_with($fichero->getPathname(), 'PosProfile.php')) {
-                continue;
-            }
+            $ruta = $dir.DIRECTORY_SEPARATOR.$nombre;
 
-            $fuentes[] = (string) file_get_contents($fichero->getPathname());
+            if (is_dir($ruta)) {
+                $recorrer($ruta);
+            } elseif (preg_match('/\.(php|js)$/', $nombre) === 1 && ! str_ends_with($ruta, 'PosProfile.php')) {
+                // La propia definicion no cuenta: si un interruptor solo aparece ahi, no lo lee nadie.
+                $fuentes[] = (string) file_get_contents($ruta);
+            }
         }
-    }
+    };
+
+    $recorrer(base_path('app'));
+    $recorrer(base_path('resources'));
 
     $codigo = implode('
 ', $fuentes);

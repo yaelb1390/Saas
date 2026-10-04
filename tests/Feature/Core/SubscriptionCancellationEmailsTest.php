@@ -7,7 +7,7 @@ use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Enums\SubscriptionStatus;
 use App\Modules\Core\Events\SubscriptionCancellationRequested;
 use App\Modules\Core\Events\SubscriptionResumed;
-use App\Modules\Core\Mail\PasswordResetMail;
+use App\Modules\Core\Mail\PasswordResetCodeMail;
 use App\Modules\Core\Mail\SubscriptionCancelledMail;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionExpiringMail;
@@ -412,8 +412,9 @@ it('todos los correos piden añadir el remitente a contactos, con la dirección 
             moduleLabels: ['POS'], loginUrl: 'https://bmos.test/login',
             supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
         ),
-        'contrasena' => new PasswordResetMail(
-            ownerName: 'Ana', resetUrl: 'https://bmos.test/restablecer/abc', expiresInMinutes: 60,
+        // El enlace de restablecer pasó a ser un código de 6 dígitos (50b61a6): mismo pie de correo.
+        'contrasena' => new PasswordResetCodeMail(
+            ownerName: 'Ana', code: '123456', expiresInMinutes: 60,
             supportWhatsapp: '18095551234', supportEmail: 'soporte@bm.test',
         ),
     };

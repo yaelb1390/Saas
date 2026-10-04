@@ -620,6 +620,78 @@ window.avisoRapido = (texto, tipo = 'error') => window.avisoFlash?.({
     texto,
 });
 
+/**
+ * Manda el PDF de una cotización desde el WhatsApp de quien vende, no desde el sistema.
+ *
+ * `wa.me` solo admite texto: ningún enlace de WhatsApp lleva un archivo adjunto. La única forma de
+ * poner el PDF en TU WhatsApp es el menú «Compartir» del propio equipo (Web Share con archivos):
+ * en Windows es el panel de Compartir, donde sale WhatsApp si está instalado; en Android, la hoja de
+ * compartir. Ahí se elige el chat del cliente —el navegador no puede preseleccionarlo—.
+ *
+ * Si el equipo no sabe compartir archivos (Firefox, algunos Windows sin la app de WhatsApp en el
+ * panel), el PDF se descarga y se abre el chat del cliente con el mensaje ya escrito: solo queda
+ * arrastrar el archivo. Así el botón nunca se queda sin hacer nada.
+ *
+ * Tras compartir se avisa al servidor para marcarla «Enviada»; si eso falla, el PDF ya salió y no
+ * tiene sentido asustar con un error.
+ *
+ * @param {{ urlPdf: string, nombre: string, texto: string, urlWa: string, urlMarcar: string }} datos
+ * @returns {Promise<void>}
+ */
+window.compartirPdfWhatsApp = async ({ urlPdf, nombre, texto, urlWa, urlMarcar }) => {
+    let archivo;
+
+    try {
+        const respuesta = await fetch(urlPdf, { credentials: 'same-origin' });
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+        archivo = new File([await respuesta.blob()], nombre, { type: 'application/pdf' });
+    } catch {
+        window.avisoRapido('No se pudo generar el PDF. Revisa la conexión e inténtalo de nuevo.');
+        return;
+    }
+
+    const marcarEnviada = () => fetch(urlMarcar, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            Accept: 'application/json',
+        },
+    }).catch(() => {});
+
+    if (navigator.canShare?.({ files: [archivo] })) {
+        try {
+            await navigator.share({ files: [archivo], text: texto });
+        } catch (error) {
+            // Cerrar el panel sin elegir a nadie no es un error: no se avisa ni se marca nada.
+            if (error?.name === 'AbortError') return;
+            window.avisoRapido('No se pudo abrir el menú de compartir. Usa «Descargar» y adjúntalo a mano.');
+            return;
+        }
+
+        await marcarEnviada();
+        window.location.reload();
+        return;
+    }
+
+    // Plan B: el PDF al disco y el chat del cliente abierto con el mensaje.
+    const enlace = document.createElement('a');
+    enlace.href = URL.createObjectURL(archivo);
+    enlace.download = nombre;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(enlace.href), 60_000);
+
+    window.open(urlWa, '_blank', 'noopener');
+    await marcarEnviada();
+    window.avisoFlash?.({
+        tipo: 'success',
+        titulo: 'PDF descargado',
+        texto: `Se abrió el chat del cliente. Arrastra «${nombre}» a la conversación para adjuntarlo.`,
+    });
+};
+
 window.cargarOffline = async () => {
     if (window.bmosOffline !== undefined) return window.bmosOffline;
 

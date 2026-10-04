@@ -7,6 +7,7 @@ use App\Modules\Core\DTOs\CreateCompanyData;
 use App\Modules\Core\Services\CompanyService;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Inventory\Models\Product;
+use App\Modules\Quotes\Enums\QuoteStatus;
 use App\Modules\Quotes\Models\Quote;
 use App\Modules\Quotes\Services\QuoteDelivery;
 use App\Modules\Quotes\Services\QuoteService;
@@ -279,4 +280,35 @@ it('las cotizaciones de otra empresa no se ven en el listado', function (): void
 
     expect(Quote::query()->count())->toBe(1)
         ->and(Quote::query()->first()->customer_name)->toBe('Juan');
+});
+
+it('«Enviar el PDF por WhatsApp» comparte desde el equipo y no manda nada desde el sistema', function (): void {
+    /*
+     * El botón ya no publica al número conectado al sistema: prepara el PDF para el menú Compartir
+     * del equipo de quien vende. Si volviera a apuntar a la ruta `send`, el aviso diría «enviado»
+     * con el mensaje saliendo de otro número.
+     */
+    $gateway = gatewayDePrueba(adjunta: true);
+    $this->app->instance(WhatsAppGateway::class, $gateway);
+
+    $html = $this->actingAs($this->owner)->get(route('panel.quotes.show', $this->quote))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->toContain('compartirPdfWhatsApp')
+        ->and($html)->toContain('cotizacion-'.$this->quote->code.'.pdf')
+        ->and($html)->not->toContain('action="'.route('panel.quotes.send', $this->quote).'"')
+        ->and($gateway->enviados)->toBe([]);
+});
+
+it('tras compartir el PDF la cotización queda «Enviada» con su hora', function (): void {
+    $this->actingAs($this->owner)
+        ->postJson(route('panel.quotes.shared', $this->quote))
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    $this->quote->refresh();
+
+    expect($this->quote->status)->toBe(QuoteStatus::Sent)
+        ->and($this->quote->sent_at)->not->toBeNull();
 });

@@ -102,14 +102,23 @@
                         Esta cotización no tiene teléfono. Puedes descargar el PDF y mandarlo a mano.
                     </p>
                 @else
+                    {{-- Sale desde TU WhatsApp, como «Abrir en mi WhatsApp», pero con el PDF adjunto.
+                         Antes salía desde el número conectado al sistema y el aviso decía «enviado»
+                         aunque al cliente no le llegara de quien esperaba. El cómo y su plan B están
+                         en `compartirPdfWhatsApp` (app.js). --}}
                     @can('quotes.send')
-                        <form method="POST" action="{{ route('panel.quotes.send', $quote) }}">
-                            @csrf
-                            <button type="submit" class="bmos-btn bmos-btn-primary w-full justify-center">
-                                <x-icono name="chat" class="h-4 w-4" />
-                                {{ $puedeAdjuntar ? 'Enviar el PDF por WhatsApp' : 'Enviar el enlace por WhatsApp' }}
-                            </button>
-                        </form>
+                        <button type="button" class="bmos-btn bmos-btn-primary w-full justify-center"
+                                x-data="{ ocupado: false }" :disabled="ocupado"
+                                @click="ocupado = true; await window.compartirPdfWhatsApp(@js([
+                                    'urlPdf' => route('panel.quotes.pdf', $quote),
+                                    'nombre' => 'cotizacion-'.$quote->code.'.pdf',
+                                    'texto' => $mensajeWa,
+                                    'urlWa' => $enlaceWa,
+                                    'urlMarcar' => route('panel.quotes.shared', $quote),
+                                ])); ocupado = false">
+                            <x-icono name="chat" class="h-4 w-4" />
+                            <span x-text="ocupado ? 'Preparando el PDF…' : 'Enviar el PDF por WhatsApp'">Enviar el PDF por WhatsApp</span>
+                        </button>
                     @endcan
 
                     {{-- Siempre disponible, y a propósito.

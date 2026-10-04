@@ -20,6 +20,7 @@ use App\Modules\Quotes\Services\QuoteService;
 use App\Modules\Sales\Support\MasVendidos;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -217,7 +218,8 @@ final class QuoteController extends Controller
             'quote' => $quote->load('items.product', 'customer', 'sale'),
             'enlace' => $delivery->enlace($quote),
             'enlaceWa' => $delivery->enlaceWa($quote),
-            'puedeAdjuntar' => $delivery->puedeAdjuntar(),
+            // El texto que acompaña al PDF cuando se comparte desde el WhatsApp de quien vende.
+            'mensajeWa' => $delivery->mensaje($quote, $delivery->enlace($quote)),
             // Lo que hay que mirar ANTES de cobrar: precios que ya no coinciden, líneas sin producto.
             'diferencias' => $converter->diferencias($quote),
             // Para ofrecer "Cobrar y facturar" solo si el módulo de Facturación está contratado.
@@ -246,6 +248,19 @@ final class QuoteController extends Controller
         $quotes->marcarEnviada($quote);
 
         return back()->with('panel_ok', $comoFue);
+    }
+
+    /**
+     * Apunta que se mandó desde el WhatsApp de quien vende (el PDF compartido desde su equipo).
+     *
+     * El envío ocurre fuera del sistema, así que esto solo deja constancia: pasa a «Enviada» y
+     * guarda la hora, igual que `send()`. Responde JSON porque lo llama `compartirPdfWhatsApp`.
+     */
+    public function shared(Quote $quote, QuoteService $quotes): JsonResponse
+    {
+        $quotes->marcarEnviada($quote);
+
+        return response()->json(['ok' => true]);
     }
 
     public function status(Request $request, Quote $quote, QuoteService $quotes): RedirectResponse

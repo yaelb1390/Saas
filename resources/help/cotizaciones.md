@@ -26,9 +26,11 @@ El total se ve mientras escribes, con el ITBIS incluido.
 
 Desde la cotización tienes tres formas, y la pantalla te ofrece la que corresponda:
 
-- **Enviar por WhatsApp**: sale desde el sistema. Si tu WhatsApp está conectado por código QR, va el
-  PDF adjunto; si va por la vía oficial de Meta, va el enlace.
-- **Abrir en mi WhatsApp**: abre tu propio WhatsApp con el mensaje ya escrito. Funciona siempre.
+- **Enviar el PDF por WhatsApp**: sale desde **tu propio WhatsApp** con el PDF adjunto. Se abre el
+  menú **Compartir** de tu equipo: elige WhatsApp y luego el chat del cliente. Si tu equipo no tiene
+  ese menú, el PDF se descarga y se abre el chat del cliente con el mensaje ya escrito: arrastra el
+  archivo a la conversación. La cotización queda marcada como **Enviada**.
+- **Abrir en mi WhatsApp**: abre tu propio WhatsApp con el mensaje ya escrito, sin el PDF.
 - **Copiar el enlace** y pegarlo donde quieras.
 
 El cliente abre una página con el detalle y un botón para descargar el PDF. **El enlace caduca a los

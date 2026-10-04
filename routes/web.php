@@ -439,6 +439,7 @@ Route::middleware(['auth'])->group(function (): void {
             Route::delete('/{quote}', 'destroy')->middleware('can:quotes.manage')->name('destroy');
             Route::get('/{quote}/pdf/{mode?}', 'pdf')->middleware('can:quotes.view')->name('pdf');
             Route::post('/{quote}/enviar', 'send')->middleware(['can:quotes.send', 'throttle:20,1'])->name('send');
+            Route::post('/{quote}/compartida', 'shared')->middleware(['can:quotes.send', 'throttle:20,1'])->name('shared');
             Route::put('/{quote}/estado', 'status')->middleware('can:quotes.manage')->name('status');
             Route::post('/{quote}/cobrar', 'convert')->middleware('can:quotes.convert')->name('convert');
             // Cobrar + emitir NCF en un solo paso. Exige los dos permisos: el de cobrar la

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\POS\Http\Controllers;
 
 use App\Modules\Billing\Enums\NcfType;
+use App\Modules\Billing\Exceptions\FiscalSequenceException;
 use App\Modules\Billing\Exceptions\InvoiceException;
 use App\Modules\Billing\Services\InvoiceService;
 use App\Modules\Billing\Support\TaxId;
@@ -420,7 +421,9 @@ final class PosController extends Controller
                  * siempre «sin secuencia» fuese cual fuese el motivo, y no quedaba rastro—. Se dice
                  * el motivo real y se deja constancia para emitirlo luego desde Facturas.
                  */
-                $avisoFiscal = $e instanceof InvoiceException
+                // Los errores de facturación y de secuencias son reglas de negocio con un mensaje
+                // pensado para el cajero; cualquier otro es una avería y no se enseña tal cual.
+                $avisoFiscal = $e instanceof InvoiceException || $e instanceof FiscalSequenceException
                     ? $e->getMessage()
                     : 'no se pudo emitir el comprobante.';
 

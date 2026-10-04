@@ -152,7 +152,8 @@ it('si el comprobante no sale, la venta queda cobrada, se avisa del motivo y que
         ])
         ->assertOk()
         ->assertJsonPath('ncf', null)
-        ->assertJson(fn ($json) => $json->where('fiscal_warning', fn ($w) => str_ends_with((string) $w, 'Puedes emitirlo después desde Facturas.'))->etc());
+        // El motivo real, no un «no se pudo» genérico.
+        ->assertJsonPath('fiscal_warning', 'No hay una secuencia fiscal activa para el tipo B02. Puedes emitirlo después desde Facturas.');
 
     expect(Sale::count())->toBe(1)
         ->and(Invoice::count())->toBe(0)

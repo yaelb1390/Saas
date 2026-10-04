@@ -11,6 +11,7 @@ use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Delivery\Enums\DeliveryStatus;
 use App\Modules\Delivery\Models\Delivery;
+use App\Modules\ElectronicInvoicing\Application\Diagnostics;
 use App\Modules\Inventory\Models\Product;
 use App\Modules\Rental\Models\VehicleRental;
 use App\Modules\Sales\Models\Sale;
@@ -162,6 +163,30 @@ final class AlertService
                     'url' => route('panel.rentals', ['estado' => 'active']),
                     'tone' => 'amber',
                     'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+                ];
+            }
+        }
+
+        /*
+         * Facturación electrónica: documentos en error o con el envío interrumpido, contingencia
+         * abierta, certificado por vencer o vencido. Un e-CF parado es un comprobante fiscal que no
+         * llegó a la DGII. Solo con el módulo, y el detalle vive en su pantalla de diagnóstico.
+         */
+        $empresa = app(CurrentCompany::class)->model();
+
+        if ($empresa?->hasModule('e_invoicing')) {
+            $ecf = app(Diagnostics::class)->alerts($empresa);
+
+            if ($ecf['total'] > 0) {
+                $alerts[] = [
+                    'key' => 'e_invoicing',
+                    'title' => $ecf['total'] === 1
+                        ? '1 aviso de facturación electrónica'
+                        : "{$ecf['total']} avisos de facturación electrónica",
+                    'count' => $ecf['total'],
+                    'url' => route('panel.e-invoicing.diagnostics'),
+                    'tone' => 'rose',
+                    'icon' => 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z',
                 ];
             }
         }

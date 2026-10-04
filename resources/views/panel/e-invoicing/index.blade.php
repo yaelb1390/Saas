@@ -82,6 +82,7 @@
                     <dd class="text-slate-800">
                         {{ $contadores['pendientes'] }} · {{ $contadores['aceptados'] }} · {{ $contadores['rechazados'] }}
                         <a href="{{ route('panel.e-invoicing.documents') }}" class="ml-2 font-medium text-indigo-600 hover:text-indigo-700">Ver documentos</a>
+                        <a href="{{ route('panel.e-invoicing.diagnostics') }}" class="ml-2 font-medium text-indigo-600 hover:text-indigo-700">Diagnóstico</a>
                     </dd>
                 </div>
             </dl>

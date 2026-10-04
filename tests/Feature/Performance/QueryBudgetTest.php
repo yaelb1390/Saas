@@ -87,7 +87,11 @@ it('el dashboard se mantiene dentro de su presupuesto de consultas', function ()
     // Esas DOS no se pagan en cada petición: el memo de DbTable es estático y en PHP-FPM vive lo que
     // vive el proceso trabajador, así que se hacen una vez y sirven a miles de peticiones. Aquí se
     // ven porque el test arranca en frío, que es justo lo que tiene que medir.
-    expect($count)->toBeLessThan(33, "El dashboard ejecutó {$count} consultas.");
+    //
+    // Subió a 33 (tope de 33 a 34) con el aviso de facturación electrónica en la campana: UNA
+    // consulta con subconsultas (Diagnostics::alerts), sin preguntar al catálogo, dentro de la misma
+    // caché de un minuto. Antes de juntarla eran cinco y pasaba de 37: no es un N+1.
+    expect($count)->toBeLessThan(34, "El dashboard ejecutó {$count} consultas.");
 });
 
 it('el POS se mantiene dentro de su presupuesto de consultas', function (): void {

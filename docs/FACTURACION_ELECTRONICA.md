@@ -492,6 +492,33 @@ si el ambiente no es de producción. En paralelo no se toca: el documento es la 
 - **Fuera de esta fase:** el ticket de 80 mm de ventas rápidas es otro sistema (no se toca sin decisión
   del usuario); las notas 33/34 y las compras 41/43 no tienen todavía PDF propio.
 
+## Fase 6d — Diagnóstico y avisos (2026-10-04)
+
+`Application/Diagnostics` (pantalla «Diagnóstico», permiso `ecf.view`): cada chequeo dice Correcto,
+Advertencia o Error y, si no está bien, **cómo solucionarlo**. Solo lee; nunca llama a la DGII.
+
+| Chequeo | Error / advertencia cuando… |
+|---|---|
+| Datos fiscales | falta RNC válido, razón social o dirección |
+| Certificado | no hay (error si se emite), por vencer (30 días), vencido, aún no válido |
+| Proveedor | PSFE sin conectar con emisión encendida; el de prueba con emisión encendida |
+| Secuencias 31, 32, 34 | sin secuencia vigente en el ambiente (error si se emite); quedan ≤ 50 números |
+| Envíos interrumpidos | documento en «enviando» más de 10 min (la función se cortó): consultar antes de reenviar |
+| Documentos con error / rechazados (7 días) | hay alguno |
+| Contingencia | abierta (error a las 72 h [IT §19]) |
+| Procesador de pendientes | hay pendientes y el cron externo no corre desde hace 20 min (o nunca) |
+| XSD, extensiones de PHP, almacenamiento | huella distinta, falta una extensión, el disco privado no escribe/lee |
+
+**Campana del panel** (`AlertService`): con el módulo, un aviso «N avisos de facturación electrónica» que
+lleva al diagnóstico; cuenta documentos en error, envíos interrumpidos, contingencia abierta y certificado
+por vencer o vencido. **Una** consulta con subconsultas y sin preguntar al catálogo (si las tablas aún no
+existen, falla, se captura y no hay aviso), dentro de la caché de un minuto de la campana. Con cinco
+consultas el dashboard en frío pasaba de 37; así queda en 33 (tope de `QueryBudgetTest` de 33 a 34,
+documentado allí).
+
+Con esto queda cubierto el «Pendiente (fase 6)» de los documentos atascados en «enviando»: se señalan para
+consultarlos antes de reenviar (reenviar a ciegas podría duplicar).
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

@@ -445,3 +445,59 @@ it('otra empresa no ve ni descarga los documentos ajenos', function (): void {
     $this->actingAs($ajeno)->get(route('panel.e-invoicing.documents.show', $ecf->id))->assertNotFound();
     $this->actingAs($ajeno)->get(route('panel.e-invoicing.documents'))->assertOk()->assertDontSee($ecf->e_ncf);
 });
+
+/*
+ * Fase 6d: diagnóstico y avisos en la campana.
+ */
+
+it('el diagnóstico dice qué falta y cómo solucionarlo', function (): void {
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@diag.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    // El montaje no pone dirección: el diagnóstico lo detecta.
+    $chequeos = collect(app(\App\Modules\ElectronicInvoicing\Application\Diagnostics::class)->checks($this->company))->keyBy('key');
+    expect($chequeos['datos']['level'])->toBe('error')->and($chequeos['datos']['detail'])->toContain('dirección');
+
+    $this->ajustes->forceFill(['address' => 'Calle 1'])->save();
+    $chequeos = collect(app(\App\Modules\ElectronicInvoicing\Application\Diagnostics::class)->checks($this->company))->keyBy('key');
+
+    // Sin certificado ni secuencias (emisión apagada: advertencias, no errores).
+    expect($chequeos['datos']['level'])->toBe('ok')
+        ->and($chequeos['certificado']['level'])->toBe('aviso')
+        ->and($chequeos['secuencia_32']['level'])->toBe('aviso')
+        ->and($chequeos['secuencia_32']['fix'])->toContain('Secuencias de e-NCF')
+        ->and($chequeos['xsd']['level'])->toBe('ok')
+        ->and($chequeos['almacenamiento']['level'])->toBe('ok');
+
+    $this->actingAs($duena)->get(route('panel.e-invoicing.diagnostics'))->assertOk()
+        ->assertSee('Certificado digital')->assertSee('Cómo solucionarlo');
+});
+
+it('un envío interrumpido y un procesador que no corre salen como error y llegan a la campana', function (): void {
+    ($this->certificado)();
+    ($this->secuencia)(EcfType::CreditoFiscal);
+    config(['ecf.fake.send' => 'transient_error']);
+    $pendiente = ($this->emitir)(EcfType::CreditoFiscal);
+    config(['ecf.fake.send' => 'received']);
+    $otro = ($this->emitir)(EcfType::CreditoFiscal);
+
+    // El segundo se quedó en «enviando» hace 30 min (la función se cortó a mitad).
+    DB::table('electronic_invoices')->where('id', $otro->id)->update(['status' => 'enviando', 'updated_at' => now()->subMinutes(30)]);
+
+    $chequeos = collect(app(\App\Modules\ElectronicInvoicing\Application\Diagnostics::class)->checks($this->company))->keyBy('key');
+    expect($chequeos['atascados']['level'])->toBe('error')
+        ->and($chequeos['cron']['level'])->toBe('error')
+        // El segundo envío funcionó: la contingencia que abrió el primero ya se cerró.
+        ->and($chequeos['contingencia']['level'])->toBe('ok');
+
+    $this->company->forceFill(['modules' => null])->save();
+    $alerta = collect(app(\App\Modules\Reports\Services\AlertService::class)->compute())->firstWhere('key', 'e_invoicing');
+    expect($alerta)->not->toBeNull()
+        ->and($alerta['url'])->toBe(route('panel.e-invoicing.diagnostics'))
+        // El envío interrumpido.
+        ->and($alerta['count'])->toBe(1);
+
+    expect($pendiente->fresh()->status)->toBe(EcfStatus::PendienteEnvio);
+});

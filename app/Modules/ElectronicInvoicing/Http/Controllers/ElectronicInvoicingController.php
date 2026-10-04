@@ -6,6 +6,7 @@ namespace App\Modules\ElectronicInvoicing\Http\Controllers;
 
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\ElectronicInvoicing\Application\Diagnostics;
 use App\Modules\ElectronicInvoicing\Application\RuntimeRequirements;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
@@ -77,6 +78,21 @@ final class ElectronicInvoicingController extends Controller
             'modoDisponible' => DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')
                 && DbTable::tieneColumna('invoices', 'electronic_invoice_id'),
             'contadores' => $this->contadores(),
+        ]);
+    }
+
+    /** Diagnóstico: cada chequeo con su estado y cómo solucionarlo. Solo lee. */
+    public function diagnostics(CurrentCompany $actual, Diagnostics $diagnostico): View
+    {
+        $empresa = $actual->model();
+        abort_if($empresa === null, 404);
+
+        $chequeos = $diagnostico->checks($empresa);
+
+        return view('panel.e-invoicing.diagnostics', [
+            'chequeos' => $chequeos,
+            'errores' => count(array_filter($chequeos, fn (array $c): bool => $c['level'] === Diagnostics::ERROR)),
+            'avisos' => count(array_filter($chequeos, fn (array $c): bool => $c['level'] === Diagnostics::AVISO)),
         ]);
     }
 

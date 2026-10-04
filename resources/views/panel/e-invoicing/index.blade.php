@@ -428,11 +428,19 @@
                                         {{-- Anula ante la DGII los números aún sin usar (ANECF): no se pueden recuperar. --}}
                                         @can('ecf.cancel')
                                             @if ($s->remaining() > 0)
-                                                <form method="POST" action="{{ route('panel.e-invoicing.sequences.void', $s) }}"
-                                                      onsubmit="return confirm(@js('¿Anular ante la DGII los '.number_format($s->remaining()).' e-NCF sin usar de esta secuencia? No se podrán usar nunca más.'))">
-                                                    @csrf
-                                                    <button type="submit" class="text-xs font-medium text-rose-600 hover:text-rose-700">Anular lo no usado</button>
-                                                </form>
+                                                <x-panel.confirm-action
+                                                    :action="route('panel.e-invoicing.sequences.void', $s)"
+                                                    method="POST"
+                                                    title="¿Anular los e-NCF sin usar?"
+                                                    :message="'Se anulan ante la DGII los '.number_format($s->remaining()).' números sin usar de '.$s->ecf_type->prefix().', desde '.$ncf->format($s->ecf_type, $s->next_number).'.'"
+                                                    note="No se podrán usar nunca más."
+                                                    irreversible
+                                                    confirm="Anular ante la DGII"
+                                                    dismiss="Volver"
+                                                    tone="danger"
+                                                    class="text-xs font-medium text-rose-600 hover:text-rose-700">
+                                                    Anular lo no usado
+                                                </x-panel.confirm-action>
                                             @endif
                                         @endcan
                                     </td>

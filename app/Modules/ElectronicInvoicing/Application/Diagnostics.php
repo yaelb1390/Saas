@@ -8,6 +8,7 @@ use App\Modules\Billing\Support\TaxId;
 use App\Modules\Core\Models\Company;
 use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Support\DbTable;
+use App\Modules\Core\Support\ModuleRegistry;
 use App\Modules\ElectronicInvoicing\Contingency\ContingencyService;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
@@ -99,6 +100,17 @@ final class Diagnostics
 
         // 3. Ambiente, modo y proveedor.
         $r[] = $this->item('ambiente', 'Ambiente y emisión', self::OK, "{$s->environment->label()} · {$modo->label()}");
+
+        // 3a. Los módulos de la EMPRESA, no los de quien mira: el Super Admin entra a esta pantalla
+        // aunque la empresa no los tenga, y así parecía todo listo mientras ninguna venta generaba
+        // su e-CF y nada lo decía.
+        $sinModulo = array_values(array_filter(['billing', 'e_invoicing'], fn (string $m): bool => ! $company->hasModule($m)));
+        if ($sinModulo !== []) {
+            $nombres = implode(' y ', array_map([ModuleRegistry::class, 'label'], $sinModulo));
+            $r[] = $this->item('modulos', 'Módulos de la empresa', $emitiendo ? self::ERROR : self::AVISO,
+                "La empresa no tiene {$nombres}: ninguna venta generará su e-CF.",
+                'Actívalos en Plataforma → Empresas → Módulos, o inclúyelos en su plan.');
+        }
         $r[] = match (true) {
             $s->provider === 'psfe' && $emitiendo => $this->item('proveedor', 'Proveedor', self::ERROR, 'El proveedor certificado (PSFE) todavía no está conectado en BMIA.', 'Elige el proveedor o usa el de prueba mientras tanto.'),
             $s->provider === 'fake' && $emitiendo => $this->item('proveedor', 'Proveedor', self::AVISO, 'Proveedor de prueba: no se envía nada a la DGII.', 'Para enviar de verdad elige un proveedor real.'),

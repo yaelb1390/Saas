@@ -17,7 +17,7 @@
             </div>
 
             <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">Plan (módulos incluidos)</p>
-            <p class="-mt-1 text-xs text-slate-400">Si no marcas ninguno, la empresa arranca con el plan completo.</p>
+            <p class="-mt-1 text-xs text-slate-400">Si no marcas ninguno, la empresa arranca con el plan completo. Facturación y Facturación Electrónica se incluyen siempre.</p>
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 @foreach ($modules as $key => $label)
                     <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-sm text-slate-700 has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50">

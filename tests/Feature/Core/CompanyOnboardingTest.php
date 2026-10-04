@@ -38,8 +38,9 @@ it('el super admin crea una empresa con su propietario y su plan', function (): 
 
     $company = Company::where('name', 'Comercial La Nueva')->firstOrFail();
 
-    // La empresa nace con su plan, su sucursal y su almacén por defecto.
-    expect($company->modules)->toBe(['pos', 'sales', 'inventory'])
+    // La empresa nace con su plan —más Facturación y Facturación Electrónica, que van de serie—,
+    // su sucursal y su almacén por defecto.
+    expect($company->modules)->toBe(['pos', 'sales', 'inventory', 'billing', 'e_invoicing'])
         ->and($company->branches()->count())->toBe(1)
         ->and($company->warehouses()->count())->toBe(1);
 
@@ -67,8 +68,8 @@ it('el propietario recién creado puede iniciar sesión y entrar a su plan', fun
 
     // Entra a un módulo de su plan…
     $this->actingAs($owner)->get(route('panel.pos'))->assertOk();
-    // …y no a uno fuera de él.
-    $this->actingAs($owner)->get(route('panel.invoices'))->assertForbidden();
+    // …y no a uno fuera de él. (Facturación ya no sirve de ejemplo: va de serie.)
+    $this->actingAs($owner)->get(route('panel.customers'))->assertForbidden();
 });
 
 it('rechaza un correo de propietario ya usado', function (): void {

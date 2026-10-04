@@ -92,6 +92,30 @@ final class ModuleRegistry
     ];
 
     /**
+     * Módulos que vienen marcados de serie: los tiene toda empresa salvo que el operador los quite.
+     * La facturación (NCF) y la electrónica (e-CF) son obligación fiscal de cualquier negocio, no un
+     * extra; y la electrónica nace en «apagado», así que tenerla no cambia nada hasta configurarla.
+     */
+    private const DEFAULT_ON = ['billing', 'e_invoicing'];
+
+    /**
+     * Módulos que no funcionan sin otro. Activar el primero arrastra al segundo: la electrónica
+     * convierte en e-CF las facturas que emite Facturación, y sin ella no tiene nada que emitir
+     * (pasó en producción: todo configurado y ningún e-CF, sin un solo aviso).
+     *
+     * @var array<string, list<string>>
+     */
+    private const REQUIRES = [
+        'e_invoicing' => ['billing'],
+    ];
+
+    /** @return list<string> */
+    public static function defaultOn(): array
+    {
+        return self::DEFAULT_ON;
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function all(): array
@@ -127,16 +151,27 @@ final class ModuleRegistry
     }
 
     /**
-     * Filtra una lista de claves dejando solo las válidas (defensa ante datos manipulados).
+     * Filtra una lista de claves dejando solo las válidas (defensa ante datos manipulados) y añade
+     * los módulos de los que dependen las elegidas (ver REQUIRES).
      *
      * @param  array<int, mixed>  $keys
      * @return array<int, string>
      */
     public static function sanitize(array $keys): array
     {
-        return array_values(array_filter(
+        $validas = array_values(array_unique(array_filter(
             array_map('strval', $keys),
             static fn (string $key): bool => self::exists($key),
-        ));
+        )));
+
+        foreach ($validas as $key) {
+            foreach (self::REQUIRES[$key] ?? [] as $requerido) {
+                if (! in_array($requerido, $validas, true)) {
+                    $validas[] = $requerido;
+                }
+            }
+        }
+
+        return $validas;
     }
 }

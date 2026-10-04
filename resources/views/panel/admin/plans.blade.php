@@ -35,11 +35,16 @@
             </div>
             <div>
                 <label class="bmos-field-label">Módulos incluidos</label>
-                <p class="-mt-1 mb-2 text-xs text-slate-400">Si los marcas todos, el plan incluye cualquier módulo futuro.</p>
+                <p class="-mt-1 mb-2 text-xs text-slate-400">Si los marcas todos, el plan incluye cualquier módulo futuro. Facturación Electrónica incluye siempre Facturación.</p>
+                {{-- Un plan nuevo trae marcados los de serie (facturación y e-CF); al reenviar con un
+                     error, lo que el operador había marcado. --}}
+                @php
+                    $marcados = old('modules') !== null ? (array) old('modules') : \App\Modules\Core\Support\ModuleRegistry::defaultOn();
+                @endphp
                 <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     @foreach ($modules as $key => $label)
                         <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-sm has-[:checked]:border-indigo-400 has-[:checked]:bg-indigo-50">
-                            <input type="checkbox" name="modules[]" value="{{ $key }}" @checked(in_array($key, (array) old('modules'), true)) class="rounded border-slate-300 text-indigo-600">
+                            <input type="checkbox" name="modules[]" value="{{ $key }}" @checked(in_array($key, $marcados, true)) class="rounded border-slate-300 text-indigo-600">
                             {{ $label }}
                         </label>
                     @endforeach

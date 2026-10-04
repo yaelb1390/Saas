@@ -33,7 +33,9 @@ final class CompanyOnboardingService
             // empresa de forma síncrona: por eso ya existen cuando damos de alta al propietario.
             $company = $this->companies->create($data);
 
-            $sanitized = $modules === null ? null : ModuleRegistry::sanitize($modules);
+            // Una selección a mano lleva siempre los módulos de serie (facturación y e-CF): son
+            // obligación fiscal de cualquier negocio. Se pueden quitar después en «Módulos».
+            $sanitized = $modules === null ? null : ModuleRegistry::sanitize([...$modules, ...ModuleRegistry::defaultOn()]);
 
             // Si el plan cubre todos los módulos, se guarda null (plan completo).
             if ($sanitized !== null && count($sanitized) !== count(ModuleRegistry::keys())) {

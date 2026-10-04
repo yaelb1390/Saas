@@ -14,6 +14,9 @@ use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Domain\Environment;
 use App\Modules\ElectronicInvoicing\Http\Requests\StoreCertificateRequest;
 use App\Modules\ElectronicInvoicing\Http\Requests\StoreElectronicNcfSequenceRequest;
+use App\Modules\ElectronicInvoicing\Http\Requests\UpdateElectronicInvoicingSettingsRequest;
+use App\Modules\ElectronicInvoicing\Xml\TerritoryCatalog;
+use App\Modules\Billing\Support\TaxId;
 use App\Modules\ElectronicInvoicing\Signature\CertificateException;
 use App\Modules\ElectronicInvoicing\Signature\CertificateVault;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
@@ -64,10 +67,62 @@ final class ElectronicInvoicingController extends Controller
             'requisitos' => $requisitos->check(),
             'pendientes' => (array) config('ecf.pending_verification', []),
             'modos' => EmissionMode::cases(),
+            'provincias' => app(TerritoryCatalog::class)->provinces(),
+            'municipios' => app(TerritoryCatalog::class)->municipalities(),
+            'proveedores' => [
+                'fake' => 'De prueba (no envía nada a la DGII)',
+                'psfe' => 'Proveedor certificado (PSFE)',
+                'dgii' => 'Directo a la DGII (sistema propio certificado)',
+            ],
             'modoDisponible' => DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')
                 && DbTable::tieneColumna('invoices', 'electronic_invoice_id'),
             'contadores' => $this->contadores(),
         ]);
+    }
+
+    /**
+     * Datos fiscales del emisor, ambiente y proveedor.
+     *
+     * Cambiar de ambiente APAGA la emisión: lo que valía en pruebas («en paralelo») no vale en
+     * producción, y el modo real hay que encenderlo a propósito, no heredarlo de un cambio de ambiente.
+     */
+    public function updateSettings(UpdateElectronicInvoicingSettingsRequest $request, CurrentCompany $actual, CertificateVault $vault): RedirectResponse
+    {
+        if (! DbTable::existe('electronic_invoicing_settings')) {
+            return back()->with('panel_error', 'Falta aplicar las migraciones de facturación electrónica.');
+        }
+
+        $empresa = $actual->model();
+        abort_if($empresa === null, 404);
+
+        $datos = $request->validated();
+        $ajustes = ElectronicInvoicingSettings::paraEmpresa($empresa);
+        $ambiente = Environment::from($datos['environment']);
+        $cambiaAmbiente = $ajustes->environment !== $ambiente;
+
+        $ajustes->fill([
+            'tax_id' => TaxId::tryParse($datos['tax_id'])?->value,
+            'legal_name' => $datos['legal_name'],
+            'trade_name' => $datos['trade_name'] ?? null,
+            'address' => $datos['address'],
+            'province' => $datos['province'] ?? null,
+            'municipality' => $datos['municipality'] ?? null,
+            'phone' => $datos['phone'] ?? null,
+            'email' => $datos['email'] ?? null,
+            'ecf_admin_user' => $datos['ecf_admin_user'] ?? null,
+            'environment' => $ambiente,
+        ])->forceFill(['provider' => $datos['provider']]);
+
+        if ($cambiaAmbiente && DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')) {
+            $ajustes->forceFill(['emission_mode' => EmissionMode::Apagado->value]);
+        }
+
+        $ajustes->save();
+        $ajustes->syncStatus(DbTable::existe('electronic_certificates') && $vault->active($empresa) !== null);
+
+        return back()->with('panel_ok', $cambiaAmbiente
+            ? "Configuración guardada. Ambiente: {$ambiente->label()}. La emisión quedó apagada: enciéndela de nuevo si corresponde."
+            : 'Configuración guardada.');
     }
 
     /**
@@ -99,6 +154,7 @@ final class ElectronicInvoicingController extends Controller
         }
 
         $ajustes->forceFill(['emission_mode' => $modo->value])->save();
+        $ajustes->syncStatus(true);
 
         return back()->with('panel_ok', "Modo de emisión: {$modo->label()}.");
     }
@@ -143,6 +199,8 @@ final class ElectronicInvoicingController extends Controller
             // El mensaje nunca incluye la contraseña ni la clave.
             return back()->withErrors(['certificate' => $e->getMessage()]);
         }
+
+        ElectronicInvoicingSettings::paraEmpresa($empresa)->syncStatus(true);
 
         return back()->with('panel_ok', "Certificado guardado. Vence el {$cert->valid_to->format('d/m/Y')}.");
     }

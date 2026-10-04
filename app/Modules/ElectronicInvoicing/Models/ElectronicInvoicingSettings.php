@@ -90,6 +90,28 @@ final class ElectronicInvoicingSettings extends Model implements Auditable, HasC
         return $modo->allowedIn($this->environment) ? $modo : EmissionMode::Apagado;
     }
 
+    /**
+     * Recalcula el estado de BMIA (no el de la DGII) a partir de lo que hay:
+     * faltan datos o certificado → «no configurado»; si no, el del ambiente; en producción «autorizado»
+     * (lo confirmó el usuario al pasar) y «activo» cuando emite de verdad (modo real).
+     */
+    public function syncStatus(bool $hasCertificate): void
+    {
+        $completo = filled($this->tax_id) && filled($this->legal_name) && filled($this->address) && $hasCertificate;
+
+        $estado = match (true) {
+            ! $completo => SetupStatus::NoConfigurado,
+            $this->environment === Environment::Pruebas => SetupStatus::EnPruebas,
+            $this->environment === Environment::Certificacion => SetupStatus::EnCertificacion,
+            $this->emissionMode() === EmissionMode::Real => SetupStatus::Activo,
+            default => SetupStatus::Autorizado,
+        };
+
+        if ($this->status !== $estado) {
+            $this->forceFill(['status' => $estado])->save();
+        }
+    }
+
     protected function casts(): array
     {
         return [

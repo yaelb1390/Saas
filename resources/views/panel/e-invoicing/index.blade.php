@@ -84,6 +84,89 @@
             </dl>
         </div>
 
+        @if ($ajustes)
+            @can('ecf.configure')
+                <div class="bmos-card bmos-card-pad"
+                     x-data="{
+                         provincia: @js(old('province', $ajustes->province ?? '')),
+                         municipio: @js(old('municipality', $ajustes->municipality ?? '')),
+                         municipios: @js(collect($municipios)->map(fn ($n, $c) => ['c' => (string) $c, 'n' => $n])->values()),
+                         ambiente: @js(old('environment', $ajustes->environment->value)),
+                     }">
+                    <p class="font-semibold text-slate-800">Datos fiscales y ambiente</p>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Lo que aparece como emisor en cada e-CF. Provincia y municipio usan los códigos oficiales de la DGII.
+                    </p>
+
+                    <form method="POST" action="{{ route('panel.e-invoicing.settings.update') }}" class="mt-4 space-y-3">
+                        @csrf
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <x-panel.field name="tax_id" label="RNC o cédula" :value="$ajustes->tax_id" />
+                            <x-panel.field name="legal_name" label="Razón social" :value="$ajustes->legal_name" />
+                            <x-panel.field name="trade_name" label="Nombre comercial (opcional)" :value="$ajustes->trade_name" />
+                            <x-panel.field name="address" label="Dirección" :value="$ajustes->address" />
+                            <div>
+                                <label class="bmos-field-label" for="ecf-provincia">Provincia (opcional)</label>
+                                <select id="ecf-provincia" name="province" x-model="provincia" class="bmos-input">
+                                    <option value="">—</option>
+                                    @foreach ($provincias as $codigo => $nombre)
+                                        <option value="{{ $codigo }}">{{ $nombre }}</option>
+                                    @endforeach
+                                </select>
+                                @error('province') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="bmos-field-label" for="ecf-municipio">Municipio (opcional)</label>
+                                {{-- Lista filtrada por la provincia (un option oculto no se oculta en Safari). --}}
+                                <select id="ecf-municipio" name="municipality" class="bmos-input" x-model="municipio">
+                                    <option value="">—</option>
+                                    <template x-for="m in municipios.filter(m => provincia && m.c.slice(0, 2) === provincia.slice(0, 2))" :key="m.c">
+                                        <option :value="m.c" x-text="m.n" :selected="m.c === municipio"></option>
+                                    </template>
+                                </select>
+                                @error('municipality') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                            </div>
+                            <x-panel.field name="phone" label="Teléfono (opcional)" :value="$ajustes->phone" />
+                            <x-panel.field name="email" label="Correo (opcional)" :value="$ajustes->email" />
+                            <x-panel.field name="ecf_admin_user" label="Usuario administrador e-CF (opcional)" :value="$ajustes->ecf_admin_user" />
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                            <div>
+                                <label class="bmos-field-label" for="ecf-ambiente">Ambiente</label>
+                                <select id="ecf-ambiente" name="environment" x-model="ambiente" class="bmos-input">
+                                    @foreach ($ambientes as $amb)
+                                        <option value="{{ $amb->value }}">{{ $amb->label() }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="bmos-field-label" for="ecf-proveedor">Proveedor</label>
+                                <select id="ecf-proveedor" name="provider" class="bmos-input">
+                                    @foreach ($proveedores as $clave => $nombre)
+                                        <option value="{{ $clave }}" @selected(old('provider', $ajustes->provider) === $clave)>{{ $nombre }}</option>
+                                    @endforeach
+                                </select>
+                                @error('provider') <p class="mt-1 text-xs text-rose-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+
+                        <label x-show="ambiente === 'produccion' && @js($ajustes->environment->value) !== 'produccion'"
+                               class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                            <input type="checkbox" name="confirm_authorized" value="1" class="mt-0.5">
+                            <span>Confirmo que la DGII ya autorizó a mi empresa a emitir comprobantes fiscales electrónicos.
+                                En producción cada e-CF tiene validez fiscal.</span>
+                        </label>
+                        @error('confirm_authorized') <p class="text-xs text-rose-600">{{ $message }}</p> @enderror
+
+                        <div class="flex justify-end">
+                            <button type="submit" class="bmos-btn bmos-btn-primary">Guardar configuración</button>
+                        </div>
+                    </form>
+                </div>
+            @endcan
+        @endif
+
         @if ($ajustes && $modoDisponible)
             <div class="bmos-card bmos-card-pad">
                 <p class="font-semibold text-slate-800">Emisión en ventas y facturas</p>

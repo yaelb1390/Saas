@@ -254,6 +254,11 @@
                     <div x-show="ultimaVenta" x-cloak
                          class="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800">
                         <p class="font-semibold" x-text="ultimaVenta?.message"></p>
+                        {{-- Cobrada pero sin el comprobante pedido: el cliente se va sin él si el
+                             cajero no lo ve, así que no se mezcla con el acuse verde. --}}
+                        <p x-show="ultimaVenta?.fiscal_warning" x-cloak
+                           class="mt-1 rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
+                           x-text="'Comprobante no emitido: ' + (ultimaVenta?.fiscal_warning ?? '')"></p>
                         {{-- Solo si hay recibo que abrir. Una venta cobrada sin conexión ya
                              imprimió el suyo y no tiene página en el servidor todavía: el enlace
                              llevaría a un error justo cuando no hay red para entenderlo. --}}
@@ -346,6 +351,43 @@
                             @endforeach
                         </div>
                     </div>
+
+                    @if ($ofreceComprobante)
+                        {{-- Comprobante fiscal. Consumidor final se queda elegido entre ventas (un
+                             negocio que lo da siempre no tiene que tocarlo cada vez); crédito fiscal
+                             vuelve a «sin comprobante» tras cobrar, porque el RNC es de ese cliente. --}}
+                        <div class="mb-3">
+                            <label class="bmos-field-label">Comprobante fiscal</label>
+                            <div class="grid grid-cols-3 gap-1.5">
+                                <button type="button" @click="elegirComprobante('')" :aria-pressed="comprobante === ''"
+                                        :class="comprobante === '' && 'is-activa'" class="bmos-pos-opcion">
+                                    <span>Sin comprobante</span>
+                                </button>
+                                <button type="button" @click="elegirComprobante('B02')" :aria-pressed="comprobante === 'B02'"
+                                        :class="comprobante === 'B02' && 'is-activa'" class="bmos-pos-opcion">
+                                    <span>Consumidor final</span>
+                                </button>
+                                <button type="button" @click="elegirComprobante('B01')" :aria-pressed="comprobante === 'B01'"
+                                        :class="comprobante === 'B01' && 'is-activa'" class="bmos-pos-opcion">
+                                    <span>Crédito fiscal</span>
+                                </button>
+                            </div>
+                            <div x-show="comprobante === 'B01'" x-cloak class="mt-2 grid grid-cols-2 gap-2">
+                                <input type="text" x-model="fiscal.rnc" inputmode="numeric" maxlength="20"
+                                       class="bmos-input" placeholder="RNC o cédula *" aria-label="RNC o cédula del cliente">
+                                <input type="text" x-model="fiscal.nombre" maxlength="255"
+                                       class="bmos-input" placeholder="Razón social" aria-label="Razón social del cliente">
+                            </div>
+                            <p x-show="comprobante !== '' && ! sinLineaAhora" x-cloak class="mt-1 text-xs text-slate-400">
+                                Si la facturación electrónica está activa, sale como e-CF.
+                            </p>
+                            {{-- Sin conexión no hay a quién pedir un número: se dice antes de cobrar,
+                                 no después, para que el cajero pueda avisar al cliente. --}}
+                            <p x-show="comprobante !== '' && sinLineaAhora" x-cloak class="mt-1 text-xs font-medium text-amber-700">
+                                Sin conexión: la venta se guarda sin comprobante. Emítelo desde Facturas al volver la línea.
+                            </p>
+                        </div>
+                    @endif
 
                     {{-- Pago, cambio y cobrar comparten escala: se leen como un solo bloque. --}}
                     <div class="bmos-pos-cierre mb-3">
@@ -483,6 +525,9 @@
                     orderType: 'dine_in',
                     envio: { direccion: '', telefono: '', notas: '', repartidor: '', pagaAlRecibir: false },
                     cobrando: false,
+                    // '' sin comprobante · 'B02' consumidor final · 'B01' crédito fiscal.
+                    comprobante: '',
+                    fiscal: { rnc: '', nombre: '' },
                     ultimaVenta: null,
                     errorCobro: '',
                     eligiendo: null,
@@ -549,6 +594,12 @@
                     },
 
                     arrancar() {
+                        // Consumidor final se recuerda en este equipo. Si el almacenamiento falla
+                        // (navegación privada), simplemente empieza «sin comprobante».
+                        try {
+                            if (localStorage.getItem('bmos.ventaRapida.comprobante') === 'B02') this.comprobante = 'B02';
+                        } catch (e) {}
+
                         this.arrancarSinLinea();
                         this.load();
                         this.cargarEnEspera();
@@ -781,8 +832,24 @@
                     /** Lo cobra el motorista en la puerta: aquí no se recibe dinero. */
                     get cobraElMotorista() { return this.esEnvio && this.envio.pagaAlRecibir; },
 
+                    /** Sin red ahora mismo: el cobro irá a la cola del equipo, sin comprobante. */
+                    get sinLineaAhora() { return this.sinLinea.conexion === 'sin-conexion'; },
+
+                    elegirComprobante(tipo) {
+                        this.comprobante = tipo;
+
+                        // Solo consumidor final se recuerda; crédito fiscal es de un cliente concreto.
+                        try {
+                            localStorage.setItem('bmos.ventaRapida.comprobante', tipo === 'B02' ? 'B02' : '');
+                        } catch (e) {}
+                    },
+
                     get canPay() {
                         if (this.cart.length === 0) return false;
+
+                        // Crédito fiscal sin RNC no se puede emitir; el servidor además comprueba
+                        // que sea válido antes de cobrar.
+                        if (this.comprobante === 'B01' && this.fiscal.rnc.trim() === '') return false;
 
                         // Un envío sin dirección no se puede mandar a ninguna parte. Se bloquea el
                         // botón además de validarlo en el servidor: descubrirlo al pulsar, con el
@@ -988,6 +1055,13 @@
                                     client_uuid: uuid,
                                     payment_method: this.method,
                                     order_type: this.orderType,
+                                    ...(this.comprobante !== '' ? {
+                                        invoice_type: this.comprobante,
+                                        ...(this.comprobante === 'B01' ? {
+                                            customer_tax_id: this.fiscal.rnc.trim(),
+                                            ...(this.fiscal.nombre.trim() !== '' ? { customer_name: this.fiscal.nombre.trim() } : {}),
+                                        } : {}),
+                                    } : {}),
                                     // Los datos del reparto viajan siempre que el pedido sea envío. El
                                     // servidor decide qué hacer con ellos —y si la forma de pago pasa
                                     // a crédito—: aquí no se decide nada sobre el dinero.
@@ -1020,6 +1094,9 @@
                             // quedara puesta, el segundo envío saldría a la casa del primero.
                             this.orderType = 'dine_in';
                             this.envio = { direccion: '', telefono: '', notas: '', repartidor: '', pagaAlRecibir: false };
+                            // El RNC era de este cliente: el siguiente no puede heredarlo.
+                            if (this.comprobante === 'B01') this.comprobante = '';
+                            this.fiscal = { rnc: '', nombre: '' };
 
                             // La venta acaba de mover el stock: un producto que se agotó tiene que
                             // aparecer marcado antes de que el cajero intente venderlo otra vez.
@@ -1152,12 +1229,17 @@
                             message: 'Venta cobrada sin conexión. Se enviará al volver la línea.',
                             code: 'Ref. ' + uuid.slice(0, 8),
                             change: String(Math.max(0, Number(this.paid || 0) - this.subtotal)),
+                            fiscal_warning: this.comprobante !== ''
+                                ? 'sin conexión no se puede pedir el número. Emítelo desde Facturas al volver la línea.'
+                                : null,
                         };
 
                         this.cart = [];
                         this.paid = '';
                         this.method = 'cash';
                         this.orderType = 'dine_in';
+                        if (this.comprobante === 'B01') this.comprobante = '';
+                        this.fiscal = { rnc: '', nombre: '' };
                     },
                 };
             }

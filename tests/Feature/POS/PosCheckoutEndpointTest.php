@@ -91,6 +91,74 @@ it('la venta cobrada en el POS queda enlazada al cliente del CRM', function (): 
         ->and($invoice->customer_id)->toBe($customer->id);
 });
 
+// ------------------------------------------------------------- Comprobante fiscal desde Venta rápida
+
+it('venta rapida con consumidor final emite el comprobante y lo devuelve', function (): void {
+    FiscalSequence::create(['type' => NcfType::Consumo, 'next_number' => 1, 'range_from' => 1, 'range_to' => 100, 'is_active' => true]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('panel.pos.checkout'), [
+            'cart' => json_encode([['id' => $this->product->id, 'qty' => 1]]),
+            'paid' => '50',
+            'invoice_type' => 'B02',
+        ])
+        ->assertOk()
+        ->assertJsonPath('fiscal_warning', null)
+        ->assertJsonPath('ncf', Invoice::firstOrFail()->ncf);
+
+    expect(Invoice::firstOrFail()->type)->toBe(NcfType::Consumo);
+});
+
+it('venta rapida con credito fiscal guarda el RNC y la razon social del cliente', function (): void {
+    FiscalSequence::create(['type' => NcfType::CreditoFiscal, 'next_number' => 1, 'range_from' => 1, 'range_to' => 100, 'is_active' => true]);
+
+    $this->actingAs($this->user)
+        ->postJson(route('panel.pos.checkout'), [
+            'cart' => json_encode([['id' => $this->product->id, 'qty' => 1]]),
+            'paid' => '50',
+            'invoice_type' => 'B01',
+            'customer_tax_id' => '131-00000-2',
+            'customer_name' => 'Colmado La Esquina SRL',
+        ])
+        ->assertOk();
+
+    $factura = Invoice::firstOrFail();
+    expect($factura->type)->toBe(NcfType::CreditoFiscal)
+        ->and($factura->customer_tax_id)->toBe('131000002')
+        ->and($factura->customer_name)->toBe('Colmado La Esquina SRL');
+});
+
+it('un RNC invalido se rechaza ANTES de cobrar', function (): void {
+    $this->actingAs($this->user)
+        ->postJson(route('panel.pos.checkout'), [
+            'cart' => json_encode([['id' => $this->product->id, 'qty' => 1]]),
+            'paid' => '50',
+            'invoice_type' => 'B01',
+            'customer_tax_id' => '131000003',
+        ])
+        ->assertStatus(422)
+        ->assertJson(['message' => 'El RNC o la cédula no es válido. Revísalo antes de cobrar.']);
+
+    expect(Sale::count())->toBe(0);
+});
+
+it('si el comprobante no sale, la venta queda cobrada, se avisa del motivo y queda constancia', function (): void {
+    // Sin secuencia B02: el cobro entra, el comprobante no.
+    $this->actingAs($this->user)
+        ->postJson(route('panel.pos.checkout'), [
+            'cart' => json_encode([['id' => $this->product->id, 'qty' => 1]]),
+            'paid' => '50',
+            'invoice_type' => 'B02',
+        ])
+        ->assertOk()
+        ->assertJsonPath('ncf', null)
+        ->assertJson(fn ($json) => $json->where('fiscal_warning', fn ($w) => str_ends_with((string) $w, 'Puedes emitirlo después desde Facturas.'))->etc());
+
+    expect(Sale::count())->toBe(1)
+        ->and(Invoice::count())->toBe(0)
+        ->and(\App\Modules\Core\Models\SystemEvent::query()->where('type', 'pos.invoice_failed')->count())->toBe(1);
+});
+
 it('rechaza un cobro con un cliente de otra empresa', function (): void {
     $otra = app(CompanyService::class)->create(new CreateCompanyData(name: 'Ajena Co'));
     app(CurrentCompany::class)->set($otra->id);

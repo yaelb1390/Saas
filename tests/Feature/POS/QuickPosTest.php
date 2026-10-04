@@ -72,6 +72,18 @@ it('muestra la rejilla y los chips de las categorías con productos', function (
         ->assertDontSee('Vacía');
 });
 
+it('ofrece el comprobante fiscal solo con el modulo de facturacion', function (): void {
+    $this->actingAs($this->owner)->get(route('panel.quick-pos.index'))
+        ->assertOk()->assertSee('Comprobante fiscal')->assertSee('Crédito fiscal');
+
+    $this->company->forceFill(['modules' => array_values(array_diff(
+        \App\Modules\Core\Support\ModuleRegistry::keys(), ['billing', 'e_invoicing'],
+    ))])->save();
+
+    $this->actingAs($this->owner)->get(route('panel.quick-pos.index'))
+        ->assertOk()->assertDontSee('Comprobante fiscal');
+});
+
 it('el catálogo devuelve los productos con su foto, precio y categoría', function (): void {
     $helados = Category::create(['name' => 'Helados', 'slug' => 'helados', 'is_active' => true]);
     heladoConStock('CONO', 'Cono doble', '120', $helados->id);

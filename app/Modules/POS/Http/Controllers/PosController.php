@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Modules\POS\Http\Controllers;
 
 use App\Modules\Billing\Enums\NcfType;
+use App\Modules\Billing\Exceptions\InvoiceException;
 use App\Modules\Billing\Services\InvoiceService;
+use App\Modules\Billing\Support\TaxId;
 use App\Modules\Cash\Enums\CashSessionStatus;
 use App\Modules\Cash\Exceptions\CashSessionException;
 use App\Modules\Cash\Models\CashRegister;
 use App\Modules\Cash\Models\CashSession;
 use App\Modules\Cash\Services\CashService;
+use App\Modules\Core\Models\SystemEvent;
 use App\Modules\Core\Models\Warehouse;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
@@ -250,9 +253,29 @@ final class PosController extends Controller
                 'nullable', 'integer',
                 Rule::exists('employees', 'id')->where('company_id', $companyId)->whereNull('deleted_at'),
             ],
+
+            // Comprobante fiscal. `invoice` es el de siempre (consumo); `invoice_type` deja pedir
+            // crédito fiscal, que exige el RNC o la cédula del comprador.
+            'invoice' => ['sometimes', 'boolean'],
+            'invoice_type' => ['nullable', Rule::in([NcfType::Consumo->value, NcfType::CreditoFiscal->value])],
+            'customer_tax_id' => ['nullable', 'required_if:invoice_type,'.NcfType::CreditoFiscal->value, 'string', 'max:20'],
         ], [
             'delivery_address.required_if' => 'Un pedido con envío necesita la dirección.',
+            'customer_tax_id.required_if' => 'El crédito fiscal necesita el RNC o la cédula del cliente.',
         ]);
+
+        $tipoComprobante = $request->filled('invoice_type')
+            ? NcfType::from((string) $request->input('invoice_type'))
+            : ($request->boolean('invoice') ? NcfType::Consumo : null);
+
+        /*
+         * El RNC se comprueba ANTES de cobrar. Si se comprobara al facturar, una cédula mal tecleada
+         * dejaría la venta cobrada y sin el comprobante que el cliente pidió, y habría que facturarla
+         * después a mano desde Ventas.
+         */
+        if ($tipoComprobante?->requiresTaxId() && ! TaxId::isValid((string) $request->input('customer_tax_id'))) {
+            return $this->fallo($request, 'El RNC o la cédula no es válido. Revísalo antes de cobrar.');
+        }
 
         /*
          * ¿Esta venta ya entró?
@@ -383,12 +406,33 @@ final class PosController extends Controller
 
         $message = "Venta {$sale->code} cobrada. Cambio: ".number_format((float) $sale->change, 2);
 
-        if ($request->boolean('invoice')) {
+        $ncf = null;
+        $avisoFiscal = null;
+
+        if ($tipoComprobante !== null) {
             try {
-                $invoice = $invoices->issueForSale($sale, NcfType::Consumo);
-                $message .= " · Factura {$invoice->ncf}";
-            } catch (Throwable) {
-                $message .= ' · (No se emitió NCF: sin secuencia fiscal activa)';
+                $ncf = $invoices->issueForSale($sale, $tipoComprobante, $request->input('customer_tax_id'))->ncf;
+                $message .= " · Comprobante {$ncf}";
+            } catch (Throwable $e) {
+                /*
+                 * La venta ya está cobrada y no se deshace: el dinero entró. Pero el comprobante que
+                 * el cliente pidió NO salió, y eso no puede pasar callado —antes el mensaje decía
+                 * siempre «sin secuencia» fuese cual fuese el motivo, y no quedaba rastro—. Se dice
+                 * el motivo real y se deja constancia para emitirlo luego desde Facturas.
+                 */
+                $avisoFiscal = $e instanceof InvoiceException
+                    ? $e->getMessage()
+                    : 'no se pudo emitir el comprobante.';
+
+                SystemEvent::registrar(
+                    type: 'pos.invoice_failed',
+                    message: "Venta {$sale->code} cobrada sin el comprobante {$tipoComprobante->value} que se pidió",
+                    contexto: ['venta' => $sale->id, 'motivo' => mb_substr($e->getMessage(), 0, 500)],
+                    level: SystemEvent::AVISO,
+                );
+
+                $avisoFiscal = rtrim($avisoFiscal, '. ').'. Puedes emitirlo después desde Facturas.';
+                $message .= " · Sin comprobante: {$avisoFiscal}";
             }
         }
 
@@ -402,6 +446,8 @@ final class PosController extends Controller
                 'change' => (string) $sale->change,
                 'receipt_id' => $sale->id,
                 'receipt_url' => route('panel.sales.receipt', $sale).'?print=1',
+                'ncf' => $ncf,
+                'fiscal_warning' => $avisoFiscal,
             ]);
         }
 

@@ -58,6 +58,9 @@ final class QuickPosController extends Controller
             // igual pero no hay a dónde mandarlo.
             'ofreceEnvio' => $reparte,
 
+            // El comprobante fiscal (NCF o e-CF) solo con el módulo de facturación contratado.
+            'ofreceComprobante' => $company?->hasModule('billing') ?? false,
+
             /*
              * Los datos del negocio, para el recibo que el terminal imprime cuando no hay línea.
              *

@@ -24,16 +24,20 @@
 <x-layouts.admin title="Mi suscripción" heading="Mi suscripción" subheading="Estado del plan de tu empresa">
     <div class="mx-auto max-w-2xl">
         {{-- Vuelta de la pasarela. Por defecto se dice «estamos confirmando» y no «ya está activo»:
-             quien activa es el aviso de pago de Polar, que llega por su cuenta unos segundos
-             después. Dar por hecha la activación por lo que trae la dirección sería mentir, porque
-             la puede escribir cualquiera en la barra del navegador.
+        quien activa es el aviso de pago de Polar, que llega por su cuenta unos segundos
+        después. Dar por hecha la activación por lo que trae la dirección sería mentir, porque
+        la puede escribir cualquiera en la barra del navegador.
 
-             «Ya está activo» solo se dice cuando el aviso YA llegó, y eso se lee de la suscripción
-             guardada —que solo el webhook puede dejar así—, nunca de la dirección. --}}
+        «Ya está activo» solo se dice cuando el aviso YA llegó, y eso se lee de la suscripción
+        guardada —que solo el webhook puede dejar así—, nunca de la dirección. --}}
         @if (request('pago') === 'recibido')
             <div class="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-600 ring-1 ring-emerald-100">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                <span
+                    class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-emerald-600 ring-1 ring-emerald-100">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
                 </span>
                 <div>
                     <p class="text-sm font-semibold text-emerald-900">Gracias, recibimos tu pago.</p>
@@ -53,28 +57,49 @@
         @if ($subscription === null)
             <div class="bmos-card bmos-card-pad flex flex-col items-center py-12 text-center">
                 <span class="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-indigo-50 text-indigo-500">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="h-7 w-7"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="h-7 w-7">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
                 </span>
                 <p class="font-semibold text-slate-700">Tu empresa aún no tiene una suscripción</p>
-                <p class="mt-1 text-sm text-slate-400">Contacta con el administrador de la plataforma para activar un plan.</p>
+                <p class="mt-1 text-sm text-slate-400">Contacta con el administrador de la plataforma para activar un plan.
+                </p>
             </div>
         @else
             {{-- Tarjeta principal con cabecera en degradado corporativo. --}}
             <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5">
-                <div class="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 p-6 text-white">
+                <div
+                    class="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 p-6 text-white">
                     {{-- Halo ambiental muy tenue. --}}
-                    <div class="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/10 blur-2xl"></div>
+                    <div class="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-white/10 blur-2xl">
+                    </div>
                     <div class="relative flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
                             <span class="grid h-11 w-11 place-items-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-6 w-6"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.5a.56.56 0 0 1 1.04 0l2.12 4.94 5.36.46c.5.04.7.66.32.98l-4.07 3.5 1.22 5.24c.11.48-.41.86-.84.6L12 16.9l-4.65 2.82c-.43.26-.95-.12-.84-.6l1.22-5.24-4.07-3.5a.56.56 0 0 1 .32-.98l5.36-.46L11.48 3.5Z"/></svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                                    class="h-6 w-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M11.48 3.5a.56.56 0 0 1 1.04 0l2.12 4.94 5.36.46c.5.04.7.66.32.98l-4.07 3.5 1.22 5.24c.11.48-.41.86-.84.6L12 16.9l-4.65 2.82c-.43.26-.95-.12-.84-.6l1.22-5.24-4.07-3.5a.56.56 0 0 1 .32-.98l5.36-.46L11.48 3.5Z" />
+                                </svg>
                             </span>
                             <div>
                                 <p class="text-xs font-medium uppercase tracking-wide text-white/70">Plan actual</p>
                                 <p class="text-2xl font-bold leading-tight">{{ $plan?->name ?? 'Sin plan' }}</p>
                             </div>
                         </div>
-                        <span class="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold ring-1 ring-white/25">
+                        @php
+                            $dotClass = match ($subscription->status) {
+                                \App\Modules\Core\Enums\SubscriptionStatus::Active => 'bg-emerald-400',
+                                \App\Modules\Core\Enums\SubscriptionStatus::Trialing => 'bg-sky-300',
+                                \App\Modules\Core\Enums\SubscriptionStatus::PastDue => 'bg-amber-300',
+                                \App\Modules\Core\Enums\SubscriptionStatus::Suspended,
+                                \App\Modules\Core\Enums\SubscriptionStatus::Cancelled => 'bg-red-400',
+                            };
+                        @endphp
+                        <span
+                            class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold ring-1 ring-white/25">
+                            <span class="h-1.5 w-1.5 rounded-full {{ $dotClass }}"></span>
                             {{ $subscription->status->label() }}
                         </span>
                     </div>
@@ -101,7 +126,11 @@
                 <div class="grid grid-cols-1 divide-y divide-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                     <div class="p-5">
                         <span class="mb-2.5 grid h-9 w-9 place-items-center rounded-lg bg-indigo-50 text-indigo-600">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0-.83.67-1.5 1.5-1.5h6.44c.4 0 .78.16 1.06.44l8.69 8.69a1.5 1.5 0 0 1 0 2.12l-4.94 4.94a1.5 1.5 0 0 1-2.12 0l-8.69-8.69a1.5 1.5 0 0 1-.44-1.06V6.75Z"/></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M2.25 6.75c0-.83.67-1.5 1.5-1.5h6.44c.4 0 .78.16 1.06.44l8.69 8.69a1.5 1.5 0 0 1 0 2.12l-4.94 4.94a1.5 1.5 0 0 1-2.12 0l-8.69-8.69a1.5 1.5 0 0 1-.44-1.06V6.75Z" />
+                            </svg>
                         </span>
                         <p class="bmos-stat-label">Precio</p>
                         <p class="text-lg font-bold text-slate-800">
@@ -110,13 +139,19 @@
                         </p>
                     </div>
                     <div class="p-5">
-                        <span class="mb-2.5 grid h-9 w-9 place-items-center rounded-lg {{ $soon ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600' }}">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+                        <span
+                            class="mb-2.5 grid h-9 w-9 place-items-center rounded-lg {{ $soon ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600' }}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                            </svg>
                         </span>
-                        <p class="bmos-stat-label">{{ $isTrial ? 'Prueba hasta' : ($endsAtPeriodEnd ? 'Termina' : 'Renueva') }}</p>
+                        <p class="bmos-stat-label">
+                            {{ $isTrial ? 'Prueba hasta' : ($endsAtPeriodEnd ? 'Termina' : 'Renueva') }}</p>
                         <p class="text-lg font-bold text-slate-800">{{ $renews?->format('d/m/Y') ?? '—' }}</p>
                         @if ($days !== null)
-                            <p class="text-xs font-medium {{ $days < 0 ? 'text-rose-500' : ($soon ? 'text-amber-600' : 'text-slate-400') }}">
+                            <p
+                                class="text-xs font-medium {{ $days < 0 ? 'text-rose-500' : ($soon ? 'text-amber-600' : 'text-slate-400') }}">
                                 @if ($days < 0)
                                     Vencido hace {{ abs($days) }} {{ abs($days) === 1 ? 'día' : 'días' }}
                                 @elseif ($days === 0)
@@ -129,7 +164,10 @@
                     </div>
                     <div class="p-5">
                         <span class="mb-2.5 grid h-9 w-9 place-items-center rounded-lg bg-violet-50 text-violet-600">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25A2.25 2.25 0 0 1 13.5 8.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"/></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25A2.25 2.25 0 0 1 13.5 8.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                            </svg>
                         </span>
                         <p class="bmos-stat-label">Módulos</p>
                         <p class="text-lg font-bold text-slate-800">{{ count($plan?->moduleKeys() ?? []) }}</p>
@@ -139,15 +177,19 @@
 
                 @unless ($subscription->isUsable())
                     <div class="flex items-start gap-2.5 border-t border-rose-100 bg-rose-50/70 p-4 text-sm text-rose-700">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="mt-0.5 h-5 w-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                            class="mt-0.5 h-5 w-5 shrink-0">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                        </svg>
                         {{-- El texto depende de si hay pasarela: decir «el administrador lo
-                             registrará» junto a un botón de pago automático confunde al cliente
-                             sobre qué tiene que hacer. --}}
+                        registrará» junto a un botón de pago automático confunde al cliente
+                        sobre qué tiene que hacer. --}}
                         <span>
                             Tu suscripción no está al día.
                             {{ $canPayOnline
-                                ? 'Paga con tarjeta aquí abajo y el acceso se reactiva al confirmarse el cobro.'
-                                : 'Realiza el pago y el administrador lo registrará para reactivar el acceso.' }}
+                    ? 'Paga con tarjeta aquí abajo y el acceso se reactiva al confirmarse el cobro.'
+                    : 'Realiza el pago y el administrador lo registrará para reactivar el acceso.' }}
                         </span>
                     </div>
                 @endunless
@@ -158,8 +200,12 @@
                     <p class="mb-3 text-sm font-semibold text-slate-600">Módulos de tu plan</p>
                     <div class="flex flex-wrap gap-2">
                         @foreach ($plan->moduleKeys() as $key)
-                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200/70">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3.5 w-3.5 text-indigo-500"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                            <span
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-200/70">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    class="h-3.5 w-3.5 text-indigo-500">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>
                                 {{ ModuleRegistry::label($key) }}
                             </span>
                         @endforeach
@@ -171,16 +217,21 @@
             @php
                 $waDigits = preg_replace('/\D/', '', $supportWhatsapp);
                 $waText = rawurlencode(
-                    'Hola, soy de «'.($company?->name ?? 'mi empresa').'». Quiero '
-                    .($isTrial ? 'activar' : 'renovar').' mi plan'.($plan ? ' '.$plan->name : '').'.'
+                    'Hola, soy de «' . ($company?->name ?? 'mi empresa') . '». Quiero '
+                    . ($isTrial ? 'activar' : 'renovar') . ' mi plan' . ($plan ? ' ' . $plan->name : '') . '.'
                 );
-                $mailSubject = rawurlencode(($isTrial ? 'Activar' : 'Renovar').' mi suscripción'.($company?->name ? ' — '.$company->name : ''));
+                $mailSubject = rawurlencode(($isTrial ? 'Activar' : 'Renovar') . ' mi suscripción' . ($company?->name ? ' — ' . $company->name : ''));
                 $hasActions = $waDigits || $supportEmail || $supportPaypal;
             @endphp
-            <div class="mt-4 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-50/70 to-white p-5 ring-1 ring-indigo-100">
+            <div
+                class="mt-4 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-50/70 to-white p-5 ring-1 ring-indigo-100">
                 <div class="flex items-start gap-3">
-                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-indigo-600 ring-1 ring-indigo-100">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Z"/></svg>
+                    <span
+                        class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-indigo-600 ring-1 ring-indigo-100">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="h-5 w-5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Z" />
+                        </svg>
                     </span>
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-slate-800">
@@ -209,183 +260,195 @@
                 </div>
 
                 {{-- El pago es la acción principal, así que va solo y con peso propio. El contacto
-                     baja a una línea discreta: sirve para dudas, no para contratar. --}}
-                @if ($canPayOnline && ! $autoRenews && ! $endsAtPeriodEnd)
+                baja a una línea discreta: sirve para dudas, no para contratar. --}}
+                @if ($canPayOnline && !$autoRenews && !$endsAtPeriodEnd)
                     {{-- Sigue siendo un <form> de verdad, y eso NO es de adorno: si el JavaScript no
-                         carga, el cliente tiene que poder pagar igual. El script solo lo intercepta
-                         para abrir el pago sin sacarlo de su panel; si algo falla, se envía. --}}
-                    <form method="POST" action="{{ route('panel.account.checkout', $plan) }}" class="mt-5"
-                          x-data="cobroSuscripcion()" @submit.prevent="pagar($el)">
-                        @csrf
-                        <button type="submit" x-bind:disabled="ocupado"
+                        carga, el cliente tiene que poder pagar igual. El script solo lo intercepta
+                        para abrir el pago sin sacarlo de su panel; si algo falla, se envía. --}}
+                        <form method="POST" action="{{ route('panel.account.checkout', $plan) }}" class="mt-5"
+                            x-data="cobroSuscripcion()" @submit.prevent="pagar($el)">
+                            @csrf
+                            <button type="submit" x-bind:disabled="ocupado"
                                 class="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-4 text-base font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 hover:shadow-xl hover:shadow-indigo-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 sm:w-auto">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Z"/>
-                            </svg>
-                            {{ $isTrial ? 'Activar mi plan' : 'Renovar mi plan' }}
-                            <span class="font-bold tabular-nums">{{ number_format((float) $plan->price, 2) }}</span>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                 class="h-4 w-4 transition group-hover:translate-x-0.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
-                            </svg>
-                        </button>
-                        <p class="mt-2 text-xs text-slate-400">
-                            Pago seguro con tarjeta. Se cobra {{ mb_strtolower($plan->billing_cycle->label()) }}; puedes cancelar cuando quieras.
-                        </p>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Z" />
+                                </svg>
+                                {{ $isTrial ? 'Activar mi plan' : 'Renovar mi plan' }}
+                                <span class="font-bold tabular-nums">{{ number_format((float) $plan->price, 2) }}</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    class="h-4 w-4 transition group-hover:translate-x-0.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                                </svg>
+                            </button>
+                            <p class="mt-2 text-xs text-slate-400">
+                                Pago seguro con tarjeta. Se cobra {{ mb_strtolower($plan->billing_cycle->label()) }}; puedes
+                                cancelar cuando quieras.
+                            </p>
 
-                        {{-- Apple Pay y Google Pay.
+                            {{-- Apple Pay y Google Pay.
 
-                             NO se pueden encender en la ventana de aquí dentro: Polar los trae
-                             apagados en el pago embebido y hay que pedirle que autorice el dominio,
-                             por correo y uno por uno. En SU página salen solos, sin pedir nada.
+                            NO se pueden encender en la ventana de aquí dentro: Polar los trae
+                            apagados en el pago embebido y hay que pedirle que autorice el dominio,
+                            por correo y uno por uno. En SU página salen solos, sin pedir nada.
 
-                             Por eso esto es un segundo camino y no el principal: quien pague con
-                             tarjeta se queda en el panel, como hasta ahora, y quien quiera pagar de
-                             un toque con el móvil tiene por dónde hoy mismo. Cuando Polar autorice
-                             el dominio, este enlace sobra.
+                            Por eso esto es un segundo camino y no el principal: quien pague con
+                            tarjeta se queda en el panel, como hasta ahora, y quien quiera pagar de
+                            un toque con el móvil tiene por dónde hoy mismo. Cuando Polar autorice
+                            el dominio, este enlace sobra.
 
-                             Va como <button> y no como <a>: el cobro lo crea el servidor y su
-                             dirección no existe hasta que se pide, así que un enlace tendría que
-                             apuntar a algún sitio antes de tenerlo. --}}
-                        <button type="button" :disabled="ocupado"
-                                @click="pagarEnPolar($el.closest('form'))"
-                                class="mt-2 inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" class="h-3.5 w-3.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5M14 4h6v6M20 4l-8.5 8.5"/>
-                            </svg>
-                            Pagar con Apple Pay o Google Pay
-                        </button>
-                        <p class="mt-1 text-xs text-slate-400">
-                            Se abre la página de Polar, que es quien cobra. Aparecen según tu
-                            teléfono o navegador: Apple Pay en Safari, Google Pay en Chrome.
-                        </p>
+                            Va como <button> y no como <a>: el cobro lo crea el servidor y su
+                                    dirección no existe hasta que se pide, así que un enlace tendría que
+                                    apuntar a algún sitio antes de tenerlo. --}}
+                                    <button type="button" :disabled="ocupado" @click="pagarEnPolar($el.closest('form'))"
+                                        class="mt-2 inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                                            class="h-3.5 w-3.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M10.5 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5M14 4h6v6M20 4l-8.5 8.5" />
+                                        </svg>
+                                        Pagar con Apple Pay o Google Pay
+                                    </button>
+                                    <p class="mt-1 text-xs text-slate-400">
+                                        Se abre la página de Polar, que es quien cobra. Aparecen según tu
+                                        teléfono o navegador: Apple Pay en Safari, Google Pay en Chrome.
+                                    </p>
 
-                        {{-- Motivo concreto que devuelve el servidor (plan sin enlazar, pasarela
-                             caída, sin correo). Sin esto, esos casos abrirían una ventana vacía donde
-                             antes había un aviso legible. --}}
-                        <p x-show="error" x-cloak x-text="error"
-                           class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"></p>
+                                    {{-- Motivo concreto que devuelve el servidor (plan sin enlazar, pasarela
+                                    caída, sin correo). Sin esto, esos casos abrirían una ventana vacía donde
+                                    antes había un aviso legible. --}}
+                                    <p x-show="error" x-cloak x-text="error"
+                                        class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                                    </p>
 
-                        {{-- El mismo motivo para quien no tiene JavaScript.
-                             Los avisos del sistema los pinta SweetAlert, así que sin JavaScript no se
-                             ve ninguno: en cualquier otra pantalla es una molestia, pero aquí sería
-                             «pulso y no pasa nada» en el único sitio donde el cliente paga.
-                             Va en <noscript> para que quien sí tiene JavaScript no lo vea dos veces. --}}
-                        @if (session('panel_error'))
-                            <noscript>
-                                <p class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                                    {{ session('panel_error') }}
-                                </p>
-                            </noscript>
-                        @endif
+                                    {{-- El mismo motivo para quien no tiene JavaScript.
+                                    Los avisos del sistema los pinta SweetAlert, así que sin JavaScript no se
+                                    ve ninguno: en cualquier otra pantalla es una molestia, pero aquí sería
+                                    «pulso y no pasa nada» en el único sitio donde el cliente paga.
+                                    Va en <noscript> para que quien sí tiene JavaScript no lo vea dos veces. --}}
+                                        @if (session('panel_error'))
+                                            <noscript>
+                                                <p
+                                                    class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                                                    {{ session('panel_error') }}
+                                                </p>
+                                            </noscript>
+                                        @endif
 
-                        {{-- El pago entró y estamos esperando a que Polar nos lo confirme. Se dice
-                             «confirmando» y no «ya está»: quien activa es el aviso de pago. --}}
-                        <p x-show="estado === 'confirmando'" x-cloak
-                           class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                            Gracias, recibimos tu pago. Lo estamos confirmando con el banco; esta pantalla
-                            se actualizará sola en cuanto se active.
-                        </p>
-                        <p x-show="estado === 'tarda'" x-cloak
-                           class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                            Tu pago entró, pero la confirmación está tardando más de lo normal. No lo
-                            vuelvas a pagar: recarga en un minuto y, si sigue igual, escríbenos.
-                        </p>
-                    </form>
+                                        {{-- El pago entró y estamos esperando a que Polar nos lo confirme. Se dice
+                                        «confirmando» y no «ya está»: quien activa es el aviso de pago. --}}
+                                        <p x-show="estado === 'confirmando'" x-cloak
+                                            class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                                            Gracias, recibimos tu pago. Lo estamos confirmando con el banco; esta pantalla
+                                            se actualizará sola en cuanto se active.
+                                        </p>
+                                        <p x-show="estado === 'tarda'" x-cloak
+                                            class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                                            Tu pago entró, pero la confirmación está tardando más de lo normal. No lo
+                                            vuelvas a pagar: recarga en un minuto y, si sigue igual, escríbenos.
+                                        </p>
+                        </form>
                 @endif
 
-                {{-- Sin botón de pago, lo que se puede hacer aquí es dejar de renovar o, si ya se
-                     pidió, arrepentirse. Cancelar NO corta el acceso: dura hasta el fin del período
-                     pagado, y el diálogo lo dice antes de que el cliente confirme. Cambiar la
-                     tarjeta lleva al portal de pagos de Polar (ruta propia: la sesión del portal
-                     caduca en una hora y se pide en el momento del clic).
+                    {{-- Sin botón de pago, lo que se puede hacer aquí es dejar de renovar o, si ya se
+                    pidió, arrepentirse. Cancelar NO corta el acceso: dura hasta el fin del período
+                    pagado, y el diálogo lo dice antes de que el cliente confirme. Cambiar la
+                    tarjeta lleva al portal de pagos de Polar (ruta propia: la sesión del portal
+                    caduca en una hora y se pide en el momento del clic).
 
-                     El botón de descarte se llama «Mantener mi suscripción» y no «Cancelar»: en un
-                     diálogo que pregunta «¿Cancelar tu suscripción?», «Cancelar» no diría cuál de
-                     los dos botones la cancela.
+                    El botón de descarte se llama «Mantener mi suscripción» y no «Cancelar»: en un
+                    diálogo que pregunta «¿Cancelar tu suscripción?», «Cancelar» no diría cuál de
+                    los dos botones la cancela.
 
-                     Botón y confirmación van en ROJO: es la acción que termina un servicio de pago
-                     y el color es lo primero que se lee. Los datos no se borran, pero el diálogo
-                     compartido reserva el rojo para lo grave y esto lo es. Tiene el mismo tamaño y
-                     forma que el botón de pagar para que la pantalla se vea de una pieza, y el
-                     texto de debajo dice lo que conserva antes de que el cliente pulse. --}}
-                @if ($autoRenews)
-                    <div class="mt-5">
-                        <x-panel.confirm-action
-                            :action="route('panel.account.cancel')"
-                            method="POST"
-                            title="¿Cancelar tu suscripción?"
-                            message="Seguirás con acceso completo hasta el {{ $renews?->format('d/m/Y') }}. Después no se cobrará ni se renovará más."
-                            note="No borramos tus datos: si más adelante quieres volver, solo tienes que contratar de nuevo. Y hasta esa fecha puedes reactivar la renovación cuando quieras."
-                            confirm="Sí, cancelar suscripción"
-                            dismiss="Mantener mi suscripción"
-                            tone="danger"
-                            class="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:from-rose-600 hover:to-red-700 hover:shadow-xl hover:shadow-rose-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 sm:w-auto">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-                            </svg>
-                            Cancelar suscripción
-                        </x-panel.confirm-action>
-                        <p class="mt-2 text-xs text-slate-500">
-                            Seguirás con acceso completo hasta el {{ $renews?->format('d/m/Y') }} aunque canceles.
-                            Para cambiar la tarjeta,
-                            <a href="{{ route('panel.account.portal') }}"
-                               class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">entra al portal de pagos</a>.
-                        </p>
-                    </div>
-                @elseif ($endsAtPeriodEnd)
-                    <form method="POST" action="{{ route('panel.account.resume') }}" class="mt-4">
-                        @csrf
-                        <button type="submit"
+                    Botón y confirmación van en ROJO: es la acción que termina un servicio de pago
+                    y el color es lo primero que se lee. Los datos no se borran, pero el diálogo
+                    compartido reserva el rojo para lo grave y esto lo es. Tiene el mismo tamaño y
+                    forma que el botón de pagar para que la pantalla se vea de una pieza, y el
+                    texto de debajo dice lo que conserva antes de que el cliente pulse. --}}
+                    @if ($autoRenews)
+                        <div class="mt-5">
+                            <x-panel.confirm-action :action="route('panel.account.cancel')" method="POST"
+                                title="¿Cancelar tu suscripción?"
+                                message="Seguirás con acceso completo hasta el {{ $renews?->format('d/m/Y') }}. Después no se cobrará ni se renovará más."
+                                note="No borramos tus datos: si más adelante quieres volver, solo tienes que contratar de nuevo. Y hasta esa fecha puedes reactivar la renovación cuando quieras."
+                                confirm="Sí, cancelar suscripción" dismiss="Mantener mi suscripción" tone="danger"
+                                class="group inline-flex w-full items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-rose-500 to-red-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:from-rose-600 hover:to-red-700 hover:shadow-xl hover:shadow-rose-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 sm:w-auto">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                </svg>
+                                Cancelar suscripción
+                            </x-panel.confirm-action>
+                            <p class="mt-2 text-xs text-slate-500">
+                                Seguirás con acceso completo hasta el {{ $renews?->format('d/m/Y') }} aunque canceles.
+                                Para cambiar la tarjeta,
+                                <a href="{{ route('panel.account.portal') }}"
+                                    class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">entra al portal de pagos</a>.
+                            </p>
+                        </div>
+                    @elseif ($endsAtPeriodEnd)
+                        <form method="POST" action="{{ route('panel.account.resume') }}" class="mt-4">
+                            @csrf
+                            <button type="submit"
                                 class="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2">
-                            Reactivar mi suscripción
-                        </button>
-                        <p class="mt-2 text-xs text-slate-500">
-                            Se seguirá renovando y cobrando cada período, como antes.
-                        </p>
-                    </form>
-                @endif
+                                Reactivar mi suscripción
+                            </button>
+                            <p class="mt-2 text-xs text-slate-500">
+                                Se seguirá renovando y cobrando cada período, como antes.
+                            </p>
+                        </form>
+                    @endif
 
-                {{-- Cambiar de plan lleva a la MISMA pantalla pública de planes, no a una lista
-                     propia: dos sitios donde comparar planes acabarían diciendo cosas distintas. --}}
-                @if ($plan)
-                    <a href="{{ route('plans.public') }}"
-                       class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" class="h-4 w-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
-                        </svg>
-                        {{ $isTrial ? 'Probar otro plan' : 'Cambiar de plan' }}
-                    </a>
-                @endif
+                    {{-- Cambiar de plan lleva a la MISMA pantalla pública de planes, no a una lista
+                    propia: dos sitios donde comparar planes acabarían diciendo cosas distintas. --}}
+                    @if ($plan)
+                        <a href="{{ route('plans.public') }}"
+                            class="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" class="h-4 w-4">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                            </svg>
+                            {{ $isTrial ? 'Probar otro plan' : 'Cambiar de plan' }}
+                        </a>
+                    @endif
 
-                @if ($hasActions)
-                    <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-indigo-100/70 pt-4 text-sm">
-                        <span class="text-slate-500">¿Tienes dudas? Escríbenos:</span>
-                        @if ($waDigits)
-                            <a href="https://wa.me/{{ $waDigits }}?text={{ $waText }}" target="_blank" rel="noopener"
-                               class="inline-flex items-center gap-1.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline">
-                                <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884"/></svg>
-                                WhatsApp
-                            </a>
-                        @endif
-                        @if ($supportEmail)
-                            <a href="mailto:{{ $supportEmail }}?subject={{ $mailSubject }}"
-                               class="inline-flex items-center gap-1.5 font-semibold text-indigo-700 hover:text-indigo-800 hover:underline">
-                                <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                                Correo
-                            </a>
-                        @endif
-                        @if ($supportPaypal && ! $canPayOnline)
-                            {{-- Solo si no hay pasarela: dos botones de pago a la vez confunden. --}}
-                            <a href="{{ $supportPaypal }}" target="_blank" rel="noopener"
-                               class="inline-flex items-center gap-1.5 font-semibold text-[#0070ba] hover:underline">
-                                Pagar con PayPal
-                            </a>
-                        @endif
-                    </div>
-                @elseif (! $canPayOnline)
-                    <p class="mt-4 text-sm text-slate-400">Contacta con el administrador de la plataforma para activar tu plan.</p>
-                @endif
+                    @if ($hasActions)
+                        <div
+                            class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-indigo-100/70 pt-4 text-sm">
+                            <span class="text-slate-500">¿Tienes dudas? Escríbenos:</span>
+                            @if ($waDigits)
+                                <a href="https://wa.me/{{ $waDigits }}?text={{ $waText }}" target="_blank" rel="noopener"
+                                    class="inline-flex items-center gap-1.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                                        <path
+                                            d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884" />
+                                    </svg>
+                                    WhatsApp
+                                </a>
+                            @endif
+                            @if ($supportEmail)
+                                <a href="mailto:{{ $supportEmail }}?subject={{ $mailSubject }}"
+                                    class="inline-flex items-center gap-1.5 font-semibold text-indigo-700 hover:text-indigo-800 hover:underline">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                                        <path
+                                            d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+                                    </svg>
+                                    Correo
+                                </a>
+                            @endif
+                            @if ($supportPaypal && !$canPayOnline)
+                                {{-- Solo si no hay pasarela: dos botones de pago a la vez confunden. --}}
+                                <a href="{{ $supportPaypal }}" target="_blank" rel="noopener"
+                                    class="inline-flex items-center gap-1.5 font-semibold text-[#0070ba] hover:underline">
+                                    Pagar con PayPal
+                                </a>
+                            @endif
+                        </div>
+                    @elseif (!$canPayOnline)
+                        <p class="mt-4 text-sm text-slate-400">Contacta con el administrador de la plataforma para activar tu
+                            plan.</p>
+                    @endif
             </div>
         @endif
     </div>

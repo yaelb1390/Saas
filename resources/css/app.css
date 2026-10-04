@@ -154,18 +154,19 @@ body {
 /* Cabecera con solo el logo (sin texto): centrado y a mayor tamaño. */
 .bmos-brand--logo-only {
     justify-content: center;
-    padding-top: 1.4rem;
-    padding-bottom: 1.4rem;
+    padding-top: 1rem;
+    padding-bottom: 0.85rem;
 }
 
-/* Símbolo BMIA de la cabecera de la barra. */
+/* Símbolo BMIA de la cabecera de la barra. A 112px ocupaba casi media barra y empujaba el menú;
+   a 64px se lee igual de nítido (es SVG) y deja la cabecera a la altura de un elemento del menú. */
 .bmos-logo-mark {
     display: block;
-    width: 112px;
+    width: 64px;
     height: auto;
     /* El halo se recrea aquí y no dentro del SVG: así se ajusta o se quita sin tocar el dibujo,
        y no se arrastra el fondo oscuro que llevaría una imagen con el brillo ya horneado. */
-    filter: drop-shadow(0 0 14px rgba(59, 130, 246, 0.35));
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.35));
 }
 
 .bmos-nav {

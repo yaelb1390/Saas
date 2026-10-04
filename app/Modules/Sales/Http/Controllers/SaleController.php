@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Http\Controllers;
 
+use App\Modules\Billing\Contracts\ElectronicInvoicingHook;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Core\Support\CompanyLogoStore;
 use App\Modules\Sales\Models\Sale;
@@ -101,7 +102,9 @@ final class SaleController extends Controller
          */
         $width = 226.77;
         $height = 540 + ($sale->items->count() * 30)
-            + ($sale->company?->hasLogo() ? CompanyLogoStore::PDF_ESPACIO_PT : 0);
+            + ($sale->company?->hasLogo() ? CompanyLogoStore::PDF_ESPACIO_PT : 0)
+            // El timbre del e-CF: cinco renglones + QR de 25 mm (≈ 71 pt) + código de seguridad.
+            + ($data['timbre'] !== null ? 175 : 0);
 
         $pdf = Pdf::loadView('sales.receipt-pdf', $data)
             ->setPaper([0, 0, $width, $height]);
@@ -125,10 +128,14 @@ final class SaleController extends Controller
         // recibo dispararía una consulta por línea.
         $sale->load(['items.product', 'items.employee', 'items.options', 'employee', 'company']);
 
+        $invoice = Invoice::query()->where('sale_id', $sale->id)->first();
+
         return [
             'sale' => $sale,
             'company' => $sale->company,
-            'invoice' => Invoice::query()->where('sale_id', $sale->id)->first(),
+            'invoice' => $invoice,
+            // Si el comprobante es un e-CF, su timbre (QR, código de seguridad…) va en el ticket.
+            'timbre' => $invoice !== null ? app(ElectronicInvoicingHook::class)->printedRepresentation($invoice) : null,
         ];
     }
 }

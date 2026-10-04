@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Printing\Http\Controllers;
 
+use App\Modules\Billing\Contracts\ElectronicInvoicingHook;
 use App\Modules\Billing\Models\Invoice;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\Printing\DTOs\SavePrinterData;
@@ -217,10 +218,16 @@ final class PrintingController extends Controller
             $template->paper_size = $datos['paper_size'];
         }
 
+        $factura = ($datos['document_type'] === 'sale_ticket' && isset($datos['sale_id']))
+            ? Invoice::query()->where('sale_id', $datos['sale_id'])->first()
+            : null;
+
         $data = ($datos['document_type'] === 'sale_ticket' && isset($datos['sale_id']))
             ? SaleTicketAdapter::desde(
                 Sale::query()->with(['items.product', 'items.employee', 'items.options'])->findOrFail($datos['sale_id']),
-                Invoice::query()->where('sale_id', $datos['sale_id'])->first(),
+                $factura,
+                // Si el comprobante es un e-CF, su timbre (QR y código de seguridad) va en el ticket.
+                $factura !== null ? app(ElectronicInvoicingHook::class)->printedRepresentation($factura) : null,
             )
             : SampleDataFactory::paraTipo($datos['document_type']);
 

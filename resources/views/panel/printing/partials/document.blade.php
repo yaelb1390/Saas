@@ -127,6 +127,24 @@
     @endif
 
     {{--
+        Sello fiscal (timbre del e-CF): obligatorio, se pinta aunque la plantilla no tenga QR. Su QR
+        llega ya generado (SVG del servidor, el mismo que el PDF): no depende del script del navegador
+        y mide 25 mm, por encima del mínimo de 22 mm de la DGII.
+    --}}
+    @if ($data->stamp)
+        <hr class="bmos-doc-sep">
+        <div style="text-align: center;">
+            @foreach ($data->stamp['lines'] as $linea)
+                <div>{{ $linea }}</div>
+            @endforeach
+            <img src="{{ $data->stamp['qr_image'] }}" alt="QR" style="width: 25mm; height: 25mm; margin: 4px auto 2px; display: block;">
+            @if (! empty($data->stamp['below_qr']))
+                <div style="font-weight: bold;">{{ $data->stamp['below_qr'] }}</div>
+            @endif
+        </div>
+    @endif
+
+    {{--
         QR y código de barras se dibujan EN EL NAVEGADOR (canvas/SVG vía `resources/js/printing/codes.js`,
         cargado por quien incluya esta plantilla) y no en el servidor: así la vista previa del editor
         se actualiza al instante con cada tecla, sin ir y volver al servidor por una imagen, y no hace

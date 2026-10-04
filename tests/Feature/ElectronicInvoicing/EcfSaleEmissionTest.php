@@ -529,3 +529,59 @@ it('un e-CF de producción rechazado avisa al dueño por correo y dispara el eve
     $html = (new \App\Modules\ElectronicInvoicing\Mail\EcfRejectedMail('Ana', 'Colmado', 'E320000000001', 'Factura de Consumo Electrónica', '236.00', 'RNC inválido', 'https://bmos.test/doc', '18095551234', 'soporte@bm.test'))->render();
     expect($html)->toContain('E320000000001')->toContain('RNC inválido');
 });
+
+/*
+ * El timbre en el ticket de 80 mm: HTML, PDF y la impresión térmica (ESC/POS) del Centro de Impresión.
+ */
+
+it('el ticket de una venta con e-CF lleva su timbre en HTML, PDF y ESC/POS', function (): void {
+    ($this->certificado)();
+    ($this->serieE)(EcfType::Consumo, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+    ecfNotasDgiiFalsa();
+
+    $venta = ($this->venta)();
+    $factura = app(InvoiceService::class)->issueForSale($venta);
+    $ecf = ElectronicInvoice::sole();
+
+    $duena = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@ticket.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->get(route('panel.sales.receipt', $venta))->assertOk()
+        ->assertSee('e-NCF: E320000000001', false)
+        ->assertSee("Código de seguridad: {$ecf->security_code}", false)
+        ->assertSee('data:image/svg+xml;base64,', false)
+        ->assertSee('Factura de Consumo Electrónica');
+
+    $pdf = $this->actingAs($duena)->get(route('panel.sales.receipt.pdf', $venta))->assertOk()->assertHeader('Content-Type', 'application/pdf');
+    // El alto del rollo se calcula a mano: con el timbre tiene que seguir cabiendo en UNA página.
+    expect(preg_match_all('#/Type\s*/Page[^s]#', (string) $pdf->getContent()))->toBe(1);
+
+    // Centro de Impresión: el sello va en el ticket aunque la plantilla no tenga QR.
+    $timbre = app(\App\Modules\Billing\Contracts\ElectronicInvoicingHook::class)->printedRepresentation($factura);
+    $datos = \App\Modules\Printing\Support\SaleTicketAdapter::desde($venta->load(['items.product', 'items.employee', 'items.options']), $factura, $timbre);
+    $plantilla = new \App\Modules\Printing\Models\PrintTemplate([
+        'document_type' => 'sale_ticket', 'paper_size' => '80mm',
+        'layout' => app(\App\Modules\Printing\Services\TemplateService::class)->layoutPorDefecto('sale_ticket'),
+    ]);
+    $render = app(\App\Modules\Printing\Services\DocumentRenderer::class);
+
+    expect($datos->stamp['qr_url'])->toBe($timbre['url'])
+        ->and(base64_decode($render->renderEscPos($plantilla, $this->company, $datos)))->toContain($timbre['url'])->toContain('Código de seguridad')
+        ->and($render->renderHtml($plantilla, $this->company, $datos)['html'])->toContain('Código de seguridad')->toContain('e-NCF: E320000000001');
+});
+
+it('un ticket con NCF en papel no lleva timbre', function (): void {
+    ($this->serieB)();
+    $venta = ($this->venta)();
+    app(InvoiceService::class)->issueForSale($venta);
+
+    $duena = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@ticketb.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->get(route('panel.sales.receipt', $venta))->assertOk()
+        ->assertSee('NCF: B0200000001', false)->assertDontSee('Código de seguridad');
+});

@@ -489,8 +489,16 @@ si el ambiente no es de producción. En paralelo no se toca: el documento es la 
 - **Hallazgo — versión del QR:** el DT pide versión 8, pero la URL completa de un e-CF (~200 caracteres)
   no cabe en la versión 8 en modo byte (máx. 192). Se intenta la 8 y, si no cabe, la menor que la contenga
   (en la práctica la 9); nunca se recorta la URL. En `pending_verification.qr_version`.
-- **Fuera de esta fase:** el ticket de 80 mm de ventas rápidas es otro sistema (no se toca sin decisión
-  del usuario); las notas 33/34 y las compras 41/43 no tienen todavía PDF propio.
+- **Ticket de 80 mm** (decisión del usuario, 2026-10-04): el mismo timbre en los tres caminos del ticket
+  de venta, solo si el comprobante es un e-CF (con NCF en papel, nada cambia):
+  - `sales/receipt` (HTML que imprime el POS) y `sales/receipt-pdf` (dompdf): parcial
+    `sales/partials/ecf-timbre` con tipo, e-NCF, vencimiento, firma, QR de 25 mm y código de seguridad. El
+    alto del rollo suma 175 pt y sigue saliendo en una sola página (probado).
+  - Centro de Impresión: `PrintableDocumentData` gana un `stamp` (sello fiscal) genérico; `SaleTicketAdapter`
+    lo llena y `DocumentRenderer` lo pinta en HTML y en ESC/POS (QR nativo de la térmica, `GS ( k`)
+    **aunque la plantilla no tenga QR**: es un requisito del comprobante, no decoración.
+  - Sin fusionar con el sistema A4: el ticket sigue siendo su propia plantilla.
+- **Fuera de esta fase:** las notas 33/34 y las compras 41/43 no tienen todavía PDF propio.
 
 ## Fase 6d — Diagnóstico y avisos (2026-10-04)
 

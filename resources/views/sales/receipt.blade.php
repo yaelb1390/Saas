@@ -69,7 +69,7 @@
             <strong>RECIBO DE VENTA</strong><br>
             <span class="muted">{{ $sale->code }}</span>
             @if ($invoice)
-                <div class="badge-ncf">NCF: {{ $invoice->ncf }}</div>
+                <div class="badge-ncf">{{ ! empty($timbre) ? 'e-NCF' : 'NCF' }}: {{ $invoice->ncf }}</div>
             @endif
         </div>
 
@@ -124,6 +124,11 @@
             <div class="row"><span class="muted">Pagado</span><span>{{ number_format((float) $sale->paid, 2) }}</span></div>
             <div class="row"><span class="muted">Cambio</span><span>{{ number_format((float) $sale->change, 2) }}</span></div>
         </div>
+
+        @if (! empty($timbre))
+            <hr class="sep">
+            @include('sales.partials.ecf-timbre', ['timbre' => $timbre])
+        @endif
 
         <hr class="sep">
 

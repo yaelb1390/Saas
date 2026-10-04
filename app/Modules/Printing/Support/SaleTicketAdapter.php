@@ -22,7 +22,13 @@ final class SaleTicketAdapter
      * `$invoice` llega aparte y no por una relación: `Sale` no tiene `invoice()` —el comprobante
      * fiscal se busca por `sale_id` desde `Invoice`, como ya hace `SalesController::receiptData()`—.
      */
-    public static function desde(Sale $sale, ?Invoice $invoice = null): PrintableDocumentData
+    /**
+     * `$timbre` es la representación impresa del e-CF (ElectronicInvoicingHook::printedRepresentation)
+     * cuando el comprobante es electrónico: tipo, e-NCF, vencimiento, QR y código de seguridad.
+     *
+     * @param  array<string, mixed>|null  $timbre
+     */
+    public static function desde(Sale $sale, ?Invoice $invoice = null, ?array $timbre = null): PrintableDocumentData
     {
         $meta = [
             ['label' => 'Fecha', 'value' => ($sale->completed_at ?? $sale->created_at)?->format('d/m/Y H:i') ?? ''],
@@ -31,8 +37,22 @@ final class SaleTicketAdapter
         ];
 
         if ($invoice?->ncf) {
-            $meta[] = ['label' => 'NCF', 'value' => $invoice->ncf];
+            $meta[] = ['label' => $timbre ? 'e-NCF' : 'NCF', 'value' => $invoice->ncf];
         }
+
+        $sello = $timbre === null ? null : [
+            'lines' => array_values(array_filter([
+                (string) $timbre['tipo'],
+                'e-NCF: '.$timbre['encf'],
+                $timbre['vence'] ? 'Vence: '.$timbre['vence'] : null,
+                $timbre['fecha_firma'] ? 'Firma digital: '.$timbre['fecha_firma'] : null,
+                $timbre['contingencia'] ?: null,
+                $timbre['fiscal'] ? null : 'Ambiente '.$timbre['ambiente'].': sin validez fiscal',
+            ])),
+            'qr_url' => (string) $timbre['url'],
+            'qr_image' => (string) $timbre['qr'],
+            'below_qr' => 'Código de seguridad: '.$timbre['codigo'],
+        ];
 
         $lineas = $sale->items->map(static function ($item): array {
             $detalle = collect([
@@ -70,6 +90,7 @@ final class SaleTicketAdapter
             lines: $lineas,
             totals: $totales,
             note: $sale->employee ? 'Atendió: '.$sale->employee->name : null,
+            stamp: $sello,
         );
     }
 }

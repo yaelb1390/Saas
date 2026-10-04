@@ -124,6 +124,18 @@ final class DocumentRenderer
             }
         }
 
+        // Sello fiscal (timbre del e-CF): obligatorio, se imprime aunque la plantilla no tenga QR.
+        if ($data->stamp !== null) {
+            $b->align('center')->feed(1);
+            foreach ($data->stamp['lines'] as $linea) {
+                $b->line((string) $linea);
+            }
+            $b->qr((string) $data->stamp['qr_url']);
+            if (! empty($data->stamp['below_qr'])) {
+                $b->line((string) $data->stamp['below_qr']);
+            }
+        }
+
         if (($layout['qr']['enabled'] ?? false) && $data->reference) {
             $b->align('center')->feed(1)->qr($data->reference);
         }

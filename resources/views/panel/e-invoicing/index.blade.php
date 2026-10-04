@@ -379,6 +379,9 @@
                         @error('certificate')
                             <p class="mt-2 text-xs text-rose-600">{{ $message }}</p>
                         @enderror
+                        @error('password')
+                            <p class="mt-2 text-xs text-rose-600">{{ $message }}</p>
+                        @enderror
                     </form>
                 @endif
             @endcan

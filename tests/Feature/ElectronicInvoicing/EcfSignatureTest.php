@@ -248,6 +248,29 @@ it('el dueño sube el certificado desde la pantalla; la contraseña nunca vuelve
     expect(ElectronicCertificate::count())->toBe(1);
 });
 
+it('distingue el certificado que no se eligió del que llegó a medias, y deja constancia', function (): void {
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@subida.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->post(route('panel.e-invoicing.certificate.store'), ['password' => 'clave'])
+        ->assertSessionHasErrors(['certificate' => 'No llegó ningún archivo. Elige el .p12 o .pfx con «Seleccionar archivo» y vuelve a guardar.']);
+
+    // Un archivo que PHP recibió a medias (UPLOAD_ERR_PARTIAL) Laravel lo trata como ausente.
+    $temporal = tempnam(sys_get_temp_dir(), 'p12');
+    file_put_contents($temporal, 'a medias');
+    $roto = new \Illuminate\Http\UploadedFile($temporal, 'firma.p12', 'application/x-pkcs12', UPLOAD_ERR_PARTIAL, true);
+
+    $this->actingAs($duena)->post(route('panel.e-invoicing.certificate.store'), ['certificate' => $roto, 'password' => 'clave'])
+        ->assertSessionHasErrors(['certificate' => 'El archivo se envió pero no llegó completo al servidor (código 3). Vuelve a intentarlo; si se repite, avisa a soporte.']);
+
+    expect(\App\Modules\Core\Models\SystemEvent::query()->where('type', 'ecf.certificate_upload_failed')->count())->toBe(1)
+        ->and(ElectronicCertificate::count())->toBe(0);
+
+    @unlink($temporal);
+});
+
 it('el cajero no sube certificados', function (): void {
     $cajero = withRole(\App\Models\User::create([
         'company_id' => $this->company->id, 'name' => 'Cajero', 'email' => 'cajero@cert.test', 'password' => 'secret-password',

@@ -480,3 +480,52 @@ it('el QR intenta la versión 8 y, si la URL no cabe, usa la menor que la conten
     expect($qr->svg('https://fc.dgii.gov.do/ecf/consultatimbrefc?rncemisor=131000002&encf=E320000000001&montototal=236.00&codigoseguridad=abc123')['version'])->toBe(8)
         ->and($qr->svg(str_repeat('x', 230))['version'])->toBeGreaterThan(8);
 });
+
+/*
+ * Fase 6h: avisos. Un rechazo de producción avisa al dueño por correo; en pruebas, no.
+ */
+
+it('un e-CF de producción rechazado avisa al dueño por correo y dispara el evento', function (): void {
+    \Illuminate\Support\Facades\Mail::fake();
+    \Illuminate\Support\Facades\Event::fake([\App\Modules\ElectronicInvoicing\Events\EcfStatusChanged::class]);
+
+    // Con el evento falso no corre el oyente: se comprueba aparte, abajo.
+    ($this->certificado)();
+    ($this->serieE)(EcfType::Consumo, Environment::Produccion);
+    ($this->modo)(EmissionMode::Real, Environment::Produccion);
+    $this->ajustes->forceFill(['provider' => 'dgii'])->save();
+    Http::fake([
+        'ecf.dgii.gov.do/ecf/autenticacion/api/autenticacion/semilla' => Http::response('<SemillaModel><valor>x</valor></SemillaModel>'),
+        'ecf.dgii.gov.do/ecf/autenticacion/api/autenticacion/validarsemilla' => Http::response(['token' => 't', 'expira' => now()->addHour()->toIso8601String()]),
+        'fc.dgii.gov.do/ecf/recepcionfc/api/recepcion/ecf' => Http::response(['codigo' => 2, 'estado' => 'Rechazado', 'mensajes' => [['codigo' => '1', 'valor' => 'RNC del comprador inválido']], 'secuenciaUtilizada' => true]),
+    ]);
+
+    app(InvoiceService::class)->issueForSale(($this->venta)());
+    $ecf = ElectronicInvoice::sole();
+
+    expect($ecf->status)->toBe(EcfStatus::Rechazado);
+    \Illuminate\Support\Facades\Event::assertDispatched(\App\Modules\ElectronicInvoicing\Events\EcfStatusChanged::class,
+        fn ($e) => $e->to === EcfStatus::Rechazado && $e->encf === 'E320000000001');
+
+    // El oyente, con el evento real.
+    $owner = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@rechazo.test', 'password' => 'secret-password',
+    ]), 'owner');
+    app(\App\Modules\ElectronicInvoicing\Listeners\NotifyRejectedEcf::class)->handle(new \App\Modules\ElectronicInvoicing\Events\EcfStatusChanged(
+        $ecf->id, $this->company->id, $ecf->e_ncf, EcfStatus::Enviando, EcfStatus::Rechazado, Environment::Produccion,
+    ));
+
+    \Illuminate\Support\Facades\Mail::assertSent(\App\Modules\ElectronicInvoicing\Mail\EcfRejectedMail::class,
+        fn ($m) => $m->encf === 'E320000000001' && str_contains($m->reason, 'RNC del comprador inválido'));
+
+    // En pruebas no se avisa.
+    \Illuminate\Support\Facades\Mail::fake();
+    app(\App\Modules\ElectronicInvoicing\Listeners\NotifyRejectedEcf::class)->handle(new \App\Modules\ElectronicInvoicing\Events\EcfStatusChanged(
+        $ecf->id, $this->company->id, $ecf->e_ncf, EcfStatus::Enviando, EcfStatus::Rechazado, Environment::Pruebas,
+    ));
+    \Illuminate\Support\Facades\Mail::assertNothingSent();
+
+    // El correo se pinta (HTML y texto).
+    $html = (new \App\Modules\ElectronicInvoicing\Mail\EcfRejectedMail('Ana', 'Colmado', 'E320000000001', 'Factura de Consumo Electrónica', '236.00', 'RNC inválido', 'https://bmos.test/doc', '18095551234', 'soporte@bm.test'))->render();
+    expect($html)->toContain('E320000000001')->toContain('RNC inválido');
+});

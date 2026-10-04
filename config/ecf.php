@@ -299,6 +299,14 @@ return [
     'default_provider' => 'fake',
 
     /*
+     * Avisos (fase 6h). Solo para e-CF de producción: en pruebas los rechazos son parte de probar.
+     * WhatsApp/Telegram: el evento EcfStatusChanged ya existe para conectarlos (n8n) cuando se pida.
+     */
+    'notifications' => [
+        'email_on_rejection' => (bool) env('ECF_EMAIL_ON_REJECTION', true),
+    ],
+
+    /*
      * Respuesta del proveedor de prueba (valores de ProviderOutcome), para recorrer cada camino:
      * received, accepted, accepted_conditional, rejected, in_process, not_found, transient_error,
      * permanent_error. `sequence_used` es el `secuenciaUtilizada` de un rechazo simulado [DT p.24].

@@ -6,7 +6,9 @@ namespace App\Modules\ElectronicInvoicing\Models;
 
 use App\Modules\Core\Tenancy\BelongsToCompany;
 use App\Modules\Core\Tenancy\HasCompany;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
 /**
@@ -25,6 +27,12 @@ final class ElectronicInvoiceAuditLog extends Model implements HasCompany
     {
         static::updating(fn () => throw new LogicException('La bitácora de e-CF no se modifica.'));
         static::deleting(fn () => throw new LogicException('La bitácora de e-CF no se borra.'));
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     protected function casts(): array

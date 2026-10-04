@@ -9,6 +9,7 @@ use App\Modules\Core\Tenancy\CompanyScope;
 use App\Modules\ElectronicInvoicing\Contingency\ContingencyService;
 use App\Modules\ElectronicInvoicing\Domain\EcfDocument;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
+use App\Modules\ElectronicInvoicing\Events\EcfStatusChanged;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceAuditLog;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
@@ -405,6 +406,9 @@ final class ElectronicInvoiceService
             $ecf->forceFill(['status' => $to])->save();
             $this->log($ecf, $accion, $desde, $to, $userId, $ip, $detalle);
         });
+
+        // Se entrega al confirmar la transacción (ShouldDispatchAfterCommit).
+        EcfStatusChanged::dispatch((int) $ecf->id, (int) $ecf->company_id, $ecf->e_ncf, $desde, $to, $ecf->environment);
     }
 
     private function log(ElectronicInvoice $ecf, string $accion, ?EcfStatus $desde, ?EcfStatus $hacia, ?int $userId, ?string $ip, array $detalle = []): void

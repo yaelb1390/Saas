@@ -519,6 +519,25 @@ documentado allí).
 Con esto queda cubierto el «Pendiente (fase 6)» de los documentos atascados en «enviando»: se señalan para
 consultarlos antes de reenviar (reenviar a ciegas podría duplicar).
 
+## Fases 6e–6h — Cifras, pasos, auditoría y avisos (2026-10-04)
+
+- **6e Cifras** (`Application/EmissionStats`): «Emisión de los últimos 30 días» en el resumen del ambiente
+  actual — documentos, % de aceptación (aceptados / resueltos), total e ITBIS (rechazados y anulados no
+  suman), barras apiladas por día (aceptados, rechazados, pendientes; Chart.js como el dashboard) y
+  desglose por tipo. Dos consultas agrupadas.
+- **6f Pasos para emitir** (`Application/SetupWizard`): los 8 pasos del plan (datos fiscales →
+  secuencias → certificado → pruebas en paralelo → validación técnica → pruebas aceptadas → certificación
+  → producción) con su estado **calculado** de lo que existe —no guardado aparte, que se quedaría viejo— y
+  enlace a la tarjeta que resuelve cada uno. 7 y 8 dependen de la DGII: se dan por hechos al cambiar de
+  ambiente, y producción exige la confirmación expresa.
+- **6g Auditoría** (permiso `ecf.audit`): la bitácora de todos los e-CF de la empresa, filtrable por
+  e-NCF, usuario, acción y fechas; enlaza a cada documento. Las filas solo se añaden.
+- **6h Avisos**: cada cambio de estado dispara `Events\EcfStatusChanged` **después de confirmar la
+  transacción** (gancho para n8n/webhooks/CRM). Oyente `NotifyRejectedEcf`: si la DGII rechaza un e-CF de
+  **producción**, correo al dueño con el motivo y el enlace (`emails/ecf-rejected`). En pruebas y
+  certificación no (los rechazos son parte de probar). Se apaga con `ECF_EMAIL_ON_REJECTION=false`.
+  WhatsApp/Telegram: el evento queda listo para conectarlos cuando se pida.
+
 ## Corrección incluida en la fase 0: barra superior en el teléfono
 
 El icono de instalar la app (2026-10-01) empujaba el avatar 26 px fuera de la pantalla a 390 px. Ahora el

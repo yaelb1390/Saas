@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\ElectronicInvoicing\Http\Controllers;
 
+use App\Models\User;
 use App\Modules\Core\Support\DbTable;
+use App\Modules\Core\Tenancy\CurrentCompany;
+use App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceAuditLog;
+use Illuminate\Support\Carbon;
 use App\Modules\Core\Support\EntregaDeArchivo;
 use App\Modules\ElectronicInvoicing\Application\ElectronicInvoiceService;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
@@ -45,6 +49,40 @@ final class ElectronicDocumentController extends Controller
             'documentos' => $documentos,
             'estados' => EcfStatus::cases(),
             'tipos' => EcfType::cases(),
+        ]);
+    }
+
+    /**
+     * Bitácora de toda la empresa, filtrable. Las filas solo se añaden (ElectronicInvoiceAuditLog):
+     * lo que se ve aquí es la historia completa, con usuario e IP.
+     */
+    public function audit(Request $request): View
+    {
+        $filtros = $request->validate([
+            'encf' => ['nullable', 'string', 'max:13'],
+            'usuario' => ['nullable', 'integer'],
+            'accion' => ['nullable', 'string', 'max:60'],
+            'desde' => ['nullable', 'date'],
+            'hasta' => ['nullable', 'date'],
+        ]);
+
+        $filas = DbTable::existe('electronic_invoice_audit_logs')
+            ? ElectronicInvoiceAuditLog::query()
+                ->with('user:id,name')
+                ->when($filtros['encf'] ?? null, fn ($q, $v) => $q->whereLike('e_ncf', '%'.$v.'%'))
+                ->when($filtros['usuario'] ?? null, fn ($q, $v) => $q->where('user_id', $v))
+                ->when($filtros['accion'] ?? null, fn ($q, $v) => $q->where('action', $v))
+                ->when($filtros['desde'] ?? null, fn ($q, $v) => $q->where('created_at', '>=', Carbon::parse($v)->startOfDay()))
+                ->when($filtros['hasta'] ?? null, fn ($q, $v) => $q->where('created_at', '<=', Carbon::parse($v)->endOfDay()))
+                ->latest('id')
+                ->paginate(30)
+                ->withQueryString()
+            : null;
+
+        return view('panel.e-invoicing.audit', [
+            'filas' => $filas,
+            'acciones' => $filas === null ? [] : ElectronicInvoiceAuditLog::query()->distinct()->orderBy('action')->pluck('action')->all(),
+            'usuarios' => User::query()->where('company_id', app(CurrentCompany::class)->id())->orderBy('name')->get(['id', 'name']),
         ]);
     }
 

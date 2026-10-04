@@ -6,7 +6,10 @@ namespace App\Modules\ElectronicInvoicing\Providers;
 
 use App\Modules\Billing\Contracts\ElectronicInvoicingHook;
 use App\Modules\ElectronicInvoicing\Application\Sources\BillingBridge;
+use App\Modules\ElectronicInvoicing\Events\EcfStatusChanged;
+use App\Modules\ElectronicInvoicing\Listeners\NotifyRejectedEcf;
 use App\Modules\ElectronicInvoicing\Xml\SchemaRegistry;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -27,5 +30,9 @@ final class ElectronicInvoicingServiceProvider extends ServiceProvider
         $this->app->bind(ElectronicInvoicingHook::class, BillingBridge::class);
     }
 
-    public function boot(): void {}
+    public function boot(): void
+    {
+        // Rechazo de un e-CF de producción → correo al dueño (fase 6h).
+        Event::listen(EcfStatusChanged::class, NotifyRejectedEcf::class);
+    }
 }

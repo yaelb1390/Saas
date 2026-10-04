@@ -555,3 +555,34 @@ it('los pasos para emitir se calculan de lo que ya existe', function (): void {
         ->and($p[7]['done'])->toBeFalse()
         ->and($p[8]['done'])->toBeFalse();
 });
+
+/*
+ * Fase 6g: auditoría de toda la empresa.
+ */
+
+it('la auditoría lista y filtra la bitácora de todos los e-CF', function (): void {
+    ($this->certificado)();
+    ($this->secuencia)(EcfType::Consumo);
+    ($this->secuencia)(EcfType::CreditoFiscal);
+    ($this->emitir)(EcfType::Consumo);
+    ($this->emitir)(EcfType::CreditoFiscal);
+
+    $this->company->forceFill(['modules' => null])->save();
+    $duena = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@audit.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->get(route('panel.e-invoicing.audit'))->assertOk()
+        ->assertSee('E320000000001')->assertSee('E310000000001')->assertSee('XML firmado');
+
+    $this->actingAs($duena)->get(route('panel.e-invoicing.audit', ['encf' => 'E31']))->assertOk()
+        ->assertSee('E310000000001')->assertDontSee('E320000000001');
+
+    $this->actingAs($duena)->get(route('panel.e-invoicing.audit', ['accion' => 'Documento aceptado']))->assertOk()
+        ->assertSee('E320000000001')->assertDontSee('E310000000001');
+
+    $cajero = withRole(\App\Models\User::create([
+        'company_id' => $this->company->id, 'name' => 'Cajero', 'email' => 'cajero@audit.test', 'password' => 'secret-password',
+    ]), 'staff');
+    $this->actingAs($cajero)->get(route('panel.e-invoicing.audit'))->assertForbidden();
+});

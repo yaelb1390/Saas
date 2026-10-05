@@ -172,14 +172,15 @@
                             </td>
                             <td data-rotulo="Emitida" class="text-slate-400">{{ $invoice->issued_at?->format('d/m/Y H:i') }}</td>
                             <td class="text-right">
+                                <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
                                 <a href="{{ route('panel.invoices.pdf', $invoice) }}" target="_blank" rel="noopener"
-                                   class="rounded-lg p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Ver PDF">
+                                   class="inline-flex rounded-lg bg-sky-50 p-1.5 text-sky-600 ring-1 ring-sky-200 transition hover:bg-sky-100 hover:text-sky-700" title="Ver PDF" aria-label="Ver PDF">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.1rem;height:1.1rem"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h1M6 4h8l4 4v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/></svg>
                                 </a>
                                 {{-- Nota de crédito / débito electrónica: solo si la factura tiene e-CF. --}}
                                 @if (! $invoice->isCancelled() && ($invoice->getAttributes()['electronic_invoice_id'] ?? null) !== null)
                                     @can('ecf.issue')
-                                    <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600" title="Nota de crédito o débito"
+                                    <button type="button" class="inline-flex rounded-lg bg-emerald-50 p-1.5 text-emerald-600 ring-1 ring-emerald-200 transition hover:bg-emerald-100 hover:text-emerald-700" title="Nota de crédito o débito" aria-label="Nota de crédito o débito"
                                             @click="noting = { id: {{ $invoice->id }}, ncf: @js($invoice->ncf) }">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.1rem;height:1.1rem"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6"/></svg>
                                     </button>
@@ -187,12 +188,13 @@
                                 @endif
                                 @unless ($invoice->isCancelled())
                                     @can('invoices.cancel')
-                                    <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Anular"
+                                    <button type="button" class="inline-flex rounded-lg bg-rose-50 p-1.5 text-rose-600 ring-1 ring-rose-200 transition hover:bg-rose-100 hover:text-rose-700" title="Anular" aria-label="Anular"
                                             @click="cancelling = { id: {{ $invoice->id }}, ncf: @js($invoice->ncf) }">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:1.1rem;height:1.1rem"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                                     </button>
                                     @endcan
                                 @endunless
+                                </div>
                             </td>
                         </tr>
                     @empty

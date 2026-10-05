@@ -55,6 +55,7 @@ final class ElectronicInvoiceService
         private readonly FiscalDocumentStore $files,
         private readonly ProviderResolver $providers,
         private readonly ContingencyService $contingency,
+        private readonly SigningReadiness $signing,
     ) {}
 
     /** Prepara y envía en el acto. */
@@ -97,8 +98,8 @@ final class ElectronicInvoiceService
             throw new EcfValidationException($prueba->errors);
         }
 
-        // 2. Sin certificado no se podría firmar: no se reserva número.
-        if ($this->certificates->active($company) === null) {
+        // 2. Sin con qué firmar (certificado, o un proveedor que firma) no se reserva número.
+        if (! $this->signing->canSign($company)) {
             throw CertificateException::missing();
         }
 
@@ -306,10 +307,20 @@ final class ElectronicInvoiceService
         return ['enviados' => $enviados, 'consultados' => $consultados, 'entregados' => $entregados, 'restantes' => max(0, $pendientes->count() - $enviados - $consultados)];
     }
 
+    /**
+     * Firma aquí con el certificado de la empresa o, si su proveedor conectado firma por ella, se lo
+     * pide a él. Lo que se guarda es lo mismo en los dos casos (bytes exactos, código de seguridad,
+     * hora), así que el envío, el QR y el ticket no distinguen quién firmó.
+     */
     private function firmar(Company $company, ElectronicInvoice $ecf, EcfDocument $doc, DOMDocument $xml): void
     {
-        $certificado = $this->certificates->load($company);
-        $firmado = $this->signer->sign($xml, $certificado, now());
+        $remoto = $this->signing->remoteSigner($company);
+        $certificado = $remoto === null ? $this->certificates->load($company) : null;
+        $firmar = fn (DOMDocument $x, bool $conFecha = true) => $remoto !== null
+            ? $remoto->signDocument($company, $ecf->environment, $x, $conFecha)
+            : $this->signer->sign($x, $certificado, now(), writeSignatureDate: $conFecha);
+
+        $firmado = $firmar($xml);
 
         $this->files->put($ecf, 'firmado', $firmado->xml);
         $ecf->forceFill([
@@ -328,7 +339,7 @@ final class ElectronicInvoiceService
             }
 
             $this->files->put($ecf, 'rfce', (string) $rfce->xml->saveXML());
-            $this->files->put($ecf, 'rfce_firmado', $this->signer->sign($rfce->xml, $certificado, now(), writeSignatureDate: false)->xml);
+            $this->files->put($ecf, 'rfce_firmado', $firmar($rfce->xml, false)->xml);
         }
     }
 

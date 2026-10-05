@@ -20,4 +20,18 @@ Por ahora puedes:
 - **Anular números sin usar** de una secuencia ante la DGII, cuando ya no la vas a usar.
 - Revisar el **Diagnóstico**, que te dice qué falta y cómo resolverlo.
 
+## Conectar tu proveedor autorizado (PSFE)
+
+Si trabajas con un **proveedor de servicios de facturación electrónica autorizado por la DGII**, puedes conectarlo en vez de configurar tú la firma:
+
+1. En **Conecta tu proveedor autorizado**, elige tu proveedor.
+2. Escribe los datos de tu cuenta con él (por ejemplo, su clave de API).
+3. Pulsa **Conectar y probar**. BMIA comprueba la conexión antes de guardar nada; si el proveedor no acepta los datos, te dice por qué y no cambia tu configuración.
+
+Si tu proveedor **firma por ti**, ya no necesitas subir el certificado digital: el paso aparece como hecho. Las secuencias de e-NCF sí las sigues registrando, porque te las autoriza la DGII a ti.
+
+Tus datos de acceso se guardan cifrados y no se vuelven a mostrar. Desde la misma tarjeta puedes **Probar otra vez** o **Desconectar**. Si desconectas y no tienes certificado, la emisión de e-CF se apaga, porque ya no hay con qué firmar.
+
+La conexión directa con la DGII y el certificado propio siguen disponibles igual que antes.
+
 Tu empresa empieza en el ambiente de **pruebas**, con un proveedor de prueba que no envía nada a la DGII. Los documentos fiscales se conservan 10 años, aunque se elimine la cuenta.

@@ -13,9 +13,11 @@ use App\Modules\ElectronicInvoicing\Contingency\ContingencyService;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\ElectronicInvoicing\Domain\EcfType;
 use App\Modules\ElectronicInvoicing\Domain\EmissionMode;
+use App\Modules\ElectronicInvoicing\Models\ElectronicCertificate;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
 use App\Modules\ElectronicInvoicing\Models\ElectronicNcfSequence;
+use App\Modules\ElectronicInvoicing\Providers\PsfeProvider;
 use App\Modules\ElectronicInvoicing\Signature\CertificateVault;
 use App\Modules\ElectronicInvoicing\Xml\SchemaRegistry;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +51,7 @@ final class Diagnostics
         private readonly SchemaRegistry $schemas,
         private readonly RuntimeRequirements $runtime,
         private readonly ContingencyService $contingency,
+        private readonly PsfeProvider $psfe,
     ) {}
 
     /**
@@ -75,14 +78,13 @@ final class Diagnostics
             ? $this->item('datos', 'Datos fiscales del emisor', self::OK, "{$s->legal_name} · RNC {$s->tax_id}")
             : $this->item('datos', 'Datos fiscales del emisor', self::ERROR, 'Falta: '.implode(', ', $faltan).'.', 'Complétalos en «Datos fiscales y ambiente».');
 
-        // 2. Certificado.
+        // 2. Certificado. Si el proveedor conectado firma por la empresa y no hay certificado, no es un
+        // fallo: es algo que la empresa no tiene que hacer.
         $cert = $this->certificates->active($company);
-        $r[] = match ($cert?->status()) {
-            'vigente' => $this->item('certificado', 'Certificado digital', self::OK, 'Vigente hasta el '.$cert->valid_to->format('d/m/Y').'.'),
-            'por_vencer' => $this->item('certificado', 'Certificado digital', self::AVISO, 'Vence el '.$cert->valid_to->format('d/m/Y').'.', 'Renuévalo con tu prestadora de servicios de confianza y súbelo antes de que venza: sin él no se firma nada.'),
-            'vencido' => $this->item('certificado', 'Certificado digital', self::ERROR, 'Venció el '.$cert->valid_to->format('d/m/Y').'.', 'Sube un certificado vigente.'),
-            'aun_no_valido' => $this->item('certificado', 'Certificado digital', self::AVISO, 'Todavía no es válido.', 'Espera a su fecha de inicio o sube otro.'),
-            default => $this->item('certificado', 'Certificado digital', $emitiendo ? self::ERROR : self::AVISO, 'No hay certificado cargado.', 'Súbelo en «Certificado digital».'),
+        $conector = $s->provider === 'psfe' ? $this->psfe->driverFor($company) : null;
+        $r[] = match (true) {
+            $cert === null && $conector?->capabilities()->signs === true => $this->item('certificado', 'Firma digital', self::OK, "La hace tu proveedor ({$conector->label()}): no hace falta subir certificado."),
+            default => $this->itemCertificado($cert, $emitiendo),
         };
 
         // 2b. [DTEE «Firmado de XML»] El SN del certificado tiene que ser el RNC/cédula del titular.
@@ -112,7 +114,9 @@ final class Diagnostics
                 'Actívalos en Plataforma → Empresas → Módulos, o inclúyelos en su plan.');
         }
         $r[] = match (true) {
-            $s->provider === 'psfe' && $emitiendo => $this->item('proveedor', 'Proveedor', self::ERROR, 'El proveedor certificado (PSFE) todavía no está conectado en BMIA.', 'Elige el proveedor o usa el de prueba mientras tanto.'),
+            $s->provider === 'psfe' && $conector === null => $this->item('proveedor', 'Proveedor', $emitiendo ? self::ERROR : self::AVISO, 'El proveedor certificado (PSFE) todavía no está conectado.', 'Conéctalo en «Conecta tu proveedor autorizado».'),
+            $s->provider === 'psfe' && ($s->provider_config['check_ok'] ?? true) === false => $this->item('proveedor', 'Proveedor', self::AVISO, "{$conector->label()}: la última prueba de conexión falló.", 'Pulsa «Probar otra vez» o revisa los datos de tu cuenta.'),
+            $s->provider === 'psfe' => $this->item('proveedor', 'Proveedor', self::OK, $conector->label()),
             $s->provider === 'fake' && $emitiendo => $this->item('proveedor', 'Proveedor', self::AVISO, 'Proveedor de prueba: no se envía nada a la DGII.', 'Para enviar de verdad elige un proveedor real.'),
             default => $this->item('proveedor', 'Proveedor', self::OK, $s->provider),
         };
@@ -315,5 +319,21 @@ final class Diagnostics
     private function item(string $key, string $title, string $level, string $detail, ?string $fix = null): array
     {
         return ['key' => $key, 'title' => $title, 'level' => $level, 'detail' => $detail, 'fix' => $level === self::OK ? null : $fix];
+    }
+
+    /**
+     * El chequeo del certificado de la empresa (cuando firma BMIA).
+     *
+     * @return array{key: string, title: string, level: string, detail: string, fix: ?string}
+     */
+    private function itemCertificado(?ElectronicCertificate $cert, bool $emitiendo): array
+    {
+        return match ($cert?->status()) {
+            'vigente' => $this->item('certificado', 'Certificado digital', self::OK, 'Vigente hasta el '.$cert->valid_to->format('d/m/Y').'.'),
+            'por_vencer' => $this->item('certificado', 'Certificado digital', self::AVISO, 'Vence el '.$cert->valid_to->format('d/m/Y').'.', 'Renuévalo con tu prestadora de servicios de confianza y súbelo antes de que venza: sin él no se firma nada.'),
+            'vencido' => $this->item('certificado', 'Certificado digital', self::ERROR, 'Venció el '.$cert->valid_to->format('d/m/Y').'.', 'Sube un certificado vigente.'),
+            'aun_no_valido' => $this->item('certificado', 'Certificado digital', self::AVISO, 'Todavía no es válido.', 'Espera a su fecha de inicio o sube otro.'),
+            default => $this->item('certificado', 'Certificado digital', $emitiendo ? self::ERROR : self::AVISO, 'No hay certificado cargado.', 'Súbelo en «Certificado digital».'),
+        };
     }
 }

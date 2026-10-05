@@ -8,7 +8,10 @@ use App\Modules\Core\Support\DbTable;
 use App\Modules\Core\Tenancy\CurrentCompany;
 use App\Modules\ElectronicInvoicing\Application\Diagnostics;
 use App\Modules\ElectronicInvoicing\Application\EmissionStats;
+use App\Modules\ElectronicInvoicing\Application\PsfeConnectionService;
 use App\Modules\ElectronicInvoicing\Application\SetupWizard;
+use App\Modules\ElectronicInvoicing\Application\SigningReadiness;
+use App\Modules\ElectronicInvoicing\Providers\Psfe\PsfeCatalog;
 use App\Modules\ElectronicInvoicing\Ncf\RangeVoidService;
 use App\Modules\ElectronicInvoicing\Providers\ProviderOutcome;
 use Throwable;
@@ -75,6 +78,12 @@ final class ElectronicInvoicingController extends Controller
             'modos' => EmissionMode::cases(),
             'provincias' => app(TerritoryCatalog::class)->provinces(),
             'municipios' => app(TerritoryCatalog::class)->municipalities(),
+            // «Conecta tu proveedor autorizado»: los del catálogo que valen en el ambiente actual y la
+            // conexión guardada, sin credenciales.
+            'psfeCatalogo' => DbTable::existe('electronic_invoicing_settings')
+                ? app(PsfeCatalog::class)->availableIn(ElectronicInvoicingSettings::paraEmpresa($empresa)->environment)
+                : [],
+            'psfeConexion' => DbTable::existe('electronic_invoicing_settings') ? app(PsfeConnectionService::class)->current($empresa) : null,
             'proveedores' => [
                 'fake' => 'De prueba (no envía nada a la DGII)',
                 'psfe' => 'Proveedor certificado (PSFE)',
@@ -126,7 +135,7 @@ final class ElectronicInvoicingController extends Controller
      * Cambiar de ambiente APAGA la emisión: lo que valía en pruebas («en paralelo») no vale en
      * producción, y el modo real hay que encenderlo a propósito, no heredarlo de un cambio de ambiente.
      */
-    public function updateSettings(UpdateElectronicInvoicingSettingsRequest $request, CurrentCompany $actual, CertificateVault $vault): RedirectResponse
+    public function updateSettings(UpdateElectronicInvoicingSettingsRequest $request, CurrentCompany $actual, SigningReadiness $firma): RedirectResponse
     {
         if (! DbTable::existe('electronic_invoicing_settings')) {
             return back()->with('panel_error', 'Falta aplicar las migraciones de facturación electrónica.');
@@ -158,7 +167,7 @@ final class ElectronicInvoicingController extends Controller
         }
 
         $ajustes->save();
-        $ajustes->syncStatus(DbTable::existe('electronic_certificates') && $vault->active($empresa) !== null);
+        $ajustes->syncStatus(DbTable::existe('electronic_certificates') && $firma->canSign($empresa));
 
         return back()->with('panel_ok', $cambiaAmbiente
             ? "Configuración guardada. Ambiente: {$ambiente->label()}. La emisión quedó apagada: enciéndela de nuevo si corresponde."
@@ -169,10 +178,11 @@ final class ElectronicInvoicingController extends Controller
      * Cambia el modo de emisión (apagado / en paralelo / real).
      *
      * «Real» solo en producción y «en paralelo» nunca en producción (`EmissionMode::allowedIn`).
-     * Encender cualquiera de los dos exige un certificado activo: sin él no se puede firmar nada y
+     * Encender cualquiera de los dos exige con qué firmar —un certificado activo o un proveedor
+     * conectado que firme (`SigningReadiness`)—: sin firma no sale nada y
      * cada factura dejaría un aviso en el registro.
      */
-    public function updateMode(Request $request, CurrentCompany $actual, CertificateVault $vault): RedirectResponse
+    public function updateMode(Request $request, CurrentCompany $actual, SigningReadiness $firma): RedirectResponse
     {
         if (! DbTable::tieneColumna('electronic_invoicing_settings', 'emission_mode')) {
             return back()->with('panel_error', 'Falta aplicar las migraciones de facturación electrónica.');
@@ -189,8 +199,8 @@ final class ElectronicInvoicingController extends Controller
             return back()->withErrors(['emission_mode' => "«{$modo->label()}» no está disponible en el ambiente {$ajustes->environment->label()}."]);
         }
 
-        if ($modo !== EmissionMode::Apagado && $vault->active($empresa) === null) {
-            return back()->withErrors(['emission_mode' => 'Primero sube el certificado digital: sin él no se puede firmar ningún e-CF.']);
+        if ($modo !== EmissionMode::Apagado && ! $firma->canSign($empresa)) {
+            return back()->withErrors(['emission_mode' => 'Primero sube el certificado digital o conecta un proveedor que firme: sin firma no sale ningún e-CF.']);
         }
 
         $ajustes->forceFill(['emission_mode' => $modo->value])->save();

@@ -331,8 +331,147 @@
             </div>
         @endif
 
+        {{-- Conectar un proveedor certificado (PSFE) con los datos de la cuenta, sin más configuración.
+             El catálogo y los campos salen de cada conector (config/ecf_psfe.php); la conexión se prueba
+             en vivo y solo se guarda si funciona (PsfeConnectionService). Las claves no se vuelven a
+             enseñar nunca: un campo secreto vacío conserva la guardada. --}}
+        @if ($ajustes)
+            @php
+                $firmaProveedor = $psfeConexion !== null && $psfeConexion['driver']->capabilities()->signs;
+                $elegido = old('psfe', $psfeConexion !== null ? $psfeConexion['driver']->slug() : (count($psfeCatalogo) === 1 ? array_key_first($psfeCatalogo) : ''));
+                $fecha = fn (?string $iso) => $iso ? \Illuminate\Support\Carbon::parse($iso)->timezone(config('app.timezone'))->format('d/m/Y H:i') : '—';
+            @endphp
+            <div id="proveedor" class="bmos-card bmos-card-pad scroll-mt-20" x-data="{ elegido: @js($elegido) }">
+                <p class="font-semibold text-slate-800">Conecta tu proveedor autorizado</p>
+                <p class="mt-1 text-xs text-slate-500">
+                    Si trabajas con un proveedor de servicios de facturación electrónica (PSFE) autorizado por la DGII,
+                    conéctalo con los datos de tu cuenta. Si tu proveedor firma por ti, no necesitas subir certificado.
+                    La conexión directa con la DGII y el certificado siguen disponibles.
+                </p>
+
+                @if ($psfeConexion)
+                    <div class="mt-4 flex items-center gap-3 rounded-lg border p-3 {{ $psfeConexion['check_ok'] ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50' }}">
+                        <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ $psfeConexion['check_ok'] ? 'bg-emerald-500' : 'bg-amber-500' }}"></span>
+                        <div class="min-w-0 text-sm">
+                            <p class="font-medium text-slate-800">Conectado a {{ $psfeConexion['driver']->label() }}</p>
+                            @if ($psfeConexion['account'])
+                                <p class="text-xs text-slate-600">{{ $psfeConexion['account'] }}</p>
+                            @endif
+                        </div>
+                    </div>
+
+                    <dl class="mt-3 divide-y divide-slate-100 text-sm">
+                        <div class="flex items-center justify-between gap-3 py-2">
+                            <dt class="text-slate-500">Firma</dt>
+                            <dd class="text-right text-slate-800">{{ $firmaProveedor ? 'La hace tu proveedor' : 'Con tu certificado digital' }}</dd>
+                        </div>
+                        <div class="flex items-start justify-between gap-3 py-2">
+                            <dt class="shrink-0 text-slate-500">Última prueba</dt>
+                            <dd class="min-w-0 text-right text-slate-800">
+                                {{ $fecha($psfeConexion['checked_at']) }}
+                                <span class="bmos-badge {{ $psfeConexion['check_ok'] ? 'badge-green' : 'badge-red' }}">{{ $psfeConexion['check_ok'] ? 'Correcta' : 'Falló' }}</span>
+                                @if ($psfeConexion['check_message'])
+                                    <span class="block text-xs text-slate-500">{{ $psfeConexion['check_message'] }}</span>
+                                @endif
+                            </dd>
+                        </div>
+                        <div class="flex items-center justify-between gap-3 py-2">
+                            <dt class="text-slate-500">Conectado desde</dt>
+                            <dd class="text-right text-slate-800">{{ $fecha($psfeConexion['connected_at']) }}</dd>
+                        </div>
+                    </dl>
+
+                    @can('ecf.configure')
+                        <div class="mt-3 flex flex-wrap justify-end gap-2">
+                            <form method="POST" action="{{ route('panel.e-invoicing.psfe.test') }}">
+                                @csrf
+                                <button type="submit" class="bmos-btn bmos-btn-suave">Probar otra vez</button>
+                            </form>
+                            <x-panel.confirm-action
+                                :action="route('panel.e-invoicing.psfe.disconnect')"
+                                method="DELETE"
+                                title="¿Desconectar el proveedor?"
+                                :message="'Se borran los datos de tu cuenta de '.$psfeConexion['driver']->label().' guardados en BMIA.'"
+                                :note="$firmaProveedor ? 'Si no tienes certificado digital, la emisión de e-CF se apagará: no habrá con qué firmar.' : null"
+                                confirm="Desconectar"
+                                dismiss="Volver"
+                                tone="danger"
+                                class="bmos-btn border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">
+                                Desconectar
+                            </x-panel.confirm-action>
+                        </div>
+                    @endcan
+                @elseif ($psfeCatalogo === [])
+                    <p class="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-500">
+                        Todavía no hay proveedores disponibles para conectar en el ambiente {{ $ajustes->environment->label() }}.
+                    </p>
+                @endif
+
+                @can('ecf.configure')
+                    @if ($psfeCatalogo !== [])
+                        <details class="mt-4 rounded-lg border border-slate-200 p-3" @if (! $psfeConexion || $errors->has('psfe')) open @endif>
+                            <summary class="cursor-pointer text-sm font-medium text-slate-800">
+                                {{ $psfeConexion ? 'Cambiar de proveedor o los datos de la cuenta' : 'Elige tu proveedor' }}
+                            </summary>
+
+                            <form method="POST" action="{{ route('panel.e-invoicing.psfe.connect') }}" class="mt-3 space-y-3">
+                                @csrf
+                                <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    @foreach ($psfeCatalogo as $slug => $conector)
+                                        <label class="flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm"
+                                               :class="elegido === @js($slug) ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200'">
+                                            <input type="radio" name="psfe" value="{{ $slug }}" x-model="elegido" class="mt-0.5">
+                                            <span>
+                                                <b class="font-medium text-slate-800">{{ $conector->label() }}</b>
+                                                <span class="block text-xs text-slate-500">{{ $conector->description() }}</span>
+                                                @if ($conector->capabilities()->signs)
+                                                    <span class="mt-1 inline-block text-xs font-medium text-emerald-700">Firma por ti: no necesitas certificado</span>
+                                                @endif
+                                            </span>
+                                        </label>
+                                    @endforeach
+                                </div>
+
+                                @foreach ($psfeCatalogo as $slug => $conector)
+                                    @php $guardado = $psfeConexion !== null && $psfeConexion['driver']->slug() === $slug; @endphp
+                                    <div x-show="elegido === @js($slug)" x-cloak class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        @foreach ($conector->fields() as $campo)
+                                            <div>
+                                                <label class="bmos-field-label" for="psfe-{{ $slug }}-{{ $campo->name }}">{{ $campo->label }}</label>
+                                                {{-- Deshabilitado si no es el proveedor elegido: así solo viajan sus datos. --}}
+                                                <input id="psfe-{{ $slug }}-{{ $campo->name }}" name="credentials[{{ $campo->name }}]"
+                                                       type="{{ $campo->secret ? 'password' : 'text' }}" autocomplete="off" maxlength="{{ $campo->maxLength }}"
+                                                       :disabled="elegido !== @js($slug)"
+                                                       placeholder="{{ $campo->secret && $guardado ? 'Guardada · déjala vacía para conservarla' : '' }}"
+                                                       class="bmos-input">
+                                                @if ($campo->help)
+                                                    <p class="mt-1 text-xs text-slate-500">{{ $campo->help }}</p>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endforeach
+
+                                <p class="text-xs text-slate-500">Se guarda cifrado y no se vuelve a mostrar. Antes de guardar, BMIA prueba la conexión con tu proveedor.</p>
+                                @error('psfe') <p class="text-xs text-rose-600">{{ $message }}</p> @enderror
+
+                                <div class="flex justify-end">
+                                    <button type="submit" class="bmos-btn bmos-btn-primary" :disabled="elegido === ''">Conectar y probar</button>
+                                </div>
+                            </form>
+                        </details>
+                    @endif
+                @endcan
+            </div>
+        @endif
+
         <div id="certificado" class="bmos-card bmos-card-pad scroll-mt-20">
             <p class="font-semibold text-slate-800">Certificado digital</p>
+            @if ($firmaProveedor ?? false)
+                <p class="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
+                    No hace falta: la firma la hace tu proveedor ({{ $psfeConexion['driver']->label() }}). Solo súbelo si quieres firmar desde BMIA.
+                </p>
+            @endif
             <p class="mt-1 text-xs text-slate-500">
                 El certificado para procesos tributarios con el que se firman los e-CF, emitido por una prestadora acreditada
                 por INDOTEL. Se guarda cifrado y la clave privada nunca se muestra.

@@ -297,7 +297,29 @@ Cada cambio de estado lo valida `EcfStatus::canTransitionTo()` (un salto ilegal 
   RFCE (host `fc.`, síncrona) y consulta de resultado (códigos 0–4). El ambiente sale del segmento de la
   URL (`testecf`/`certecf`/`ecf`). La semilla se lee sin red y rechazando DOCTYPE/entidades (anti-XXE).
   Tiempos: 3 s de conexión, 8 s en total.
-- `psfe`: contrato listo; responde «no configurado» hasta elegir el proveedor certificado.
+- `psfe` (Escenario B, `PsfeProvider`): despachador. Pasa cada llamada al **conector** que la empresa
+  conectó (`Providers/Psfe/PsfeDriver`), con sus credenciales descifradas de `provider_config`. Sin
+  conector o sin un dato obligatorio responde «no configurado», como antes.
+  - **Catálogo**: `config/ecf_psfe.php` (`slug => clase`). Añadir un proveedor = escribir su conector
+    **a partir de su documentación** y su cuenta de pruebas, y una línea en el catálogo. Nunca se inventa
+    una API. Hoy solo existe `sandbox` (`SandboxPsfeDriver`): acepta claves `sandbox_…`, firma con un
+    certificado de usar y tirar (firma real, que la DGII no reconoce), responde como `fake` y se niega en
+    producción.
+  - **Conector**: declara sus campos (`PsfeField`: secreto, obligatorio, ayuda), sus capacidades
+    (`PsfeCapabilities`: `signs`, `findsReceivers`, `voidsRanges`) y `testConnection()`.
+  - **Conexión** (`Application/PsfeConnectionService`, tarjeta `#proveedor`, rutas
+    `panel.e-invoicing.psfe.*`): prueba en vivo y **solo guarda si funciona**. En `provider_config`
+    (cifrado, fuera de la auditoría) quedan `psfe`, `credentials`, `account`, `connected_at`,
+    `checked_at`, `check_ok` y `check_message`. Un secreto vacío al reconectar con el mismo proveedor
+    conserva el guardado. Desconectar vuelve a `fake` en pruebas (en certificación/producción queda `psfe`
+    sin conectar) y apaga la emisión si ya no hay con qué firmar. Eventos `PsfeConnected` /
+    `PsfeDisconnected`, sin credenciales.
+  - **Firma por el proveedor**: si el conector tiene `signs`, `PsfeProvider` implementa `SignsDocuments`
+    y `Application/SigningReadiness` lo da por bueno. La emisión no exige certificado y `firmar()` le pide
+    la firma al proveedor (e-CF y RFCE). Se guarda igual que la firma local: bytes, código de seguridad
+    y hora. El asistente (paso 3) y el diagnóstico lo reflejan. Las aprobaciones comerciales (ACECF), la
+    anulación de rangos (ANECF) y los servicios de receptor siguen firmando con el certificado de la
+    empresa.
 
 ### Contingencia (`Contingency/ContingencyService`)
 

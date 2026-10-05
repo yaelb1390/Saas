@@ -39,7 +39,7 @@
         <strong>RECIBO DE VENTA</strong><br>
         <span class="muted">{{ $sale->code }}</span>
         @if ($invoice)
-            <div><span class="ncf">{{ ! empty($timbre) ? 'e-NCF' : 'NCF' }}: {{ $invoice->ncf }}</span></div>
+            <div><span class="ncf">{{ ! empty($timbre) && empty($timbre['prueba']) ? 'e-NCF' : 'NCF' }}: {{ $invoice->ncf }}</span></div>
         @endif
     </div>
 

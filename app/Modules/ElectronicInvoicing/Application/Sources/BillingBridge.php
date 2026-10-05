@@ -231,15 +231,32 @@ final class BillingBridge implements ElectronicInvoicingHook
 
     public function printedRepresentation(Invoice $invoice): ?array
     {
-        // Solo cuando el comprobante ES el e-CF (modo real). En paralelo el documento es la factura B.
-        if (! str_starts_with((string) $invoice->ncf, 'E')) {
-            return null;
-        }
-
         try {
-            $ecf = $this->notes->original($invoice);
+            // Modo real: el comprobante ES el e-CF.
+            if (str_starts_with((string) $invoice->ncf, 'E')) {
+                $ecf = $this->notes->original($invoice);
 
-            return $ecf === null ? null : app(Timbre::class)->for($ecf);
+                return $ecf === null ? null : app(Timbre::class)->for($ecf);
+            }
+
+            /*
+             * En paralelo: el comprobante es la factura B y el e-CF es una prueba. El dueño quiere ver
+             * su QR en el papel para comprobar que todo funciona, así que se imprime, pero marcado
+             * `prueba` —las vistas lo titulan «e-CF DE PRUEBA» y siguen llamando NCF al número B— y
+             * solo si su ambiente NO es el fiscal: un QR de producción junto a una factura B haría
+             * creer al cliente que tiene un comprobante que no es el suyo.
+             */
+            $vinculado = $invoice->getAttributes()['electronic_invoice_id'] ?? null;
+            if ($vinculado === null) {
+                return null;
+            }
+
+            $ecf = ElectronicInvoice::query()->withoutGlobalScopes()->find($vinculado);
+            if ($ecf === null || $ecf->security_code === null || $ecf->environment->isFiscal()) {
+                return null;
+            }
+
+            return [...app(Timbre::class)->for($ecf), 'prueba' => true];
         } catch (Throwable $e) {
             report($e);
 

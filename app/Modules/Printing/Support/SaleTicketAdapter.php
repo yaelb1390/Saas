@@ -37,11 +37,13 @@ final class SaleTicketAdapter
         ];
 
         if ($invoice?->ncf) {
-            $meta[] = ['label' => $timbre ? 'e-NCF' : 'NCF', 'value' => $invoice->ncf];
+            // Con el e-CF de prueba (modo «En paralelo») el comprobante sigue siendo el NCF B.
+            $meta[] = ['label' => $timbre && empty($timbre['prueba']) ? 'e-NCF' : 'NCF', 'value' => $invoice->ncf];
         }
 
         $sello = $timbre === null ? null : [
             'lines' => array_values(array_filter([
+                empty($timbre['prueba']) ? null : 'e-CF DE PRUEBA - tu comprobante es el NCF de arriba',
                 (string) $timbre['tipo'],
                 'e-NCF: '.$timbre['encf'],
                 $timbre['vence'] ? 'Vence: '.$timbre['vence'] : null,

@@ -12,6 +12,10 @@
             <p style="font-size: 7.6pt; color: #334155; margin-top: 2pt;">Código de seguridad: <b>{{ $timbre['codigo'] }}</b></p>
         </td>
         <td style="vertical-align: top; padding-left: 8pt; font-size: 8pt; color: #475569;">
+            @if (! empty($timbre['prueba']))
+                {{-- Modo «En paralelo»: el comprobante es la factura B; esto es el e-CF de prueba. --}}
+                <p style="font-weight: bold; color: #b91c1c; font-size: 9pt;">e-CF DE PRUEBA · el comprobante fiscal es el NCF de esta factura</p>
+            @endif
             <p style="font-weight: bold; color: #0f172a; font-size: 9pt;">{{ $timbre['tipo'] }}</p>
             <p style="margin-top: 2pt;">e-NCF: <b>{{ $timbre['encf'] }}</b></p>
             @if ($timbre['vence'])

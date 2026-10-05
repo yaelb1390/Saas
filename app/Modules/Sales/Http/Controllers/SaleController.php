@@ -104,7 +104,9 @@ final class SaleController extends Controller
         $height = 540 + ($sale->items->count() * 30)
             + ($sale->company?->hasLogo() ? CompanyLogoStore::PDF_ESPACIO_PT : 0)
             // El timbre del e-CF: cinco renglones + QR de 25 mm (≈ 71 pt) + código de seguridad.
-            + ($data['timbre'] !== null ? 175 : 0);
+            + ($data['timbre'] !== null ? 175 : 0)
+            // Y el título «e-CF DE PRUEBA» con su aclaración, en el modo «En paralelo».
+            + (! empty($data['timbre']['prueba']) ? 24 : 0);
 
         $pdf = Pdf::loadView('sales.receipt-pdf', $data)
             ->setPaper([0, 0, $width, $height]);

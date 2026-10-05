@@ -21,7 +21,8 @@
     'codigo' => $invoice->numeroInterno(),
     'ncf' => $invoice->ncf,
     // Con e-CF, el tipo en palabras es el del comprobante electrónico [IT §18].
-    'ncfLabel' => $timbre['tipo'] ?? $invoice->type->label(),
+    // Con el e-CF de prueba (modo «En paralelo») el comprobante sigue siendo la factura B.
+    'ncfLabel' => empty($timbre['prueba']) ? ($timbre['tipo'] ?? $invoice->type->label()) : $invoice->type->label(),
     'timbre' => $timbre ?? null,
     'fecha' => $invoice->issued_at,
     'company' => $company,

@@ -6,6 +6,11 @@
     array $timbre  ver ElectronicInvoicing\Printing\Timbre::for()
 --}}
 <div style="text-align: center; font-size: 8pt; line-height: 1.35;">
+    @if (! empty($timbre['prueba']))
+        {{-- Modo «En paralelo»: el comprobante del cliente es el NCF de arriba; esto es la prueba. --}}
+        <div style="font-weight: bold; font-size: 9pt;">e-CF DE PRUEBA</div>
+        <div style="margin-bottom: 2pt;">Tu comprobante fiscal es el NCF de arriba.</div>
+    @endif
     <div style="font-weight: bold;">{{ $timbre['tipo'] }}</div>
     <div>e-NCF: <strong>{{ $timbre['encf'] }}</strong></div>
     @if ($timbre['vence'])

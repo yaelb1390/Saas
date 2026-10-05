@@ -595,3 +595,33 @@ it('un ticket con NCF en papel no lleva timbre', function (): void {
     $this->actingAs($duena)->get(route('panel.sales.receipt', $venta))->assertOk()
         ->assertSee('NCF: B0200000001', false)->assertDontSee('Código de seguridad');
 });
+
+it('en paralelo el ticket lleva el QR del e-CF de prueba, marcado como prueba y sin dejar de ser NCF B', function (): void {
+    ($this->certificado)();
+    ($this->serieB)();
+    ($this->serieE)(EcfType::Consumo);
+    ($this->modo)(EmissionMode::Sombra);
+
+    $venta = ($this->venta)();
+    $factura = app(InvoiceService::class)->issueForSale($venta);
+    $ecf = ElectronicInvoice::sole();
+
+    $duena = withRole(User::create([
+        'company_id' => $this->company->id, 'name' => 'Dueña', 'email' => 'duena@ticketsombra.test', 'password' => 'secret-password',
+    ]), 'owner');
+
+    $this->actingAs($duena)->get(route('panel.sales.receipt', $venta))->assertOk()
+        // El comprobante del cliente sigue siendo el B: nunca «e-NCF» junto al número B.
+        ->assertSee('NCF: B0200000001', false)->assertDontSee('e-NCF: B0200000001', false)
+        ->assertSee('e-CF DE PRUEBA')
+        ->assertSee('e-NCF: <strong>E320000000001</strong>', false)
+        ->assertSee("Código de seguridad: {$ecf->security_code}", false)
+        ->assertSee('data:image/svg+xml;base64,', false);
+
+    $pdf = $this->actingAs($duena)->get(route('panel.sales.receipt.pdf', $venta))->assertOk();
+    expect(preg_match_all('#/Type\s*/Page[^s]#', (string) $pdf->getContent()))->toBe(1);
+
+    $timbre = app(\App\Modules\Billing\Contracts\ElectronicInvoicingHook::class)->printedRepresentation($factura);
+    $datos = \App\Modules\Printing\Support\SaleTicketAdapter::desde($venta->load(['items.product', 'items.employee', 'items.options']), $factura, $timbre);
+    expect(collect($datos->meta)->firstWhere('value', 'B0200000001')['label'])->toBe('NCF');
+});

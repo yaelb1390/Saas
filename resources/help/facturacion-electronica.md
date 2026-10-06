@@ -20,17 +20,29 @@ Por ahora puedes:
 - **Anular números sin usar** de una secuencia ante la DGII, cuando ya no la vas a usar.
 - Revisar el **Diagnóstico**, que te dice qué falta y cómo resolverlo.
 
-## Conectar tu proveedor autorizado (PSFE)
+## Proveedores autorizados (PSFE)
 
-Si trabajas con un **proveedor de servicios de facturación electrónica autorizado por la DGII**, puedes conectarlo en vez de configurar tú la firma:
+Si trabajas con un **proveedor de servicios de facturación electrónica autorizado por la DGII**, puedes conectarlo en vez de configurar tú la firma. Y puedes conectar **varios**: si el principal falla, tus facturas salen solas por el siguiente.
 
-1. En **Conecta tu proveedor autorizado**, elige tu proveedor.
-2. Escribe los datos de tu cuenta con él (por ejemplo, su clave de API).
+1. En **Facturación electrónica → Proveedor y firma → Proveedores autorizados**, elige tu proveedor.
+2. Escribe los datos de tu cuenta con él.
 3. Pulsa **Conectar y probar**. BMIA comprueba la conexión antes de guardar nada; si el proveedor no acepta los datos, te dice por qué y no cambia tu configuración.
+
+El primero que conectes es el **principal**; los siguientes entran como **respaldo**. Cambia el orden con **Hacer principal** / **Subir**.
+
+**Cómo funciona el respaldo:** si el principal no responde, la factura sale por el siguiente. Una factura **nunca se envía dos veces**: si hay duda de si el principal la recibió, BMIA se lo pregunta antes; si no puede confirmarlo, la factura espera y se reintenta sola. Si la factura tiene un error en sus datos, no se prueba con otro proveedor: hay que corregirla. Un proveedor que no responde se salta unos minutos para no hacer esperar a cada venta.
 
 Si tu proveedor **firma por ti**, ya no necesitas subir el certificado digital: el paso aparece como hecho. Las secuencias de e-NCF sí las sigues registrando, porque te las autoriza la DGII a ti.
 
-Tus datos de acceso se guardan cifrados y no se vuelven a mostrar. Desde la misma tarjeta puedes **Probar otra vez** o **Desconectar**. Si desconectas y no tienes certificado, la emisión de e-CF se apaga, porque ya no hay con qué firmar.
+### Digifact
+
+1. Pide a Digifact (soporte-rd@digifact.com) tu **usuario y contraseña** de su API, primero de pruebas.
+2. Entrégales tu **certificado digital**: Digifact firma con él cada factura.
+3. Conéctalo aquí con tu usuario (sin el «DO.» ni el RNC: BMIA los añade) y tu contraseña.
+
+Las aprobaciones comerciales y la anulación de rangos no las ofrece Digifact por su API: para eso sigue haciendo falta tu certificado en BMIA o la Oficina Virtual de la DGII.
+
+Tus datos de acceso se guardan cifrados y no se vuelven a mostrar. En cada proveedor puedes **Probar** o **Desconectar**. Si desconectas el último y no tienes certificado, la emisión de e-CF se apaga, porque ya no hay con qué firmar.
 
 La conexión directa con la DGII y el certificado propio siguen disponibles igual que antes.
 

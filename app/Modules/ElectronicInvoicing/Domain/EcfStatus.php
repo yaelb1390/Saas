@@ -33,7 +33,9 @@ enum EcfStatus: string
     private const TRANSICIONES = [
         'borrador' => ['generado', 'error'],
         'generado' => ['xml_generado', 'error'],
-        'xml_generado' => ['firmado', 'error'],
+        // A «pendiente_envio» sin pasar por «firmado»: con un proveedor que firma y envía en la misma
+        // llamada (PSFE `submitsUnsigned`), BMIA no firma; la firma llega con la respuesta del envío.
+        'xml_generado' => ['firmado', 'pendiente_envio', 'error'],
         'firmado' => ['pendiente_envio', 'error'],
         'pendiente_envio' => ['enviando', 'contingencia', 'error'],
         'enviando' => ['recibido', 'aceptado', 'aceptado_condicional', 'rechazado', 'pendiente_envio', 'contingencia', 'error'],

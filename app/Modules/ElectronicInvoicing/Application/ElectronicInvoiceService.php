@@ -11,6 +11,11 @@ use App\Modules\ElectronicInvoicing\Domain\EcfDocument;
 use App\Modules\ElectronicInvoicing\Domain\EcfStatus;
 use App\Modules\Core\Support\DbTable;
 use App\Modules\ElectronicInvoicing\Events\EcfStatusChanged;
+use App\Modules\ElectronicInvoicing\Events\PsfeFailover;
+use App\Modules\ElectronicInvoicing\Providers\Contracts\SubmitsDocuments;
+use App\Modules\ElectronicInvoicing\Signature\SecurityCode;
+use App\Modules\ElectronicInvoicing\Xml\SafeXml;
+use DOMXPath;
 use App\Modules\ElectronicInvoicing\Receiver\BuyerDeliveryService;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoiceAuditLog;
@@ -144,6 +149,14 @@ final class ElectronicInvoiceService
         $this->files->put($ecf, 'original', (string) $resultado->xml->saveXML());
         $this->moverA($ecf, EcfStatus::XmlGenerado, 'XML generado', $userId, $ip);
 
+        // Con un proveedor que firma y envía en la misma llamada, aquí no se firma ni se habla con
+        // nadie: la firma llega con la respuesta del envío (después de confirmar la transacción).
+        if ($this->signing->providerSignsOnSubmit($company)) {
+            $this->moverA($ecf, EcfStatus::PendienteEnvio, 'Listo para enviar (lo firma el proveedor)', $userId, $ip);
+
+            return $ecf;
+        }
+
         try {
             $this->firmar($company, $ecf, $doc, $resultado->xml);
         } catch (Throwable $e) {
@@ -171,10 +184,20 @@ final class ElectronicInvoiceService
         $nombre = $this->nombreArchivo($settings, $ecf);
         $resumen = $ecf->sends_summary;
 
+        // Con proveedores certificados (varios, con respaldo) va el documento entero: el firmado si lo
+        // hay y el original sin firmar, porque unos conectores firman ellos y otros no.
+        $porProveedores = $proveedor instanceof SubmitsDocuments;
+
         // Se lee ANTES de pasar a «enviando»: si falta o su huella no coincide, el documento queda en
         // error a la vista en vez de atascado en «enviando» (el procesador no recoge ese estado).
         try {
-            $xml = $this->files->get($ecf->file($resumen ? 'rfce_firmado' : 'firmado') ?? throw new LogicException('Falta el XML firmado.'));
+            $archivoFirmado = $ecf->file($resumen ? 'rfce_firmado' : 'firmado');
+            $xml = $archivoFirmado !== null ? $this->files->get($archivoFirmado) : null;
+            $original = $porProveedores ? $this->files->get($ecf->file('original') ?? throw new LogicException('Falta el XML original.')) : null;
+
+            if ($xml === null && ! $porProveedores) {
+                throw new LogicException('Falta el XML firmado.');
+            }
         } catch (Throwable $e) {
             $ecf->forceFill(['last_error' => $e->getMessage(), 'next_attempt_at' => null])->save();
 
@@ -191,14 +214,67 @@ final class ElectronicInvoiceService
 
         $this->moverA($ecf, EcfStatus::Enviando, 'Envío iniciado', $userId, $ip, ['proveedor' => $proveedor->name()]);
 
-        $r = $resumen
-            ? $proveedor->sendSummary($company, $ecf->environment, $xml, $nombre)
-            : $proveedor->send($company, $ecf->environment, $xml, $nombre);
+        $ultimoVia = str_starts_with((string) $ecf->provider, 'psfe:') ? substr((string) $ecf->provider, 5) : null;
 
-        $this->guardarRespuesta($ecf, $resumen ? 'send_summary' : 'send', $proveedor->name(), $r, $userId);
+        $r = match (true) {
+            $porProveedores => $proveedor->submit($company, $ecf->environment, $xml, (string) $original, $nombre, $resumen, $ecf->e_ncf, $ultimoVia),
+            $resumen => $proveedor->sendSummary($company, $ecf->environment, $xml, $nombre),
+            default => $proveedor->send($company, $ecf->environment, $xml, $nombre),
+        };
+
+        $this->guardarRespuesta($ecf, $resumen ? 'send_summary' : 'send', $r->via !== null ? 'psfe:'.$r->via : $proveedor->name(), $r, $userId);
         $ecf->forceFill(['attempts' => $ecf->attempts + 1, 'sent_at' => now()])->save();
+        $this->anotarProveedor($ecf, $r, $userId, $ip);
 
         return $this->aplicar($ecf, $r, $userId, $ip);
+    }
+
+    /**
+     * Lo que dejó el envío por proveedores certificados: QUIÉN lo atendió (las consultas irán a él),
+     * qué pasó con los que fallaron antes (bitácora y aviso de respaldo) y, si el proveedor firmó, su
+     * XML firmado y su código de seguridad —guardados igual que una firma de BMIA, para que el QR y el
+     * ticket no distingan quién firmó—.
+     */
+    private function anotarProveedor(ElectronicInvoice $ecf, ProviderResult $r, ?int $userId, ?string $ip): void
+    {
+        if ($r->via !== null) {
+            $ecf->forceFill(['provider' => mb_substr('psfe:'.$r->via, 0, 20)])->save();
+        }
+
+        foreach ($r->notes as $nota) {
+            $this->log($ecf, $nota, null, null, $userId, $ip);
+        }
+
+        $salio = in_array($r->outcome, [ProviderOutcome::Received, ProviderOutcome::Accepted, ProviderOutcome::AcceptedConditional, ProviderOutcome::Rejected], true);
+
+        if ($salio && $r->via !== null && $r->failoverFrom !== []) {
+            $this->log($ecf, 'Enviado por un proveedor de respaldo', null, null, $userId, $ip, ['fallaron' => $r->failoverFrom, 'enviado_por' => $r->via]);
+            PsfeFailover::dispatch((int) $ecf->company_id, (int) $ecf->id, $ecf->e_ncf, $r->failoverFrom, $r->via);
+        }
+
+        if ($r->signedXml !== null && $r->signedXml !== '') {
+            $this->guardarFirmaDelProveedor($ecf, $r->signedXml, $userId, $ip);
+        }
+    }
+
+    private function guardarFirmaDelProveedor(ElectronicInvoice $ecf, string $firmado, ?int $userId, ?string $ip): void
+    {
+        try {
+            $valor = trim((string) (new DOMXPath(SafeXml::load($firmado)))->evaluate("string(//*[local-name()='SignatureValue'][1])"));
+        } catch (Throwable $e) {
+            $this->log($ecf, 'El XML firmado del proveedor no se pudo leer', null, null, $userId, $ip, ['error' => $e->getMessage()]);
+
+            return;
+        }
+
+        $this->files->put($ecf, 'firmado', $firmado);
+        $ecf->forceFill([
+            'security_code' => $valor !== '' ? SecurityCode::fromSignatureValue($valor) : null,
+            'signed_at' => now(),
+            'certificate_fingerprint' => null,
+        ])->save();
+
+        $this->log($ecf, 'XML firmado por el proveedor', null, null, $userId, $ip);
     }
 
     /**
@@ -231,10 +307,11 @@ final class ElectronicInvoiceService
         }
 
         $company = Company::query()->findOrFail($ecf->company_id);
-        $proveedor = $this->providers->for(ElectronicInvoicingSettings::paraEmpresa($company));
+        // Al proveedor que lo RECIBIÓ: con varios proveedores certificados, otro no lo conoce.
+        $proveedor = $this->providers->forDocument(ElectronicInvoicingSettings::paraEmpresa($company), $ecf->provider);
 
         $r = $proveedor->queryResult($company, $ecf->environment, $ecf->track_id);
-        $this->guardarRespuesta($ecf, 'query', $proveedor->name(), $r, $userId);
+        $this->guardarRespuesta($ecf, 'query', $r->via !== null ? 'psfe:'.$r->via : $proveedor->name(), $r, $userId);
 
         return $this->aplicar($ecf, $r, $userId, null);
     }

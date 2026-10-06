@@ -1,33 +1,156 @@
 {{--
     Facturación Electrónica (e-CF) — resumen de la empresa activa.
 
-    Estilo de ajustes, igual que «Mi empresa»: secciones tituladas y color solo para estados. Esta
-    pantalla no llama a la DGII: enseña lo último registrado. Ver docs/FACTURACION_ELECTRONICA.md.
+    Diseño con daisyUI (clases `d-`, tema «bmia» limitado a este contenedor: ver app.css). Arriba lo
+    que se viene a mirar —estado e indicadores—; debajo, pestañas en vez de una columna larga.
+
+    Las pestañas ocultan con x-show, nunca con x-if: todos los formularios siguen en la página. La
+    pestaña abierta sale del #ancla (los pasos y los redirects ya apuntan a #datos, #proveedor…) y,
+    si volvió un error de validación, de la pestaña del formulario que falló.
+
+    Esta pantalla no llama a la DGII: enseña lo último registrado. Ver docs/FACTURACION_ELECTRONICA.md.
 --}}
+@php
+    $pestanaConError = match (true) {
+        $errors->hasAny(['psfe', 'certificate', 'password']) => 'firma',
+        $errors->hasAny(['ecf_type', 'range_from', 'range_to', 'authorized_at', 'expires_at']) => 'secuencias',
+        $errors->any() => 'configuracion',
+        default => null,
+    };
+    $pestanas = [
+        'resumen' => 'Resumen',
+        'configuracion' => 'Configuración',
+        'firma' => 'Proveedor y firma',
+        'secuencias' => 'Secuencias',
+        'tecnico' => 'Técnico',
+    ];
+    // Cada ancla de la página, en qué pestaña vive.
+    $anclas = [
+        'datos' => 'configuracion', 'emision' => 'configuracion',
+        'proveedor' => 'firma', 'certificado' => 'firma',
+        'secuencias' => 'secuencias',
+    ] + array_combine(array_keys($pestanas), array_keys($pestanas));
+@endphp
 <x-layouts.admin title="Facturación Electrónica" heading="Facturación Electrónica"
                  subheading="Comprobantes fiscales electrónicos (e-CF) ante la DGII">
-    <div class="mx-auto max-w-4xl space-y-4">
+    <div data-theme="bmia" class="bmos-ecf mx-auto max-w-5xl space-y-4"
+         x-data="{
+             tab: 'resumen',
+             anclas: @js($anclas),
+             init() {
+                 const abrir = () => {
+                     const ancla = location.hash.slice(1);
+                     const pestana = this.anclas[ancla];
+                     if (! pestana) return;
+                     this.tab = pestana;
+                     this.$nextTick(() => document.getElementById(ancla)?.scrollIntoView({ block: 'start' }));
+                 };
+                 this.tab = @js($pestanaConError) ?? this.anclas[location.hash.slice(1)] ?? 'resumen';
+                 if (! @js($pestanaConError)) abrir();
+                 window.addEventListener('hashchange', abrir);
+             },
+             ir(pestana) {
+                 this.tab = pestana;
+                 history.replaceState(null, '', '#' + pestana);
+             },
+         }">
 
         {{-- Aviso fijo. No se puede cerrar a propósito: es lo único que no debe malinterpretarse. --}}
-        <div class="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
-            <b class="text-slate-800">Esto no es una autorización de la DGII.</b>
+        <div role="alert" class="d-alert d-alert-soft d-alert-info text-sm">
+            <span><b>Esto no es una autorización de la DGII.</b>
             BMIA prepara y valida tus comprobantes electrónicos, pero solo la DGII autoriza a una empresa a emitir e-CF,
-            después de su proceso de certificación.
+            después de su proceso de certificación.</span>
         </div>
 
         @if ($migracionPendiente)
-            <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                La base de datos todavía no tiene las tablas de facturación electrónica. El administrador de la
-                plataforma debe aplicar las migraciones pendientes.
+            <div role="alert" class="d-alert d-alert-soft d-alert-warning text-sm">
+                <span>La base de datos todavía no tiene las tablas de facturación electrónica. El administrador de la
+                plataforma debe aplicar las migraciones pendientes.</span>
             </div>
         @endif
 
         @if ($ajustes && ! $ajustes->environment->isFiscal())
-            <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                Ambiente: <b>{{ $ajustes->environment->label() }}</b>. Nada de lo que se emita aquí tiene validez fiscal.
+            <div role="alert" class="d-alert d-alert-soft d-alert-warning text-sm">
+                <span>Ambiente: <b>{{ $ajustes->environment->label() }}</b>. Nada de lo que se emita aquí tiene validez fiscal.</span>
             </div>
         @endif
 
+        {{-- Cabecera: de un vistazo, cómo está la empresa y qué ha pasado con sus documentos. --}}
+        <div class="bmos-card bmos-card-pad">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <p class="truncate text-lg font-semibold text-slate-800">{{ $ajustes?->legal_name ?: $empresa->name }}</p>
+                    <p class="text-sm text-slate-500">
+                        RNC {{ $ajustes?->tax_id ?: 'sin configurar' }}
+                        · {{ $ajustes?->environment->label() ?? '—' }}
+                        @if ($ajustes && $modoDisponible) · {{ $ajustes->emissionMode()->label() }} @endif
+                    </p>
+                </div>
+                @if ($ajustes)
+                    <x-panel.ecf-badge :tono="$ajustes->status->badge()" grande>{{ $ajustes->status->label() }}</x-panel.ecf-badge>
+                @endif
+            </div>
+
+            <div class="d-stats d-stats-vertical mt-4 w-full border border-slate-200 sm:d-stats-horizontal">
+                <div class="d-stat">
+                    <div class="d-stat-title">Pendientes</div>
+                    <div class="d-stat-value text-warning">{{ $contadores['pendientes'] }}</div>
+                    <div class="d-stat-desc">por enviar o en espera de la DGII</div>
+                </div>
+                <div class="d-stat">
+                    <div class="d-stat-title">Aceptados</div>
+                    <div class="d-stat-value text-success">{{ $contadores['aceptados'] }}</div>
+                    <div class="d-stat-desc">en el ambiente actual y anteriores</div>
+                </div>
+                <div class="d-stat">
+                    <div class="d-stat-title">Rechazados</div>
+                    <div class="d-stat-value text-error">{{ $contadores['rechazados'] }}</div>
+                    <div class="d-stat-desc">revisa el motivo en cada documento</div>
+                </div>
+                @if ($cifras)
+                    <div class="d-stat">
+                        <div class="d-stat-title">Últimos 30 días</div>
+                        <div class="d-stat-value">{{ $cifras['totales']['documentos'] }}</div>
+                        <div class="d-stat-desc">
+                            {{ $cifras['totales']['aceptacion'] !== null ? $cifras['totales']['aceptacion'].' % de aceptación' : 'sin documentos resueltos' }}
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+                <a href="{{ route('panel.e-invoicing.documents') }}" class="d-btn d-btn-sm d-btn-primary d-btn-soft">Ver documentos</a>
+                <a href="{{ route('panel.e-invoicing.received') }}" class="d-btn d-btn-sm d-btn-soft">Recibidos</a>
+                <a href="{{ route('panel.e-invoicing.diagnostics') }}" class="d-btn d-btn-sm d-btn-soft">Diagnóstico</a>
+                @can('ecf.audit')
+                    <a href="{{ route('panel.e-invoicing.audit') }}" class="d-btn d-btn-sm d-btn-soft">Auditoría</a>
+                @endcan
+            </div>
+        </div>
+
+        {{-- Pestañas. Botones, no enlaces: el ancla la escribe `ir()` sin saltar la página. --}}
+        {{-- Con peso propio: icono, negrita y la activa rellena del índigo de marca. Las de daisyUI
+             (`d-tabs`) quedaban demasiado discretas sobre la tarjeta blanca y no se veía dónde se estaba. --}}
+        @php
+            $iconosPestana = ['resumen' => 'chart', 'configuracion' => 'sliders', 'firma' => 'shield', 'secuencias' => 'receipt', 'tecnico' => 'wrench'];
+        @endphp
+        <div role="tablist" class="flex gap-1.5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+            @foreach ($pestanas as $clave => $nombre)
+                <button type="button" role="tab"
+                        class="flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition"
+                        :class="tab === @js($clave)
+                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                            : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-700'"
+                        :aria-selected="tab === @js($clave)"
+                        @click="ir(@js($clave))">
+                    <x-icono :name="$iconosPestana[$clave]" class="h-5 w-5" />
+                    {{ $nombre }}
+                </button>
+            @endforeach
+        </div>
+
+        {{-- ── Resumen ───────────────────────────────────────────────────────────────── --}}
+        <div x-show="tab === 'resumen'" class="space-y-4">
         @if ($pasos !== [])
             @php $hechos = collect($pasos)->where('done', true)->count(); $siguiente = collect($pasos)->firstWhere('done', false); @endphp
             <div class="bmos-card bmos-card-pad">
@@ -35,10 +158,9 @@
                     <p class="font-semibold text-slate-800">Pasos para emitir e-CF</p>
                     <p class="text-xs text-slate-500">{{ $hechos }} de {{ count($pasos) }}</p>
                 </div>
-                <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                    <div class="h-full rounded-full bg-emerald-500" style="width: {{ (int) round(100 * $hechos / count($pasos)) }}%"></div>
-                </div>
-                <ol class="mt-4 divide-y divide-slate-100 text-sm">
+                <progress class="d-progress d-progress-success mt-2 w-full" value="{{ $hechos }}" max="{{ count($pasos) }}"></progress>
+
+                <ul class="d-steps d-steps-vertical mt-4 w-full text-sm lg:d-steps-horizontal">
                     @foreach ($pasos as $p)
                         @php
                             $enlace = match ($p['anchor']) {
@@ -46,21 +168,20 @@
                                 'documentos' => route('panel.e-invoicing.documents'),
                                 default => '#'.$p['anchor'],
                             };
+                            $esSiguiente = $siguiente && $siguiente['n'] === $p['n'];
                         @endphp
-                        <li class="flex items-start gap-3 py-2">
-                            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold
-                                {{ $p['done'] ? 'bg-emerald-500 text-white' : ($siguiente && $siguiente['n'] === $p['n'] ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500') }}">
-                                {{ $p['done'] ? '✓' : $p['n'] }}
-                            </span>
-                            <div class="min-w-0">
-                                <a href="{{ $enlace }}" class="font-medium {{ $p['done'] ? 'text-slate-500' : 'text-slate-800 hover:text-indigo-600' }}">{{ $p['title'] }}</a>
-                                @unless ($p['done'])
-                                    <p class="text-xs text-slate-500">{{ $p['detail'] }}</p>
-                                @endunless
-                            </div>
+                        <li class="d-step {{ $p['done'] ? 'd-step-success' : ($esSiguiente ? 'd-step-primary' : '') }}"
+                            data-content="{{ $p['done'] ? '✓' : $p['n'] }}">
+                            <a href="{{ $enlace }}" class="text-left lg:text-center {{ $p['done'] ? 'text-slate-500' : 'font-medium text-slate-800 hover:text-indigo-600' }}">{{ $p['title'] }}</a>
                         </li>
                     @endforeach
-                </ol>
+                </ul>
+
+                @if ($siguiente)
+                    <div class="d-alert d-alert-soft d-alert-info mt-4 text-sm">
+                        <span><b>Siguiente: {{ $siguiente['title'] }}.</b> {{ $siguiente['detail'] }}</span>
+                    </div>
+                @endif
             </div>
         @endif
 
@@ -195,7 +316,10 @@
                 }
             </script>
         @endif
+        </div>
 
+        {{-- ── Configuración ─────────────────────────────────────────────────────────── --}}
+        <div x-show="tab === 'configuracion'" x-cloak class="space-y-4">
         @if ($ajustes)
             @can('ecf.configure')
                 <div id="datos" class="bmos-card bmos-card-pad scroll-mt-20"
@@ -330,77 +454,91 @@
                 @endcan
             </div>
         @endif
+        </div>
 
-        {{-- Conectar un proveedor certificado (PSFE) con los datos de la cuenta, sin más configuración.
-             El catálogo y los campos salen de cada conector (config/ecf_psfe.php); la conexión se prueba
-             en vivo y solo se guarda si funciona (PsfeConnectionService). Las claves no se vuelven a
-             enseñar nunca: un campo secreto vacío conserva la guardada. --}}
+        {{-- ── Proveedor y firma ─────────────────────────────────────────────────────── --}}
+        <div x-show="tab === 'firma'" x-cloak class="space-y-4">
+        {{-- Proveedores certificados (PSFE): VARIOS, en orden. El primero es el principal y los demás,
+             respaldos por los que sale la factura si el anterior falla (PsfeProvider). El catálogo y los
+             campos salen de cada conector (config/ecf_psfe.php); cada conexión se prueba en vivo y solo
+             se guarda si funciona (PsfeConnectionService). Las claves no se vuelven a enseñar nunca: un
+             campo secreto vacío conserva la guardada. --}}
         @if ($ajustes)
             @php
-                $firmaProveedor = $psfeConexion !== null && $psfeConexion['driver']->capabilities()->signs;
-                $elegido = old('psfe', $psfeConexion !== null ? $psfeConexion['driver']->slug() : (count($psfeCatalogo) === 1 ? array_key_first($psfeCatalogo) : ''));
+                $principal = $psfeConexiones[0] ?? null;
+                $firmaProveedor = $principal !== null && $principal['driver']->capabilities()->signs;
+                $conectados = array_column($psfeConexiones, 'slug');
+                $porConectar = array_diff_key($psfeCatalogo, array_flip($conectados));
+                $elegido = old('psfe', count($porConectar) === 1 ? array_key_first($porConectar) : '');
                 $fecha = fn (?string $iso) => $iso ? \Illuminate\Support\Carbon::parse($iso)->timezone(config('app.timezone'))->format('d/m/Y H:i') : '—';
             @endphp
             <div id="proveedor" class="bmos-card bmos-card-pad scroll-mt-20" x-data="{ elegido: @js($elegido) }">
-                <p class="font-semibold text-slate-800">Conecta tu proveedor autorizado</p>
+                <p class="font-semibold text-slate-800">Proveedores autorizados</p>
                 <p class="mt-1 text-xs text-slate-500">
-                    Si trabajas con un proveedor de servicios de facturación electrónica (PSFE) autorizado por la DGII,
-                    conéctalo con los datos de tu cuenta. Si tu proveedor firma por ti, no necesitas subir certificado.
-                    La conexión directa con la DGII y el certificado siguen disponibles.
+                    Conecta uno o varios proveedores de servicios de facturación electrónica (PSFE) autorizados por la DGII.
+                    Las facturas salen por el <b>principal</b>; si falla, salen solas por el siguiente, sin enviarse dos veces.
+                    Si tu proveedor firma por ti, no necesitas subir certificado.
                 </p>
 
-                @if ($psfeConexion)
-                    <div class="mt-4 flex items-center gap-3 rounded-lg border p-3 {{ $psfeConexion['check_ok'] ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50' }}">
-                        <span class="h-2.5 w-2.5 shrink-0 rounded-full {{ $psfeConexion['check_ok'] ? 'bg-emerald-500' : 'bg-amber-500' }}"></span>
-                        <div class="min-w-0 text-sm">
-                            <p class="font-medium text-slate-800">Conectado a {{ $psfeConexion['driver']->label() }}</p>
-                            @if ($psfeConexion['account'])
-                                <p class="text-xs text-slate-600">{{ $psfeConexion['account'] }}</p>
-                            @endif
-                        </div>
-                    </div>
+                @if ($psfeConexiones !== [])
+                    <ol class="mt-4 space-y-3">
+                        @foreach ($psfeConexiones as $i => $c)
+                            <li class="rounded-xl border p-3 {{ $c['check_ok'] ? 'border-slate-200' : 'border-amber-300 bg-amber-50/50' }}">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full {{ $c['check_ok'] ? 'bg-emerald-500' : 'bg-amber-500' }}"></span>
+                                        <div class="min-w-0 text-sm">
+                                            <p class="font-semibold text-slate-800">
+                                                {{ $c['driver']->label() }}
+                                                <span class="bmos-badge {{ $i === 0 ? 'badge-blue' : 'badge-gray' }} ml-1">{{ $i === 0 ? 'Principal' : 'Respaldo '.$i }}</span>
+                                            </p>
+                                            @if ($c['account'])
+                                                <p class="text-xs text-slate-600">{{ $c['account'] }}</p>
+                                            @endif
+                                            <p class="mt-1 text-xs text-slate-500">
+                                                {{ $c['driver']->capabilities()->signs ? 'Firma por ti' : 'Firma con tu certificado' }}
+                                                · Última prueba: {{ $fecha($c['checked_at']) }}
+                                                <span class="{{ $c['check_ok'] ? 'text-emerald-700' : 'font-semibold text-amber-700' }}">{{ $c['check_ok'] ? 'correcta' : 'falló' }}</span>
+                                                @if (! $c['check_ok'] && $c['check_message'])
+                                                    — {{ $c['check_message'] }}
+                                                @endif
+                                            </p>
+                                        </div>
+                                    </div>
 
-                    <dl class="mt-3 divide-y divide-slate-100 text-sm">
-                        <div class="flex items-center justify-between gap-3 py-2">
-                            <dt class="text-slate-500">Firma</dt>
-                            <dd class="text-right text-slate-800">{{ $firmaProveedor ? 'La hace tu proveedor' : 'Con tu certificado digital' }}</dd>
-                        </div>
-                        <div class="flex items-start justify-between gap-3 py-2">
-                            <dt class="shrink-0 text-slate-500">Última prueba</dt>
-                            <dd class="min-w-0 text-right text-slate-800">
-                                {{ $fecha($psfeConexion['checked_at']) }}
-                                <span class="bmos-badge {{ $psfeConexion['check_ok'] ? 'badge-green' : 'badge-red' }}">{{ $psfeConexion['check_ok'] ? 'Correcta' : 'Falló' }}</span>
-                                @if ($psfeConexion['check_message'])
-                                    <span class="block text-xs text-slate-500">{{ $psfeConexion['check_message'] }}</span>
-                                @endif
-                            </dd>
-                        </div>
-                        <div class="flex items-center justify-between gap-3 py-2">
-                            <dt class="text-slate-500">Conectado desde</dt>
-                            <dd class="text-right text-slate-800">{{ $fecha($psfeConexion['connected_at']) }}</dd>
-                        </div>
-                    </dl>
-
-                    @can('ecf.configure')
-                        <div class="mt-3 flex flex-wrap justify-end gap-2">
-                            <form method="POST" action="{{ route('panel.e-invoicing.psfe.test') }}">
-                                @csrf
-                                <button type="submit" class="bmos-btn bmos-btn-suave">Probar otra vez</button>
-                            </form>
-                            <x-panel.confirm-action
-                                :action="route('panel.e-invoicing.psfe.disconnect')"
-                                method="DELETE"
-                                title="¿Desconectar el proveedor?"
-                                :message="'Se borran los datos de tu cuenta de '.$psfeConexion['driver']->label().' guardados en BMIA.'"
-                                :note="$firmaProveedor ? 'Si no tienes certificado digital, la emisión de e-CF se apagará: no habrá con qué firmar.' : null"
-                                confirm="Desconectar"
-                                dismiss="Volver"
-                                tone="danger"
-                                class="bmos-btn border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">
-                                Desconectar
-                            </x-panel.confirm-action>
-                        </div>
-                    @endcan
+                                    @can('ecf.configure')
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            @if ($i > 0)
+                                                <form method="POST" action="{{ route('panel.e-invoicing.psfe.raise', $c['slug']) }}">
+                                                    @csrf
+                                                    <button type="submit" class="bmos-btn bmos-btn-suave" title="Subir en el orden">{{ $i === 1 ? 'Hacer principal' : 'Subir' }}</button>
+                                                </form>
+                                            @endif
+                                            <form method="POST" action="{{ route('panel.e-invoicing.psfe.test', $c['slug']) }}">
+                                                @csrf
+                                                <button type="submit" class="bmos-btn bmos-btn-suave">Probar</button>
+                                            </form>
+                                            <x-panel.confirm-action
+                                                :action="route('panel.e-invoicing.psfe.disconnect', $c['slug'])"
+                                                method="DELETE"
+                                                :title="'¿Desconectar '.$c['driver']->label().'?'"
+                                                :message="'Se borran los datos de tu cuenta de '.$c['driver']->label().' guardados en BMIA.'"
+                                                :note="count($psfeConexiones) === 1 && $c['driver']->capabilities()->signs ? 'Es tu único proveedor: si no tienes certificado digital, la emisión de e-CF se apagará.' : null"
+                                                confirm="Desconectar"
+                                                dismiss="Volver"
+                                                tone="danger"
+                                                class="bmos-btn border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">
+                                                Desconectar
+                                            </x-panel.confirm-action>
+                                        </div>
+                                    @endcan
+                                </div>
+                            </li>
+                        @endforeach
+                    </ol>
+                    @if (count($psfeConexiones) === 1)
+                        <p class="mt-2 text-xs text-slate-500">Consejo: conecta un segundo proveedor como respaldo para que tus facturas no se detengan si el principal falla.</p>
+                    @endif
                 @elseif ($psfeCatalogo === [])
                     <p class="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-500">
                         Todavía no hay proveedores disponibles para conectar en el ambiente {{ $ajustes->environment->label() }}.
@@ -409,9 +547,9 @@
 
                 @can('ecf.configure')
                     @if ($psfeCatalogo !== [])
-                        <details class="mt-4 rounded-lg border border-slate-200 p-3" @if (! $psfeConexion || $errors->has('psfe')) open @endif>
+                        <details class="mt-4 rounded-lg border border-slate-200 p-3" @if ($psfeConexiones === [] || $errors->has('psfe')) open @endif>
                             <summary class="cursor-pointer text-sm font-medium text-slate-800">
-                                {{ $psfeConexion ? 'Cambiar de proveedor o los datos de la cuenta' : 'Elige tu proveedor' }}
+                                {{ $psfeConexiones === [] ? 'Elige tu proveedor' : 'Añadir otro proveedor o cambiar los datos de una cuenta' }}
                             </summary>
 
                             <form method="POST" action="{{ route('panel.e-invoicing.psfe.connect') }}" class="mt-3 space-y-3">
@@ -423,6 +561,9 @@
                                             <input type="radio" name="psfe" value="{{ $slug }}" x-model="elegido" class="mt-0.5">
                                             <span>
                                                 <b class="font-medium text-slate-800">{{ $conector->label() }}</b>
+                                                @if (in_array($slug, $conectados, true))
+                                                    <span class="bmos-badge badge-green ml-1">Conectado</span>
+                                                @endif
                                                 <span class="block text-xs text-slate-500">{{ $conector->description() }}</span>
                                                 @if ($conector->capabilities()->signs)
                                                     <span class="mt-1 inline-block text-xs font-medium text-emerald-700">Firma por ti: no necesitas certificado</span>
@@ -433,7 +574,7 @@
                                 </div>
 
                                 @foreach ($psfeCatalogo as $slug => $conector)
-                                    @php $guardado = $psfeConexion !== null && $psfeConexion['driver']->slug() === $slug; @endphp
+                                    @php $guardado = in_array($slug, $conectados, true); @endphp
                                     <div x-show="elegido === @js($slug)" x-cloak class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                         @foreach ($conector->fields() as $campo)
                                             <div>
@@ -452,7 +593,7 @@
                                     </div>
                                 @endforeach
 
-                                <p class="text-xs text-slate-500">Se guarda cifrado y no se vuelve a mostrar. Antes de guardar, BMIA prueba la conexión con tu proveedor.</p>
+                                <p class="text-xs text-slate-500">Se guarda cifrado y no se vuelve a mostrar. Antes de guardar, BMIA prueba la conexión con tu proveedor. Un proveedor nuevo entra como respaldo; cambia el orden en la lista.</p>
                                 @error('psfe') <p class="text-xs text-rose-600">{{ $message }}</p> @enderror
 
                                 <div class="flex justify-end">
@@ -469,7 +610,7 @@
             <p class="font-semibold text-slate-800">Certificado digital</p>
             @if ($firmaProveedor ?? false)
                 <p class="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-                    No hace falta: la firma la hace tu proveedor ({{ $psfeConexion['driver']->label() }}). Solo súbelo si quieres firmar desde BMIA.
+                    No hace falta: la firma la hace tu proveedor principal ({{ $principal['driver']->label() }}). Solo súbelo si quieres firmar desde BMIA.
                 </p>
             @endif
             <p class="mt-1 text-xs text-slate-500">
@@ -525,7 +666,10 @@
                 @endif
             @endcan
         </div>
+        </div>
 
+        {{-- ── Secuencias ────────────────────────────────────────────────────────────── --}}
+        <div x-show="tab === 'secuencias'" x-cloak class="space-y-4">
         <div id="secuencias" class="bmos-card bmos-card-pad scroll-mt-20">
             <p class="font-semibold text-slate-800">Secuencias de e-NCF</p>
             <p class="mt-1 text-xs text-slate-500">
@@ -649,7 +793,10 @@
                 @endif
             @endcan
         </div>
+        </div>
 
+        {{-- ── Técnico ─────────────────────────────────────────────────────────────────── --}}
+        <div x-show="tab === 'tecnico'" x-cloak class="space-y-4">
         <div class="bmos-card bmos-card-pad">
             <p class="font-semibold text-slate-800">Requisitos técnicos</p>
             <p class="mt-1 text-xs text-slate-500">Lo que el servidor necesita para generar, validar y firmar e-CF.</p>
@@ -703,5 +850,6 @@
                 </ul>
             </div>
         @endif
+        </div>
     </div>
 </x-layouts.admin>

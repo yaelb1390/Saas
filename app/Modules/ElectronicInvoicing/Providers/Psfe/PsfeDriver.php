@@ -40,8 +40,12 @@ interface PsfeDriver
     /** Si se puede usar en este ambiente (un conector simulado nunca en producción). */
     public function availableIn(Environment $env): bool;
 
-    /** @param  array<string, string>  $credentials */
-    public function testConnection(#[SensitiveParameter] array $credentials, Environment $env): ConnectionCheck;
+    /**
+     * Prueba en vivo las credenciales (lo que hay detrás de «Conectar y probar»).
+     *
+     * @param  array<string, string>  $credentials
+     */
+    public function testConnection(Company $company, #[SensitiveParameter] array $credentials, Environment $env): ConnectionCheck;
 
     /**
      * Firma en el proveedor. Solo se llama si `capabilities()->signs`.
@@ -50,7 +54,13 @@ interface PsfeDriver
      */
     public function sign(Company $company, #[SensitiveParameter] array $credentials, Environment $env, DOMDocument $unsigned, bool $writeSignatureDate): SignedXml;
 
-    /** @param  array<string, string>  $credentials */
+    /**
+     * Envía un e-CF. Con `submitsUnsigned`, `$signedXml` es el XML SIN firmar (el `original`) y el
+     * proveedor devuelve el firmado en `ProviderResult::$signedXml`. Debe marcar `delivered: false`
+     * cuando el documento no llegó a salir, para que el respaldo pueda usarse sin duplicarlo.
+     *
+     * @param  array<string, string>  $credentials
+     */
     public function send(Company $company, #[SensitiveParameter] array $credentials, Environment $env, string $signedXml, string $fileName): ProviderResult;
 
     /** @param  array<string, string>  $credentials */

@@ -297,6 +297,13 @@ return [
         'range_void_codes' => 'Qué significa cada «codigo» de la respuesta de anulación de rangos [DT pp.34–36]: el DT solo lista mensajes. Hoy HTTP 2xx = procesada y se muestra el código y los mensajes tal cual (fase 7d).',
         'tip' => 'Cómo se declara la propina legal (10 %) en el e-CF. Hoy queda fuera del documento (fase 5a).',
         'rounding_rule' => 'La «regla de redondeos» que cita [FMT nota 11] y si la DGII tolera diferencias de céntimos en los totales.',
+        // Digifact (consultar con soporte-rd@digifact.com). El conector sigue su documentación y sus
+        // ejemplos oficiales; esto es lo que esos documentos no aclaran.
+        'digifact_ambientes' => 'Digifact: si su entorno de pruebas (testnucdo) atiende tanto la pre-certificación (TesteCF) como la certificación (CerteCF) de la DGII.',
+        'digifact_secuencia' => 'Digifact: si respetan la «Secuencia» que manda BMIA (sin AsignacionDeSecuencia) y si los rangos deben registrarse también con ellos.',
+        'digifact_usuario' => 'Digifact: si el parámetro USERNAME de cada llamada es el usuario a secas o el completo DO.{RNC}.{usuario}.',
+        'digifact_rfce_exento' => 'Digifact: cómo tratan el resumen (RFCE) de las facturas de consumo de menos de RD$250.000, y la forma exacta del impuesto EXENTO (sin ejemplo oficial).',
+        'digifact_anulacion' => 'Digifact: si existe anulación de documentos o de rangos (ANECF) por su API (su documentación no la incluye).',
     ],
 
     /*

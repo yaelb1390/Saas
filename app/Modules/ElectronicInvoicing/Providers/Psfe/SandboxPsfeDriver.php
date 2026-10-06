@@ -72,7 +72,7 @@ final class SandboxPsfeDriver implements PsfeDriver
         return ! $env->isFiscal();
     }
 
-    public function testConnection(#[SensitiveParameter] array $credentials, Environment $env): ConnectionCheck
+    public function testConnection(Company $company, #[SensitiveParameter] array $credentials, Environment $env): ConnectionCheck
     {
         if (! $this->availableIn($env)) {
             return new ConnectionCheck(false, 'El proveedor simulado no puede usarse en producción.');

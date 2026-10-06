@@ -320,6 +320,33 @@ Cada cambio de estado lo valida `EcfStatus::canTransitionTo()` (un salto ilegal 
     y hora. El asistente (paso 3) y el diagnóstico lo reflejan. Las aprobaciones comerciales (ACECF), la
     anulación de rangos (ANECF) y los servicios de receptor siguen firmando con el certificado de la
     empresa.
+  - **Varios proveedores con respaldo** (2026-10-05). `provider_config` guarda `{connections: [...]}` en
+    orden: el primero es el principal (`Providers/Psfe/PsfeConnectionList`; la forma antigua de una sola
+    conexión se lee como lista de uno). `PsfeProvider::submit()` (`Contracts/SubmitsDocuments`):
+    - prueba en orden y pasa al siguiente solo ante un fallo **del proveedor** (no configurado, o
+      `delivered: false`: no se pudo conectar, credenciales rechazadas);
+    - un rechazo de datos se queda ahí;
+    - ante un tiempo agotado o 5xx (`delivered: null`) **pregunta primero a ese proveedor** por el
+      e-NCF; si no puede preguntar, queda pendiente para no duplicar;
+    - un proveedor caído queda en pausa `ecf_psfe.pause_minutes`;
+    - el documento guarda quién lo recibió en `electronic_invoices.provider` (`psfe:{conector}`) y las
+      consultas van a él (`ProviderResolver::forDocument` → `PsfeProvider::pinned`). El siguiente
+      intento le pregunta primero a ese mismo.
+    - Evento `PsfeFailover` y nota en la bitácora cuando sale por un respaldo.
+  - **`submitsUnsigned`**: el conector firma **y** envía en una llamada desde el XML sin firmar.
+    `prepare()` deja el documento `pendiente_envio` sin firmar (nueva transición
+    `xml_generado → pendiente_envio`) y no habla con nadie dentro de la transacción. `send()` guarda el
+    firmado que devuelve el proveedor (`ProviderResult::$signedXml`) y su código de seguridad, como una
+    firma de BMIA.
+  - **Digifact** (`Providers/Psfe/Digifact/`), de https://documentacion.digifact.com/do/api.md (V1.0.4)
+    y do/nuc/json.md (V1.0.7), con sus ejemplos oficiales 31–34 en `tests/Fixtures/digifact`:
+    - token `POST /login/get_token` (`DO.{RNC}.{usuario}`, 30 días, cifrado en caché, renovación ante
+      un 401);
+    - `POST /v2/transform/nuc_json` con el NUC que arma `DigifactNucMapper` desde el XML de la DGII
+      (la `Secuencia` la pone BMIA y se comprueba el `batch` devuelto);
+    - estado por `SHARED_GETRESULTADOENVIO`, y existencia por `SHARED_GETDTEINFO`.
+    - No hay ANECF, ACECF ni directorio por API.
+    - Lo no confirmado está en `ecf.pending_verification` (`digifact_*`).
 
 ### Contingencia (`Contingency/ContingencyService`)
 

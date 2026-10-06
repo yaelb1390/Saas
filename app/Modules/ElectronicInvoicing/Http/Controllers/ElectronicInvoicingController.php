@@ -83,7 +83,8 @@ final class ElectronicInvoicingController extends Controller
             'psfeCatalogo' => DbTable::existe('electronic_invoicing_settings')
                 ? app(PsfeCatalog::class)->availableIn(ElectronicInvoicingSettings::paraEmpresa($empresa)->environment)
                 : [],
-            'psfeConexion' => DbTable::existe('electronic_invoicing_settings') ? app(PsfeConnectionService::class)->current($empresa) : null,
+            // Las conexiones en su orden: la primera es la principal y las demás, respaldos.
+            'psfeConexiones' => DbTable::existe('electronic_invoicing_settings') ? app(PsfeConnectionService::class)->current($empresa) : [],
             'proveedores' => [
                 'fake' => 'De prueba (no envía nada a la DGII)',
                 'psfe' => 'Proveedor certificado (PSFE)',

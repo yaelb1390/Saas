@@ -17,6 +17,7 @@ use App\Modules\ElectronicInvoicing\Models\ElectronicCertificate;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoice;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
 use App\Modules\ElectronicInvoicing\Models\ElectronicNcfSequence;
+use App\Modules\ElectronicInvoicing\Providers\Psfe\PsfeConnectionList;
 use App\Modules\ElectronicInvoicing\Providers\PsfeProvider;
 use App\Modules\ElectronicInvoicing\Signature\CertificateVault;
 use App\Modules\ElectronicInvoicing\Xml\SchemaRegistry;
@@ -113,10 +114,16 @@ final class Diagnostics
                 "La empresa no tiene {$nombres}: ninguna venta generará su e-CF.",
                 'Actívalos en Plataforma → Empresas → Módulos, o inclúyelos en su plan.');
         }
+        // Con varios proveedores: el principal puede fallar y aun así haber un respaldo que funciona.
+        $conexiones = $s->provider === 'psfe' ? PsfeConnectionList::read($s->provider_config) : [];
+        $principalOk = ($conexiones[0]['check_ok'] ?? true) !== false;
+        $algunoOk = collect($conexiones)->contains(fn (array $c): bool => ($c['check_ok'] ?? true) !== false);
+        $respaldos = max(0, count($conexiones) - 1);
         $r[] = match (true) {
-            $s->provider === 'psfe' && $conector === null => $this->item('proveedor', 'Proveedor', $emitiendo ? self::ERROR : self::AVISO, 'El proveedor certificado (PSFE) todavía no está conectado.', 'Conéctalo en «Conecta tu proveedor autorizado».'),
-            $s->provider === 'psfe' && ($s->provider_config['check_ok'] ?? true) === false => $this->item('proveedor', 'Proveedor', self::AVISO, "{$conector->label()}: la última prueba de conexión falló.", 'Pulsa «Probar otra vez» o revisa los datos de tu cuenta.'),
-            $s->provider === 'psfe' => $this->item('proveedor', 'Proveedor', self::OK, $conector->label()),
+            $s->provider === 'psfe' && $conector === null => $this->item('proveedor', 'Proveedor', $emitiendo ? self::ERROR : self::AVISO, 'No hay ningún proveedor certificado (PSFE) conectado.', 'Conéctalo en «Proveedores autorizados».'),
+            $s->provider === 'psfe' && ! $algunoOk => $this->item('proveedor', 'Proveedor', self::AVISO, 'La última prueba de conexión falló en todos tus proveedores.', 'Pulsa «Probar otra vez» o revisa los datos de tus cuentas.'),
+            $s->provider === 'psfe' && ! $principalOk => $this->item('proveedor', 'Proveedor', self::AVISO, "La última prueba de {$conector->label()} (principal) falló: las facturas saldrán por el respaldo.", 'Revisa los datos de tu cuenta del principal o cambia el orden.'),
+            $s->provider === 'psfe' => $this->item('proveedor', 'Proveedor', self::OK, $conector->label().' (principal)'.($respaldos > 0 ? " · {$respaldos} ".($respaldos === 1 ? 'respaldo' : 'respaldos') : ' · sin respaldo')),
             $s->provider === 'fake' && $emitiendo => $this->item('proveedor', 'Proveedor', self::AVISO, 'Proveedor de prueba: no se envía nada a la DGII.', 'Para enviar de verdad elige un proveedor real.'),
             default => $this->item('proveedor', 'Proveedor', self::OK, $s->provider),
         };

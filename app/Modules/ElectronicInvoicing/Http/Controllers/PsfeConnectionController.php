@@ -14,8 +14,8 @@ use Illuminate\Routing\Controller;
 use RuntimeException;
 
 /**
- * La tarjeta «Conecta tu proveedor autorizado». Solo traduce peticiones y respuestas: probar,
- * guardar y desconectar lo hace `PsfeConnectionService`.
+ * La tarjeta «Proveedores autorizados». Solo traduce peticiones y respuestas: probar, guardar,
+ * ordenar y desconectar lo hace `PsfeConnectionService`.
  *
  * Las credenciales nunca vuelven al formulario (`withInput` las excluye): una clave mal escrita se
  * vuelve a teclear, no se queda en la sesión.
@@ -44,13 +44,13 @@ final class PsfeConnectionController extends Controller
             : $this->volver('No se conectó: '.$prueba->message);
     }
 
-    public function test(CurrentCompany $actual, PsfeConnectionService $conexion): RedirectResponse
+    public function test(string $psfe, CurrentCompany $actual, PsfeConnectionService $conexion): RedirectResponse
     {
         $empresa = $actual->model();
         abort_if($empresa === null, 404);
 
         try {
-            $prueba = $conexion->test($empresa);
+            $prueba = $conexion->test($empresa, $psfe);
         } catch (RuntimeException $e) {
             return back()->with('panel_error', $e->getMessage());
         }
@@ -58,12 +58,27 @@ final class PsfeConnectionController extends Controller
         return back()->with($prueba->ok ? 'panel_ok' : 'panel_error', $prueba->message);
     }
 
-    public function disconnect(Request $request, CurrentCompany $actual, PsfeConnectionService $conexion): RedirectResponse
+    /** Sube un proveedor un puesto en el orden (el primero es el principal). */
+    public function raise(string $psfe, CurrentCompany $actual, PsfeConnectionService $conexion): RedirectResponse
     {
         $empresa = $actual->model();
         abort_if($empresa === null, 404);
 
-        $apagada = $conexion->disconnect($empresa, $request->user()?->id);
+        try {
+            $conexion->raise($empresa, $psfe);
+        } catch (RuntimeException $e) {
+            return back()->with('panel_error', $e->getMessage());
+        }
+
+        return back()->with('panel_ok', 'Orden de proveedores actualizado.');
+    }
+
+    public function disconnect(string $psfe, Request $request, CurrentCompany $actual, PsfeConnectionService $conexion): RedirectResponse
+    {
+        $empresa = $actual->model();
+        abort_if($empresa === null, 404);
+
+        $apagada = $conexion->disconnect($empresa, $psfe, $request->user()?->id);
 
         return back()->with('panel_ok', $apagada
             ? 'Proveedor desconectado. La emisión de e-CF quedó apagada: no hay con qué firmar.'

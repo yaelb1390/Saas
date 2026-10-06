@@ -1117,9 +1117,14 @@ Route::middleware(['auth'])->group(function (): void {
         // Conectar el proveedor certificado (PSFE): cada intento prueba la clave en vivo, con tope.
         Route::post('/panel/facturacion-electronica/proveedor', [\App\Modules\ElectronicInvoicing\Http\Controllers\PsfeConnectionController::class, 'connect'])
             ->middleware(['can:ecf.configure', 'throttle:10,1'])->name('panel.e-invoicing.psfe.connect');
-        Route::post('/panel/facturacion-electronica/proveedor/probar', [\App\Modules\ElectronicInvoicing\Http\Controllers\PsfeConnectionController::class, 'test'])
+        Route::post('/panel/facturacion-electronica/proveedor/{psfe}/probar', [\App\Modules\ElectronicInvoicing\Http\Controllers\PsfeConnectionController::class, 'test'])
+            ->where('psfe', '[a-z0-9_-]+')
             ->middleware(['can:ecf.configure', 'throttle:10,1'])->name('panel.e-invoicing.psfe.test');
-        Route::delete('/panel/facturacion-electronica/proveedor', [\App\Modules\ElectronicInvoicing\Http\Controllers\PsfeConnectionController::class, 'disconnect'])
+        Route::post('/panel/facturacion-electronica/proveedor/{psfe}/subir', [\App\Modules\ElectronicInvoicing\Http\Controllers\PsfeConnectionController::class, 'raise'])
+            ->where('psfe', '[a-z0-9_-]+')
+            ->middleware('can:ecf.configure')->name('panel.e-invoicing.psfe.raise');
+        Route::delete('/panel/facturacion-electronica/proveedor/{psfe}', [\App\Modules\ElectronicInvoicing\Http\Controllers\PsfeConnectionController::class, 'disconnect'])
+            ->where('psfe', '[a-z0-9_-]+')
             ->middleware('can:ecf.configure')->name('panel.e-invoicing.psfe.disconnect');
         Route::post('/panel/facturas/{invoice}/nota-electronica', [\App\Modules\ElectronicInvoicing\Http\Controllers\ElectronicNoteController::class, 'store'])
             ->middleware(['can:ecf.issue', 'throttle:30,1'])->name('panel.invoices.electronic-note');

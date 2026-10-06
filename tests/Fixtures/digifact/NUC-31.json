@@ -1,0 +1,420 @@
+{
+    "Version": "1.0",
+    "CountryCode": "DO",
+    "Header": {
+        "DocType": "31",
+        "IssuedDateTime": "2024-09-03T12:00:30-04:00",
+        "ExchangeRate": "58.67",
+        "Currency": "EUR",
+        "AdditionalIssueDocInfo": [
+            {
+                "Name": "Secuencia",
+                "Data": null,
+                "Value": "0001900005"
+            },
+            {
+                "Name": "FechaVencimientoSecuencia",
+                "Data": null,
+                "Value": "2025-12-31"
+            },
+            {
+                "Name": "IndicadorEnvioDiferido",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "IndicadorMontoGravado",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "TipoIngresos",
+                "Data": null,
+                "Value": "01"
+            },
+            {
+                "Name": "TipoPago",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "FechaDesde",
+                "Data": null,
+                "Value": "12-10-2022"
+            },
+            {
+                "Name": "FechaHasta",
+                "Data": null,
+                "Value": "12-12-2022"
+            }
+        ]
+    },
+    "Seller": {
+        "TaxID": "132752155",
+        "Name": "DIGIFACT SERVICIOS SAS",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "123-456-1234"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "julio.cifuentes@digifact.com.gt"
+                ]
+            },
+            "Website": "https://www.digifact.com.do"
+        },
+        "AdditionlInfo": [
+            {
+                "Name": "NombreComercial",
+                "Data": null,
+                "Value": "DIGIFACT SERVICIOS SAS"
+            },
+            {
+                "Name": "ActividadEconomica",
+                "Data": null,
+                "Value": "Comercio"
+            },
+            {
+                "Name": "CodigoVendedor",
+                "Data": null,
+                "Value": "1234112"
+            },
+            {
+                "Name": "NumeroFacturaInterna",
+                "Data": null,
+                "Value": "ASF-24-2123-221"
+            },
+            {
+                "Name": "NumeroPedidoInterno",
+                "Data": null,
+                "Value": "00000001"
+            },
+            {
+                "Name": "ZonaVenta",
+                "Data": null,
+                "Value": "zona de prueba"
+            },
+            {
+                "Name": "RutaVenta",
+                "Data": null,
+                "Value": "ruta carretera"
+            },
+            {
+                "Name": "InformacionAdicionalEmisor",
+                "Data": null,
+                "Value": "Venta realizada el dia de la independencia, etc."
+            }
+        ],
+        "AddressInfo": null,
+        "BranchInfo": {
+            "Name": "1",
+            "AddressInfo": {
+                "Address": "Direccion de la surcursal 1 de prueba",
+                "City": null,
+                "District": "010100",
+                "State": "010000",
+                "Country": "DO"
+            }
+        }
+    },
+    "Buyer": {
+        "TaxID": "40221201896",
+        "Name": "JELISSA JIMENEZ FERNANDEZ|VERMEL CONSTRUCCIONES E INMOBILIARIA",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "Telefono 123-123-1234, direccion ciudad central"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "correo.comprador@gmail.com"
+                ]
+            }
+        },
+        "AdditionlInfo": [
+            {
+                "Name": "FechaEntrega",
+                "Data": null,
+                "Value": "2023-12-30"
+            },
+            {
+                "Name": "ContactoEntrega",
+                "Data": null,
+                "Value": "Contacto de prueba, numero 123-321-4212"
+            },
+            {
+                "Name": "DireccionEntrega",
+                "Data": null,
+                "Value": "Detalle de la direccion de entrega"
+            },
+            {
+                "Name": "TelefonoAdicional",
+                "Data": null,
+                "Value": "221-221-2378"
+            },
+            {
+                "Name": "FechaOrdenCompra",
+                "Data": null,
+                "Value": "11-10-2022"
+            },
+            {
+                "Name": "NumeroOrdenCompra",
+                "Data": null,
+                "Value": "8SS953SS"
+            },
+            {
+                "Name": "CodigoInternoComprador",
+                "Data": null,
+                "Value": "123XXD32X"
+            },
+            {
+                "Name": "ResponsablePago",
+                "Data": null,
+                "Value": "Jaime"
+            },
+            {
+                "Name": "InformacionAdicionalComprador",
+                "Data": null,
+                "Value": "La entrega se realizara por la tarde"
+            }
+        ],
+        "AddressInfo": {
+            "Address": "Direccion comprador de prueba, avenida de prueba, calle de prueba xd",
+            "City": null,
+            "District": "010100",
+            "State": "010000",
+            "Country": "DO"
+        }
+    },
+    "Items": [
+        {
+            "Codes": [
+                {
+                    "Name": "EAN",
+                    "Data": null,
+                    "Value": "0000123"
+                },
+                {
+                    "Name": "PLU",
+                    "Data": null,
+                    "Value": "122333"
+                }
+            ],
+            "Type": "1",
+            "Description": "Computadora portatil de prueba",
+            "Qty": "1.00",
+            "UnitOfMeasure": "43",
+            "Price": "300.00",
+            "Discounts": {
+                "Discount": [
+                    {
+                        "Code": "$",
+                        "Amount": "5.00"
+                    },
+                    {
+                        "Code": "%",
+                        "Rate": "15.00",
+                        "Amount": "45.00"
+                    }
+                ]
+            },
+            "Taxes": null,
+            "Charges": {
+                "Charge": [
+                    {
+                        "Code": "$",
+                        "Amount": "25.00"
+                    }
+                ]
+            },
+            "Totals": {
+                "TotalItem": "275.00"
+            },
+            "AdditionalInfo": [
+                {
+                    "Name": "IndicadorFacturacion",
+                    "Data": null,
+                    "Value": "1"
+                },
+                {
+                    "Name": "DescripcionItem",
+                    "Data": null,
+                    "Value": "Computadora portatil con 16GB de memoria RAM y SSD 1TB"
+                },
+                {
+                    "Name": "FechaElaboracion",
+                    "Data": null,
+                    "Value": "01-10-2022"
+                },
+                {
+                    "Name": "FechaVencimientoItem",
+                    "Data": null,
+                    "Value": "01-10-2025"
+                }
+            ]
+        }
+    ],
+    "Totals": {
+        "TotalTaxableAmount": "258.05",
+        "TotalTaxes": {
+            "TotalTax": [
+                {
+                    "Code": "ITBIS1",
+                    "TaxableAmount": "258.05",
+                    "Rate": "18.00",
+                    "Amount": "46.45"
+                }
+            ]
+        },
+        "GrandTotal": {
+            "InvoiceTotal": "304.50"
+        }
+    },
+    "Payments": [
+        {
+            "Type": "FormaPago",
+            "Code": "1",
+            "Amount": "300.00"
+        }
+    ],
+    "AdditionalDocumentInfo": {
+        "AdditionalInfo": [
+            {
+                "AditionalData": {
+                    "Data": [
+                        {
+                            "Info": [
+                                {
+                                    "Name": "TipoAjuste",
+                                    "Data": null,
+                                    "Value": "R"
+                                },
+                                {
+                                    "Name": "DescripcionDescuentooRecargo",
+                                    "Data": null,
+                                    "Value": "Recargo porque si"
+                                },
+                                {
+                                    "Name": "TipoValor",
+                                    "Data": null,
+                                    "Value": "$"
+                                },
+                                {
+                                    "Name": "MontoDescuentooRecargo",
+                                    "Data": null,
+                                    "Value": "25"
+                                },
+                                {
+                                    "Name": "IndicadorFacturacionDescuentooRecargo",
+                                    "Data": null,
+                                    "Value": "1"
+                                }
+                            ],
+                            "Name": "DESCUENTOS_O_RECARGOS"
+                        }
+                    ]
+                },
+                "AditionalInfo": [
+                    {
+                        "Name": "FechaEmbarque",
+                        "Data": null,
+                        "Value": "2022-10-23"
+                    },
+                    {
+                        "Name": "NumeroEmbarque",
+                        "Data": null,
+                        "Value": "2441S1"
+                    },
+                    {
+                        "Name": "NumeroContenedor",
+                        "Data": null,
+                        "Value": "C0123"
+                    },
+                    {
+                        "Name": "NumeroReferencia",
+                        "Data": null,
+                        "Value": "19242222"
+                    },
+                    {
+                        "Name": "PesoBruto",
+                        "Data": null,
+                        "Value": "100.20"
+                    },
+                    {
+                        "Name": "PesoNeto",
+                        "Data": null,
+                        "Value": "150.00"
+                    },
+                    {
+                        "Name": "UnidadPesoBruto",
+                        "Data": null,
+                        "Value": "21"
+                    },
+                    {
+                        "Name": "UnidadPesoNeto",
+                        "Data": null,
+                        "Value": "21"
+                    },
+                    {
+                        "Name": "CantidadBulto",
+                        "Data": null,
+                        "Value": "1.00"
+                    },
+                    {
+                        "Name": "UnidadBulto",
+                        "Data": null,
+                        "Value": "21"
+                    },
+                    {
+                        "Name": "VolumenBulto",
+                        "Data": null,
+                        "Value": "32.00"
+                    },
+                    {
+                        "Name": "UnidadVolumen",
+                        "Data": null,
+                        "Value": "28"
+                    },
+                    {
+                        "Name": "Conductor",
+                        "Data": null,
+                        "Value": "Max Verstappen"
+                    },
+                    {
+                        "Name": "DocumentoTransporte",
+                        "Data": null,
+                        "Value": "123314"
+                    },
+                    {
+                        "Name": "Ficha",
+                        "Data": null,
+                        "Value": "Ficha 1"
+                    },
+                    {
+                        "Name": "Placa",
+                        "Data": null,
+                        "Value": "P032SKK"
+                    },
+                    {
+                        "Name": "RutaTransporte",
+                        "Data": null,
+                        "Value": "Ruta 66"
+                    },
+                    {
+                        "Name": "ZonaTransporte",
+                        "Data": null,
+                        "Value": "Zona 66 de prueba"
+                    },
+                    {
+                        "Name": "NumeroAlbaran",
+                        "Data": null,
+                        "Value": "UQI1221"
+                    }
+                ]
+            }
+        ]
+    }
+}

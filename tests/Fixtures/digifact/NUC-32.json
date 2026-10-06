@@ -1,0 +1,306 @@
+{
+    "Version": "1.0",
+    "CountryCode": "DO",
+    "Header": {
+        "DocType": "32",
+        "IssuedDateTime": "2024-07-26T16:30:30-04:00",
+        "ExchangeRate": "0.019",
+        "Currency": "EUR",
+        "AdditionalIssueDocInfo": [
+            {
+                "Name": "Secuencia",
+                "Data": null,
+                "Value": "0000020001"
+            },
+            {
+                "Name": "IndicadorEnvioDiferido",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "IndicadorMontoGravado",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "TipoIngresos",
+                "Data": null,
+                "Value": "01"
+            },
+            {
+                "Name": "TipoPago",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "FechaDesde",
+                "Data": null,
+                "Value": "2023-08-01"
+            },
+            {
+                "Name": "FechaHasta",
+                "Data": null,
+                "Value": "2023-12-31"
+            }
+        ]
+    },
+    "Seller": {
+        "TaxID": "132752155",
+        "Name": "DIGIFACT SERVICIOS SAS",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "123-456-1234"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "correoprueba@gmail.com"
+                ]
+            },
+            "Website": "www.Sitioweb_ejemplo.com.gt"
+        },
+        "AdditionlInfo": [
+            {
+                "Name": "NombreComercial",
+                "Data": null,
+                "Value": "DIGIFACT SERVICIOS SAS"
+            },
+            {
+                "Name": "ActividadEconomica",
+                "Data": null,
+                "Value": "Comercio"
+            },
+            {
+                "Name": "CodigoVendedor",
+                "Data": null,
+                "Value": "1234112"
+            },
+            {
+                "Name": "NumeroFacturaInterna",
+                "Data": null,
+                "Value": "ASF-24-2123-221"
+            },
+            {
+                "Name": "NumeroPedidoInterno",
+                "Data": null,
+                "Value": "12312312"
+            },
+            {
+                "Name": "ZonaVenta",
+                "Data": null,
+                "Value": "zona de prueba"
+            },
+            {
+                "Name": "RutaVenta",
+                "Data": null,
+                "Value": "ruta prueba"
+            },
+            {
+                "Name": "InformacionAdicionalEmisor",
+                "Data": null,
+                "Value": "Venta realizada el dia de la independencia, etc."
+            }
+        ],
+        "BranchInfo": {
+            "Code": null,
+            "Name": "1",
+            "AddressInfo": {
+                "Address": "Direccion de la surcursal 1 de prueba",
+                "District": "020100",
+                "State": "020000",
+                "Country": "DO"
+            }
+        }
+    },
+    "Buyer": {
+        "TaxID": "",
+        "Name": "Consumidor Final",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "Telefono 123-123-1234"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "correo.comprador@gmail.com"
+                ]
+            }
+        },
+        "AdditionlInfo": [
+            {
+                "Name": "FechaEntrega",
+                "Data": null,
+                "Value": "2023-05-25"
+            },
+            {
+                "Name": "ContactoEntrega",
+                "Data": null,
+                "Value": "OPCIONAL"
+            },
+            {
+                "Name": "DireccionEntrega",
+                "Data": null,
+                "Value": "OPCIONAL"
+            },
+            {
+                "Name": "TelefonoAdicional",
+                "Data": null,
+                "Value": "221-221-2378"
+            },
+            {
+                "Name": "FechaOrdenCompra",
+                "Data": null,
+                "Value": "2023-05-28"
+            },
+            {
+                "Name": "NumeroOrdenCompra",
+                "Data": null,
+                "Value": "8SS953SS"
+            },
+            {
+                "Name": "CodigoInternoComprador",
+                "Data": null,
+                "Value": ""
+            },
+            {
+                "Name": "ResponsablePago",
+                "Data": null,
+                "Value": "Julio Cifuentes"
+            },
+            {
+                "Name": "InformacionAdicionalComprador",
+                "Data": null,
+                "Value": "Se debe entregar en Garita No.5"
+            }
+        ],
+        "AddressInfo": {
+            "Address": "Santo Domingo",
+            "District": "320000",
+            "State": "320100",
+            "Country": "DO"
+        }
+    },
+    "Items": [
+        {
+            "Codes": [
+                {
+                    "Name": "EAN",
+                    "Data": null,
+                    "Value": "001"
+                },
+                {
+                    "Name": "PLU",
+                    "Data": null,
+                    "Value": "002"
+                }
+            ],
+            "Type": "1",
+            "Description": "Computadora portatil de prueba",
+            "Qty": "1.00",
+            "UnitOfMeasure": "49",
+            "Price": "100.00",
+            "Discounts": {
+                "Discount": [
+                    {
+                        "Code": "$",
+                        "Amount": "25.00"
+                    },
+                    {
+                        "Code": "%",
+                        "Rate": "25.00",
+                        "Amount": "25.00"
+                    }
+                ]
+            },
+            "Charges": {
+                "Charge": [
+                    {
+                        "Code": "$",
+                        "Amount": "25.00"
+                    }
+                ]
+            },
+            "Totals": {
+                "TotalItem": "75.00"
+            },
+            "AdditionalInfo": [
+                {
+                    "Name": "IndicadorFacturacion",
+                    "Data": null,
+                    "Value": "1"
+                },
+                {
+                    "Name": "DescripcionItem",
+                    "Data": null,
+                    "Value": "Computadora portatil con 16GB de memoria RAM y SSD 1TB"
+                }
+            ]
+        }
+    ],
+    "Totals": {
+        "QtyItems": 1,
+        "TotalTaxableAmount": "88.55",
+        "TotalTaxes": {
+            "TotalTax": [
+                {
+                    "Code": "ITBIS1",
+                    "TaxableAmount": "88.55",
+                    "Rate": "18.00",
+                    "Amount": "15.93"
+                }
+            ]
+        },
+        "GrandTotal": {
+            "InvoiceTotal": "104.43"
+        }
+    },
+    "Payments": [
+        {
+            "Code": "1",
+            "Amount": "200.00"
+        }
+    ],
+    "AdditionalDocumentInfo": {
+        "AdditionalInfo": [
+            {
+                "AditionalData": {
+                    "Data": [
+                        {
+                            "Info": [
+                                {
+                                    "Name": "TipoAjuste",
+                                    "Data": null,
+                                    "Value": "R"
+                                },
+                                {
+                                    "Name": "DescripcionDescuentooRecargo",
+                                    "Data": null,
+                                    "Value": "Recargo de prueba"
+                                },
+                                {
+                                    "Name": "TipoValor",
+                                    "Data": null,
+                                    "Value": "$"
+                                },
+                                {
+                                    "Name": "MontoDescuentooRecargo",
+                                    "Data": null,
+                                    "Value": "25"
+                                },
+                                {
+                                    "Name": "IndicadorFacturacionDescuentooRecargo",
+                                    "Data": null,
+                                    "Value": "1"
+                                }
+                            ],
+                            "Name": "DESCUENTOS_O_RECARGOS"
+                        }
+                    ]
+                },
+                "AditionalInfo": null
+            }
+        ]
+    }
+}

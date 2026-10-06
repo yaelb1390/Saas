@@ -1,0 +1,180 @@
+{
+    "Version": "1.0",
+    "CountryCode": "DO",
+    "Header": {
+        "DocType": "33",
+        "IssuedDateTime": "2023-10-12T14:34:30-05:00",
+        "AdditionalIssueDocInfo": [
+            {
+                "Name": "Secuencia",
+                "Data": null,
+                "Value": "0000000004"
+            },
+            {
+                "Name": "FechaVencimientoSecuencia",
+                "Data": null,
+                "Value": "2025-12-31"
+            },
+            {
+                "Name": "IndicadorMontoGravado",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "TipoIngresos",
+                "Data": null,
+                "Value": "01"
+            },
+            {
+                "Name": "TipoPago",
+                "Data": null,
+                "Value": "1"
+            }
+        ]
+    },
+    "Seller": {
+        "TaxID": "132752155",
+        "Name": "Digifact Servicios SAS",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "123-456-1234"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "correo_prueba@gmail.com"
+                ]
+            },
+            "Website": "www.Sitioweb_ejemplo.com.do"
+        },
+        "AdditionlInfo": [
+            {
+                "Name": "NombreComercial",
+                "Data": null,
+                "Value": "DIGIFACT SERVICIOS SAS"
+            },
+            {
+                "Name": "CodigoVendedor",
+                "Data": null,
+                "Value": "1234112"
+            }
+        ],
+        "BranchInfo": {
+            "Name": "1",
+            "AddressInfo": {
+                "Address": "Direccion de la surcursal 1 de prueba",
+                "City": null,
+                "District": "300000",
+                "State": "300100",
+                "Country": "DO"
+            }
+        }
+    },
+    "Buyer": {
+        "TaxID": "78558965142",
+        "Name": "Valeria Coronado",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "Tel. 254-256-5889"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "Valeriabonilla@gmail.com"
+                ]
+            }
+        },
+        "AddressInfo": {
+            "Address": "Bahia de las langostas, zona 3 de Santo Domingo",
+            "City": null,
+            "District": "320000",
+            "State": "320101",
+            "Country": "DO"
+        }
+    },
+    "Items": [
+        {
+            "Type": "1",
+            "Description": "Telefono Samsung A51",
+            "Qty": "1.00",
+            "UnitOfMeasure": "43",
+            "Price": "7000.00",
+            "Totals": {
+                "TotalItem": "7000.00"
+            },
+            "AdditionalInfo": [
+                {
+                    "Name": "IndicadorFacturacion",
+                    "Data": null,
+                    "Value": "1"
+                },
+                {
+                    "Name": "DescripcionItem",
+                    "Data": null,
+                    "Value": "Computadora portatil con 32GB de memoria RAM y SSD 2TB"
+                }
+            ]
+        }
+    ],
+    "Totals": {
+        "QtyItems": 1,
+        "TotalTaxableAmount": "5932.20",
+        "TotalTaxes": {
+            "TotalTax": [
+                {
+                    "Code": "ITBIS1",
+                    "TaxableAmount": "5932.203",
+                    "Rate": "18.00",
+                    "Amount": "1067.796"
+                }
+            ]
+        },
+        "GrandTotal": {
+            "InvoiceTotal": "7000.00"
+        }
+    },
+    "Payments": [
+        {
+            "Code": "1",
+            "Amount": "10000.00"
+        }
+    ],
+    "AdditionalDocumentInfo": {
+        "AdditionalInfo": [
+            {
+                "AditionalData": {
+                    "Data": [
+                        {
+                            "Info": [
+                                {
+                                    "Name": "NCFModificado",
+                                    "Data": null,
+                                    "Value": "E310000000001"
+                                },
+                                {
+                                    "Name": "FechaNCFModificado",
+                                    "Data": null,
+                                    "Value": "2023-08-22"
+                                },
+                                {
+                                    "Name": "CodigoModificacion",
+                                    "Data": null,
+                                    "Value": "3"
+                                },
+                                {
+                                    "Name": "RazonModificacion",
+                                    "Data": null,
+                                    "Value": "error en el monto de la factura"
+                                }
+                            ],
+                            "Name": "INFORMACION_REFERENCIA"
+                        }
+                    ]
+                },
+                "AditionalInfo": null
+            }
+        ]
+    }
+}

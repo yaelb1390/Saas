@@ -8,13 +8,16 @@ use App\Modules\Core\Models\Company;
 use App\Modules\ElectronicInvoicing\Models\ElectronicInvoicingSettings;
 use App\Modules\ElectronicInvoicing\Providers\Contracts\SignsDocuments;
 use App\Modules\ElectronicInvoicing\Providers\ProviderResolver;
+use App\Modules\ElectronicInvoicing\Providers\PsfeProvider;
 use App\Modules\ElectronicInvoicing\Signature\CertificateVault;
 
 /**
  * ¿Quién firma los e-CF de esta empresa? Una sola respuesta para todo el módulo (emisión, asistente,
  * diagnóstico, encender la emisión):
  *
- * - el proveedor conectado, si es un PSFE que firma: la empresa no necesita subir su certificado;
+ * - el proveedor principal, si es un PSFE que firma y envía en una llamada (`submitsUnsigned`):
+ *   BMIA no firma nada, guarda lo que el proveedor devuelve;
+ * - el proveedor principal, si es un PSFE que firma aparte: BMIA le pide la firma;
  * - si no, el certificado digital de la empresa, como siempre.
  */
 final class SigningReadiness
@@ -24,7 +27,7 @@ final class SigningReadiness
         private readonly ProviderResolver $providers,
     ) {}
 
-    /** El proveedor que firma por la empresa, o null si firma BMIA con su certificado. */
+    /** El proveedor que firma aparte por la empresa, o null si firma BMIA (o firma el que envía). */
     public function remoteSigner(Company $company): ?SignsDocuments
     {
         $proveedor = $this->providers->for(ElectronicInvoicingSettings::paraEmpresa($company));
@@ -32,9 +35,19 @@ final class SigningReadiness
         return $proveedor instanceof SignsDocuments && $proveedor->signsFor($company) ? $proveedor : null;
     }
 
-    /** Si hay con qué firmar: el proveedor o un certificado activo. */
+    /** El proveedor principal firma y envía él mismo a partir del documento sin firmar. */
+    public function providerSignsOnSubmit(Company $company): bool
+    {
+        $proveedor = $this->providers->for(ElectronicInvoicingSettings::paraEmpresa($company));
+
+        return $proveedor instanceof PsfeProvider && $proveedor->submitsUnsignedFor($company);
+    }
+
+    /** Si hay con qué firmar: un proveedor que firma o un certificado activo. */
     public function canSign(Company $company): bool
     {
-        return $this->remoteSigner($company) !== null || $this->certificates->active($company) !== null;
+        return $this->providerSignsOnSubmit($company)
+            || $this->remoteSigner($company) !== null
+            || $this->certificates->active($company) !== null;
     }
 }

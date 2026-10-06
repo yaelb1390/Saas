@@ -1,0 +1,198 @@
+{
+    "Version": "1.0",
+    "CountryCode": "DO",
+    "Header": {
+        "DocType": "34",
+        "IssuedDateTime": "2023-12-13T16:30:30-04:00",
+        "AdditionalIssueDocInfo": [
+            {
+                "Name": "Secuencia",
+                "Data": null,
+                "Value": "0000010000"
+            },
+            {
+                "Name": "IndicadorNotaCredito",
+                "Data": null,
+                "Value": "0"
+            },
+            {
+                "Name": "IndicadorEnvioDiferido",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "IndicadorMontoGravado",
+                "Data": null,
+                "Value": "1"
+            },
+            {
+                "Name": "TipoIngresos",
+                "Data": null,
+                "Value": "01"
+            },
+            {
+                "Name": "TipoPago",
+                "Data": null,
+                "Value": "1"
+            }
+        ]
+    },
+    "Seller": {
+        "TaxID": "132752155",
+        "Name": "Digifact Servicios SAS",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "123-456-1234"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "correoprueba@gmail.com"
+                ]
+            },
+            "Website": "www.digifact@gmail.com.do"
+        },
+        "AdditionlInfo": [
+            {
+                "Name": "NombreComercial",
+                "Data": null,
+                "Value": "DIGIFACT SERVICIOS SAS"
+            },
+            {
+                "Name": "ActividadEconomica",
+                "Data": null,
+                "Value": "Comercio"
+            },
+            {
+                "Name": "CodigoVendedor",
+                "Data": null,
+                "Value": "1234112"
+            }
+        ],
+        "BranchInfo": {
+            "Name": "1",
+            "AddressInfo": {
+                "Address": "Zona 0 de Ciudad Santo Tomas",
+                "City": null,
+                "District": "020801",
+                "State": "020100",
+                "Country": "DO"
+            }
+        }
+    },
+    "Buyer": {
+        "TaxID": "159487569",
+        "Name": "Eduardo de la Cruz",
+        "Contact": {
+            "PhoneList": {
+                "Phone": [
+                    "Telefono: 123-123-1235,"
+                ]
+            },
+            "EmailList": {
+                "Email": [
+                    "Eduardo.De.La.Cruz@yahoo.com.gt"
+                ]
+            }
+        },
+        "AdditionlInfo": [
+            {
+                "Name": "FechaEntrega",
+                "Data": null,
+                "Value": "23-08-29"
+            },
+            {
+                "Name": "ContactoEntrega",
+                "Data": null,
+                "Value": "Contacto de Sofia Guzman, Tel: 123-321-4212"
+            },
+            {
+                "Name": "DireccionEntrega",
+                "Data": null,
+                "Value": "Detalle de la direccion de entrega xd"
+            }
+        ],
+        "AddressInfo": {
+            "Address": "Las Lomas, Barrio 55, calle 90",
+            "City": null,
+            "District": "020109",
+            "State": "020000",
+            "Country": "DO"
+        }
+    },
+    "Items": [
+        {
+            "Type": "1",
+            "Description": "Computadora portatil",
+            "Qty": "1.00",
+            "UnitOfMeasure": "43",
+            "Price": "1000.00",
+            "Totals": {
+                "TotalItem": "1000.00"
+            },
+            "AdditionalInfo": [
+                {
+                    "Name": "IndicadorFacturacion",
+                    "Data": null,
+                    "Value": "2"
+                }
+            ]
+        }
+    ],
+    "Totals": {
+        "QtyItems": 1,
+        "TotalTaxableAmount": "862.07",
+        "TotalTaxes": {
+            "TotalTax": [
+                {
+                    "Code": "ITBIS2",
+                    "TaxableAmount": "862.07",
+                    "Rate": "16.00",
+                    "Amount": "137.93"
+                }
+            ]
+        },
+        "TotalCharges": null,
+        "TotalDiscounts": null,
+        "GrandTotal": {
+            "InvoiceTotal": "1000.00"
+        }
+    },
+    "Payments": null,
+    "AdditionalDocumentInfo": {
+        "AdditionalInfo": [
+            {
+                "AditionalData": {
+                    "Data": [
+                        {
+                            "Info": [
+                                {
+                                    "Name": "NCFModificado",
+                                    "Data": null,
+                                    "Value": "E310000000001"
+                                },
+                                {
+                                    "Name": "FechaNCFModificado",
+                                    "Data": null,
+                                    "Value": "2023-08-28"
+                                },
+                                {
+                                    "Name": "CodigoModificacion",
+                                    "Data": null,
+                                    "Value": "3"
+                                },
+                                {
+                                    "Name": "RazonModificacion",
+                                    "Data": null,
+                                    "Value": "error en el monto de la factura"
+                                }
+                            ],
+                            "Name": "INFORMACION_REFERENCIA"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

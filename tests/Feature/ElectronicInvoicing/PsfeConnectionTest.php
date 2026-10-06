@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 
 /*
- * «Conecta tu proveedor autorizado»: conectar un PSFE con los datos de la cuenta y, si firma por la
+ * «Proveedores autorizados»: conectar un PSFE con los datos de la cuenta y, si firma por la
  * empresa, emitir sin subir certificado.
  *
  * Se prueba con el conector simulado (`sandbox`), el único del catálogo hasta tener el de un
@@ -98,9 +98,9 @@ it('con una clave buena conecta, cifra la clave y no la deja ni en la auditoría
 
     $ajustes = $this->ajustes->fresh();
     expect($ajustes->provider)->toBe('psfe')
-        ->and($ajustes->provider_config['psfe'])->toBe('sandbox')
-        ->and($ajustes->provider_config['credentials']['api_key'])->toBe('sandbox_secreto_123')
-        ->and($ajustes->provider_config['check_ok'])->toBeTrue();
+        ->and($ajustes->provider_config['connections'][0]['psfe'])->toBe('sandbox')
+        ->and($ajustes->provider_config['connections'][0]['credentials']['api_key'])->toBe('sandbox_secreto_123')
+        ->and($ajustes->provider_config['connections'][0]['check_ok'])->toBeTrue();
 
     // En la base de datos va cifrada; en la auditoría, ni cifrada.
     expect((string) DB::table('electronic_invoicing_settings')->where('id', $ajustes->id)->value('provider_config'))
@@ -110,8 +110,10 @@ it('con una clave buena conecta, cifra la clave y no la deja ni en la auditoría
     Event::assertDispatched(PsfeConnected::class, fn (PsfeConnected $e) => $e->psfe === 'sandbox' && $e->companyId === $this->company->id);
 
     $this->actingAs($this->duena)->get(route('panel.e-invoicing'))->assertOk()
-        ->assertSee('Conectado a Proveedor simulado (pruebas)')
-        ->assertSee('La hace tu proveedor')
+        ->assertSee('Proveedores autorizados')
+        ->assertSee('Proveedor simulado (pruebas)')
+        ->assertSee('Principal')
+        ->assertSee('la firma la hace tu proveedor principal')
         ->assertDontSee('sandbox_secreto_123');
 });
 
@@ -127,7 +129,7 @@ it('al reconectar, una clave vacía conserva la guardada', function (): void {
     ($this->conectar)('sandbox_original')->assertSessionHas('panel_ok');
     ($this->conectar)('')->assertSessionHas('panel_ok');
 
-    expect($this->ajustes->fresh()->provider_config['credentials']['api_key'])->toBe('sandbox_original');
+    expect($this->ajustes->fresh()->provider_config['connections'][0]['credentials']['api_key'])->toBe('sandbox_original');
 });
 
 it('el proveedor simulado no se puede conectar en producción', function (): void {
@@ -147,7 +149,8 @@ it('con un proveedor que firma, emite sin certificado de la empresa y guarda la 
 
     expect($ecf->status)->toBe(EcfStatus::Aceptado)
         ->and($ecf->security_code)->toHaveLength(6)
-        ->and($ecf->provider)->toBe('psfe')
+        // Con varios proveedores posibles, el documento recuerda cuál lo envió: las consultas van a él.
+        ->and($ecf->provider)->toBe('psfe:sandbox')
         ->and($ecf->files()->pluck('kind')->sort()->values()->all())->toBe(['firmado', 'original', 'rfce', 'rfce_firmado']);
 });
 
@@ -177,11 +180,13 @@ it('«Probar otra vez» apunta el fallo y el diagnóstico avisa', function (): v
 
     // La cuenta deja de aceptar la clave (la revocaron en el proveedor).
     $ajustes = $this->ajustes->fresh();
-    $ajustes->forceFill(['provider_config' => array_merge($ajustes->provider_config, ['credentials' => ['api_key' => 'revocada']])])->save();
+    $config = $ajustes->provider_config;
+    $config['connections'][0]['credentials'] = ['api_key' => 'revocada'];
+    $ajustes->forceFill(['provider_config' => $config])->save();
 
-    $this->actingAs($this->duena)->post(route('panel.e-invoicing.psfe.test'))->assertSessionHas('panel_error');
+    $this->actingAs($this->duena)->post(route('panel.e-invoicing.psfe.test', 'sandbox'))->assertSessionHas('panel_error');
 
-    expect($this->ajustes->fresh()->provider_config['check_ok'])->toBeFalse();
+    expect($this->ajustes->fresh()->provider_config['connections'][0]['check_ok'])->toBeFalse();
 
     $chequeos = collect(app(Diagnostics::class)->checks($this->company, probarAlmacenamiento: false))->keyBy('key');
     expect($chequeos['proveedor']['level'])->toBe(Diagnostics::AVISO);
@@ -191,7 +196,7 @@ it('desconectar borra la clave y apaga la emisión si ya no hay con qué firmar'
     app(PsfeConnectionService::class)->connect($this->company, 'sandbox', ['api_key' => 'sandbox_ok']);
     $this->ajustes->fresh()->forceFill(['emission_mode' => EmissionMode::Sombra->value])->save();
 
-    $this->actingAs($this->duena)->delete(route('panel.e-invoicing.psfe.disconnect'))
+    $this->actingAs($this->duena)->delete(route('panel.e-invoicing.psfe.disconnect', 'sandbox'))
         ->assertSessionHas('panel_ok', 'Proveedor desconectado. La emisión de e-CF quedó apagada: no hay con qué firmar.');
 
     $ajustes = $this->ajustes->fresh();

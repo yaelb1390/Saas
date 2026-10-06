@@ -1,13 +1,11 @@
 {{--
     Facturación Electrónica — los e-CF emitidos por la empresa, con su estado ante la DGII.
+    Diseño con daisyUI (clases `d-`, tema «bmia» limitado a este contenedor: ver app.css).
 --}}
-<x-layouts.admin title="Documentos electrónicos" heading="Documentos electrónicos"
+<x-layouts.admin :back="route('panel.e-invoicing')" :back-label="'Facturación Electrónica'"
+                 title="Documentos electrónicos" heading="Documentos electrónicos"
                  subheading="Los e-CF emitidos y su estado ante la DGII">
-    <div class="mx-auto max-w-6xl space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-            <a href="{{ route('panel.e-invoicing') }}" class="text-sm text-slate-500 hover:text-slate-700">← Facturación Electrónica</a>
-        </div>
-
+    <div data-theme="bmia" class="bmos-ecf mx-auto max-w-6xl space-y-4">
         <form method="GET" class="bmos-card bmos-card-pad flex flex-wrap items-end gap-2">
             <div class="min-w-0 flex-1">
                 <label class="bmos-field-label" for="doc-q">Buscar</label>
@@ -31,7 +29,10 @@
                     @endforeach
                 </select>
             </div>
-            <button type="submit" class="bmos-btn bmos-btn-ghost">Filtrar</button>
+            <button type="submit" class="d-btn d-btn-primary">Filtrar</button>
+            @if (request()->hasAny(['q', 'estado', 'tipo']))
+                <a href="{{ route('panel.e-invoicing.documents') }}" class="d-btn d-btn-ghost">Quitar filtros</a>
+            @endif
         </form>
 
         <div class="bmos-card overflow-hidden">
@@ -46,7 +47,7 @@
                     <tbody>
                         @forelse ($documentos ?? [] as $d)
                             <tr>
-                                <td data-rotulo="e-NCF" class="font-mono text-xs font-semibold text-slate-800">{{ $d->e_ncf }}</td>
+                                <td data-rotulo="e-NCF" class="font-mono text-xs font-semibold text-indigo-700">{{ $d->e_ncf }}</td>
                                 <td data-rotulo="Tipo">{{ $d->ecf_type->value }} · {{ $d->ecf_type->label() }}</td>
                                 <td data-rotulo="Cliente / proveedor">
                                     {{ $d->buyer_name ?: 'Consumidor final' }}
@@ -55,9 +56,9 @@
                                 <td data-rotulo="Fecha" class="text-slate-500">{{ $d->issue_date?->format('d/m/Y') }}</td>
                                 <td data-rotulo="Total" class="text-right font-semibold">{{ number_format((float) $d->total, 2) }}</td>
                                 <td data-rotulo="Ambiente" class="text-slate-500">{{ $d->environment->label() }}</td>
-                                <td data-rotulo="Estado"><span class="bmos-badge {{ $d->status->badge() }}">{{ $d->status->label() }}</span></td>
+                                <td data-rotulo="Estado"><x-panel.ecf-badge :tono="$d->status->badge()">{{ $d->status->label() }}</x-panel.ecf-badge></td>
                                 <td class="text-right">
-                                    <a href="{{ route('panel.e-invoicing.documents.show', $d) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700">Ver</a>
+                                    <a href="{{ route('panel.e-invoicing.documents.show', $d) }}" class="d-btn d-btn-xs d-btn-primary d-btn-soft">Ver</a>
                                 </td>
                             </tr>
                         @empty

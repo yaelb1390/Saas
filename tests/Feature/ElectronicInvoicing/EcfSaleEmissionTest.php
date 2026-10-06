@@ -444,7 +444,9 @@ it('el timbre de un consumo bajo el umbral apunta a consultatimbrefc con los dat
     $ecf = ElectronicInvoice::sole();
     $t = app(\App\Modules\Billing\Contracts\ElectronicInvoicingHook::class)->printedRepresentation($factura);
 
-    expect($t['url'])->toBe("https://fc.dgii.gov.do/ecf/consultatimbrefc?rncemisor=131000002&encf=E320000000001&montototal=236.00&codigoseguridad={$ecf->security_code}")
+    // El código de seguridad sale de la firma y puede traer «/» o «+»: en la URL va codificado
+    // (con un certificado aleatorio, una de cada seis veces más o menos; antes la prueba fallaba así).
+    expect($t['url'])->toBe('https://fc.dgii.gov.do/ecf/consultatimbrefc?rncemisor=131000002&encf=E320000000001&montototal=236.00&codigoseguridad='.rawurlencode((string) $ecf->security_code))
         ->and($t['tipo'])->toBe('Factura de Consumo Electrónica')
         ->and($t['codigo'])->toBe($ecf->security_code)
         ->and($t['fiscal'])->toBeTrue()

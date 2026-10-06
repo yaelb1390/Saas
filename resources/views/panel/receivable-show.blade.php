@@ -27,7 +27,8 @@
     };
 @endphp
 
-<x-layouts.admin :title="'Cuenta por cobrar '.$cuenta->code" heading="Cuentas por Cobrar">
+<x-layouts.admin :back="route('panel.receivables')" :back-label="'Cuentas por cobrar'"
+                 :title="'Cuenta por cobrar '.$cuenta->code" heading="Cuentas por Cobrar">
 
     <div x-data="{ editando: false, menu: false }">
         {{-- ── Cabecera: cambia de tono según el estado real (vencida pesa más que "pendiente") ── --}}

@@ -1,6 +1,6 @@
-<x-layouts.admin :title="$articulo->title" :heading="$articulo->title" subheading="Ayuda">
+<x-layouts.admin :back="route('panel.help')" :back-label="'Ayuda'"
+                 :title="$articulo->title" :heading="$articulo->title" subheading="Ayuda">
     <div class="mx-auto max-w-3xl">
-        <a href="{{ route('panel.help') }}" class="text-sm text-indigo-600 hover:underline">← Volver a la ayuda</a>
 
         <div class="mt-4 bmos-card bmos-card-pad">
             <div class="bmos-prose">{!! Str::markdown($articulo->body) !!}</div>

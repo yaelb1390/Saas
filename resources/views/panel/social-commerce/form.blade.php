@@ -9,14 +9,9 @@
     sigue siendo una sola página, no un asistente que se navega paso a paso. Los números 1/2/3 de
     ahí coinciden con los de las tarjetas de la derecha para que se lean como el mismo recorrido.
 --}}
-<x-layouts.admin :title="$rule ? 'Editar regla' : 'Nueva regla'" :heading="$rule ? 'Editar regla' : 'Nueva regla'"
+<x-layouts.admin :back="route('panel.social-commerce.index')" :back-label="'Social Commerce'"
+                 :title="$rule ? 'Editar regla' : 'Nueva regla'" :heading="$rule ? 'Editar regla' : 'Nueva regla'"
                  subheading="Palabra clave → producto → precio → plantilla" :wide="true">
-    <div class="mb-4 flex justify-end">
-        <a href="{{ route('panel.social-commerce.index') }}" class="text-sm text-indigo-600 hover:underline">
-            ← Volver a Social Commerce
-        </a>
-    </div>
-
     @if ($aviso)
         <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
             <p class="text-sm font-medium text-amber-900">{{ $aviso }}</p>

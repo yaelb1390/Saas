@@ -1,9 +1,7 @@
 @use('App\Modules\Loans\Enums\LoanStatus')
 
-<x-layouts.admin title="Préstamo {{ $loan->code }}" heading="Préstamo {{ $loan->code }}" :subheading="'Cliente: ' . ($loan->customer_name ?? $loan->customer?->name ?? '—')">
-    <div class="mb-4">
-        <a href="{{ route('panel.loans') }}" class="text-sm text-slate-500 hover:text-indigo-600">&larr; Volver a la cartera</a>
-    </div>
+<x-layouts.admin :back="route('panel.loans')" :back-label="'Cartera de préstamos'"
+                 title="Préstamo {{ $loan->code }}" heading="Préstamo {{ $loan->code }}" :subheading="'Cliente: ' . ($loan->customer_name ?? $loan->customer?->name ?? '—')">
 
     @if (session('loan_receipt_payment_id'))
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">

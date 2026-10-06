@@ -5,7 +5,8 @@
     $editando = isset($quote);
 @endphp
 
-<x-layouts.admin :title="$editando ? 'Editar '.$quote->code : 'Nueva cotización'"
+<x-layouts.admin :back="$editando ? route('panel.quotes.show', $quote) : route('panel.quotes.index')" :back-label="$editando ? 'Cotización '.$quote->code : 'Cotizaciones'"
+                 :title="$editando ? 'Editar '.$quote->code : 'Nueva cotización'"
                 :heading="$editando ? 'Editar '.$quote->code : 'Nueva cotización'"
                 subheading="Lo que ofrezcas aquí queda por escrito, con su fecha">
 

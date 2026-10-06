@@ -2,12 +2,10 @@
     Modo prueba: simula un comentario sin publicar nada ni tocar Zernio (prompt maestro, sección
     31). Es una aproximación local (ver KeywordMatcher) — la coincidencia real la decide Zernio.
 --}}
-<x-layouts.admin title="Probar una regla" heading="Probar una regla"
+<x-layouts.admin :back="route('panel.social-commerce.index')" :back-label="'Social Commerce'"
+                 title="Probar una regla" heading="Probar una regla"
                  subheading="Escribe un comentario como lo escribiría un seguidor, y mira qué pasaría">
     <div class="mx-auto max-w-2xl">
-        <a href="{{ route('panel.social-commerce.index') }}" class="mb-4 inline-block text-sm text-indigo-600 hover:underline">
-            ← Volver a Social Commerce
-        </a>
 
         @if ($reglas->isEmpty())
             <div class="bmos-card bmos-card-pad">

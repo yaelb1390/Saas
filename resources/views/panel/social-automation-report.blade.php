@@ -58,12 +58,10 @@
     ];
 @endphp
 
-<x-layouts.admin title="Reporte" :heading="$a['name']"
+<x-layouts.admin :back="route('panel.social.automations')" :back-label="'Respuestas automáticas'"
+                 title="Reporte" :heading="$a['name']"
                  subheading="A quién le ha contestado esta respuesta automática y qué se le escapó">
     <div class="mx-auto max-w-4xl">
-        <a href="{{ route('panel.social.automations') }}" class="mb-4 inline-block text-sm text-indigo-600 hover:underline">
-            ← Volver a las respuestas automáticas
-        </a>
 
         {{-- Las mismas cuatro cifras del listado, para no obligar a volver a mirarlas allí. --}}
         <div class="bmos-card bmos-card-pad bmos-marca mb-5" style="--tono: {{ $red?->color() ?? '#94a3b8' }}">

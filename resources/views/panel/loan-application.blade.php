@@ -7,7 +7,8 @@
     $peso = $application->pesoDeLaCuota();
 @endphp
 
-<x-layouts.admin title="Solicitud {{ $application->code }}"
+<x-layouts.admin :back="route('panel.loan-applications')" :back-label="'Solicitudes de préstamo'"
+                 title="Solicitud {{ $application->code }}"
                  heading="Solicitud {{ $application->code }}"
                  :subheading="'Cliente: ' . ($application->customer_name ?? $application->customer?->name ?? '—')">
     <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">

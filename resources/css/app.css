@@ -18,6 +18,62 @@
 }
 
 /*
+ * daisyUI 5, solo para las pantallas de Facturación electrónica.
+ *
+ * Encerrado a propósito para que el resto del panel no cambie ni un píxel:
+ *   - prefijo `d-`: sus clases (`d-btn`, `d-tabs`…) no chocan con las nuestras ni con las de Tailwind;
+ *   - `themes: false` + tema «bmia» sin `default`: sus variables de color solo existen dentro de
+ *     `data-theme="bmia"`, que llevan únicamente esas vistas;
+ *   - fuera los estilos de raíz: `rootcolor` pintaría de fondo cualquier `[data-theme]`, y los de
+ *     scroll y barra de desplazamiento tocarían la página entera.
+ * Comprobado comparando el CSS compilado antes y después.
+ */
+@plugin "daisyui" {
+    themes: false;
+    prefix: "d-";
+    logs: false;
+    exclude: rootcolor, rootscrollgutter, rootscrolllock, scrollbar;
+}
+
+/* Los colores de marca del panel (ver :root más abajo), con los radios de `.bmos-card`. */
+@plugin "daisyui/theme" {
+    name: "bmia";
+    default: false;
+    prefersdark: false;
+    color-scheme: light;
+
+    --color-base-100: #ffffff;
+    --color-base-200: #f5f7fb;
+    --color-base-300: #e2e6f0;
+    --color-base-content: #1e2230;
+    --color-primary: #4f46e5;
+    --color-primary-content: #ffffff;
+    --color-secondary: #0ea5e9;
+    --color-secondary-content: #ffffff;
+    --color-accent: #8b5cf6;
+    --color-accent-content: #ffffff;
+    --color-neutral: #1e2230;
+    --color-neutral-content: #ffffff;
+    --color-info: #0284c7;
+    --color-info-content: #ffffff;
+    --color-success: #059669;
+    --color-success-content: #ffffff;
+    --color-warning: #d97706;
+    --color-warning-content: #ffffff;
+    --color-error: #e11d48;
+    --color-error-content: #ffffff;
+
+    --radius-selector: 0.5rem;
+    --radius-field: 0.5rem;
+    --radius-box: 0.9rem;
+    --size-selector: 0.25rem;
+    --size-field: 0.25rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+}
+
+/*
  * Lo que Alpine va a ocultar, oculto DESDE EL PRIMER PIXEL.
  *
  * Esta regla vivía como <style> en la última línea del <body> de cada plantilla, y ahí llega tarde:
@@ -364,6 +420,56 @@ body {
     color: var(--bmos-muted);
     font-size: 0.9rem;
     margin-top: 0.15rem;
+}
+
+/*
+ * «Volver» de las pantallas secundarias, encima del título (lo pinta el layout con `back`).
+ * Píldora blanca con la flecha en un círculo de marca: tiene que verse como un botón y no como una
+ * línea de texto gris, que era lo que pasaba antes y por eso nadie lo encontraba. Alto mínimo de
+ * 40px para el dedo en móvil.
+ */
+.bmos-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 2.5rem;
+    margin-bottom: 0.85rem;
+    padding: 0.3rem 0.95rem 0.3rem 0.35rem;
+    border: 1px solid var(--bmos-border);
+    border-radius: 999px;
+    background: var(--bmos-surface);
+    color: var(--bmos-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(15, 18, 32, 0.06);
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.bmos-back:hover {
+    background: #eef0ff;
+    border-color: #c7cbfb;
+    color: var(--bmos-primary-600);
+}
+
+.bmos-back:focus-visible {
+    outline: 2px solid var(--bmos-primary);
+    outline-offset: 2px;
+}
+
+.bmos-back-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: var(--bmos-primary);
+    color: #fff;
+    transition: transform 0.15s ease;
+}
+
+.bmos-back:hover .bmos-back-icono {
+    transform: translateX(-2px);
 }
 
 /* ---------- Cards ---------- */

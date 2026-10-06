@@ -1,7 +1,7 @@
-<x-layouts.admin title="Alquiler {{ $rental->code }}" heading="Alquiler {{ $rental->code }}" subheading="{{ $rental->vehicle?->nombre() }} — {{ $rental->customer?->name }}">
+<x-layouts.admin :back="route('panel.rentals')" :back-label="'Alquiler'"
+                 title="Alquiler {{ $rental->code }}" heading="Alquiler {{ $rental->code }}" subheading="{{ $rental->vehicle?->nombre() }} — {{ $rental->customer?->name }}">
     <div class="space-y-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <a href="{{ route('panel.rentals') }}" class="text-sm text-indigo-600 hover:underline">&larr; Volver a Alquiler</a>
+        <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="flex items-center gap-2">
                 <a href="{{ route('panel.rentals.contract', $rental) }}" target="_blank" class="bmos-btn bmos-btn-ghost">
                     <x-icono name="doc" class="h-4 w-4" />

@@ -27,7 +27,8 @@
     };
 @endphp
 
-<x-layouts.admin :title="'Cuenta por pagar '.$cuenta->code" heading="Cuentas por Pagar">
+<x-layouts.admin :back="route('panel.payables')" :back-label="'Cuentas por pagar'"
+                 :title="'Cuenta por pagar '.$cuenta->code" heading="Cuentas por Pagar">
 
     <div x-data="{ editando: false, menu: false }">
         <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border {{ $bannerBorde }} {{ $bannerBg }} px-5 py-4">

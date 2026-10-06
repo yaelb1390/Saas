@@ -1,8 +1,7 @@
-<x-layouts.admin title="Calendario de alquiler" heading="Calendario de alquiler" subheading="Reservas, alquileres activos y mantenimiento programado">
+<x-layouts.admin :back="route('panel.rentals')" :back-label="'Alquiler'"
+                 title="Calendario de alquiler" heading="Calendario de alquiler" subheading="Reservas, alquileres activos y mantenimiento programado">
     <div x-data="calendarioAlquiler()" x-init="init()" class="relative">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <a href="{{ route('panel.rentals') }}" class="text-sm text-indigo-600 hover:underline">&larr; Volver a Alquiler</a>
-
             <div class="flex flex-wrap items-center gap-2">
                 <div class="relative">
                     <input type="search" x-model="search" @input.debounce.400ms="recargar()"

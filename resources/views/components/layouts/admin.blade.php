@@ -332,6 +332,15 @@
              del panel conserva el ancho máximo de lectura, que es lo cómodo para tablas y formularios. --}}
         <main class="bmos-content {{ ($wide ?? false) ? 'bmos-content--wide' : '' }}">
             <div class="mb-6">
+                {{-- «Volver» de las pantallas secundarias (fichas, formularios, subsecciones): se pide con
+                     `back` (URL) y `back-label` (a dónde). Antes cada vista escribía el suyo a mano, en
+                     cinco estilos distintos, y varias fichas no tenían ninguno. --}}
+                @isset($back)
+                    <a href="{{ $back }}" class="bmos-back">
+                        <span class="bmos-back-icono"><x-icono name="atras" class="h-3.5 w-3.5" stroke-width="2.4" /></span>
+                        {{ $backLabel ?? 'Volver' }}
+                    </a>
+                @endisset
                 <h1 class="bmos-page-title">{{ $heading ?? ($title ?? 'Dashboard') }}</h1>
                 @isset($subheading)
                     <p class="bmos-page-sub">{{ $subheading }}</p>

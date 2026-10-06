@@ -1,8 +1,6 @@
-<x-layouts.admin title="Reportes de alquiler" heading="Reportes de alquiler" subheading="Ingresos, utilización y los vehículos que más rinden">
+<x-layouts.admin :back="route('panel.rentals')" :back-label="'Alquiler'"
+                 title="Reportes de alquiler" heading="Reportes de alquiler" subheading="Ingresos, utilización y los vehículos que más rinden">
     <div class="space-y-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <a href="{{ route('panel.rentals') }}" class="text-sm text-indigo-600 hover:underline">&larr; Volver a Alquiler</a>
-        </div>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div class="bmos-stat">

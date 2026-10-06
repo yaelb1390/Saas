@@ -29,7 +29,8 @@
     };
 @endphp
 
-<x-layouts.admin :title="'Cotización '.$quote->code" :heading="'Cotización '.$quote->code"
+<x-layouts.admin :back="route('panel.quotes.index')" :back-label="'Cotizaciones'"
+                 :title="'Cotización '.$quote->code" :heading="'Cotización '.$quote->code"
                  :subheading="'Para '.$quote->customer_name">
 
     {{-- El estado, arriba del todo y en una línea: es lo primero que se viene a saber. --}}

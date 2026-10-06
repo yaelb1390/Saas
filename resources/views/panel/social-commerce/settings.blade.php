@@ -5,12 +5,10 @@
     permiso propio: se puede tener Social Commerce sin tener contratado `social`) y el número de
     WhatsApp al que enlazan las plantillas con {url_whatsapp}.
 --}}
-<x-layouts.admin title="Ajustes de Social Commerce" heading="Ajustes de Social Commerce"
+<x-layouts.admin :back="route('panel.social-commerce.index')" :back-label="'Social Commerce'"
+                 title="Ajustes de Social Commerce" heading="Ajustes de Social Commerce"
                  subheading="Conecta tu cuenta y el WhatsApp al que se enlazan tus respuestas">
     <div class="mx-auto max-w-2xl">
-        <a href="{{ route('panel.social-commerce.index') }}" class="mb-4 inline-block text-sm text-indigo-600 hover:underline">
-            ← Volver a Social Commerce
-        </a>
 
         @if ($aviso)
             <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">

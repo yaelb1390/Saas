@@ -2,11 +2,11 @@
     Números de Social Commerce. Ver DashboardController por qué «Instagram → WhatsApp» no está: el
     enlace wa.me no pasa por nuestro servidor, así que un clic ahí no deja rastro que se pueda contar.
 --}}
-<x-layouts.admin title="Social Commerce · Dashboard" heading="Social Commerce"
+<x-layouts.admin :back="route('panel.social-commerce.index')" :back-label="'Social Commerce'"
+                 title="Social Commerce · Dashboard" heading="Social Commerce"
                  subheading="Lo que han hecho tus reglas desde que las encendiste">
     <div class="mx-auto max-w-4xl">
         <div class="mb-5 flex flex-wrap gap-4">
-            <a href="{{ route('panel.social-commerce.index') }}" class="text-sm text-indigo-600 hover:underline">← Reglas</a>
             <a href="{{ route('panel.social-commerce.conversations.index') }}" class="text-sm text-indigo-600 hover:underline">Conversaciones</a>
         </div>
 

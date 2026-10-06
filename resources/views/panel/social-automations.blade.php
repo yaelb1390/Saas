@@ -8,12 +8,10 @@
     debía y un enlace equivocado se manda cientos de veces antes de que alguien lo note. De ahí que la
     pantalla insista en tres cosas: qué palabra dispara, a quién le va a llegar, y qué lleva hecho.
 --}}
-<x-layouts.admin title="Respuestas automáticas" heading="Respuestas automáticas"
+<x-layouts.admin :back="route('panel.social')" :back-label="'Redes sociales'"
+                 title="Respuestas automáticas" heading="Respuestas automáticas"
                  subheading="Cuando alguien comenta una palabra, el sistema le contesta y le escribe">
     <div class="mx-auto max-w-4xl">
-        <a href="{{ route('panel.social') }}" class="mb-4 inline-block text-sm text-indigo-600 hover:underline">
-            ← Volver a Redes sociales
-        </a>
 
         @if ($aviso)
             <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">

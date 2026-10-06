@@ -2,12 +2,10 @@
     Las conversaciones de Instagram que el webhook fue guardando. Es el lado CRM de Social
     Commerce: de aquí se enlaza con un cliente y se abre una oportunidad (auditoría, sección 12-13).
 --}}
-<x-layouts.admin title="Conversaciones" heading="Conversaciones"
+<x-layouts.admin :back="route('panel.social-commerce.index')" :back-label="'Social Commerce'"
+                 title="Conversaciones" heading="Conversaciones"
                  subheading="Quién te ha escrito por Instagram desde que activaste Social Commerce">
     <div class="mx-auto max-w-4xl">
-        <a href="{{ route('panel.social-commerce.index') }}" class="mb-4 inline-block text-sm text-indigo-600 hover:underline">
-            ← Volver a Social Commerce
-        </a>
 
         @forelse ($conversations as $conversation)
             @php $identidad = $conversation->contactIdentity; @endphp

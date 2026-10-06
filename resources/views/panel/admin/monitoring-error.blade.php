@@ -20,15 +20,10 @@
     };
 @endphp
 
-<x-layouts.admin title="{{ class_basename($error->class) }}"
+<x-layouts.admin :back="route('platform.monitoring', ['pestana' => 'errores'])" :back-label="'Errores'"
+                 title="{{ class_basename($error->class) }}"
                  heading="{{ class_basename($error->class) }}"
                  subheading="{{ Str::limit($error->message, 140) }}">
-    <div class="mb-4">
-        <a href="{{ route('platform.monitoring', ['pestana' => 'errores']) }}" class="text-xs font-medium text-slate-400 hover:text-slate-600">
-            ‹ Volver a Errores
-        </a>
-    </div>
-
     <div class="space-y-4">
         <x-panel.estado :tono="$tono" :titulo="$titulo"
             :nota="'Visto por primera vez '.$error->first_seen_at?->format('d/m/Y H:i').' · la última vez '.$error->last_seen_at?->diffForHumans()">

@@ -22,14 +22,9 @@
     $duracion = $incidente->duracion();
 @endphp
 
-<x-layouts.admin title="{{ $incidente->code }}" heading="{{ $incidente->code }}"
+<x-layouts.admin :back="route('platform.monitoring', ['pestana' => 'incidentes'])" :back-label="'Incidentes'"
+                 title="{{ $incidente->code }}" heading="{{ $incidente->code }}"
                  subheading="{{ Str::limit($incidente->title, 140) }}">
-    <div class="mb-4">
-        <a href="{{ route('platform.monitoring', ['pestana' => 'incidentes']) }}" class="text-xs font-medium text-slate-400 hover:text-slate-600">
-            ‹ Volver a Incidentes
-        </a>
-    </div>
-
     <div class="space-y-4">
         <x-panel.estado :tono="$tono" :titulo="$titulo"
             :nota="'Empezó '.$incidente->started_at?->format('d/m/Y H:i').' · detectado por última vez '.$incidente->last_detected_at?->diffForHumans()

@@ -12,10 +12,8 @@
     Tarjetas apiladas y no pestañas: no hay componente de pestañas en la casa, y siete secciones no
     justifican inventarlo.
 --}}
-<x-layouts.admin title="{{ $customer->name }}" heading="{{ $customer->name }}" subheading="Ficha del cliente">
-    <div class="mb-4">
-        <a href="{{ route('panel.customers') }}" class="text-sm text-slate-500 hover:text-indigo-600">&larr; Volver al CRM</a>
-    </div>
+<x-layouts.admin :back="route('panel.customers')" :back-label="'CRM'"
+                 title="{{ $customer->name }}" heading="{{ $customer->name }}" subheading="Ficha del cliente">
 
     {{-- Las cuatro cifras que responden a «¿quién es este y qué me debe?», que es la pregunta por la
          que se abre esta pantalla.

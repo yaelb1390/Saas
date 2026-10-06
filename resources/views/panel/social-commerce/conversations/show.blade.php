@@ -1,11 +1,9 @@
 @php $identidad = $conversation->contactIdentity; @endphp
 
-<x-layouts.admin title="Conversación" :heading="$identidad->display_name ?: '@'.$identidad->external_username"
+<x-layouts.admin :back="route('panel.social-commerce.conversations.index')" :back-label="'Conversaciones'"
+                 title="Conversación" :heading="$identidad->display_name ?: '@'.$identidad->external_username"
                  subheading="Conversación de Instagram">
     <div class="mx-auto max-w-3xl">
-        <a href="{{ route('panel.social-commerce.conversations.index') }}" class="mb-4 inline-block text-sm text-indigo-600 hover:underline">
-            ← Volver a Conversaciones
-        </a>
 
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
             {{-- Línea del tiempo --}}

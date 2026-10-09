@@ -244,7 +244,7 @@ return [
             // llegarán a este correo (ideal: el del operador). Ajústalo con BACKUP_NOTIFICATION_EMAIL.
             // Se usa «?:» (no el 2º argumento de env) a propósito: una variable definida pero VACÍA
             // devuelve "" y rompería el envío con «no es un correo válido».
-            'to' => env('BACKUP_NOTIFICATION_EMAIL') ?: (env('PLATFORM_SUPPORT_EMAIL') ?: 'soporte@bmbusiness.os'),
+            'to' => env('BACKUP_NOTIFICATION_EMAIL') ?: (env('PLATFORM_SUPPORT_EMAIL') ?: 'soporte@bm1390.cloud'),
 
             'from' => [
                 'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),

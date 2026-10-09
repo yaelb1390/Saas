@@ -204,6 +204,119 @@
             color: rgba(255, 255, 255, 0.4);
         }
 
+        /* Pagar y seguir: lo primero que se ofrece cuando la cuenta se paró por falta de pago. */
+        .pay-block {
+            background: linear-gradient(180deg, #EEF2FF 0%, #F5F3FF 100%);
+            border: 1px solid #C7D2FE;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .pay-kicker {
+            font-size: 12px;
+            font-weight: 700;
+            color: #4338CA;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .pay-plan {
+            margin-top: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .pay-price {
+            margin-top: 2px;
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .pay-price small {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .btn-pay {
+            width: 100%;
+            margin-top: 16px;
+            padding: 14px 18px;
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 10px;
+            background-color: var(--btn-mail);
+            box-shadow: 0 10px 20px -8px rgba(79, 70, 229, 0.6);
+        }
+
+        .btn-pay:hover {
+            background-color: var(--btn-mail-hover);
+        }
+
+        .pay-note {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .pay-link {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4338CA;
+            text-decoration: none;
+        }
+
+        .pay-link:hover {
+            text-decoration: underline;
+        }
+
+        .help-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        /* Con el pago a la vista, el contacto pasa a segundo plano: mismo color, versión suave, para
+           que el botón de pago sea lo único que destaca. */
+        .actions-secundarias .btn-whatsapp {
+            background-color: #ECFDF5;
+            color: #047857;
+            border: 1px solid #A7F3D0;
+        }
+
+        .actions-secundarias .btn-whatsapp:hover {
+            background-color: #D1FAE5;
+        }
+
+        .actions-secundarias .btn-email {
+            background-color: #EEF2FF;
+            color: #4338CA;
+            border: 1px solid #C7D2FE;
+        }
+
+        .actions-secundarias .btn-email:hover {
+            background-color: #E0E7FF;
+        }
+
+        .alert-error {
+            background: #FEF2F2;
+            border: 1px solid #FECACA;
+            color: #B91C1C;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
         @media (max-width: 480px) {
             .auth-card {
                 padding: 32px 20px;
@@ -237,11 +350,57 @@
 
         <h1 class="title">Tu cuenta está suspendida</h1>
 
+        {{-- El motivo real, no siempre «falta de pago»: si lo suspendió el operador, pagar no es la salida. --}}
         <p class="description">
-            {{ $reason }} El acceso a <strong>{{ $company?->name ?? 'tu empresa' }}</strong> quedó suspendido por falta de pago. Para reactivarlo, comunícate con el administrador de la plataforma.
+            @switch($motivo)
+                @case('pago')
+                    El plan de <strong>{{ $company?->name ?? 'tu empresa' }}</strong> venció y el acceso quedó en pausa por falta de pago.
+                    @if ($puedePagar)
+                        Renuévalo ahora y sigue trabajando donde lo dejaste: tus datos están intactos.
+                    @elseif ($pagoPendienteDeOtro)
+                        Pídele al propietario de la cuenta que renueve el plan para volver a entrar.
+                    @else
+                        Para reactivarlo, comunícate con el administrador de la plataforma.
+                    @endif
+                    @break
+                @case('operador')
+                    El acceso a <strong>{{ $company?->name ?? 'tu empresa' }}</strong> fue suspendido por el administrador de la plataforma. Comunícate con él para reactivarlo.
+                    @break
+                @default
+                    La cuenta de <strong>{{ $company?->name ?? 'tu empresa' }}</strong> está desactivada. Comunícate con el administrador de la plataforma para reactivarla.
+            @endswitch
         </p>
 
-        <div class="actions">
+        {{-- Si Polar no pudo abrir el cobro, el error vuelve aquí. --}}
+        @if (session('panel_error'))
+            <div class="alert-error" role="alert">{{ session('panel_error') }}</div>
+        @endif
+
+        @if ($puedePagar)
+            {{-- Formulario normal, sin JavaScript: esta página no carga el de la aplicación. El cobro se
+                 abre en Polar y, al confirmarse el pago, la cuenta se reactiva sola. --}}
+            <div class="pay-block">
+                <span class="pay-kicker">¿Quieres seguir?</span>
+                <p class="pay-plan">Plan {{ $plan->name }}</p>
+                <p class="pay-price">
+                    RD$ {{ number_format((float) $plan->price, 2) }}
+                    <small>/ {{ mb_strtolower($plan->billing_cycle->label()) }}</small>
+                </p>
+                <form method="POST" action="{{ route('panel.account.checkout', $plan) }}">
+                    @csrf
+                    <button type="submit" class="btn btn-pay">
+                        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/></svg>
+                        Pagar y reactivar
+                    </button>
+                </form>
+                <p class="pay-note">Pago seguro con tarjeta. Tu cuenta se reactiva en cuanto se confirma el pago.</p>
+                <a href="{{ route('plans.public') }}" class="pay-link">Ver otros planes</a>
+            </div>
+
+            <p class="help-label">¿Necesitas ayuda?</p>
+        @endif
+
+        <div class="actions {{ $puedePagar ? 'actions-secundarias' : '' }}">
             <a href="https://wa.me/{{ $waDigits }}?text={{ $waText }}" target="_blank" rel="noopener" class="btn btn-whatsapp">
                 <svg viewBox="0 0 24 24">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>

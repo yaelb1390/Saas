@@ -1,0 +1,13 @@
+# Despliegue por consola (alternativa al panel): `npx wrangler login` y `npx wrangler deploy` desde esta
+# carpeta. Antes, crear el KV (`npx wrangler kv namespace create AUTORESPUESTAS`) y poner su id abajo.
+name = "soporte-autorespuesta"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# El Gmail al que se reenvía soporte@ (el mismo destino verificado que usa hoy Email Routing).
+DESTINO = "CAMBIAR-POR-EL-GMAIL-DESTINO@gmail.com"
+
+[[kv_namespaces]]
+binding = "AUTORESPUESTAS"
+id = "CAMBIAR-POR-EL-ID-DEL-KV"

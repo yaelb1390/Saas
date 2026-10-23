@@ -10,6 +10,7 @@ use App\Modules\Core\Mail\SubscriptionCardExpiringMail;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionEndedMail;
 use App\Modules\Core\Mail\SubscriptionEndingSoonMail;
+use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\SubscriptionPaymentFailedMail;
 use App\Modules\Core\Mail\SubscriptionRenewalNoticeMail;
 use App\Modules\Core\Mail\SubscriptionResumedMail;
@@ -42,6 +43,7 @@ final class MailTestService
             'baja' => ['Baja de suscripción', '«Cancelaste tu suscripción · Sigues con acceso hasta…»'],
             'reactivacion' => ['Reactivación', '«Tu suscripción sigue activa»'],
             'recibo' => ['Recibo de pago', '«Suscripción confirmada · Plan …»'],
+            'por_vencer' => ['Suscripción por vencer (pago manual)', '«Tu suscripción vence en 5 días»'],
             'aviso_renovacion' => ['Aviso de renovación', '«Tu suscripción se renovará el …»'],
             'pago_fallido' => ['Cobro fallido', '«No pudimos cobrar tu suscripción · Actualiza tu tarjeta»'],
             'terminada' => ['Suscripción terminada', '«Tu suscripción ha terminado · Tus datos siguen guardados»'],
@@ -82,6 +84,12 @@ final class MailTestService
                 billingCycleLabel: 'Mensual', renewsAt: $renews,
                 moduleLabels: ['Punto de Venta', 'Inventario', 'Ventas', 'CRM'],
                 loginUrl: route('login'), supportWhatsapp: $whatsapp, supportEmail: $support,
+            ),
+            // El que manda el cron a los planes de cobro manual: el único con el botón al login.
+            'por_vencer' => new SubscriptionExpiringMail(
+                ownerName: $operatorName, companyName: $company, planName: 'Básico',
+                renewsAt: now()->addDays(5), daysLeft: 5, loginUrl: route('login'),
+                supportWhatsapp: $whatsapp, supportEmail: $support,
             ),
             'aviso_renovacion' => new SubscriptionRenewalNoticeMail(
                 ownerName: $operatorName, companyName: $company, planName: 'Pro', planPrice: '1500',

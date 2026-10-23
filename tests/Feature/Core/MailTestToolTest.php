@@ -9,6 +9,7 @@ use App\Modules\Core\Mail\SubscriptionCardExpiringMail;
 use App\Modules\Core\Mail\SubscriptionConfirmedMail;
 use App\Modules\Core\Mail\SubscriptionEndedMail;
 use App\Modules\Core\Mail\SubscriptionEndingSoonMail;
+use App\Modules\Core\Mail\SubscriptionExpiringMail;
 use App\Modules\Core\Mail\SubscriptionPaymentFailedMail;
 use App\Modules\Core\Mail\SubscriptionRenewalNoticeMail;
 use App\Modules\Core\Mail\SubscriptionResumedMail;
@@ -93,6 +94,7 @@ it('la pantalla dice con qué remitente y con qué envío se manda', function ()
         ->assertSee('Baja de suscripción')
         ->assertSee('Reactivación')
         ->assertSee('Recibo de pago')
+        ->assertSee('Suscripción por vencer')
         ->assertSee('Aviso de renovación')
         ->assertSee('Cobro fallido')
         ->assertSee('Suscripción terminada')
@@ -141,6 +143,7 @@ it('manda cada uno de los correos que reciben los clientes', function (string $p
         'baja' => SubscriptionCancelledMail::class,
         'reactivacion' => SubscriptionResumedMail::class,
         'recibo' => SubscriptionConfirmedMail::class,
+        'por_vencer' => SubscriptionExpiringMail::class,
         'aviso_renovacion' => SubscriptionRenewalNoticeMail::class,
         'pago_fallido' => SubscriptionPaymentFailedMail::class,
         'terminada' => SubscriptionEndedMail::class,
@@ -152,7 +155,7 @@ it('manda cada uno de los correos que reciben los clientes', function (string $p
     // lo manda con `sendNow`. En producción no hay worker de colas, y uno encolado no lo recogería nadie.
     Mail::assertSent($clase, fn ($correo): bool => $correo->hasTo('prueba@ejemplo.test'));
     Mail::assertNothingQueued();
-})->with(['baja', 'reactivacion', 'recibo', 'aviso_renovacion', 'pago_fallido', 'terminada', 'termina_pronto', 'tarjeta_por_vencer']);
+})->with(['baja', 'reactivacion', 'recibo', 'por_vencer', 'aviso_renovacion', 'pago_fallido', 'terminada', 'termina_pronto', 'tarjeta_por_vencer']);
 
 it('sin la cabecera «Responder a» la quita de la baja y de la reactivación', function (string $plantilla, string $clase): void {
     $this->actingAs($this->super)->post(route('platform.mail-test.send'), [
